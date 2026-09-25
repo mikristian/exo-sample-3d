@@ -3,7 +3,7 @@
   "name": "Foundation Tee",
   "version": 21,
   "revision": 1,
-  "updatedAt": "2026-09-25T05:51:47.195Z",
+  "updatedAt": "2000-01-01T00:00:00.000Z",
   "units": "cm",
   "pieces": [
     {
@@ -92,6 +92,7 @@
         "flip": false,
         "wrap": "front"
       },
+      "fitShoulderTacks": false,
       "simulationResolution": 2,
       "grainAngleDeg": 0,
       "notches": [
@@ -233,6 +234,7 @@
         "flip": false,
         "wrap": "back"
       },
+      "fitShoulderTacks": false,
       "simulationResolution": 2,
       "grainAngleDeg": 0,
       "notches": [
@@ -350,6 +352,7 @@
         "flip": false,
         "wrap": "left-arm"
       },
+      "fitSleeveApexTack": false,
       "simulationResolution": 2,
       "grainAngleDeg": 0,
       "notches": [
@@ -449,6 +452,7 @@
         "flip": false,
         "wrap": "right-arm"
       },
+      "fitSleeveApexTack": false,
       "simulationResolution": 2,
       "grainAngleDeg": 0,
       "notches": [
@@ -725,6 +729,8 @@
   },
   "simulation": {
     "backendId": "browser-pbd",
+    "nativeClothModel": "distance",
+    "nativeBendingModel": "distance",
     "gravity": 9.81,
     "stiffness": 0.92,
     "seamStiffness": 0.96,

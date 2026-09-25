@@ -41,6 +41,7 @@ import { buildMeasurementSizeRun, buildTechPack, measurementRunToCSV } from './c
 import { buildFactoryPackageZip } from './core/factoryPackage.js'
 import { listSimulationBackends } from './core/backends/registry.js'
 import { garmentCodeToProject, projectToGarmentCode } from './core/garmentCode.js'
+import { getNativeServiceHealth } from './core/backends/nativeServiceClient.js'
 
 const STORAGE_KEY = 'garment-studio-project-v1'
 const MAX_HISTORY = 60
@@ -68,6 +69,8 @@ function loadProject() {
         parsed.simulation = {
           ...parsed.simulation,
           backendId: parsed.simulation?.backendId || 'browser-pbd',
+          nativeClothModel: parsed.simulation?.nativeClothModel || 'distance',
+          nativeBendingModel: parsed.simulation?.nativeBendingModel || 'distance',
           autoFitTacks: parsed.simulation?.autoFitTacks !== false,
           substeps: Math.max(1, Math.min(4, Math.round(parsed.simulation?.substeps ?? 2))),
           resolution: Math.min(1, parsed.simulation?.resolution ?? 1),
@@ -571,13 +574,17 @@ export default function App() {
   const [meshExportSignal, setMeshExportSignal] = useState(0)
   const [glbExportSignal, setGlbExportSignal] = useState(0)
   const [renderSignal, setRenderSignal] = useState(0)
+  const [nativeSolveSignal, setNativeSolveSignal] = useState(0)
+  const [nativeServiceStatus, setNativeServiceStatus] = useState('checking')
+  const [nativeSolveStatus, setNativeSolveStatus] = useState('idle')
+  const [nativeLastSolve, setNativeLastSolve] = useState(null)
   const [hdriUrl, setHdriUrl] = useState('')
   const [hdriName, setHdriName] = useState('')
   const [resetSignal, setResetSignal] = useState(0)
   const [undoStack, setUndoStack] = useState([])
   const [redoStack, setRedoStack] = useState([])
   const [saveState, setSaveState] = useState('saved')
-  const [stats, setStats] = useState({ vertices: 0, constraints: 0, seams: 0, fasteners: 0, treatments: 0, trims: 0, anchors: 0, manualPins: 0, internal: 0, elapsed: 0, averageStrain: 0, maxStrain: 0, averageEaseCm: 0, averagePressureIndex: 0, maxPressureIndex: 0, contactRatio: 0, tightRatio: 0, looseRatio: 0 })
+  const [stats, setStats] = useState({ vertices: 0, constraints: 0, seams: 0, fasteners: 0, treatments: 0, trims: 0, anchors: 0, manualPins: 0, internal: 0, elapsed: 0, averageStrain: 0, maxStrain: 0, averageEaseCm: 0, averagePressureIndex: 0, maxPressureIndex: 0, contactRatio: 0, tightRatio: 0, looseRatio: 0, backendId: 'browser-pbd', backendFrame: 0, backendElapsedMs: 0, backendError: null })
   const [command, setCommand] = useState('')
   const [commandResult, setCommandResult] = useState('Ready for garment commands')
   const [transformDraft, setTransformDraft] = useState({ scaleX: 100, scaleY: 100, rotateDeg: 0, slashCm: 4 })
@@ -587,6 +594,14 @@ export default function App() {
   const fabricNormalInputRef = useRef(null)
   const fabricRoughnessInputRef = useRef(null)
   const hdriInputRef = useRef(null)
+
+  useEffect(() => {
+    let active = true
+    getNativeServiceHealth()
+      .then((health) => { if (active) setNativeServiceStatus(health?.ok ? 'ready' : 'offline') })
+      .catch(() => { if (active) setNativeServiceStatus('offline') })
+    return () => { active = false }
+  }, [])
 
   const applyGarmentTemplate = (templateId) => {
     const next = createTemplateProject(templateId)
@@ -2566,6 +2581,43 @@ export default function App() {
     setCommandResult('3D garment returned to its arrangement state')
   }
 
+  const requestNativeSolve = async () => {
+    setRunning(false)
+    setAnalysisMode('surface')
+    setNativeSolveStatus('checking')
+    try {
+      const health = await getNativeServiceHealth()
+      if (!health?.ok) throw new Error('Native solver service is unavailable')
+      setNativeServiceStatus('ready')
+      setNativeSolveStatus('solving')
+      setCommandResult('Native XPBD is solving the current garment…')
+      setNativeSolveSignal((signal) => signal + 1)
+    } catch (error) {
+      setNativeServiceStatus('offline')
+      setNativeSolveStatus('error')
+      setCommandResult(`Native solver unavailable: ${error.message}`)
+    }
+  }
+
+  const handleNativeSolve = (event) => {
+    if (event.status === 'solving') {
+      setNativeSolveStatus('solving')
+      return
+    }
+    if (event.status === 'done') {
+      setNativeSolveStatus('done')
+      setNativeLastSolve({ elapsedMs: Number(event.elapsedMs || 0), stats: event.stats || {} })
+      const milliseconds = Number(event.elapsedMs || 0).toFixed(1)
+      const seamMm = Number((event.stats?.seamAverageDistance || 0) * 1000).toFixed(1)
+      setCommandResult(`Native XPBD solved in ${milliseconds} ms · ${event.stats?.particles || 0} particles · average seam distance ${seamMm} mm`)
+      return
+    }
+    if (event.status === 'error') {
+      setNativeSolveStatus('error')
+      setCommandResult(`Native XPBD solve failed: ${event.error}`)
+    }
+  }
+
   const exportProject = () => {
     const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -2884,6 +2936,9 @@ export default function App() {
             wireframe={wireframe}
             analysisMode={analysisMode}
             backendId={displayProject.simulation?.backendId || 'browser-pbd'}
+            nativeSolveSignal={nativeSolveSignal}
+            nativeClothModel={displayProject.simulation?.nativeClothModel || 'distance'}
+            nativeBendingModel={displayProject.simulation?.nativeBendingModel || 'distance'}
             exportSignal={meshExportSignal}
             glbExportSignal={glbExportSignal}
             renderSignal={renderSignal}
@@ -2892,6 +2947,7 @@ export default function App() {
             onExportGlb={downloadGlb}
             onRenderStill={downloadRenderStill}
             onStats={setStats}
+            onNativeSolve={handleNativeSolve}
           />
         </section>
 
@@ -3410,6 +3466,9 @@ export default function App() {
                   <button className={analysisMode === 'ease' ? 'active' : ''} onClick={() => setAnalysisMode('ease')}>EASE</button>
                 </div>
                 <div className="stat-grid">
+                  <MiniStat label="Solver backend" value={stats.backendId === 'native-xpbd' ? 'Native XPBD' : 'Browser PBD'} />
+                  {stats.backendId === 'native-xpbd' && <MiniStat label="Native batch" value={stats.backendError ? 'OFFLINE' : `${stats.backendElapsedMs.toFixed(0)} ms`} />}
+                  {stats.backendId === 'native-xpbd' && <MiniStat label="Native frames" value={stats.backendFrame.toLocaleString()} />}
                   <MiniStat label="Vertices" value={stats.vertices.toLocaleString()} />
                   <MiniStat label="Constraints" value={stats.constraints.toLocaleString()} />
                   <MiniStat label="Internal constraints" value={stats.internal.toLocaleString()} />
@@ -3421,6 +3480,14 @@ export default function App() {
                   <MiniStat label="Tight area" value={`${Math.round(stats.tightRatio * 100)}%`} />
                   <MiniStat label="Pressure peak" value={`${Math.round(stats.maxPressureIndex * 100)}%`} />
                 </div>
+              </div>
+              <div className="panel-section">
+                <div className="panel-title"><span>Native XPBD</span><strong>{nativeSolveStatus === 'solving' ? 'SOLVING' : nativeSolveStatus === 'done' ? 'SOLVED' : nativeServiceStatus === 'ready' ? 'READY' : nativeServiceStatus.toUpperCase()}</strong></div>
+                <label className="select-field"><span>Native cloth model</span><select value={project.simulation.nativeClothModel || 'distance'} onChange={(event) => updateSimulation('nativeClothModel', event.target.value)}><option value="distance">Distance XPBD · stable</option><option value="strain-triangle">Anisotropic strain triangle · experimental</option></select></label>
+                <label className="select-field"><span>Native bending</span><select value={project.simulation.nativeBendingModel || 'distance'} onChange={(event) => updateSimulation('nativeBendingModel', event.target.value)}><option value="distance">Distance bend · stable</option><option value="isometric-xpbd">Isometric XPBD · experimental</option></select></label>
+                <button className="wide-action" disabled={nativeSolveStatus === 'solving'} onClick={requestNativeSolve}><Cpu size={15} />{nativeSolveStatus === 'solving' ? 'SOLVING NATIVE XPBD…' : 'SOLVE NATIVE XPBD · 60 FRAMES'}</button>
+                {nativeLastSolve && <div className="stat-grid"><MiniStat label="Native solve" value={`${nativeLastSolve.elapsedMs.toFixed(1)} ms`} /><MiniStat label="Native seam avg" value={`${((nativeLastSolve.stats?.seamAverageDistance || 0) * 1000).toFixed(1)} mm`} /><MiniStat label="Native seam peak" value={`${((nativeLastSolve.stats?.seamMaxDistance || 0) * 1000).toFixed(1)} mm`} /><MiniStat label="Native particles" value={(nativeLastSolve.stats?.particles || 0).toLocaleString()} /></div>}
+                <p className="panel-copy">Runs the compiled PositionBasedDynamics XPBD sidecar locally, then writes the solved native vertices back into this viewport. Browser PBD remains available for continuous interactive playback.</p>
               </div>
               <div className="panel-section">
                 <label className="select-field"><span>Simulation backend</span><select value={project.simulation.backendId || 'browser-pbd'} onChange={(event) => updateSimulation('backendId', event.target.value)}>{SIMULATION_BACKENDS.map((backend) => <option key={backend.id} value={backend.id}>{backend.label}</option>)}</select></label>

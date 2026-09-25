@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
-import { boundaryIndicesForEdge, createGeometry, getAvatarArmPose, getAvatarHeightScale, getAvatarTorsoRadii, getAvatarUpperBodyDimensions, syncAnalysisColors, syncGeometry } from '../core/physics.js'
+import { boundaryIndicesForEdge, createGeometry, getAvatarArmPose, getAvatarHeightScale, getAvatarTorsoRadii, getAvatarUpperBodyDimensions, refreshSimulationAnalysis, syncAnalysisColors, syncGeometry } from '../core/physics.js'
 import { createSimulationSession } from '../core/backends/registry.js'
+import { solveWithNativeService } from '../core/backends/nativeServiceClient.js'
 
 function syncSurfaceOverlay(record) {
   const position = record.meshRecord.geometry.getAttribute('position')
@@ -300,7 +301,7 @@ function makeAvatar(project) {
   return group
 }
 
-export default function GarmentViewport({ project, running, resetSignal, wireframe, analysisMode = 'surface', backendId = 'browser-pbd', exportSignal = 0, glbExportSignal = 0, renderSignal = 0, hdriUrl = '', onExportMesh, onExportGlb, onRenderStill, onStats }) {
+export default function GarmentViewport({ project, running, resetSignal, wireframe, analysisMode = 'surface', backendId = 'browser-pbd', nativeSolveSignal = 0, nativeClothModel = 'distance', nativeBendingModel = 'distance', exportSignal = 0, glbExportSignal = 0, renderSignal = 0, hdriUrl = '', onExportMesh, onExportGlb, onRenderStill, onStats, onNativeSolve }) {
   const mountRef = useRef(null)
   const sceneRef = useRef(null)
   const rendererRef = useRef(null)
@@ -324,6 +325,7 @@ export default function GarmentViewport({ project, running, resetSignal, wirefra
   const wireframeRef = useRef(wireframe)
   const analysisModeRef = useRef(analysisMode)
   const onStatsRef = useRef(onStats)
+  const onNativeSolveRef = useRef(onNativeSolve)
   const onExportMeshRef = useRef(onExportMesh)
   const onExportGlbRef = useRef(onExportGlb)
   const onRenderStillRef = useRef(onRenderStill)
@@ -333,6 +335,7 @@ export default function GarmentViewport({ project, running, resetSignal, wirefra
   wireframeRef.current = wireframe
   analysisModeRef.current = analysisMode
   onStatsRef.current = onStats
+  onNativeSolveRef.current = onNativeSolve
   onExportMeshRef.current = onExportMesh
   onExportGlbRef.current = onExportGlb
   onRenderStillRef.current = onRenderStill
@@ -421,7 +424,13 @@ export default function GarmentViewport({ project, running, resetSignal, wirefra
       lastTime = time
       const simulation = simulationRef.current
       if (simulation && runningRef.current) {
-        backendRef.current?.step?.(backendSessionRef.current, dt)
+        const backend = backendRef.current
+        const backendSession = backendSessionRef.current
+        if (backend?.stepAsync) {
+          backend.stepAsync(backendSession, 8).catch(() => {})
+        } else {
+          backend?.step?.(backendSession, dt)
+        }
         for (const record of meshRecordsRef.current) {
           syncGeometry(record.simPiece, record.geometry, projectRef.current)
           syncAnalysisColors(record.simPiece, record.geometry, analysisModeRef.current)
@@ -434,6 +443,7 @@ export default function GarmentViewport({ project, running, resetSignal, wirefra
       if (statsClock > 0.5 && simulation) {
         statsClock = 0
         const vertexCount = [...simulation.pieces.values()].reduce((sum, piece) => sum + piece.particles.length, 0)
+        const backendStats = backendRef.current?.getStats?.(backendSessionRef.current) || {}
         onStatsRef.current?.({
           vertices: vertexCount,
           constraints: simulation.constraints.length,
@@ -453,6 +463,10 @@ export default function GarmentViewport({ project, running, resetSignal, wirefra
           contactRatio: simulation.fit?.contactRatio || 0,
           tightRatio: simulation.fit?.tightRatio || 0,
           looseRatio: simulation.fit?.looseRatio || 0,
+          backendId: backendRef.current?.id || 'browser-pbd',
+          backendFrame: backendStats.frame || 0,
+          backendElapsedMs: backendStats.elapsedMs || 0,
+          backendError: backendStats.serviceError || null,
         })
       }
       animationFrame = requestAnimationFrame(tick)
@@ -870,6 +884,59 @@ export default function GarmentViewport({ project, running, resetSignal, wirefra
   useEffect(() => {
     for (const record of meshRecordsRef.current) record.material.wireframe = Boolean(wireframe)
   }, [wireframe])
+
+  useEffect(() => {
+    if (!nativeSolveSignal || !simulationRef.current) return undefined
+    const controller = new AbortController()
+    let active = true
+    onNativeSolveRef.current?.({ status: 'solving' })
+
+    const solve = async () => {
+      try {
+        const response = await solveWithNativeService(projectRef.current, {
+          frames: 60,
+          clothModel: nativeClothModel,
+          bendingModel: nativeBendingModel,
+          signal: controller.signal,
+        })
+        if (!active) return
+        const simulation = simulationRef.current
+        for (const solvedPiece of response.result?.pieces || []) {
+          const simPiece = simulation?.pieces?.get(solvedPiece.id)
+          if (!simPiece || solvedPiece.vertices?.length !== simPiece.particles.length) {
+            throw new Error(`Native solver topology mismatch for ${solvedPiece.id}`)
+          }
+          for (let index = 0; index < simPiece.particles.length; index += 1) {
+            const vertex = solvedPiece.vertices[index]
+            if (!vertex?.every?.(Number.isFinite)) throw new Error(`Native solver returned invalid vertex data for ${solvedPiece.id}`)
+            simPiece.particles[index].position.set(vertex[0], vertex[1], vertex[2])
+            simPiece.particles[index].previous.copy(simPiece.particles[index].position)
+          }
+        }
+        simulation.elapsed = Number(response.result?.frames || 60) / 60
+        refreshSimulationAnalysis(simulation, projectRef.current)
+        for (const record of meshRecordsRef.current) {
+          syncGeometry(record.simPiece, record.geometry, projectRef.current)
+          syncAnalysisColors(record.simPiece, record.geometry, analysisModeRef.current)
+        }
+        for (const record of trimRecordsRef.current) syncSurfaceOverlay(record)
+        onNativeSolveRef.current?.({
+          status: 'done',
+          elapsedMs: response.elapsedMs,
+          stats: response.result?.stats || {},
+          payload: response.payload || {},
+        })
+      } catch (error) {
+        if (!active || error?.name === 'AbortError') return
+        onNativeSolveRef.current?.({ status: 'error', error: error.message || String(error) })
+      }
+    }
+    solve()
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [nativeSolveSignal])
 
   useEffect(() => {
     const analysisEnabled = analysisMode !== 'surface'
