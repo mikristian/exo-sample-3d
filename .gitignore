@@ -22,6 +22,8 @@ research/data/
 # Native build products
 native_backend/bin/
 native_backend/build/
+native_backend/fixtures/*.native-sim.json
+native_backend/output/
 *.a
 *.dylib
 *.so
@@ -46,3 +48,4 @@ venv/
 
 # Generated Blender bridge output
 blender_bridge/output/
+native_backend/runtime/

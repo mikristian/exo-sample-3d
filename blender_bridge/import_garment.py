@@ -16,6 +16,7 @@ def parse_args():
     parser.add_argument('--input', required=True)
     parser.add_argument('--output', required=True)
     parser.add_argument('--render')
+    parser.add_argument('--simulation-result')
     parser.add_argument('--no-avatar', action='store_true')
     return parser.parse_args(args)
 
@@ -96,6 +97,22 @@ def make_polygon_object(name, boundary_cm, collection, material=None, vertical=F
     mesh = bpy.data.meshes.new(f'{name}_Mesh')
     mesh.from_pydata(vertices, [], [list(range(len(vertices)))])
     mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    collection.objects.link(obj)
+    if material:
+        obj.data.materials.append(material)
+    return obj
+
+
+def make_simulation_object(name, vertices_world, faces, collection, material=None):
+    # Garment Studio world: X horizontal, Y vertical, Z depth.
+    # Blender world: X horizontal, Y depth, Z vertical.
+    vertices = [(float(v[0]), -float(v[2]), float(v[1])) for v in vertices_world]
+    mesh = bpy.data.meshes.new(f'{name}_Mesh')
+    mesh.from_pydata(vertices, [], [list(face) for face in faces])
+    mesh.update()
+    for polygon in mesh.polygons:
+        polygon.use_smooth = True
     obj = bpy.data.objects.new(name, mesh)
     collection.objects.link(obj)
     if material:
@@ -215,6 +232,12 @@ def main():
     output_path = Path(args.output).resolve()
     render_path = Path(args.render).resolve() if args.render else None
     project = json.loads(input_path.read_text())
+    simulation_result = None
+    if args.simulation_result:
+        simulation_path = Path(args.simulation_result).resolve()
+        simulation_result = json.loads(simulation_path.read_text())
+        if simulation_result.get('protocol') != 'garment-studio.native-xpbd-result':
+            raise ValueError(f'Unsupported simulation result protocol: {simulation_result.get("protocol")}')
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     setup_scene(project, render_path)
@@ -222,6 +245,7 @@ def main():
     root = ensure_collection('GarmentStudio')
     patterns = ensure_collection('Patterns_2D', root)
     garment = ensure_collection('Garment_3D', root)
+    simulation_collection = ensure_collection('Simulation_Result', root) if simulation_result else None
     seams_collection = ensure_collection('Sewing_Relationships', root)
     avatar_collection = ensure_collection('Avatar', root)
 
@@ -232,6 +256,8 @@ def main():
 
     piece_by_id = {}
     object_by_id = {}
+    simulated_object_by_id = {}
+    simulation_by_id = {piece.get('id'): piece for piece in (simulation_result or {}).get('pieces', [])}
     for index, piece in enumerate(project.get('pieces') or []):
         boundary = sampled_boundary(piece, 10)
         material = materials.get(piece.get('fabricId')) or materials['main']
@@ -254,8 +280,34 @@ def main():
         solidify.thickness = max(0.0004, min(0.012, thickness))
         solidify.offset = 0.0
 
+        simulated_piece = simulation_by_id.get(piece.get('id'))
+        if simulated_piece and simulation_collection:
+            garment_obj.hide_render = True
+            simulated_obj = make_simulation_object(
+                f'SIM_{piece.get("id")}',
+                simulated_piece.get('vertices') or [],
+                simulated_piece.get('faces') or [],
+                simulation_collection,
+                material,
+            )
+            add_custom_metadata(simulated_obj, piece)
+            simulated_obj['garment_view'] = 'simulation_result'
+            simulated_obj['garment_simulation_backend'] = simulation_result.get('backendId', '')
+            simulated_obj['garment_simulation_frames'] = int(simulation_result.get('frames', 0) or 0)
+            sim_solidify = simulated_obj.modifiers.new('Fabric Thickness', 'SOLIDIFY')
+            sim_solidify.thickness = max(0.0004, min(0.012, thickness))
+            sim_solidify.offset = 0.0
+            simulated_object_by_id[piece.get('id')] = simulated_obj
+
         piece_by_id[piece.get('id')] = piece
         object_by_id[piece.get('id')] = garment_obj
+
+    if simulation_result:
+        bpy.context.scene['garment_simulation_backend'] = simulation_result.get('backendId', '')
+        bpy.context.scene['garment_simulation_frames'] = int(simulation_result.get('frames', 0) or 0)
+        for key, value in (simulation_result.get('stats') or {}).items():
+            if isinstance(value, (str, int, float, bool)):
+                bpy.context.scene[f'garment_sim_{key}'] = value
 
     # Build seam relationship lines after transforms are established.
     bpy.context.view_layer.update()
@@ -328,6 +380,7 @@ def main():
         'seams': len(project.get('seams') or []),
         'objects': len(bpy.data.objects),
         'materials': len(bpy.data.materials),
+        'simulatedPieces': len(simulated_object_by_id),
         'output': str(output_path),
         'render': str(render_path) if render_path else None,
     }))

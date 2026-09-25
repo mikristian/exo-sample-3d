@@ -7,7 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --host 127.0.0.1",
-    "check": "npm run build && npm run check:physics && npm run check:production && npm run check:foundations && npm run check:avatar && npm run check:factory && npm run check:allowances && npm run check:determinism && npm run check:reproducibility && npm run check:markers && npm run check:buttonholes && npm run check:interfacing && npm run check:partial-seams && npm run check:materials && npm run check:freeze && npm run check:deactivate && npm run check:garmentcode && npm run check:backend && npm run check:native-xpbd",
+    "check": "npm run build && npm run check:physics && npm run check:production && npm run check:foundations && npm run check:avatar && npm run check:factory && npm run check:allowances && npm run check:determinism && npm run check:reproducibility && npm run check:markers && npm run check:buttonholes && npm run check:interfacing && npm run check:partial-seams && npm run check:materials && npm run check:freeze && npm run check:deactivate && npm run check:garmentcode && npm run check:backend && npm run check:native-xpbd && npm run check:native-garment && npm run check:native-service",
     "check:physics": "node scripts/check-physics.mjs",
     "check:production": "node scripts/check-production.mjs",
     "check:obj": "node scripts/check-obj-export.mjs",
@@ -29,7 +29,11 @@
     "check:garmentcode": "node scripts/check-garmentcode-adapter.mjs",
     "check:backend": "node scripts/check-backend-api.mjs",
     "check:native-xpbd": "native_backend/scripts/build_xpbd_smoke.sh && native_backend/scripts/build_xpbd_cloth_smoke.sh",
-    "check:blender": "scripts/check-blender-bridge.sh"
+    "check:blender": "scripts/check-blender-bridge.sh",
+    "check:native-garment": "node scripts/check-native-garment.mjs",
+    "native:serve": "node native_backend/server.mjs",
+    "check:native-service": "node scripts/check-native-service.mjs",
+    "dev:full": "node scripts/dev-full.mjs"
   },
   "dependencies": {
     "fflate": "^0.8.3",

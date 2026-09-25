@@ -1,6 +1,10 @@
 import { browserPbdBackend } from './browserPbdBackend.js'
+import { nativeServiceBackend } from './nativeServiceBackend.js'
 
-const backends = new Map([[browserPbdBackend.id, browserPbdBackend]])
+const backends = new Map([
+  [browserPbdBackend.id, browserPbdBackend],
+  [nativeServiceBackend.id, nativeServiceBackend],
+])
 
 export function registerSimulationBackend(backend) {
   if (!backend?.id) throw new Error('Simulation backend requires an id')

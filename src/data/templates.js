@@ -297,6 +297,10 @@ export function createHoodieTemplate() {
     main: { ...FABRIC_PRESETS.fleece, id: 'main', name: 'Heavy French Terry' },
     rib: { ...FABRIC_PRESETS.jersey, id: 'rib', name: '1×1 Rib Knit', gsm: 360, stretchWarp: 0.22, stretchWeft: 0.42, bend: 0.68, color: FABRIC_PRESETS.fleece.color },
   }
+  for (const piece of project.pieces) {
+    if (['front', 'back'].includes(piece.id)) piece.fitShoulderTacks = true
+    if (['sleeve-left', 'sleeve-right'].includes(piece.id)) piece.fitSleeveApexTack = true
+  }
   addTemplateHood(project)
   addTemplateRibFinishes(project)
   addTemplateKangarooPocket(project)

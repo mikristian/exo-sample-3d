@@ -158,6 +158,7 @@ export function createDefaultProject() {
         },
         layout2d: { x: 62, y: 116 },
         arrangement3d: { x: 0, y: 0.98, z: 0.245, flip: false, wrap: 'front' },
+        fitShoulderTacks: false,
         simulationResolution: 2,
         grainAngleDeg: 0,
         notches: [
@@ -191,6 +192,7 @@ export function createDefaultProject() {
         },
         layout2d: { x: 160, y: 116 },
         arrangement3d: { x: 0, y: 0.98, z: -0.245, flip: false, wrap: 'back' },
+        fitShoulderTacks: false,
         simulationResolution: 2,
         grainAngleDeg: 0,
         notches: [
@@ -223,6 +225,7 @@ export function createDefaultProject() {
         },
         layout2d: { x: 240, y: 120 },
         arrangement3d: { x: -0.285, y: 1.02, z: 0, flip: false, wrap: 'left-arm' },
+        fitSleeveApexTack: false,
         simulationResolution: 2,
         grainAngleDeg: 0,
         notches: [
@@ -252,6 +255,7 @@ export function createDefaultProject() {
         },
         layout2d: { x: 295, y: 120 },
         arrangement3d: { x: 0.285, y: 1.02, z: 0, flip: false, wrap: 'right-arm' },
+        fitSleeveApexTack: false,
         simulationResolution: 2,
         grainAngleDeg: 0,
         notches: [
@@ -315,6 +319,8 @@ export function createDefaultProject() {
     },
     simulation: {
       backendId: 'browser-pbd',
+      nativeClothModel: 'distance',
+      nativeBendingModel: 'distance',
       gravity: 9.81,
       stiffness: 0.92,
       seamStiffness: 0.96,

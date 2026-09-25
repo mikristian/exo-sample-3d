@@ -20,13 +20,14 @@ A request contains:
 
 ## JavaScript backend shape
 
-A registered backend implements at minimum:
+A registered backend implements `create(project)` and either synchronous `step(session, dt)` or asynchronous `stepAsync(session, frames)`. The viewport serializes async batches so external/native backends cannot overlap solver calls.
 
 ```js
 {
   id,
   create(project),
-  step(session, dt)
+  step(session, dt),       // in-process backends
+  stepAsync(session, 8),   // external/native backends
 }
 ```
 
@@ -47,8 +48,10 @@ World-space positions use meters. Pattern authoring remains centimeters in the c
 
 ## External backends
 
-Native/CUDA/remote backends should consume the serialized protocol rather than application-specific React state. They may return streamed frames, cache files or a final state, but must retain piece/vertex provenance.
+Native/CUDA/remote backends should consume a serialized backend payload rather than application-specific React state. They may return streamed frames, resumable state, cache files or a final state, but must retain piece/vertex provenance.
+
+The current `native-xpbd` backend uses a local HTTP sidecar (`native_backend/server.mjs`) and compiled PositionBasedDynamics executable. `/step` accepts a native payload plus a frame count and returns position/previous-position state so subsequent batches resume exactly where the previous batch ended. Collision contact depth is returned with particle state and is fed through the same Garment Studio ease/pressure analysis used by the browser backend.
 
 ## Validation
 
-`npm run check:backend` verifies the current backend contract. `npm run check:native-xpbd` validates the native PositionBasedDynamics integration proof on supported developer machines.
+`npm run check:backend` verifies backend registration and the browser implementation. `npm run check:native-xpbd` validates the upstream PositionBasedDynamics link, `npm run check:native-garment` runs a real tee through compiled XPBD, and `npm run check:native-service` verifies the stateful sidecar including resumable stepping and collision telemetry.

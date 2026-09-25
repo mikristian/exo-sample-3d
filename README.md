@@ -19,7 +19,7 @@ The goal is not to copy proprietary software or assets. The goal is an interoper
 - DXF import/export, OBJ/GLB export, POM CSV, tech-pack and factory-package export
 - GarmentCode/PyGarment JSON bridge
 - swappable simulation-backend protocol
-- native PositionBasedDynamics XPBD proof on Apple Silicon
+- live native PositionBasedDynamics XPBD backend on Apple Silicon with resumable stepping, self/body collision and fit/pressure analysis
 
 ## Architecture direction
 
@@ -40,6 +40,14 @@ npm install
 npm run dev
 ```
 
+For the full local stack with the compiled native XPBD solver available in the Fit backend selector:
+
+```bash
+npm run dev:full
+```
+
+This starts the Vite UI and the local native solver sidecar on `127.0.0.1:5194`. The browser-only solver remains available when the sidecar is not running.
+
 Production build:
 
 ```bash
@@ -58,6 +66,9 @@ Focused integration checks:
 npm run check:garmentcode
 npm run check:backend
 npm run check:native-xpbd
+npm run check:native-garment
+npm run check:native-service
+npm run check:blender
 ```
 
 The native XPBD check builds the upstream MIT PositionBasedDynamics core from a local research clone under `research/oss/PositionBasedDynamics`. Research clones are deliberately ignored by Git.

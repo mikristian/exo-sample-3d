@@ -896,15 +896,12 @@ export function buildSimulation(project) {
         const hasFrontArmhole = seamIds.some((seamId) => /sleeve-[lr]-front/i.test(seamId))
         const hasBackArmhole = seamIds.some((seamId) => /sleeve-[lr]-back/i.test(seamId))
         if (hasFrontArmhole === hasBackArmhole) continue
-        // Only resolve the cap/underarm points that are effectively on the
-        // arm's Z=0 ambiguity line. The rest of the sleeve wrap already has a
-        // valid front/back quadrant; flipping those would introduce a large
-        // artificial structural strain before the simulation even starts.
-        if (Math.abs(particle.position.z) > 0.012) continue
+        // Keep the wrapped position intact. Earlier versions flipped particles
+        // across Z=0 here, which could turn an ~11 mm local mesh edge into a
+        // ~28 mm edge before frame one. The seam side is only a collision hint;
+        // sewing constraints are responsible for bringing the cap together.
+        if (Math.abs(particle.position.z) > 0.014) continue
         const sideZ = hasFrontArmhole ? 1 : -1
-        const magnitude = Math.max(0.002, Math.abs(particle.position.z))
-        particle.position.z = sideZ * magnitude
-        particle.previous.z = particle.position.z
         particle.collisionSideZ = sideZ
       }
     }
@@ -950,31 +947,33 @@ export function buildSimulation(project) {
           })
         }
       } else {
-      const fitShoulderSides = Array.isArray(piece.fitShoulderSides) && piece.fitShoulderSides.length
-        ? piece.fitShoulderSides.filter((side) => side === -1 || side === 1)
-        : [-1, 1]
-      for (const side of fitShoulderSides) {
-        let bestIndex = -1
-        let bestScore = Infinity
-        mesh.vertices.forEach((point, index) => {
-          const centerX = piece.arrangement3d?.x || 0
-          const worldSide = Math.sign(particles[index].position.x - centerX) || side
-          if (worldSide !== side) return
-          const score = Math.abs(point.y - (maxY - 1.5)) + Math.abs(Math.abs(point.x) - 15) * 0.45
-          if (score < bestScore) {
-            bestScore = score
-            bestIndex = index
-          }
-        })
-        if (bestIndex >= 0) {
-          const particle = particles[bestIndex]
-          anchorConstraints.push({
-            type: 'fit-anchor',
-            particle,
-            target: new THREE.Vector3(side * Math.max(0.16, avatarUpper.shoulderHalfWidth - 0.005), 1.66 * avatarHeightScale, 0),
-            stiffness: 0.34,
-            pieceId: piece.id,
+      if (piece.fitShoulderTacks !== false) {
+        const fitShoulderSides = Array.isArray(piece.fitShoulderSides) && piece.fitShoulderSides.length
+          ? piece.fitShoulderSides.filter((side) => side === -1 || side === 1)
+          : [-1, 1]
+        for (const side of fitShoulderSides) {
+          let bestIndex = -1
+          let bestScore = Infinity
+          mesh.vertices.forEach((point, index) => {
+            const centerX = piece.arrangement3d?.x || 0
+            const worldSide = Math.sign(particles[index].position.x - centerX) || side
+            if (worldSide !== side) return
+            const score = Math.abs(point.y - (maxY - 1.5)) + Math.abs(Math.abs(point.x) - 15) * 0.45
+            if (score < bestScore) {
+              bestScore = score
+              bestIndex = index
+            }
           })
+          if (bestIndex >= 0) {
+            const particle = particles[bestIndex]
+            anchorConstraints.push({
+              type: 'fit-anchor',
+              particle,
+              target: new THREE.Vector3(side * Math.max(0.16, avatarUpper.shoulderHalfWidth - 0.005), 1.66 * avatarHeightScale, 0),
+              stiffness: 0.34,
+              pieceId: piece.id,
+            })
+          }
         }
       }
 
@@ -1064,7 +1063,7 @@ export function buildSimulation(project) {
     }
 
     const isSleeve = ['left-arm', 'right-arm'].includes(piece.arrangement3d?.wrap)
-    if (project.simulation?.autoFitTacks !== false && isSleeve && !isFusedFollower && !piece.frozen3d && mesh.vertices.length) {
+    if (project.simulation?.autoFitTacks !== false && piece.fitSleeveApexTack !== false && isSleeve && !isFusedFollower && !piece.frozen3d && mesh.vertices.length) {
       const maxY = Math.max(...mesh.vertices.map((point) => point.y))
       const centerX = (bounds.minX + bounds.maxX) * 0.5
       let apexIndex = -1
@@ -1788,6 +1787,13 @@ function updateFitMetrics(simulation, project) {
   }
 }
 
+export function refreshSimulationAnalysis(simulation, project) {
+  if (!simulation || !project) return simulation
+  updateStrain(simulation)
+  updateFitMetrics(simulation, project)
+  return simulation
+}
+
 function collideAvatar(particle, avatar, margin, friction) {
   const upper = getAvatarUpperBodyDimensions(avatar)
   const heightScale = upper.heightScale
@@ -2108,8 +2114,7 @@ export function stepSimulation(simulation, project, dt = 1 / 60) {
       }
     }
   }
-  updateStrain(simulation)
-  updateFitMetrics(simulation, project)
+  refreshSimulationAnalysis(simulation, project)
   simulation.elapsed += safeDt
 }
 
