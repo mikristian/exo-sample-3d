@@ -1,0 +1,45 @@
+{
+  "name": "garment-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "check": "npm run build && npm run check:physics && npm run check:production && npm run check:foundations && npm run check:avatar && npm run check:factory && npm run check:allowances && npm run check:determinism && npm run check:reproducibility && npm run check:markers && npm run check:buttonholes && npm run check:interfacing && npm run check:partial-seams && npm run check:materials && npm run check:freeze && npm run check:deactivate && npm run check:garmentcode && npm run check:backend && npm run check:native-xpbd",
+    "check:physics": "node scripts/check-physics.mjs",
+    "check:production": "node scripts/check-production.mjs",
+    "check:obj": "node scripts/check-obj-export.mjs",
+    "check:glb": "node scripts/check-glb-export.mjs",
+    "check:pattern-ui": "node scripts/capture-pattern.mjs",
+    "check:foundations": "node scripts/check-foundations.mjs",
+    "check:avatar": "node scripts/check-avatar.mjs",
+    "check:factory": "node scripts/check-factory.mjs",
+    "check:allowances": "node scripts/check-allowances.mjs",
+    "check:reproducibility": "node scripts/check-reproducibility.mjs",
+    "check:markers": "node scripts/check-markers.mjs",
+    "check:determinism": "node scripts/check-determinism.mjs",
+    "check:buttonholes": "node scripts/check-buttonholes.mjs",
+    "check:interfacing": "node scripts/check-interfacing.mjs",
+    "check:partial-seams": "node scripts/check-partial-seams.mjs",
+    "check:materials": "node scripts/check-materials.mjs",
+    "check:freeze": "node scripts/check-freeze.mjs",
+    "check:deactivate": "node scripts/check-deactivate.mjs",
+    "check:garmentcode": "node scripts/check-garmentcode-adapter.mjs",
+    "check:backend": "node scripts/check-backend-api.mjs",
+    "check:native-xpbd": "native_backend/scripts/build_xpbd_smoke.sh && native_backend/scripts/build_xpbd_cloth_smoke.sh",
+    "check:blender": "scripts/check-blender-bridge.sh"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.4",
+    "vite": "^6.4.3"
+  }
+}

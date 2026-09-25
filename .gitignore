@@ -1,0 +1,48 @@
+# Dependencies / build output
+node_modules/
+dist/
+.npm-cache/
+
+# Local QA captures and generated exports
+qa-*.png
+qa-*.jpg
+qa-*.jpeg
+qa-*.json
+qa-*.svg
+*.blend1
+*.blend2
+
+# Research clones, virtualenvs, build trees and model/data downloads
+research/oss/
+research/venvs/
+research/build/
+research/models/
+research/data/
+
+# Native build products
+native_backend/bin/
+native_backend/build/
+*.a
+*.dylib
+*.so
+*.dll
+*.exe
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local environment/secrets
+.env
+.env.*
+!.env.example
+
+# Generated Blender bridge output
+blender_bridge/output/
