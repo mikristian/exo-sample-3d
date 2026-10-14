@@ -1,0 +1,70 @@
+# Dependencies / build output
+node_modules/
+dist/
+.npm-cache/
+
+# Local QA captures and generated exports
+qa-*.png
+qa-*.jpg
+qa-*.jpeg
+qa-*.json
+qa-*.svg
+*.blend1
+*.blend2
+
+# Research clones, virtualenvs, build trees and model/data downloads
+research/oss/
+research/venvs/
+research/build/
+research/models/
+research/data/
+research/ppf-local/
+
+# Native build products
+native_backend/bin/
+native_backend/build/
+native_backend/fixtures/*.native-sim.json
+native_backend/output/
+*.a
+*.dylib
+*.so
+*.dll
+*.exe
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors / OS
+.DS_Store
+native_app/build/
+native_app/assets/
+native_app/native-preview-screen.png
+.idea/
+.vscode/
+
+# Local environment/secrets
+.env
+.env.*
+!.env.example
+
+# Generated Blender bridge output
+blender_bridge/output/
+blender_bridge/fixtures/*.ppf.json
+native_backend/runtime/
+
+# Third-party runtime/download staging
+research/downloads/
+research/runtime/
+
+# Proprietary vendor SDK download, installed bridge binaries, and local requests
+integrations/clo_sdk/vendor/
+integrations/clo_sdk/build/
+
+# Local native UI visual QA screenshots
+native_app/*.png
+native_app/*.jpg
+native_app/qa/*.png
+native_app/qa/*.jpg
