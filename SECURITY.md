@@ -1,15 +1,3 @@
-# Security
+# Security policy
 
-Garment Studio can process local files, launch external/native backends and eventually control Blender or other desktop software. Treat input and backend boundaries as security-sensitive.
-
-Do not file exploitable security issues publicly when they would expose users to immediate risk. Until a dedicated security mailbox is published, contact the project maintainers privately before disclosure.
-
-Areas requiring particular care:
-
-- imported DXF/JSON/3D files
-- archive/factory-package extraction
-- native solver subprocesses
-- Blender Python execution
-- external backend URLs/WebSockets
-- model/checkpoint downloads
-- agent/automation command execution
+Garment Studio is pre-release. Do not post vulnerabilities, secrets, personal information or private model files in public issues. Until an official security contact is published, contact the repository owner privately through the account hosting the official repository. A dedicated private vulnerability-reporting channel must be configured before public launch.

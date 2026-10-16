@@ -68,4 +68,4 @@ Research repos belong under ignored `research/oss/` during evaluation. Promote c
 
 ## Contribution licensing
 
-A final project license and contribution attestation mechanism are still being selected. Until that decision is recorded, contributions should remain on project branches and should not introduce ambiguous third-party ownership. See `docs/LICENSING.md`.
+The project has selected **GPL-3.0-only** for original source. By contributing, you must have the right to submit your changes under GPL-3.0-only, with any required third-party attribution. A formal contribution attestation (DCO or CLA) and maintainer approval process remain to be finalized before accepting public contributions. See `LICENSE` and `docs/LICENSING.md`.

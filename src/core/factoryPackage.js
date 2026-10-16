@@ -4,6 +4,10 @@ import { buildFabricMarkers } from './marker.js'
 import { buildTechPack, measurementRunToCSV } from './measurements.js'
 import { projectToDxf } from './dxf.js'
 import { pieceArea, seamLengthReport } from './project.js'
+import { inspectProduction } from './productionPreflight.js'
+import { projectToBomXml } from './bomXml.js'
+import { markerToPdf, markerToSvg } from './markerArtifacts.js'
+import { buildFabricCostRun, fabricCostRunToCsv } from './productionCost.js'
 
 function csvCell(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -35,8 +39,8 @@ function materialRows(project) {
   const rows = [[
     'Fabric ID', 'Material', 'Color', 'GSM', 'Thickness mm',
     'Warp stretch %', 'Weft stretch %', 'Warp shrink %', 'Weft shrink %',
-    'Bending', 'Friction', 'Damping', 'Roughness', 'Sheen',
-    'Color map', 'Normal map', 'Roughness map',
+    'Bending', 'Friction', 'Damping', 'Roughness', 'Sheen', 'Opacity', 'Surface family', 'Visual displacement mm',
+    'Color map', 'Normal map', 'Roughness map', 'Metalness map', 'Opacity map', 'Displacement map',
     'Cut pieces', 'Approx pattern area cm2',
   ]]
   for (const [fabricId, fabric] of Object.entries(project.fabrics || {})) {
@@ -58,9 +62,15 @@ function materialRows(project) {
       Number.isFinite(Number(fabric.damping)) ? Number(fabric.damping).toFixed(4) : '',
       Number.isFinite(Number(fabric.roughness)) ? Number(fabric.roughness).toFixed(3) : '',
       Number.isFinite(Number(fabric.sheen)) ? Number(fabric.sheen).toFixed(3) : '',
+      Number.isFinite(Number(fabric.opacity ?? 1)) ? Number(fabric.opacity ?? 1).toFixed(3) : '',
+      fabric.surfaceFamily || 'auto',
+      Number.isFinite(Number(fabric.displacementMm ?? 0)) ? Number(fabric.displacementMm ?? 0).toFixed(2) : '',
       fabric.texture?.name || '',
       fabric.texture?.normalName || '',
       fabric.texture?.roughnessName || '',
+      fabric.texture?.metalnessName || '',
+      fabric.texture?.opacityName || '',
+      fabric.texture?.displacementName || '',
       cutPieces,
       area.toFixed(1),
     ])
@@ -188,6 +198,11 @@ function factorySpecHtml(project) {
   }
   const seamRows = constructionRows(project)
   const markerSummary = markerRows(project)
+  const fabricCostReport = buildFabricCostRun(project)
+  const costRows = [['Size', 'Fabric', 'Length m', 'Unit price/m', 'Fabric cost', 'Status'], ...fabricCostReport.rows.map((row) => [
+    row.size, row.material, row.lengthMeters.toFixed(2), row.pricePerMeter === null ? 'Not set' : `${row.currency} ${row.pricePerMeter.toFixed(2)}`,
+    row.extendedCost === null ? 'Not available' : `${row.currency} ${row.extendedCost.toFixed(2)}`, row.status,
+  ])]
   const materials = materialRows(project)
   const pieces = pieceRows(project)
   const warnings = (project.seams || [])
@@ -220,6 +235,7 @@ ${markerWarnings.length ? `<div class="notice warning"><strong>Marker review:</s
 <h2>Pattern Pieces</h2>${htmlTable(pieces, { className: 'small' })}
 <div class="page-break"></div><h2>Construction / Seam Diagnostics</h2>${htmlTable(seamRows, { className: 'small' })}
 <h2>Marker Summary</h2>${htmlTable(markerSummary)}
+<h2>Estimated Fabric Consumption & Costs</h2><div class="notice">Per garment size, from the current cutting marker. Missing prices and incomplete markers are not assumed free. Excludes trims, labor, taxes, shipping, shrinkage allowance and physical sampling.</div>${htmlTable(costRows)}
 <h2>Avatar / Fit Reference</h2>${htmlTable([
     ['Height cm', 'Chest cm', 'Waist cm', 'Hip cm', 'Shoulder width cm', 'Neck cm', 'Bicep cm', 'Arm length cm', 'Arm pose deg'],
     [project.avatar?.heightCm ?? '', project.avatar?.chestCm ?? '', project.avatar?.waistCm ?? '', project.avatar?.hipCm ?? '', project.avatar?.shoulderWidthCm ?? 46, project.avatar?.neckCm ?? 38, project.avatar?.bicepCm ?? 32, project.avatar?.armLengthCm ?? Number((72 * Number(project.avatar?.heightCm ?? 180) / 180).toFixed(1)), project.avatar?.armAngleDeg ?? ''],
@@ -249,6 +265,9 @@ export function buildFactoryPackageFiles(project) {
     '- factory-spec.html: print-ready human-readable factory sheet',
     '- pom-spec.csv: point-of-measurement table with tolerances across sizes',
     '- materials-bom.csv: materials, physical properties, cut quantities, and approximate usage area',
+    '- fabric-costing.csv: graded fabric meter consumption and optional supplier prices (null until entered)',
+    '- bom.xml: open Garment Studio XML BOM (not proprietary CLO XML)',
+    '- production-preflight.json: structural checks and all-size marker overflow report',
     '- pattern-pieces.csv: pattern production metadata and custom grading rule counts',
     '- construction-seams.csv: sewing graph, treatment settings, edge lengths, and mismatch diagnostics',
     '- marker-summary.csv: marker length and efficiency for every graded size',
@@ -256,6 +275,8 @@ export function buildFactoryPackageFiles(project) {
     '- size-run.json: complete graded garment data for every configured size',
     '- garment-source.json: editable Garment Studio source document',
     '- patterns/*.dxf: production DXF for every configured size',
+    '- markers/*.svg: true-size vector print-layout drawings',
+    '- markers/*.pdf: true-size plotter PDF (when any pattern fits; print at 100%)',
     '',
     `Marker settings: ${markerWidth} cm default fabric width, ${markerGap} cm gap. Per-fabric widths: ${JSON.stringify(project.markerSettings?.fabricWidthsCm || {})}.`,
     'Review seam mismatch warnings/errors and marker overflow before bulk production. Sample physically before bulk production.',
@@ -265,6 +286,9 @@ export function buildFactoryPackageFiles(project) {
   addText('factory-spec.html', factorySpecHtml(project))
   addText('pom-spec.csv', measurementRunToCSV(project))
   addText('materials-bom.csv', csv(materialRows(project)))
+  addText('fabric-costing.csv', fabricCostRunToCsv(buildFabricCostRun(project)))
+  addText('bom.xml', projectToBomXml(project))
+  addText('production-preflight.json', JSON.stringify(inspectProduction(project), null, 2))
   addText('pattern-pieces.csv', csv(pieceRows(project)))
   addText('construction-seams.csv', csv(constructionRows(project)))
   addText('marker-summary.csv', csv(markerRows(project)))
@@ -275,6 +299,12 @@ export function buildFactoryPackageFiles(project) {
   for (const size of sizes) {
     const graded = gradeProject(project, size)
     addText(`patterns/${nameSlug}-${String(size).toLowerCase()}.dxf`, projectToDxf(graded, size))
+    const markerSet = buildFabricMarkers(graded, markerWidth, markerGap)
+    for (const [fabricId, marker] of Object.entries(markerSet)) {
+      const filename = `markers/${nameSlug}-${slug(fabricId)}-${slug(size)}`
+      addText(`${filename}.svg`, markerToSvg(marker, { size, fabricName: project.fabrics?.[fabricId]?.name || fabricId, project: graded }))
+      if (marker.placements.length && marker.length > 0) files[`${filename}.pdf`] = markerToPdf(marker, { size, project: graded })
+    }
   }
 
   const manifest = {

@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
+  Hand,
+  Move3D,
+  Rotate3d,
+  FolderOpen,
+  ChevronDown,
   Box,
   Cpu,
   Download,
@@ -25,32 +30,90 @@ import {
   Undo2,
   Unlock,
   Upload,
+  ArrowDownToLine,
+  Check,
+  ChevronRight,
+  CircleHelp,
+  EyeOff,
+  Focus,
+  Grid3X3,
+  LayoutPanelTop,
+  Layers3,
+  Maximize2,
+  PanelLeft,
+  PanelRight,
+  Search,
+  Settings2,
+  Shirt,
+  SlidersHorizontal,
+  Star,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import PatternEditor from './components/PatternEditor.jsx'
 import GarmentViewport from './components/GarmentViewport.jsx'
+import FabricMaterialPreview from './components/FabricMaterialPreview.jsx'
+import ZozoReferenceDressViewer from './components/ZozoReferenceDressViewer.jsx'
+import WorkspaceCommandPalette from './components/WorkspaceCommandPalette.jsx'
+import { loadZozoDressReference } from './core/zozoReferenceDress.js'
+import { CLO_MENUS, GarmentSilhouette, LibraryChrome, ObjectBrowser } from './components/CloUI.jsx'
+import RightToolPalette from './components/RightToolPalette.jsx'
+import PropertyCategoryNavigator from './components/PropertyCategoryNavigator.jsx'
+import PatternLibraryThumbnail from './components/PatternLibraryThumbnail.jsx'
+import CadToolIcon from './components/CadToolIcon.jsx'
 import MarkerPreview from './components/MarkerPreview.jsx'
 import SeamWalkPreview from './components/SeamWalkPreview.jsx'
 import { createDefaultProject, FABRIC_PRESETS } from './data/defaultProject.js'
 import { createTemplateProject, GARMENT_TEMPLATES } from './data/templates.js'
-import { cloneProject, closestEdgeFraction, edgeLength, getEdgeSeamAllowance, makeRectanglePiece, pieceArea, projectArea, seamLengthReport, seamWalkReport, touchProject, uniqueId } from './core/project.js'
+import { cloneProject, closestEdgeFraction, edgeLength, getEdgeSeamAllowance, makeRectanglePiece, pieceArea, projectArea, samplePieceBoundary, seamLengthReport, seamWalkReport, touchProject, uniqueId } from './core/project.js'
+import { auditSewingConstruction, validateNewSeam } from './core/sewingConstruction.js'
+import { draftingSplitFractions, splitParameterAtArcFraction } from './core/draftingSplit.js'
+import { isDraftEditValid } from './core/draftingTopology.js'
+import { unfoldDraftPiece } from './core/draftingUnfold.js'
 import { pieceCenter } from './core/trims.js'
 import { buildSizeRun, gradePointForPiece, gradeProject, sizeOffset } from './core/grading.js'
 import { buildFabricMarkers, buildMarker } from './core/marker.js'
 import { parseDxfPatterns, projectToDxf } from './core/dxf.js'
 import { buildMeasurementSizeRun, buildTechPack, measurementRunToCSV } from './core/measurements.js'
+import { parseSeamlyMeasurements, applySeamlyMeasurements } from './core/seamlyMeasurements.js'
+import { parseSeamlyConstructionReference } from './core/seamlyConstructionReference.js'
+import { WORKSPACE_PROFILES, WORKSPACE_PROFILE_KEY, WORKSPACE_VIEW_KEY, VIEWPORT_LAYOUTS, normalizeWorkspaceProfile } from './core/workspaceProfiles.js'
+import { indexWorkspaceCommands } from './core/workspaceCommandIndex.js'
 import { buildFactoryPackageZip } from './core/factoryPackage.js'
+import { projectToBomXml } from './core/bomXml.js'
+import { markerToPdf, markerToSvg } from './core/markerArtifacts.js'
+import { inspectProduction } from './core/productionPreflight.js'
+import { buildFabricCostRun } from './core/productionCost.js'
 import { listSimulationBackends } from './core/backends/registry.js'
+import { NATIVE_QUALITY_PROFILES } from './core/backends/nativePayload.js'
 import { garmentCodeToProject, projectToGarmentCode } from './core/garmentCode.js'
 import { getNativeServiceHealth } from './core/backends/nativeServiceClient.js'
+import { getPpfServiceHealth, getPpfJob, getPpfJobPreview, submitPpfFinalSolve } from './core/backends/ppfServiceClient.js'
+import { generateFabricPbrFromImage } from './core/fabricPbrGenerator.js'
+import { classifyFabricPbrFilename } from './core/fabricPbrFileNaming.js'
 
-const STORAGE_KEY = 'garment-studio-project-v1'
+// First-fit tests use an isolated autosave slot; opening a test tee must never
+// replace the user's previously saved jeans, hoodie, or other working garment.
+const TEE_TEST_SESSION = new URLSearchParams(window.location.search).get('testSession') === 'tee'
+// Public builds must not advertise optional private or unbundled avatar assets.
+const PUBLIC_DISTRIBUTION = import.meta.env.VITE_PUBLIC_DISTRIBUTION === '1'
+const AVAILABLE_AVATARS = PUBLIC_DISTRIBUTION ? [{ name: 'MakeHuman', model: 'makehuman-base' }] : [
+  { name: 'CLO Thomas', model: 'clo-thomas' },
+  { name: 'Theo', model: 'theo' },
+  { name: 'Nora', model: 'nora' },
+  { name: 'MakeHuman', model: 'makehuman-base' },
+]
+const STORAGE_KEY = TEE_TEST_SESSION ? 'garment-studio-tee-first-fit-project-v2' : 'garment-studio-project-v1'
+const DESKTOP_THOMAS_BOOTSTRAP_KEY = TEE_TEST_SESSION ? 'garment-studio-tee-test-thomas-bootstrap-v1' : 'garment-studio-desktop-thomas-bootstrap-v1'
 const MAX_HISTORY = 60
 const SIMULATION_BACKENDS = listSimulationBackends()
 
 const SECTIONS = ['Pattern', 'Sewing', 'Fabric', 'Avatar', 'Fit', 'Production', 'Render']
+const STUDIO_COMMANDS = indexWorkspaceCommands(CLO_MENUS)
 
 function loadProject() {
   try {
+    const desktopThomas = !PUBLIC_DISTRIBUTION && new URLSearchParams(window.location.search).get('defaultAvatar') === 'clo-thomas'
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) {
       const parsed = JSON.parse(stored)
@@ -69,6 +132,13 @@ function loadProject() {
         parsed.simulation = {
           ...parsed.simulation,
           backendId: parsed.simulation?.backendId || 'browser-pbd',
+          nativeQuality: parsed.simulation?.nativeQuality || (
+            parsed.simulation?.nativeClothModel === 'strain-triangle' && parsed.simulation?.nativeBendingModel === 'isometric-xpbd'
+              ? 'quality'
+              : parsed.simulation?.nativeBendingModel === 'isometric-xpbd'
+                ? 'balanced'
+                : 'draft'
+          ),
           nativeClothModel: parsed.simulation?.nativeClothModel || 'distance',
           nativeBendingModel: parsed.simulation?.nativeBendingModel || 'distance',
           autoFitTacks: parsed.simulation?.autoFitTacks !== false,
@@ -157,12 +227,26 @@ function loadProject() {
         turbulence: parsed.simulation.wind?.turbulence ?? 0.18,
         response: parsed.simulation.wind?.response ?? 0.025,
       }
+      // When opening a private desktop build containing the user's own CLO
+      // export, select Thomas once without replacing or discarding the project.
+      if (desktopThomas && !localStorage.getItem(DESKTOP_THOMAS_BOOTSTRAP_KEY)) {
+        parsed.avatar = { ...parsed.avatar, name: 'CLO Thomas', model: 'clo-thomas' }
+        localStorage.setItem(DESKTOP_THOMAS_BOOTSTRAP_KEY, '1')
+      }
+      if (PUBLIC_DISTRIBUTION && !['makehuman-base', 'custom-export'].includes(parsed.avatar?.model)) {
+        parsed.avatar = { ...parsed.avatar, model: 'makehuman-base', name: 'MakeHuman' }
+      }
       return parsed
     }
   } catch (error) {
     console.warn('Could not restore garment project', error)
   }
-  return createDefaultProject()
+  const initial = TEE_TEST_SESSION ? createTemplateProject('tee') : createDefaultProject()
+  if (!PUBLIC_DISTRIBUTION && new URLSearchParams(window.location.search).get('defaultAvatar') === 'clo-thomas') {
+    initial.avatar = { ...initial.avatar, name: 'CLO Thomas', model: 'clo-thomas' }
+    try { localStorage.setItem(DESKTOP_THOMAS_BOOTSTRAP_KEY, '1') } catch { /* private mode */ }
+  }
+  return initial
 }
 
 function clamp(value, min, max) {
@@ -403,7 +487,7 @@ function splitPieceEdgeInProject(next, pieceId, edgeIndex, t = 0.5) {
   return { inserted, splitArcFraction }
 }
 
-function NumberField({ value, onChange, min, max, step = 1, suffix }) {
+function NumberField({ value, onChange, min, max, step = 1, suffix, ariaLabel }) {
   return (
     <label className="number-field">
       <input
@@ -412,6 +496,7 @@ function NumberField({ value, onChange, min, max, step = 1, suffix }) {
         min={min}
         max={max}
         step={step}
+        aria-label={ariaLabel}
         onChange={(event) => onChange(Number(event.target.value))}
       />
       {suffix && <span>{suffix}</span>}
@@ -558,10 +643,59 @@ function imageFileToDataUrl(file, maxDimension = 1024) {
 
 export default function App() {
   const [project, setProject] = useState(loadProject)
+  const sewingConstructionAudit = useMemo(() => auditSewingConstruction(project), [project])
   const [selectedPieceId, setSelectedPieceId] = useState('front')
   const [activeSection, setActiveSection] = useState('Pattern')
   const [tool, setTool] = useState('select')
+  // Selected flat fabric starts with an on-garment unified XYZ + rotation
+  // gizmo, not a camera-orientation circle floating in the corner.
+  const [viewportTool, setViewportTool] = useState('transform')
+  // 3D mesh inspection is intentionally a non-destructive selection mode.
+  // Unlike physical cloth editing it doesn't alter the pattern or solver.
+  const [meshSelection, setMeshSelection] = useState(null)
+  const [showSewingGuides, setShowSewingGuides] = useState(true)
+  const [arrangementSpread, setArrangementSpread] = useState(0)
+  const [assetCategory, setAssetCategory] = useState('Garment')
+  const [librarySearch, setLibrarySearch] = useState('')
+  const [libraryThumbnails, setLibraryThumbnails] = useState(true)
+  const [objectTab, setObjectTab] = useState('Scene')
+  const [openMenu, setOpenMenu] = useState(null)
+  const [simulationMenuOpen, setSimulationMenuOpen] = useState(false)
+  const [leftSimulationMenuOpen, setLeftSimulationMenuOpen] = useState(false)
+  const [show2DGrid, setShow2DGrid] = useState(true)
+  const [show2DSeams, setShow2DSeams] = useState(false)
+  const [layout2DSignal, setLayout2DSignal] = useState(0)
+  const [compactTools, setCompactTools] = useState(false)
+  const [showObjectBrowser, setShowObjectBrowser] = useState(true)
+  const [libraryVisible, setLibraryVisible] = useState(true)
+  const [inspectorVisible, setInspectorVisible] = useState(true)
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const [viewportLayout, setViewportLayout] = useState(() => {
+    try { const value = JSON.parse(localStorage.getItem(WORKSPACE_VIEW_KEY) || '{}').layout; return Object.hasOwn(VIEWPORT_LAYOUTS, value) ? value : 'split' } catch { return 'split' }
+  })
+  const [viewportSplit, setViewportSplit] = useState(() => {
+    try { return clamp(JSON.parse(localStorage.getItem(WORKSPACE_VIEW_KEY) || '{}').split ?? 50, 20, 80) } catch { return 50 }
+  })
+  const viewportResizeRef = useRef(null)
+  // Workspace chrome has its own preferences; changing panel dimensions must
+  // never alter the stored garment or the physics history.
+  const [libraryWidth, setLibraryWidth] = useState(() => {
+    try { return clamp(localStorage.getItem('garment-studio-library-width') || 232, 160, 350) } catch { return 232 }
+  })
+  const [inspectorWidth, setInspectorWidth] = useState(() => {
+    try { return clamp(localStorage.getItem('garment-studio-inspector-width') || 392, 295, 540) } catch { return 392 }
+  })
+  const [objectBrowserHeight, setObjectBrowserHeight] = useState(() => {
+    try { return clamp(localStorage.getItem('garment-studio-object-browser-height') || 390, 230, 650) } catch { return 390 }
+  })
+  const [sidebarView, setSidebarView] = useState('library')
+  const panelDragRef = useRef(null)
+  const [showTopWorkspaceTabs, setShowTopWorkspaceTabs] = useState(() => {
+    try { return localStorage.getItem('garment-studio-show-top-tabs') !== 'false' } catch { return true }
+  })
+  const [fitCameraSignal, setFitCameraSignal] = useState(0)
   const [running, setRunning] = useState(false)
+  const [hasSimulated, setHasSimulated] = useState(false)
   const [wireframe, setWireframe] = useState(false)
   const [analysisMode, setAnalysisMode] = useState('surface')
   const [selectedFabricId, setSelectedFabricId] = useState('main')
@@ -571,6 +705,7 @@ export default function App() {
   const [trimEdgeIndex, setTrimEdgeIndex] = useState(0)
   const [gradePreviewSize, setGradePreviewSize] = useState('M')
   const [showGradeNest, setShowGradeNest] = useState(false)
+  const [exportSelectedPatternOnly, setExportSelectedPatternOnly] = useState(false)
   const [meshExportSignal, setMeshExportSignal] = useState(0)
   const [glbExportSignal, setGlbExportSignal] = useState(0)
   const [renderSignal, setRenderSignal] = useState(0)
@@ -578,6 +713,23 @@ export default function App() {
   const [nativeServiceStatus, setNativeServiceStatus] = useState('checking')
   const [nativeSolveStatus, setNativeSolveStatus] = useState('idle')
   const [nativeLastSolve, setNativeLastSolve] = useState(null)
+  // A short solver proof is safe by default on Apple Metal; large frame runs
+  // can spend minutes resolving sleeve/body contacts before reaching a drape.
+  const [ppfFrames, setPpfFrames] = useState(60)
+  const [ppfSewing, setPpfSewing] = useState({ status: 'idle', phase: 'idle', jobId: null, error: null, summary: null, artifacts: null })
+  const [ppfPreview, setPpfPreview] = useState(null)
+  const [ppfPreviewError, setPpfPreviewError] = useState('')
+  const [ppfPreviewLoading, setPpfPreviewLoading] = useState(false)
+  const [zozoReference, setZozoReference] = useState(null)
+  const [zozoReferenceLoading, setZozoReferenceLoading] = useState(false)
+  const [zozoReferenceError, setZozoReferenceError] = useState('')
+  const [zozoReferenceFrame, setZozoReferenceFrame] = useState(240)
+  const [zozoReferencePlaying, setZozoReferencePlaying] = useState(false)
+  const [zozoReferenceBodyVisible, setZozoReferenceBodyVisible] = useState(true)
+  const [automaticPpfOnSimulate, setAutomaticPpfOnSimulate] = useState(() => {
+    try { return localStorage.getItem('garment-studio-auto-ppf-on-simulate-v1') === 'true' } catch { return false }
+  })
+  const ppfAutoRunRequestRef = useRef(false)
   const [hdriUrl, setHdriUrl] = useState('')
   const [hdriName, setHdriName] = useState('')
   const [resetSignal, setResetSignal] = useState(0)
@@ -589,11 +741,20 @@ export default function App() {
   const [commandResult, setCommandResult] = useState('Ready for garment commands')
   const [transformDraft, setTransformDraft] = useState({ scaleX: 100, scaleY: 100, rotateDeg: 0, slashCm: 4 })
   const importInputRef = useRef(null)
+  const seamlyMeasureInputRef = useRef(null)
+  const seamlyPatternInputRef = useRef(null)
   const graphicInputRef = useRef(null)
   const fabricTextureInputRef = useRef(null)
   const fabricNormalInputRef = useRef(null)
   const fabricRoughnessInputRef = useRef(null)
+  const fabricMetalnessInputRef = useRef(null)
+  const fabricOpacityInputRef = useRef(null)
+  const fabricDisplacementInputRef = useRef(null)
+  const fabricPbrSetInputRef = useRef(null)
+  const [fabricGeneratingPbr, setFabricGeneratingPbr] = useState(false)
   const hdriInputRef = useRef(null)
+  const avatarMeshInputRef = useRef(null)
+  const [customAvatar, setCustomAvatar] = useState(null)
 
   useEffect(() => {
     let active = true
@@ -602,6 +763,136 @@ export default function App() {
       .catch(() => { if (active) setNativeServiceStatus('offline') })
     return () => { active = false }
   }, [])
+  useEffect(() => {
+    try { localStorage.setItem('garment-studio-show-top-tabs', String(showTopWorkspaceTabs)) } catch { /* browser privacy mode */ }
+  }, [showTopWorkspaceTabs])
+  useEffect(() => {
+    try { localStorage.setItem(WORKSPACE_VIEW_KEY, JSON.stringify({layout: viewportLayout, split: viewportSplit})) } catch { /* browser privacy mode */ }
+  }, [viewportLayout, viewportSplit])
+  useEffect(() => {
+    const onPaletteShortcut = event => {
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setCommandPaletteOpen(open => !open)
+      } else if (event.key === 'Escape') setCommandPaletteOpen(false)
+    }
+    window.addEventListener('keydown', onPaletteShortcut, true)
+    return () => window.removeEventListener('keydown', onPaletteShortcut, true)
+  }, [])
+  useEffect(() => {
+    try { localStorage.setItem('garment-studio-auto-ppf-on-simulate-v1', String(automaticPpfOnSimulate)) } catch { /* browser privacy mode */ }
+  }, [automaticPpfOnSimulate])
+  useEffect(() => {
+    try {
+      localStorage.setItem('garment-studio-library-width', String(libraryWidth))
+      localStorage.setItem('garment-studio-inspector-width', String(inspectorWidth))
+      localStorage.setItem('garment-studio-object-browser-height', String(objectBrowserHeight))
+    } catch { /* browser privacy mode */ }
+  }, [libraryWidth, inspectorWidth, objectBrowserHeight])
+  const beginPanelResize = (panel, event) => {
+    if (event.button !== 0) return
+    event.preventDefault()
+    panelDragRef.current = { panel, x: event.clientX, y: event.clientY, libraryWidth, inspectorWidth, objectBrowserHeight }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+  const movePanelResize = (event) => {
+    const start = panelDragRef.current
+    if (!start) return
+    if (start.panel === 'library') setLibraryWidth(clamp(start.libraryWidth + event.clientX - start.x, 160, Math.min(350, window.innerWidth * .25)))
+    if (start.panel === 'inspector') setInspectorWidth(clamp(start.inspectorWidth + start.x - event.clientX, 295, Math.min(540, window.innerWidth * .42)))
+    if (start.panel === 'objects') setObjectBrowserHeight(clamp(start.objectBrowserHeight + event.clientY - start.y, 230, Math.max(270, window.innerHeight - 300)))
+  }
+  const endPanelResize = () => { panelDragRef.current = null }
+
+  // Resizable 3D/2D divider is a workspace preference, not garment geometry.
+  const beginViewportResize = event => {
+    if (event.button !== 0 || !['split','stack'].includes(viewportLayout)) return
+    event.preventDefault()
+    viewportResizeRef.current = event.pointerId
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+  const moveViewportResize = event => {
+    if (viewportResizeRef.current !== event.pointerId) return
+    const rect = event.currentTarget.parentElement.getBoundingClientRect()
+    const stacked = viewportLayout === 'stack'
+    const size = stacked ? rect.height : rect.width
+    const position = stacked ? event.clientY - rect.top : event.clientX - rect.left
+    if (size > 1) setViewportSplit(Math.round(clamp(position / size * 100, 20, 80)))
+  }
+  const endViewportResize = () => { viewportResizeRef.current = null }
+
+  const applyWorkspaceProfile = (source, { announce = true } = {}) => {
+    const profile = normalizeWorkspaceProfile(source)
+    setActiveSection(profile.section)
+    setObjectTab(profile.tab)
+    setTool(profile.tool)
+    setViewportTool(profile.viewportTool)
+    setLibraryWidth(profile.libraryWidth)
+    setInspectorWidth(profile.inspectorWidth)
+    setObjectBrowserHeight(profile.objectBrowserHeight)
+    setShowObjectBrowser(profile.objectBrowserVisible)
+    setShowTopWorkspaceTabs(profile.topTabsVisible)
+    setLibraryVisible(profile.libraryVisible)
+    setInspectorVisible(profile.inspectorVisible)
+    setViewportLayout(profile.viewportLayout)
+    setViewportSplit(profile.viewportSplit)
+    if (announce) setCommandResult(`Applied ${profile.name}. Garment geometry, saved physics and editing history remain unchanged.`)
+    return profile
+  }
+
+  const saveCustomWorkspace = () => {
+    const profile = normalizeWorkspaceProfile({
+      name: 'My workspace', section: activeSection, tab: objectTab, tool, viewportTool,
+      libraryWidth, inspectorWidth, objectBrowserHeight,
+      objectBrowserVisible: showObjectBrowser, topTabsVisible: showTopWorkspaceTabs,
+      libraryVisible, inspectorVisible,
+      viewportLayout, viewportSplit,
+    })
+    try {
+      localStorage.setItem(WORKSPACE_PROFILE_KEY, JSON.stringify(profile))
+      setCommandResult('Saved custom workspace layout and tool focus separately from the garment document.')
+    } catch {
+      setCommandResult('Could not store this workspace layout; check local browser storage permissions.')
+    }
+  }
+
+  const restoreCustomWorkspace = () => {
+    try {
+      const source = localStorage.getItem(WORKSPACE_PROFILE_KEY)
+      if (!source) throw new Error('No custom layout has been saved')
+      applyWorkspaceProfile(JSON.parse(source))
+    } catch (error) {
+      setCommandResult(`Unable to restore saved workspace: ${error.message}`)
+    }
+  }
+
+  // Pattern drafting starts without a web of sewing links. Switching into
+  // Sewing restores the exact correspondence lines for edge matching.
+  // The SEAMS toggle within each workspace remains a manual override.
+  useEffect(() => {
+    setShow2DSeams(activeSection === 'Sewing')
+  }, [activeSection])
+
+  // Preserve drape mode while editing pattern geometry. The viewport builds a
+  // fresh physical mesh for changed topology and re-establishes the canonical
+  // body dressing pose, rather than returning the garment to flat staging.
+  useEffect(() => {
+    setArrangementSpread(0)
+  }, [project.revision])
+
+  const toggleSimulation = () => {
+    if (running) { setRunning(false); return }
+    setArrangementSpread(0)
+    setHasSimulated(true)
+    setRunning(true)
+    // Trigger the optional higher-fidelity local Metal contact solve only on
+    // the initial garment drape, never when simply resuming paused fabric.
+    // It runs in isolation from the interactive PBD solve. A contact-invalid
+    // result cannot replace the user’s cloth, patterns or source seams.
+    if (!hasSimulated && automaticPpfOnSimulate && project.seams.length) {
+      ppfAutoRunRequestRef.current = true
+    }
+  }
 
   const applyGarmentTemplate = (templateId) => {
     const next = createTemplateProject(templateId)
@@ -619,6 +910,37 @@ export default function App() {
     setResetSignal((signal) => signal + 1)
     setCommandResult(`Loaded ${next.name} foundation with ${next.pieces.length} pattern${next.pieces.length === 1 ? '' : 's'} and ${next.seams.length} sewing relationship${next.seams.length === 1 ? '' : 's'}`)
   }
+  const correctTeeArmholes = () => {
+    const reference = createTemplateProject('tee')
+    const byId = new Map(reference.pieces.map((piece) => [piece.id, piece]))
+    // An explicit, undoable engineering update of only the relevant tee
+    // cutline coordinates. No silent migration of saved user projects.
+    // Keep existing materials, sewing IDs, selected styling and 3D placement.
+    mutateProject((next) => {
+      for (const piece of next.pieces) {
+        const corrected = byId.get(piece.id)
+        if (!corrected || !['front','back','sleeve-left','sleeve-right'].includes(piece.id)) continue
+        if (piece.points.length !== corrected.points.length) continue
+        if (piece.id.startsWith('sleeve-')) {
+          for (const index of [1,2,5,6]) piece.points[index] = { ...piece.points[index], ...cloneProject(corrected.points[index]) }
+          piece.curves = cloneProject(corrected.curves)
+        } else {
+          for (const index of [2,7]) piece.points[index] = { ...piece.points[index], ...cloneProject(corrected.points[index]) }
+          piece.curves = {...(piece.curves || {}),...Object.fromEntries([1,2,6,7].map(i=>[i,cloneProject(corrected.curves[i])]))}
+        }
+        piece.edgeSeamAllowances = { ...(piece.edgeSeamAllowances || {}), ...corrected.edgeSeamAllowances }
+        if (piece.id === 'front' || piece.id === 'back') piece.bindings = cloneProject(corrected.bindings)
+        for (const notch of piece.notches || []) {
+          const correction = corrected.notches?.find(item => item.id === notch.id)
+          if (correction) { notch.matchGroupId = correction.matchGroupId; notch.matchedSeamId = correction.matchedSeamId }
+        }
+      }
+      next.productionSpec = cloneProject(reference.productionSpec)
+    })
+    setLayout2DSignal(value => value + 1)
+    setRunning(false)
+    setCommandResult('Applied the regular-fit M T-shirt development block: recessed armscyes, matching separate sleeve caps, hem/neck allowances and matched seam notches. Confirm fit before factory release; Undo available.')
+  }
   const gestureStartRef = useRef(null)
 
   const selectedPiece = project.pieces.find((piece) => piece.id === selectedPieceId) || null
@@ -629,6 +951,8 @@ export default function App() {
     () => gradeProject(project, gradePreviewSize || project.grading?.baseSize || 'M'),
     [project, gradePreviewSize],
   )
+  const productionPreflight = useMemo(() => inspectProduction(project), [project])
+  const productionCosts = useMemo(() => buildFabricCostRun(project), [project])
   const displayProject = activeSection === 'Production' ? productionProject : project
   const gradeNestProjects = useMemo(() => {
     if (activeSection !== 'Production' || !showGradeNest) return []
@@ -710,6 +1034,23 @@ export default function App() {
     setSaveState('modified')
   }
 
+  // CLO-style History panel: jump to an actual previous document snapshot.
+  // Keep every skipped state on the Redo branch in its original order, so a
+  // history jump is reversible by the same undo/redo engine as toolbar edits.
+  const restoreHistorySnapshot = (index) => {
+    if (!Number.isInteger(index) || index < 0 || index >= undoStack.length) return
+    const target = cloneProject(undoStack[index])
+    const forward = undoStack.slice(index + 1).map(cloneProject).reverse()
+    setRedoStack(stack => [...stack, cloneProject(project), ...forward].slice(-MAX_HISTORY))
+    setUndoStack(undoStack.slice(0, index))
+    setProject(target)
+    setSelectedPieceId(pieceId => target.pieces?.some(piece => piece.id === pieceId) ? pieceId : (target.pieces?.[0]?.id || null))
+    setRunning(false)
+    gestureStartRef.current = null
+    setSaveState('modified')
+    setCommandResult(`Returned to revision ${target.revision ?? 'unknown'} via History. Redo steps remain available.`)
+  }
+
   const saveProject = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(project))
     setSaveState('saved')
@@ -729,14 +1070,55 @@ export default function App() {
 
   useEffect(() => {
     const handler = (event) => {
+      const editing = Boolean(event.target?.closest?.('input,textarea,select,[contenteditable="true"]'))
+      // Let native text fields handle their own editing and undo shortcuts.
+      if (editing) return
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        saveProject()
+        return
+      }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         if (event.shiftKey) redo()
         else undo()
+        return
       }
-      if (event.code === 'Space' && !['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) {
+      if (event.code === 'Space') {
         event.preventDefault()
-        setRunning((value) => !value)
+        toggleSimulation()
+        return
+      }
+      if (!event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
+        const in2D = Boolean(event.target?.closest?.('.pattern-canvas'))
+        if (in2D) {
+          if (event.key.toLowerCase() === 'a') { setTool('select'); setActiveSection('Pattern') }
+          if (event.key.toLowerCase() === 'z') { setTool('point'); setActiveSection('Pattern') }
+          if (event.key.toLowerCase() === 'p') { setTool('pin'); setActiveSection('Pattern') }
+        } else {
+          if (event.key.toLowerCase() === 't') setViewportTool('transform')
+          if (event.key.toLowerCase() === 'g') setViewportTool('move')
+          if (event.key.toLowerCase() === 'r') setViewportTool('rotate')
+          if (event.key.toLowerCase() === 'q' || event.key === 'Escape') setViewportTool('orbit')
+          // CLO divided-gizmo keys, while retaining existing G/R/T aliases.
+          if (event.key.toLowerCase() === 'w') setViewportTool('move')
+          if (event.key.toLowerCase() === 'e') setViewportTool('rotate')
+          if (event.key.toLowerCase() === 'h') setViewportTool('hand')
+          if (event.key.toLowerCase() === 'v') setShowSewingGuides(value => !value)
+        }
+      }
+      // Nudge only the flat 3D arrangement, never a live physical solve.
+      if (!event.metaKey && !event.altKey && !hasSimulated && selectedPieceId &&
+          event.target?.closest?.('.three-mount') &&
+          ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+        event.preventDefault()
+        const amount = event.shiftKey ? 0.01 : 0.0025
+        const depth = event.ctrlKey
+        const offset = depth
+          ? { x: 0, y: 0, z: event.key === 'ArrowUp' ? -amount : event.key === 'ArrowDown' ? amount : 0 }
+          : { x: event.key === 'ArrowLeft' ? -amount : event.key === 'ArrowRight' ? amount : 0,
+              y: event.key === 'ArrowUp' ? amount : event.key === 'ArrowDown' ? -amount : 0, z: 0 }
+        moveStagedPanel(selectedPieceId, offset)
       }
     }
     window.addEventListener('keydown', handler)
@@ -750,14 +1132,143 @@ export default function App() {
     }, { record: false })
   }
 
-  const movePoint = (pieceId, pointIndex, point) => {
+  const tidy2DPatterns = () => {
+    const pieces = project.pieces || []
+    if (!pieces.length) return
+    // Pack the drawn boundary boxes, not their pattern origin points. Preserve
+    // shape, curve control points, stable IDs, seam graph, and each local
+    // pattern coordinate while placing complete pieces in separated cells.
+    const dimensions = pieces.map((piece) => {
+      const points = samplePieceBoundary(piece, 16).points
+      const minX = Math.min(0, ...points.map((point) => point.x))
+      const maxX = Math.max(0, ...points.map((point) => point.x))
+      const minY = Math.min(0, ...points.map((point) => point.y))
+      const maxY = Math.max(0, ...points.map((point) => point.y))
+      return { minX, maxX, minY, maxY, width: maxX - minX, height: maxY - minY }
+    })
+    const columns = Math.max(1, Math.min(pieces.length <= 4 ? 2 : 3, pieces.length))
+    const columnWidths = Array.from({ length: columns }, () => 0)
+    const rowHeights = Array.from({ length: Math.ceil(pieces.length / columns) }, () => 0)
+    dimensions.forEach((item, i) => {
+      const col = i % columns, row = Math.floor(i / columns)
+      columnWidths[col] = Math.max(columnWidths[col], item.width)
+      rowHeights[row] = Math.max(rowHeights[row], item.height)
+    })
+    const gap = 23
+    const xOffsets = columnWidths.map((_, i) => 20 + columnWidths.slice(0, i).reduce((total, width) => total + width + gap, 0))
+    const yOffsets = rowHeights.map((_, i) => 33 + rowHeights.slice(0, i).reduce((total, height) => total + height + gap, 0))
+    mutateProject((next) => {
+      next.pieces.forEach((piece, i) => {
+        const item = dimensions[i]
+        piece.layout2d = {
+          x: xOffsets[i % columns] - item.minX,
+          y: yOffsets[Math.floor(i / columns)] + item.maxY,
+        }
+      })
+    })
+    setLayout2DSignal((value) => value + 1)
+    setCommandResult('Arranged 2D pattern pieces in separated drafting rows. All pattern shapes, sewing edges, and 3D placements are preserved.')
+  }
+
+  const moveStagedPanel = (pieceId, offset) => {
     mutateProject((next) => {
       const piece = next.pieces.find((item) => item.id === pieceId)
-      if (piece?.points?.[pointIndex]) piece.points[pointIndex] = point
+      if (!piece) return
+      piece.arrangement3d = piece.arrangement3d || {}
+      for (const [axis, delta] of [['X', offset.x], ['Y', offset.y], ['Z', offset.z]]) {
+        const field = `stagingOffset${axis}`
+        const previous = Number(piece.arrangement3d[field] || 0)
+        const nextValue = clamp(previous + Number(delta || 0), -2, 2)
+        piece.arrangement3d[field] = nextValue
+        // Record actual user translation separately: shipped garment
+        // templates already contain intentional staging corrections and
+        // those must not be mistaken for manually mispositioned fabric.
+        const manualField = `userPlacementDelta${axis}`
+        piece.arrangement3d[manualField] = clamp(Number(piece.arrangement3d[manualField] || 0) + (nextValue - previous), -2, 2)
+      }
+      if (offset.rotation) {
+        for (const axis of ['X', 'Y', 'Z']) {
+          const value = Number(offset.rotation[axis.toLowerCase()])
+          if (Number.isFinite(value)) piece.arrangement3d[`stagingRotation${axis}`] = value
+        }
+      }
+    })
+    setCommandResult('Transformed selected 3D panel. 2D drafting geometry and sewing connections remain linked.')
+  }
+
+  const setStagedPlacementField = (pieceId, field, value) => {
+    if (hasSimulated) return
+    if (!/^staging(Offset|Rotation)[XYZ]$/.test(field)) return
+    mutateProject((next) => {
+      const piece = next.pieces.find(item => item.id === pieceId)
+      if (!piece) return
+      piece.arrangement3d = piece.arrangement3d || {}
+      const previous = Number(piece.arrangement3d[field] || 0)
+      const nextValue = field.startsWith('stagingOffset')
+        ? clamp(Number(value) / 100, -2, 2)
+        : clamp(Number(value), -360, 360)
+      piece.arrangement3d[field] = nextValue
+      if (field.startsWith('stagingOffset')) {
+        const manualField = `userPlacementDelta${field.at(-1)}`
+        piece.arrangement3d[manualField] = clamp(Number(piece.arrangement3d[manualField] || 0) + (nextValue - previous), -2, 2)
+      }
+    })
+  }
+  const resetStagedPlacement = (pieceId) => {
+    if (hasSimulated) return
+    mutateProject((next) => {
+      const piece = next.pieces.find(item => item.id === pieceId)
+      if (!piece) return
+      piece.arrangement3d = piece.arrangement3d || {}
+      for (const axis of ['X', 'Y', 'Z']) {
+        piece.arrangement3d[`stagingOffset${axis}`] = 0
+        piece.arrangement3d[`stagingRotation${axis}`] = 0
+        piece.arrangement3d[`userPlacementDelta${axis}`] = 0
+      }
+    })
+  }
+
+  const selectIn3D = (pieceId) => {
+    setSelectedPieceId(pieceId)
+    // Select inside the 3D model and activate the on-fabric rotation circles
+    // plus XYZ movement arrows rather than a camera widget in the corner.
+    if (pieceId && viewportTool === 'orbit' && (!hasSimulated || (
+      !running && (project.simulation?.backendId || 'browser-pbd') === 'browser-pbd'
+    ))) setViewportTool('transform')
+    if (pieceId && !['Sewing', 'Production'].includes(activeSection)) setActiveSection('Pattern')
+  }
+
+  const movePoint = (pieceId, pointIndex, point) => {
+    const original = project.pieces.find(item => item.id === pieceId)
+    if (!original || original.locked || !isDraftEditValid(original,{pointIndex,point},{curveSamples:8})) return
+    mutateProject((next) => {
+      const piece = next.pieces.find((item) => item.id === pieceId)
+      if (piece?.points?.[pointIndex] && !piece.locked) {
+        // Preserve the vertex's grading, source-curve and parametric metadata
+        // when only its X/Y coordinates are being dragged.
+        piece.points[pointIndex] = { ...piece.points[pointIndex], x:point.x, y:point.y }
+      }
     }, { record: false })
   }
 
+  const setPointPrecision = (pieceId, pointIndex, point) => {
+    // Numeric CAD edits are discrete history operations. Pointer drags use
+    // their own begin/end gesture transaction instead.
+    const original = project.pieces.find(item => item.id === pieceId)
+    if (!original || original.locked || !isDraftEditValid(original,{pointIndex,point},{curveSamples:24})) {
+      setCommandResult('Invalid pattern edit: cutting boundaries must remain closed and non-self-intersecting.')
+      return false
+    }
+    mutateProject((next) => {
+      const piece = next.pieces.find((item) => item.id === pieceId)
+      if (piece?.points?.[pointIndex] && !piece.locked) piece.points[pointIndex] = point
+    })
+    return true
+  }
+
   const moveCurve = (pieceId, edgeIndex, curve) => {
+    const original = project.pieces.find(item => item.id === pieceId)
+    if (!original || original.locked || !isDraftEditValid(original,{edgeIndex,curve},{curveSamples:8})) return
     mutateProject((next) => {
       const piece = next.pieces.find((item) => item.id === pieceId)
       if (!piece) return
@@ -765,6 +1276,28 @@ export default function App() {
       if (curve) piece.curves[edgeIndex] = curve
       else delete piece.curves[edgeIndex]
     }, { record: false })
+  }
+
+  const setCurvePrecision = (pieceId, edgeIndex, curve) => {
+    // A numeric curve edit or straighten is a single undoable CAD transaction.
+    // Pointer drags continue to use their existing gesture history.
+    if (curve && (!Number.isFinite(curve.cx) || !Number.isFinite(curve.cy)
+      || Math.abs(curve.cx) > 100000 || Math.abs(curve.cy) > 100000)) return false
+    if (!Number.isInteger(edgeIndex) || edgeIndex < 0) return false
+    const source = project.pieces.find(item => item.id === pieceId)
+    if (!source || source.locked || edgeIndex >= source.points.length) return false
+    if (!isDraftEditValid(source,{edgeIndex,curve},{curveSamples:24})) {
+      setCommandResult('Invalid pattern curve: the new cutline overlaps or crosses itself.')
+      return false
+    }
+    mutateProject((next) => {
+      const piece = next.pieces.find(item => item.id === pieceId)
+      if (!piece || piece.locked || edgeIndex >= piece.points.length) return
+      piece.curves = { ...(piece.curves || {}) }
+      if (curve) piece.curves[edgeIndex] = { cx: curve.cx, cy: curve.cy }
+      else delete piece.curves[edgeIndex]
+    })
+    return true
   }
 
   useEffect(() => {
@@ -851,6 +1384,72 @@ export default function App() {
     setCommandResult(edgeIsSewn(pieceId, edgeIndex)
       ? 'Sewn pattern edge split; seam ranges were remapped across the new topology.'
       : 'Pattern edge split with a new editable anchor point.')
+  }
+
+  const splitPatternEdgePrecise = (pieceId, edgeIndex, options) => {
+    const source = project.pieces.find(item => item.id === pieceId)
+    if (!source || source.locked) return
+    // Validate all requested geometry *before* entering the Undo transaction.
+    const fractions = draftingSplitFractions(source, edgeIndex, options)
+    mutateProject(next => {
+      let currentIndex = edgeIndex
+      let previousFraction = 0
+      for (const target of fractions) {
+        const piece = next.pieces.find(item => item.id === pieceId)
+        const remainder = (target - previousFraction) / (1 - previousFraction)
+        // For Bézier edges a half-parameter split does NOT mean half-length;
+        // use the exact arc-length inverse on the remaining curve section.
+        const parameter = splitParameterAtArcFraction(piece, currentIndex, remainder)
+        const result = splitPieceEdgeInProject(next, pieceId, currentIndex, parameter)
+        if (!result) throw new Error('Unable to split the selected pattern edge')
+        currentIndex += 1
+        previousFraction = target
+      }
+    })
+    setCommandResult('Split edge into ' + (fractions.length + 1) +
+      ' true-length segments. Existing notch and sewing references were remapped in one Undo step.')
+  }
+
+  const unfoldPatternEdge = (pieceId, foldEdgeIndex) => {
+    const source = project.pieces.find(item => item.id === pieceId)
+    if (!source || source.locked) return { ok:false, message:'Select and unlock a pattern' }
+    const blockers = ['topstitches','bindings','zippers','buttons','buttonholes','graphics','pins']
+      .filter(name => (source[name] || []).length > 0)
+    if (blockers.length) {
+      const message = 'Unfold this piece before adding ' + blockers.join(', ') +
+        ' to avoid dropping manufacturing details'
+      setCommandResult(message)
+      return { ok:false, message }
+    }
+    if (source.linkedMirrorSourceId) {
+      return { ok:false, message:'Unfold the original half-pattern, not its linked mirror' }
+    }
+    const linkedFoldSeam = (project.seams || []).some(seam =>
+      [seam.a,seam.b].some(end => end?.pieceId === pieceId && end.edgeIndex === foldEdgeIndex))
+    if (linkedFoldSeam) {
+      return { ok:false, message:'Fold edge is sewn: remove that sewing relation before unfolding' }
+    }
+    try {
+      const result = unfoldDraftPiece(source,foldEdgeIndex)
+      mutateProject(next => {
+        const index = next.pieces.findIndex(item => item.id === pieceId)
+        if (index < 0) return
+        next.pieces[index] = result.piece
+        for (const seam of next.seams || []) {
+          for (const endpoint of [seam.a,seam.b]) {
+            if (endpoint?.pieceId !== pieceId) continue
+            const mapped = result.edgeMap[endpoint.edgeIndex]
+            if (!Number.isInteger(mapped)) throw new Error('Unfold would break a sewn edge')
+            endpoint.edgeIndex = mapped
+          }
+        }
+      })
+      setCommandResult('Unfolded the half-pattern across the selected straight edge. Curves, notch positions, internal lines and remaining sewing edges were remapped.')
+      return { ok:true }
+    } catch (error) {
+      setCommandResult(error.message)
+      return { ok:false, message:error.message }
+    }
   }
 
   const deletePatternPoint = (pieceId, pointIndex) => {
@@ -974,24 +1573,26 @@ export default function App() {
   }
 
   const createSeam = (a, b) => {
-    const duplicate = project.seams.some((seam) => {
-      const straight = seam.a.pieceId === a.pieceId && seam.a.edgeIndex === a.edgeIndex && seam.b.pieceId === b.pieceId && seam.b.edgeIndex === b.edgeIndex
-      const reverse = seam.a.pieceId === b.pieceId && seam.a.edgeIndex === b.edgeIndex && seam.b.pieceId === a.pieceId && seam.b.edgeIndex === a.edgeIndex
-      return straight || reverse
-    })
-    if (duplicate) {
-      setCommandResult('Those two edges are already sewn')
+    const partial = [a, b].some((endpoint) => endpoint.startT !== undefined || endpoint.endT !== undefined)
+    const proposal = {
+      a, b,
+      // All Free Sewing ranges must be mapped to their *exact* cutline
+      // fractions; whole-edge sewing preserves the established solver mode.
+      ...(partial ? { useExactCorrespondence: true } : {}),
+    }
+    const verification = validateNewSeam(project, proposal)
+    if (!verification.ok) {
+      setCommandResult(verification.messages[0] || 'Invalid sewing selection')
       return
     }
     mutateProject((next) => {
       next.seams.push({
         id: uniqueId('seam'),
-        name: `Seam ${next.seams.length + 1}`,
-        a,
-        b,
+        name: `${partial ? 'Free sewing' : 'Segment sewing'} ${next.seams.length + 1}`,
+        ...proposal,
       })
     })
-    setCommandResult('Seam created and added to the 3D solver')
+    setCommandResult(verification.warning || `${partial ? 'Free' : 'Segment'} sewing created and linked to the 3D solver`)
   }
 
   const createFastener = (a, b) => {
@@ -1064,6 +1665,27 @@ export default function App() {
     setTool('point')
   }
 
+  const addPolygonPiece = () => {
+    // A real five-vertex clipped-corner pattern, not merely a polygon-shaped
+    // toolbar symbol that still creates an unrelated rectangular draft.
+    const piece = makeRectanglePiece(project.pieces.length)
+    piece.name = `Polygon ${project.pieces.length + 1}`
+    piece.points = [
+      { x: -18, y: 0 }, { x: 18, y: 0 }, { x: 18, y: 26 },
+      { x: 9, y: 36 }, { x: -18, y: 36 },
+    ]
+    // Place new draft pieces in the currently empty lower drafting region,
+    // with their 3D proxy in front of the avatar rather than beyond the
+    // camera's right edge. Their locations remain editable in both views.
+    piece.layout2d = { x: 248, y: 193 }
+    piece.arrangement3d = { x: 0.08, y: 1.02, z: 0.72, flip: false }
+    mutateProject((next) => next.pieces.push(piece))
+    setSelectedPieceId(piece.id)
+    setTool('point')
+    setActiveSection('Pattern')
+    setCommandResult('Created a 5-point clipped-corner polygon. Edit its nodes in the 2D window.')
+  }
+
   const deleteSelectedPiece = () => {
     if (!selectedPiece) return
     mutateProject((next) => {
@@ -1104,12 +1726,30 @@ export default function App() {
   }
 
   const setSeamPartial = (seamId, enabled) => {
+    const current = project.seams.find((item) => item.id === seamId)
+    if (!current) return
+    const proposed = cloneProject(current)
+    if (enabled) {
+      proposed.a = { ...proposed.a, startT: proposed.a?.startT ?? 0.25, endT: proposed.a?.endT ?? 0.75 }
+      proposed.b = { ...proposed.b, startT: proposed.b?.startT ?? 0.25, endT: proposed.b?.endT ?? 0.75 }
+    } else {
+      delete proposed.a.startT
+      delete proposed.a.endT
+      delete proposed.b.startT
+      delete proposed.b.endT
+    }
+    const validation = validateNewSeam(project, proposed, { excludeSeamId: seamId })
+    if (!validation.ok) {
+      setCommandResult(validation.messages[0])
+      return
+    }
     mutateProject((next) => {
       const seam = next.seams.find((item) => item.id === seamId)
       if (!seam) return
       if (enabled) {
         seam.a = { ...seam.a, startT: seam.a?.startT ?? 0.25, endT: seam.a?.endT ?? 0.75 }
         seam.b = { ...seam.b, startT: seam.b?.startT ?? 0.25, endT: seam.b?.endT ?? 0.75 }
+        seam.useExactCorrespondence = true
       } else {
         seam.a = { ...seam.a }
         seam.b = { ...seam.b }
@@ -1122,14 +1762,26 @@ export default function App() {
   }
 
   const updateSeamRange = (seamId, side, field, value) => {
+    const existing = project.seams.find((item) => item.id === seamId)
+    if (!existing) return
+    const preview = cloneProject(existing)
+    const previewEndpoint = preview?.[side]
+    if (!previewEndpoint) return
+    const nextValue = clamp(Number(value), 0, 1)
+    const piece = project.pieces.find((item) => item.id === previewEndpoint.pieceId)
+    const minimumGap = Math.min(0.5, 0.01 / Math.max(0.01, edgeLength(piece, previewEndpoint.edgeIndex)))
+    if (field === 'startT') previewEndpoint.startT = Math.max(0, Math.min(nextValue, Number(previewEndpoint.endT ?? 1) - minimumGap))
+    if (field === 'endT') previewEndpoint.endT = Math.min(1, Math.max(nextValue, Number(previewEndpoint.startT ?? 0) + minimumGap))
+    const validation = validateNewSeam(project, preview, { excludeSeamId: seamId })
+    if (!validation.ok) {
+      setCommandResult(validation.messages[0])
+      return
+    }
     mutateProject((next) => {
       const seam = next.seams.find((item) => item.id === seamId)
-      const endpoint = seam?.[side]
-      if (!endpoint) return
-      const nextValue = clamp(Number(value), 0, 1)
-      const minimumGap = 0.02
-      if (field === 'startT') endpoint.startT = Math.min(nextValue, Number(endpoint.endT ?? 1) - minimumGap)
-      if (field === 'endT') endpoint.endT = Math.max(nextValue, Number(endpoint.startT ?? 0) + minimumGap)
+      if (!seam) return
+      seam[side] = previewEndpoint
+      seam.useExactCorrespondence = true
     })
   }
 
@@ -2107,6 +2759,19 @@ export default function App() {
     })
   }
 
+  // Numeric edits in the 2D canvas go through the same undoable document
+  // transaction as the Property Editor; never mutate a rendered copy.
+  const updatePatternEdgeAllowance = (pieceId, edgeIndex, value) => {
+    if (!Number.isInteger(edgeIndex) || !Number.isFinite(value) || value < 0 || value > 8) return
+    mutateProject((next) => {
+      const piece = next.pieces.find(item => item.id === pieceId)
+      if (!piece || piece.locked || edgeIndex >= piece.points.length) return
+      piece.edgeSeamAllowances = { ...(piece.edgeSeamAllowances || {}) }
+      if (Math.abs(value - Number(piece.seamAllowance || 0)) < 1e-6) delete piece.edgeSeamAllowances[edgeIndex]
+      else piece.edgeSeamAllowances[edgeIndex] = value
+    })
+  }
+
   const resetSelectedEdgeAllowances = () => {
     if (!selectedPiece) return
     mutateProject((next) => {
@@ -2335,7 +3000,7 @@ export default function App() {
       const current = next.fabrics?.[selectedFabricId] || next.fabrics?.main
       const targetId = current?.id || selectedFabricId || 'main'
       const texture = current?.texture ? cloneProject(current.texture) : null
-      next.fabrics[targetId] = { ...preset, id: targetId, name: preset.name, ...(texture ? { texture } : {}) }
+      next.fabrics[targetId] = { ...preset, id: targetId, name: preset.name, ...(current?.pricePerMeter != null ? { pricePerMeter: current.pricePerMeter } : {}), ...(texture ? { texture } : {}) }
     })
   }
 
@@ -2356,6 +3021,14 @@ export default function App() {
           repeatHeightCm: target.texture?.repeatHeightCm ?? 20,
           rotationDeg: target.texture?.rotationDeg ?? 0,
         }
+        // Photo-derived maps belong to the previous image; authored imported
+        // PBR maps are kept intact when a user changes the color texture.
+        for (const key of ['normal', 'roughness']) {
+          if (target.texture[`${key}Name`] === 'Auto from textile image') {
+            delete target.texture[`${key}Src`]
+            delete target.texture[`${key}Name`]
+          }
+        }
       })
       setCommandResult(`Applied ${file.name} as the ${fabric.name || 'fabric'} surface texture`)
     } catch (error) {
@@ -2372,10 +3045,38 @@ export default function App() {
     })
   }
 
+  const autoGenerateFabricPbr = async () => {
+    if (fabricGeneratingPbr || !fabric.texture?.src) return
+    const fabricId = selectedFabricId
+    const source = fabric.texture.src
+    setFabricGeneratingPbr(true)
+    try {
+      const result = await generateFabricPbrFromImage(source,{maxSize:512})
+      let added=0
+      mutateProject((next) => {
+        const target=next.fabrics?.[fabricId]
+        if (!target?.texture || target.texture.src!==source) return
+        for (const key of ['normal','roughness']) {
+          if (target.texture[`${key}Src`]) continue
+          target.texture[`${key}Src`]=result[`${key}Src`]
+          target.texture[`${key}Name`]='Auto from textile image'
+          added++
+        }
+      })
+      setCommandResult(added
+        ? `Created ${added} estimated PBR map(s) from ${result.width}×${result.height} textile pixels. Fine-tune for physical accuracy.`
+        : 'Normal and roughness maps already assigned; preserved existing user-authored maps.')
+    } catch (error) {
+      setCommandResult(`Photo-to-PBR generation failed: ${error.message}`)
+    } finally {
+      setFabricGeneratingPbr(false)
+    }
+  }
+
   const importFabricPbrMap = async (event, kind) => {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!file || !['normal', 'roughness'].includes(kind)) return
+    if (!file || !['normal', 'roughness', 'metalness', 'opacity', 'displacement'].includes(kind)) return
     try {
       const image = await imageFileToDataUrl(file, 1536)
       mutateProject((next) => {
@@ -2391,8 +3092,39 @@ export default function App() {
     }
   }
 
+  const importFabricPbrSet = async (event) => {
+    const files=Array.from(event.target.files || [])
+    event.target.value=''
+    if (!files.length) return
+    const recognized=files.map(file=>({file,kind:classifyFabricPbrFilename(file.name)}))
+      .filter(item=>item.kind)
+    if (!recognized.length) {
+      setCommandResult('No supported maps found. Use filenames with _diff, _nor_gl, _rough, _metal, _opacity or _height. DirectX/packed maps require conversion.')
+      return
+    }
+    try {
+      const imported=await Promise.all(recognized.map(async item=>({
+        ...item,image:await imageFileToDataUrl(item.file,1536),
+      })))
+      const targetFabricId=selectedFabricId
+      mutateProject((next)=>{
+        const target=next.fabrics?.[targetFabricId]
+        if (!target) return
+        target.texture=target.texture || {repeatWidthCm:20,repeatHeightCm:20,rotationDeg:0}
+        for (const {file,kind,image} of imported) {
+          const prefix=kind==='color' ? '' : kind
+          target.texture[prefix ? `${prefix}Src` : 'src']=image.src
+          target.texture[prefix ? `${prefix}Name` : 'name']=file.name
+        }
+      })
+      setCommandResult(`Imported ${imported.length} fabric PBR channel(s). ${files.length-imported.length} unmatched or unsupported file(s) ignored.`)
+    } catch (error) {
+      setCommandResult(`PBR set import failed: ${error.message}`)
+    }
+  }
+
   const removeFabricPbrMap = (kind) => {
-    if (!['normal', 'roughness'].includes(kind)) return
+    if (!['normal', 'roughness', 'metalness', 'opacity', 'displacement'].includes(kind)) return
     mutateProject((next) => {
       const target = next.fabrics?.[selectedFabricId] || next.fabrics?.main
       if (!target?.texture) return
@@ -2408,7 +3140,7 @@ export default function App() {
       if (!target?.texture) return
       delete target.texture.src
       delete target.texture.name
-      if (!target.texture.normalSrc && !target.texture.roughnessSrc) delete target.texture
+      if (!['normalSrc','roughnessSrc','metalnessSrc','opacitySrc','displacementSrc'].some(key => target.texture[key])) delete target.texture
     })
     setCommandResult('Fabric color texture removed; PBR detail maps were preserved')
   }
@@ -2425,6 +3157,55 @@ export default function App() {
       }
     })
     setSelectedFabricId(id)
+  }
+
+  const addFabricPresetSwatch = (presetId) => {
+    const preset = FABRIC_PRESETS[presetId]
+    if (!preset) return
+    const id = uniqueId('fabric')
+    mutateProject((next) => {
+      next.fabrics = next.fabrics || {}
+      next.fabrics[id] = {...cloneProject(preset), id}
+    })
+    setSelectedFabricId(id)
+    setActiveSection('Fabric')
+    setObjectTab('Fabric')
+    setShowObjectBrowser(true)
+    setCommandResult(`Added ${preset.name} as a new swatch. Assign it to a pattern in Fabric properties.`)
+  }
+
+  // A library swatch click must affect the visible garment, not merely open
+  // an inspector. Assign it to the active pattern without changing any
+  // underlying draft shape, sewing topology, or the other fabric swatches.
+  const assignFabric = (fabricId, allPieces = false) => {
+    if (!project.fabrics?.[fabricId]) return
+    mutateProject((next) => {
+      for (const piece of next.pieces || []) {
+        if (allPieces || piece.id === selectedPieceId) piece.fabricId = fabricId
+      }
+    })
+    setSelectedFabricId(fabricId)
+    setActiveSection('Fabric')
+    setObjectTab('Fabric')
+    setCommandResult(`Applied ${project.fabrics[fabricId].name || fabricId} to ${allPieces ? 'all pattern pieces' : (selectedPiece?.name || 'the selected pattern')}. The 3D cloth material updates with the project.`)
+  }
+  const addAndApplyFabricPreset = (presetId) => {
+    const preset = FABRIC_PRESETS[presetId]
+    if (!preset) return
+    const id = uniqueId('fabric')
+    mutateProject((next) => {
+      next.fabrics = next.fabrics || {}
+      next.fabrics[id] = { ...cloneProject(preset), id }
+      if (selectedPieceId) {
+        const piece = next.pieces.find(item => item.id === selectedPieceId)
+        if (piece) piece.fabricId = id
+      }
+    })
+    setSelectedFabricId(id)
+    setActiveSection('Fabric')
+    setObjectTab('Fabric')
+    setShowObjectBrowser(true)
+    setCommandResult(`Added ${preset.name} and applied it to ${selectedPiece?.name || 'the garment library'}.`)
   }
 
   const deleteFabricSwatch = (fabricId) => {
@@ -2445,11 +3226,153 @@ export default function App() {
     })
   }
 
+  const importAvatarMesh = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    const extension = file.name.split('.').pop()?.toLowerCase()
+    if (!['glb', 'obj'].includes(extension)) {
+      setCommandResult('Export the CLO avatar to OBJ or GLB first. Native .avt files are not supported by the 3D viewport.')
+      return
+    }
+    if (file.size > 80 * 1024 * 1024) {
+      setCommandResult('Avatar file exceeds the 80 MB interactive import limit. Optimize the mesh before import.')
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setCustomAvatar((previous) => { if (previous?.url) URL.revokeObjectURL(previous.url); return { url, type: extension, name: file.name } })
+    setAvatarModel('custom-export')
+    setCommandResult(`Loaded ${file.name} as the visual avatar. Physics remains on the measurement-based collision body.`)
+  }
+
+  const setAvatarModel = (model) => {
+    mutateProject((next) => {
+      next.avatar.model = model
+      if (model === 'clo-thomas') {
+        next.avatar.name = 'CLO Thomas'
+        next.avatar.armAngleDeg = Math.min(25, Number(next.avatar.armAngleDeg ?? 6))
+      } else if (model === 'custom-export') {
+        next.avatar.name = 'Imported CLO avatar mesh'
+      } else if (model === 'theo') {
+        next.avatar.name = 'Theo Fitting'
+        next.avatar.armAngleDeg = 60
+      } else if (model === 'nora') {
+        next.avatar.name = 'Nora Fitting'
+        next.avatar.armAngleDeg = 60
+      } else {
+        next.avatar.name = 'MakeHuman Base'
+        next.avatar.armAngleDeg = Math.min(25, Number(next.avatar.armAngleDeg ?? 6))
+      }
+    })
+  }
+
   const updateSimulation = (field, value) => {
     mutateProject((next) => {
       next.simulation[field] = value
     })
   }
+
+  const startPpfSewing = async (options = {}) => {
+    // onClick passes a browser event. Do not destructure arbitrary event
+    // objects as fit configuration or preserve flags.
+    const preserveInteractiveSimulation = options?.preserveInteractiveSimulation === true
+    if (!project.seams.length || ['queued', 'running', 'connecting'].includes(ppfSewing.status)) return
+    setPpfPreview(null)
+    setPpfPreviewError('')
+    setPpfSewing({ status: 'connecting', phase: 'health', jobId: null, error: null, summary: null, artifacts: null })
+    try {
+      const health = await getPpfServiceHealth()
+      if (!health.ready) throw new Error(health.busy
+        ? 'Another PPF solve is in progress. Wait for it to finish.'
+        : 'PPF Metal is not ready (check solver runtime and available disk space).')
+      if (!preserveInteractiveSimulation) setRunning(false)
+      const job = await submitPpfFinalSolve(cloneProject(project), { frames: ppfFrames })
+      setPpfSewing({ status: job.status, phase: job.phase, jobId: job.id, error: null, summary: job.summary, artifacts: null })
+      setCommandResult(`PPF physical sewing started: ${job.id}`)
+    } catch (error) {
+      setPpfSewing({ status: 'error', phase: 'connection', jobId: null, error: error.message || String(error), summary: null, artifacts: null })
+    }
+  }
+
+  const openZozoReference = async () => {
+    if (zozoReference) { setZozoReference(null); setZozoReferencePlaying(false); return }
+    setZozoReferenceLoading(true)
+    setZozoReferenceError('')
+    try {
+      const reference = await loadZozoDressReference()
+      setZozoReference(reference)
+      setZozoReferenceFrame(reference.manifest.frames - 1)
+      setZozoReferencePlaying(false)
+      setRunning(false)
+      setActiveSection('Fit')
+      setCommandResult('Opened original ZOZO/Codim-IPC dress and pinned body with real saved Metal simulation. Experimental contact failures remain; your editable project is unchanged.')
+    } catch (error) {
+      setZozoReferenceError(error.message || String(error))
+    } finally {
+      setZozoReferenceLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!zozoReference || !zozoReferencePlaying) return undefined
+    const timer = window.setInterval(() => setZozoReferenceFrame(frame => (frame + 1) % zozoReference.manifest.frames), 1000 / zozoReference.manifest.frameRate)
+    return () => window.clearInterval(timer)
+  }, [zozoReference, zozoReferencePlaying])
+
+  const showPpfPreview = async (jobId = ppfSewing.jobId, frame = null, stage = null) => {
+    if (!jobId || (ppfSewing.status !== 'done' && stage !== 'initial-assembly')) return
+    setPpfPreviewLoading(true)
+    setPpfPreviewError('')
+    try {
+      const preview = await getPpfJobPreview(jobId, { frame, stage })
+      if (preview.format !== 'garment-studio.ppf-preview.v1') throw new Error('Unsupported PPF preview format')
+      setRunning(false)
+      setArrangementSpread(0)
+      setPpfPreview(preview)
+      setCommandResult(preview.stage === 'initial-assembly'
+        ? 'Showing verified starting arrangement only. Sewing and continuous body-contact simulation are unfinished.'
+        : preview.accepted
+          ? `Showing accepted ZOZO PPF frame ${preview.frame + 1}/${preview.frames}`
+          : `Showing experimental ZOZO PPF frame ${preview.frame + 1}/${preview.frames}. This result failed full fit validation.`)
+    } catch (error) {
+      setPpfPreviewError(error?.message || String(error))
+    } finally {
+      setPpfPreviewLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!ppfAutoRunRequestRef.current || !hasSimulated) return
+    ppfAutoRunRequestRef.current = false
+    if (['queued', 'running', 'connecting'].includes(ppfSewing.status)) return
+    // Do not stop the interactive drape while its optional final quality
+    // check runs in Blender. The asynchronous job checks actual body contact.
+    void startPpfSewing({ preserveInteractiveSimulation: true })
+  }, [hasSimulated, ppfSewing.status])
+
+  useEffect(() => {
+    if (!ppfSewing.jobId || !['queued', 'running'].includes(ppfSewing.status)) return undefined
+    let active = true
+    const poll = async () => {
+      try {
+        const job = await getPpfJob(ppfSewing.jobId)
+        if (!active) return
+        setPpfSewing({ status: job.status, phase: job.phase, jobId: job.id,
+          error: job.error || null, summary: job.summary || null, artifacts: job.artifacts || null })
+        if (job.status === 'done') {
+          const acceptance = job.summary?.fitAcceptance
+          setCommandResult(acceptance?.accepted
+            ? `Validated PPF fit saved in Blender: ${job.artifacts?.blend || 'completed'}`
+            : `PPF experimental solve is NOT approved as a fitted garment: ${job.summary?.contact?.maxAvatarIntersectionPairs || 0} body crossings, ${job.summary?.contact?.maxSelfIntersectionPairs || 0} self crossings. Source pattern and live cloth preserved.`)
+        }
+      } catch (error) {
+        if (active) setPpfSewing((state) => ({ ...state, status: 'error', error: error.message || String(error) }))
+      }
+    }
+    poll()
+    const timer = setInterval(poll, 1500)
+    return () => { active = false; clearInterval(timer) }
+  }, [ppfSewing.jobId, ppfSewing.status])
 
   const updateRenderSetting = (field, value) => {
     mutateProject((next) => {
@@ -2575,14 +3498,25 @@ export default function App() {
     })
   }
 
+  const updateMarkerFabricPrice = (fabricId, value) => {
+    mutateProject((next) => {
+      if (!next.fabrics?.[fabricId]) return
+      next.fabrics[fabricId].pricePerMeter = value === '' ? null : Math.max(0, Number(value))
+    })
+  }
+
   const resetSimulation = () => {
     setRunning(false)
+    setHasSimulated(false)
+    setArrangementSpread(0)
+    setShowSewingGuides(true)
     setResetSignal((value) => value + 1)
-    setCommandResult('3D garment returned to its arrangement state')
+    setCommandResult('Flat 3D pattern pieces restored around the avatar; press SIMULATE to drape')
   }
 
   const requestNativeSolve = async () => {
     setRunning(false)
+    setHasSimulated(true)
     setAnalysisMode('surface')
     setNativeSolveStatus('checking')
     try {
@@ -2599,17 +3533,30 @@ export default function App() {
     }
   }
 
+  const applyNativeQuality = (quality) => {
+    const profile = NATIVE_QUALITY_PROFILES[quality] || NATIVE_QUALITY_PROFILES.draft
+    mutateProject((next) => {
+      next.simulation.nativeQuality = profile.id
+      next.simulation.nativeClothModel = profile.clothModel
+      next.simulation.nativeBendingModel = profile.bendingModel
+    })
+    setNativeSolveStatus('idle')
+    setCommandResult(`Native XPBD quality set to ${profile.label}`)
+  }
+
   const handleNativeSolve = (event) => {
     if (event.status === 'solving') {
       setNativeSolveStatus('solving')
+      setNativeLastSolve(null)
       return
     }
     if (event.status === 'done') {
-      setNativeSolveStatus('done')
-      setNativeLastSolve({ elapsedMs: Number(event.elapsedMs || 0), stats: event.stats || {} })
+      const fitStatus = event.fitAssessment?.status || 'UNVERIFIED'
+      setNativeSolveStatus(fitStatus === 'FAILED' ? 'unfit' : 'done')
+      setNativeLastSolve({ elapsedMs: Number(event.elapsedMs || 0), stats: event.stats || {}, fitAssessment:event.fitAssessment || null, fitTrajectory:event.fitTrajectory || null, payload:event.payload || {} })
       const milliseconds = Number(event.elapsedMs || 0).toFixed(1)
       const seamMm = Number((event.stats?.seamAverageDistance || 0) * 1000).toFixed(1)
-      setCommandResult(`Native XPBD solved in ${milliseconds} ms · ${event.stats?.particles || 0} particles · average seam distance ${seamMm} mm`)
+      setCommandResult(`Native XPBD numerical solve completed in ${milliseconds} ms · fit ${fitStatus}. Average seam distance ${seamMm} mm; this is not factory or collision-CCD approved.`)
       return
     }
     if (event.status === 'error') {
@@ -2660,14 +3607,51 @@ export default function App() {
   }
 
   const exportDxf = () => {
-    const dxf = projectToDxf(productionProject, gradePreviewSize)
+    if (exportSelectedPatternOnly && !selectedPiece) {
+      setCommandResult('Choose a pattern piece in the 2D workspace before exporting selected-pattern DXF.')
+      return
+    }
+    const exportedProject = exportSelectedPatternOnly
+      ? { ...productionProject, pieces: productionProject.pieces.filter((piece) => piece.id === selectedPiece.id) }
+      : productionProject
+    const dxf = projectToDxf(exportedProject, gradePreviewSize)
     const blob = new Blob([dxf], { type: 'application/dxf' })
     const url = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'garment'}-${gradePreviewSize.toLowerCase()}.dxf`
+    anchor.download = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'garment'}-${gradePreviewSize.toLowerCase()}${exportSelectedPatternOnly ? `-${selectedPiece.id}` : ''}.dxf`
     anchor.click()
     URL.revokeObjectURL(url)
+    setCommandResult(`${exportSelectedPatternOnly ? `Selected pattern '${selectedPiece.name}'` : 'All garment patterns'} exported as standard layered DXF in millimeters. AAMA/ASTM conformity has not been independently verified.`)
+  }
+
+  const exportBomXml = () => {
+    const blob = new Blob([projectToBomXml(project)], { type: 'application/xml' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'garment'}-bom.xml`
+    anchor.click()
+    URL.revokeObjectURL(url)
+    setCommandResult('BOM XML exported in the open Garment Studio schema (not a proprietary CLO BOM format).')
+  }
+
+  const exportMarker = (format) => {
+    if (!marker.placements.length) {
+      setCommandResult('No marker was exported: no cut patterns fit this fabric width. Adjust the width or pattern geometry.')
+      return
+    }
+    const data = format === 'pdf'
+      ? markerToPdf(marker, { size: gradePreviewSize, project: productionProject })
+      : markerToSvg(marker, { size: gradePreviewSize, fabricName: project.fabrics?.[marker.fabricId]?.name || marker.fabricId, project: productionProject })
+    const blob = new Blob([data], { type: format === 'pdf' ? 'application/pdf' : 'image/svg+xml' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'garment'}-${gradePreviewSize.toLowerCase()}-${marker.fabricId || 'main'}-marker.${format}`
+    anchor.click()
+    URL.revokeObjectURL(url)
+    setCommandResult(`${format.toUpperCase()} marker exported at physical 1:1 scale. ${marker.unusedPieces ? `WARNING: ${marker.unusedPieces} requested cut pieces were NOT placed.` : 'Review scale and cutter compatibility with your factory.'} Print at 100%.`)
   }
 
   const exportMeasurements = () => {
@@ -2703,7 +3687,7 @@ export default function App() {
     anchor.download = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'garment'}-factory-package.zip`
     anchor.click()
     URL.revokeObjectURL(url)
-    setCommandResult('Factory package exported with all graded DXFs, POMs, BOM, seams, marker reports, trims, tech pack, and source garment data')
+    setCommandResult(`Factory package exported with graded DXFs, XML/CSV BOM, POMs, printable PDF/SVG markers, structural preflight, trims, construction and editable source. ${productionPreflight.blockers ? `IMPORTANT: ${productionPreflight.blockers} production blockers are documented in production-preflight.json.` : 'Not independently factory-certified.'}`)
   }
 
   const downloadObj = (obj) => {
@@ -2793,6 +3777,49 @@ export default function App() {
     }
   }
 
+  const importSeamlyMeasurements = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      if (!/\.(smis|smms)$/i.test(file.name)) throw new Error('Choose a SeamlyMe .smis or .smms measurement file')
+      if (file.size > 2 * 1024 * 1024) throw new Error('Seamly measurement file exceeds the 2 MB safety limit')
+      const parsed = parseSeamlyMeasurements(await file.text(), { filename: file.name })
+      mutateProject(next => {
+        const updated = applySeamlyMeasurements(next, parsed)
+        next.measurementLibrary = updated.measurementLibrary
+      })
+      setCommandResult(`Imported ${parsed.measurementCount} SeamlyMe measurements from ${file.name}. Saved as an editable-project measurement library; no drafting geometry or avatar measurements were changed.`)
+    } catch (error) {
+      setCommandResult(`SeamlyMe import refused: ${error.message}`)
+    }
+  }
+
+  const applySeamlyToAvatar = () => {
+    const library = project.measurementLibrary?.seamly
+    if (!library) return
+    mutateProject(next => {
+      const updated = applySeamlyMeasurements(next, library, { applyToAvatar: true })
+      next.avatar = updated.avatar
+    })
+    setCommandResult('Applied directly comparable SeamlyMe body circumferences and height to the avatar. Original 2D pattern and sewing remain unchanged; Seamly parametric .sm2d formulas are not yet evaluated.')
+  }
+
+  const importSeamlyConstructionGraph = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      if (!/\.sm2d$/i.test(file.name)) throw new Error('Choose a Seamly2D .sm2d drafting construction')
+      if (file.size > 4 * 1024 * 1024) throw new Error('Seamly construction graph exceeds the 4 MB safety limit')
+      const graph = parseSeamlyConstructionReference(await file.text(), {filename:file.name})
+      mutateProject(next => { next.seamlyConstructionReference=graph })
+      setCommandResult(`Saved Seamly2D reference ${file.name}: ${graph.toolCount} construction tools in ${graph.blocks.length} blocks, with ${graph.incrementCount} original increment formulas. Current garment pattern and sewing were not changed.`)
+    } catch (error) {
+      setCommandResult(`Seamly2D construction import refused: ${error.message}`)
+    }
+  }
+
   const runCommand = (event) => {
     event?.preventDefault?.()
     const raw = command.trim()
@@ -2831,6 +3858,8 @@ export default function App() {
     } else if (lower.includes('reset') && lower.includes('sim')) {
       resetSimulation()
     } else if (lower.includes('simulate') || lower.includes('drape')) {
+      setHasSimulated(true)
+      setArrangementSpread(0)
       setRunning(true)
       setCommandResult('Simulation started')
     } else {
@@ -2841,19 +3870,141 @@ export default function App() {
 
   const estimatedLength = marker.length / 100
 
+  // Menu commands all route through existing editor actions. Unimplemented CLO
+  // functionality appears disabled in the menu inventory instead of pretending
+  // to modify the garment or running a no-op.
+  const executeStudioAction = (action) => {
+    setOpenMenu(null)
+    setSimulationMenuOpen(false)
+    switch (action) {
+      case 'file.new': applyGarmentTemplate(GARMENT_TEMPLATES[0]?.id); break
+      case 'file.open': importInputRef.current?.click(); break
+      case 'file.save': saveProject(); break
+      case 'file.export': exportProject(); break
+      case 'edit.undo': undo(); break
+      case 'edit.redo': redo(); break
+      case 'edit.delete': deleteSelectedPiece(); break
+      case '3d.simulate': toggleSimulation(); break
+      case '3d.reset': resetSimulation(); break
+      case '3d.orbit': setViewportTool('orbit'); break
+      case '3d.transform': setViewportTool('transform'); break
+      case '3d.move': setViewportTool('move'); break
+      case '3d.rotate': setViewportTool('rotate'); break
+      case '3d.hand': setViewportTool('hand'); break
+      case '3d.camera': setFitCameraSignal(value => value + 1); break
+      case '3d.fit': setAnalysisMode('ease'); setActiveSection('Fit'); break
+      case '3d.seams': setShowSewingGuides(value => !value); break
+      case '2d.select': setActiveSection('Pattern'); setTool('select'); break
+      case '2d.points': setActiveSection('Pattern'); setTool('point'); break
+      case '2d.split': setActiveSection('Pattern'); setTool('split'); break
+      case '2d.curve': setActiveSection('Pattern'); setTool('curve'); break
+      case '2d.internal': setActiveSection('Pattern'); setTool('internal'); break
+      case '2d.notch': setActiveSection('Pattern'); setTool('notch'); break
+      case '2d.pin': setActiveSection('Pattern'); setTool('pin'); break
+      case '2d.measure': setActiveSection('Pattern'); setTool('measure'); break
+      case '2d.mirror': duplicateSelectedPiece(true); setActiveSection('Pattern'); break
+      case '2d.add': addPiece(); setActiveSection('Pattern'); break
+      case 'sewing.sew': setActiveSection('Sewing'); setTool('sew'); break
+      case 'sewing.inspect': setActiveSection('Sewing'); break
+      case 'sewing.fastener': setActiveSection('Sewing'); setTool('fastener'); break
+      case 'materials.fabric': setObjectTab('Fabric'); setActiveSection('Fabric'); break
+      case 'materials.edit': setActiveSection('Fabric'); break
+      case 'materials.add': addFabricSwatch(); setObjectTab('Fabric'); setActiveSection('Fabric'); break
+      case 'materials.graphic': graphicInputRef.current?.click(); break
+      case 'avatar.library': setAssetCategory('Avatar'); setActiveSection('Avatar'); break
+      case 'avatar.properties': setActiveSection('Avatar'); break
+      case 'avatar.import': avatarMeshInputRef.current?.click(); break
+      case 'workspace.production': setActiveSection('Production'); break
+      case 'object.scene': setObjectTab('Scene'); setShowObjectBrowser(true); setActiveSection('Pattern'); break
+      case 'object.buttons': setObjectTab('Button'); setShowObjectBrowser(true); setActiveSection('Sewing'); break
+      case 'object.buttonholes': setObjectTab('Buttonhole'); setShowObjectBrowser(true); setActiveSection('Sewing'); break
+      case 'object.topstitch': setObjectTab('Topstitch'); setShowObjectBrowser(true); setActiveSection('Sewing'); break
+      case 'object.trim': setObjectTab('Trim'); setShowObjectBrowser(true); setActiveSection('Sewing'); break
+      case 'object.grading': setObjectTab('Grading'); setShowObjectBrowser(true); setActiveSection('Production'); break
+      case 'object.pom': setObjectTab('POM'); setShowObjectBrowser(true); setActiveSection('Production'); break
+      case 'render.workspace': setActiveSection('Render'); break
+      case 'render.capture': setRenderSignal(value => value + 1); break
+      case 'display.surface': setAnalysisMode('surface'); setWireframe(false); break
+      case 'display.wireframe': setWireframe(value => !value); break
+      case 'display.strain': setAnalysisMode('strain'); break
+      case 'display.grid': setShow2DGrid(value => !value); break
+      case 'settings.workspace': setCompactTools(value => !value); break
+      case 'workspace.profile.drafting': applyWorkspaceProfile(WORKSPACE_PROFILES.drafting); break
+      case 'workspace.profile.sewing': applyWorkspaceProfile(WORKSPACE_PROFILES.sewing); break
+      case 'workspace.profile.materials': applyWorkspaceProfile(WORKSPACE_PROFILES.materials); break
+      case 'workspace.profile.render': applyWorkspaceProfile(WORKSPACE_PROFILES.render); break
+      case 'workspace.profile.save': saveCustomWorkspace(); break
+      case 'workspace.profile.restore': restoreCustomWorkspace(); break
+      case 'workspace.view.split': setViewportLayout('split'); break
+      case 'workspace.view.stack': setViewportLayout('stack'); break
+      case 'workspace.view.2d': setViewportLayout('2d'); break
+      case 'workspace.view.3d': setViewportLayout('3d'); break
+      case 'workspace.view.reset': setViewportLayout('split'); setViewportSplit(50); break
+      case 'workspace.panel.objects': setShowObjectBrowser(value => !value); break
+      case 'workspace.panel.toggle-library': setLibraryVisible(value => !value); break
+      case 'workspace.panel.toggle-inspector': setInspectorVisible(value => !value); break
+      case 'workspace.panel.library': setSidebarView('library'); break
+      case 'workspace.panel.history': setSidebarView('history'); break
+      case 'settings.top-tabs': setShowTopWorkspaceTabs(value => !value); break
+      case 'settings.simulation': setActiveSection('Fit'); break
+      case 'help.reference': setCommandResult('CLO-style controls: use the icon tooltips; unfinished tools are labeled planned. The editor remains an independent garment simulator.'); break
+      case 'help.shortcuts': setCommandResult('SPACE simulate/pause · ⌘S save · ⌘Z undo · 3D: Q select/orbit, W move, E rotate, H fabric hand, V sewing guides, T combined gizmo, G/R aliases; arrows nudge panels (Ctrl+↑/↓ depth). 2D: A select/transform, Z edit points, P pin, arrows move selected pattern 1 cm, F fit, Shift+F focus. Some CLO commands remain unimplemented.'); break
+      default: break
+    }
+  }
+
+  // The macOS native shell sends the same actions from its actual menu bar.
+  const actionRef = useRef(executeStudioAction)
+  actionRef.current = executeStudioAction
+  useEffect(() => {
+    const onNativeMenu = (event) => actionRef.current?.(event.detail)
+    window.addEventListener('garment-studio-native-action', onNativeMenu)
+    return () => window.removeEventListener('garment-studio-native-action', onNativeMenu)
+  }, [])
+
+  const libraryItemMatches = (name) => name.toLowerCase().includes(librarySearch.trim().toLowerCase())
+
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand-lockup">
-          <div className="brand-mark">GS</div>
-          <div><strong>GARMENT STUDIO</strong><span>PARAMETRIC FASHION CAD</span></div>
-        </div>
-        <nav className="section-tabs">
-          {SECTIONS.map((section) => (
-            <button key={section} className={activeSection === section ? 'active' : ''} onClick={() => setActiveSection(section)}>{section}</button>
-          ))}
-        </nav>
-        <div className="file-actions">
+    <div className={`app-shell ${showTopWorkspaceTabs ? '' : 'workspace-tabs-hidden'}`}>
+      <div className="clo-mac-menu" role="menubar" aria-label="Garment Studio application menus">
+        <div className="clo-app-menu-brand"><span className="clo-brand-dot">◈</span><strong>Garment Studio</strong></div>
+        {CLO_MENUS.map(menu => <div className="clo-menu-group" key={menu.title}>
+          <button type="button" className={openMenu === menu.title ? 'active' : ''} aria-expanded={openMenu === menu.title} onClick={() => { setSimulationMenuOpen(false); setOpenMenu(openMenu === menu.title ? null : menu.title) }}>{menu.title}</button>
+          {openMenu === menu.title && <div className="clo-menu-popover" role="menu">{menu.commands.map(([label, action]) => <button key={label} role="menuitem" disabled={!action} onClick={() => executeStudioAction(action)}>{label}{!action && <small>PREVIEW</small>}</button>)}</div>}
+        </div>)}
+        <div className="clo-menu-spacer"/>
+        <div className="file-actions clo-compact-file-actions">
+          <button type="button" className="clo-top-tabs-toggle" title="Show / hide top workspace tabs" aria-pressed={showTopWorkspaceTabs} onClick={() => setShowTopWorkspaceTabs(value => !value)}><LayoutPanelTop size={15}/></button>
+          {showTopWorkspaceTabs && <select className="clo-workspace-select" aria-label="Workspace" value={activeSection} onChange={(event) => setActiveSection(event.target.value)}>{SECTIONS.map((section) => <option key={section} value={section}>{section}</option>)}</select>}
+          <select className="clo-workspace-select clo-layout-preset-select" aria-label="CLO-style workspace layout presets" value="" onChange={(event) => {
+            const key = event.target.value
+            if (key === 'save') saveCustomWorkspace()
+            else if (key === 'restore') restoreCustomWorkspace()
+            else if (WORKSPACE_PROFILES[key]) applyWorkspaceProfile(WORKSPACE_PROFILES[key])
+          }}>
+            <option value="">LAYOUT</option>
+            {Object.entries(WORKSPACE_PROFILES).map(([key, profile]) => <option key={key} value={key}>{profile.name}</option>)}
+            <option value="save">Save my layout</option>
+            <option value="restore">Restore my layout</option>
+          </select>
+          <select className="clo-workspace-select clo-window-mode-select" aria-label="3D and 2D window arrangement" value={viewportLayout} onChange={event => setViewportLayout(event.target.value)}>
+            {Object.entries(VIEWPORT_LAYOUTS).map(([id, label]) => <option key={id} value={id}>{label}</option>)}
+          </select>
+          <button type="button" className="clo-command-launch" aria-label="Search commands" title="Find working commands · ⌘K" onClick={() => setCommandPaletteOpen(true)}><Search size={15}/><span>⌘K</span></button>
+          <button type="button" className="clo-command-launch clo-panel-toggle" aria-label="Toggle asset browser panel" aria-pressed={libraryVisible} title="Show / hide Library" onClick={() => setLibraryVisible(value => !value)}><PanelLeft size={15}/></button>
+          <button type="button" className="clo-command-launch clo-panel-toggle" aria-label="Show or hide Property Editor" aria-pressed={inspectorVisible} title="Show / hide Property Editor" onClick={() => setInspectorVisible(value => !value)}><PanelRight size={15}/></button>
+          <div className="clo-simulate-control">
+            <button className={`clo-simulate-main ${running ? 'running' : ''}`} onClick={toggleSimulation} title="Simulate or pause garment · Space"><ArrowDownToLine size={16}/><span>{running ? 'PAUSE' : 'SIM'}</span></button>
+            <button className="clo-simulate-arrow" title="Simulation modes" aria-expanded={simulationMenuOpen} onClick={() => { setLeftSimulationMenuOpen(false); setOpenMenu(null); setSimulationMenuOpen(value => !value) }}><ChevronDown size={13}/></button>
+            {simulationMenuOpen && <div className="clo-simulation-popover">
+              <strong>Simulation mode</strong>
+              <button onClick={() => { applySimulationQuality('balanced'); setSimulationMenuOpen(false) }}><Check size={14}/> Normal · Balanced</button>
+              <button onClick={() => { applySimulationQuality('final'); setSimulationMenuOpen(false) }}><SlidersHorizontal size={14}/> Fitting · Quality</button>
+              <button onClick={() => { applySimulationQuality('draft'); setSimulationMenuOpen(false) }}><Activity size={14}/> Fast · Draft</button>
+              <button disabled title="GPU cloth simulation has not yet been implemented"><Cpu size={14}/> GPU simulation <small>PLANNED</small></button>
+              <button onClick={requestNativeSolve} disabled={nativeServiceStatus !== 'ready'} title={nativeServiceStatus === 'ready' ? 'Solve using connected native XPBD service' : 'Native solver service is offline'}><Box size={14}/> Native XPBD solve {nativeServiceStatus !== 'ready' ? <small>OFFLINE</small> : null}</button>
+            </div>}
+          </div>
           <button className="icon-button" title="Undo" disabled={!undoStack.length} onClick={undo}><Undo2 size={17} /></button>
           <button className="icon-button" title="Redo" disabled={!redoStack.length} onClick={redo}><Redo2 size={17} /></button>
           <span className="toolbar-divider" />
@@ -2861,13 +4012,20 @@ export default function App() {
           <button className="icon-button" title="Export garment" onClick={exportProject}><Download size={17} /></button>
           <button className={`save-button ${saveState}`} onClick={saveProject}><Save size={15} />{saveState === 'saved' ? 'SAVED' : 'SAVE'}</button>
           <input ref={importInputRef} hidden type="file" accept=".json,.garment,.dxf" onChange={importProject} />
+          <input ref={seamlyMeasureInputRef} hidden type="file" accept=".smis,.smms" onChange={importSeamlyMeasurements} />
+          <input ref={seamlyPatternInputRef} hidden type="file" accept=".sm2d" onChange={importSeamlyConstructionGraph} />
           <input ref={graphicInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={importGraphic} />
           <input ref={fabricTextureInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={importFabricTexture} />
           <input ref={fabricNormalInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => importFabricPbrMap(event, 'normal')} />
           <input ref={fabricRoughnessInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => importFabricPbrMap(event, 'roughness')} />
+          <input ref={fabricMetalnessInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => importFabricPbrMap(event, 'metalness')} />
+          <input ref={fabricOpacityInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => importFabricPbrMap(event, 'opacity')} />
+          <input ref={fabricDisplacementInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => importFabricPbrMap(event, 'displacement')} />
+          <input ref={fabricPbrSetInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={importFabricPbrSet} />
+          <input ref={avatarMeshInputRef} hidden type="file" accept=".obj,.glb" onChange={importAvatarMesh} />
           <input ref={hdriInputRef} hidden type="file" accept=".hdr,image/vnd.radiance" onChange={importHdri} />
         </div>
-      </header>
+      </div>
 
       <div className="project-strip">
         <div className="project-name">
@@ -2889,35 +4047,203 @@ export default function App() {
         </form>
       </div>
 
-      <main className="main-layout">
-        <aside className="tool-rail">
-          <button className={tool === 'select' ? 'active' : ''} onClick={() => setTool('select')} title="Select / move"><MousePointer2 size={18} /></button>
-          <button className={tool === 'point' ? 'active' : ''} onClick={() => setTool('point')} title="Edit points"><PenTool size={18} /></button>
-          <button className={tool === 'split' ? 'active' : ''} onClick={() => setTool('split')} title="Split edge / add point"><Plus size={18} /></button>
-          <button className={tool === 'curve' ? 'active' : ''} onClick={() => setTool('curve')} title="Curve edges"><Spline size={18} /></button>
-          <button className={tool === 'internal' ? 'active' : ''} onClick={() => setTool('internal')} title="Internal line / dart"><Scissors size={18} /></button>
-          <button className={tool === 'pin' ? 'active' : ''} onClick={() => setTool('pin')} title="Manual cloth pin"><MapPin size={18} /></button>
-          <button className={tool === 'notch' ? 'active' : ''} onClick={() => setTool('notch')} title="Add notch"><span className="notch-tool-symbol">N</span></button>
-          <button className={tool === 'sew' ? 'active' : ''} onClick={() => setTool('sew')} title="Sew edges"><Link2 size={18} /></button>
-          <button className={tool === 'fastener' ? 'active' : ''} onClick={() => setTool('fastener')} title="Button / snap / hook fastener"><span className="fastener-tool-symbol">●</span></button>
-          <button className={tool === 'measure' ? 'active' : ''} onClick={() => setTool('measure')} title="Tape measure"><Ruler size={18} /></button>
+      <main className="main-layout clo-adjustable-panels" data-library-visible={libraryVisible} data-inspector-visible={inspectorVisible} style={{ '--library-width': `${libraryWidth}px`, '--inspector-width': `${inspectorWidth}px`, '--object-browser-height': `${objectBrowserHeight}px`, '--effective-library-width': libraryVisible ? `${libraryWidth}px` : '0px', '--effective-inspector-width': inspectorVisible ? `${inspectorWidth}px` : '0px' }}>
+        <nav className="clo-edge-tabs" aria-label="Workspace side panels">
+          <button type="button" aria-pressed={sidebarView === 'library' && libraryVisible} className={sidebarView === 'library' && libraryVisible ? 'active' : ''} onClick={() => { setLibraryVisible(true); setSidebarView('library') }} title="Open asset library">LIBRARY</button>
+          <button type="button" aria-pressed={sidebarView === 'history' && libraryVisible} className={sidebarView === 'history' && libraryVisible ? 'active' : ''} onClick={() => { setLibraryVisible(true); setSidebarView('history') }} title="Open undo and redo history">HISTORY</button>
+        </nav>
+        <aside className="asset-browser" hidden={!libraryVisible}>
+          {sidebarView === 'history' ? <section className="clo-history-browser">
+            <header>History</header>
+            <p>Recorded garment snapshots · current session</p>
+            <div className="clo-history-actions">
+              <button type="button" onClick={undo} disabled={!undoStack.length}><Undo2 size={15}/> Undo <span>{undoStack.length}</span></button>
+              <button type="button" onClick={redo} disabled={!redoStack.length}><Redo2 size={15}/> Redo <span>{redoStack.length}</span></button>
+            </div>
+            <div className="clo-history-timeline" role="list" aria-label="Recent garment history">
+              <div className="clo-history-current" role="listitem"><strong>Current · revision {project.revision ?? '—'}</strong><span>{project.pieces.length} patterns · {project.seams.length} seams</span></div>
+              {undoStack.map((snapshot, index) => ({snapshot,index})).reverse().slice(0, 20).map(({snapshot,index}) => <button role="listitem" type="button" key={`${index}-${snapshot.id || ''}-${snapshot.revision || ''}`} data-undo-index={index} title={`Restore garment revision ${snapshot.revision ?? index}`} onClick={() => restoreHistorySnapshot(index)}>
+                <span>Revision {snapshot.revision ?? '—'}</span><small>{snapshot.pieces?.length ?? 0} patterns · {snapshot.seams?.length ?? 0} seams</small>
+              </button>)}
+              {!undoStack.length && <div className="clo-history-empty">Edit a pattern to create an undo checkpoint.</div>}
+            </div>
+            <div className="clo-history-note">Select a revision to restore it. Skipped edits remain accessible through Redo. Session history is not a replacement for saving your project.</div>
+          </section> : <>
+          <LibraryChrome category={assetCategory} setCategory={setAssetCategory} search={librarySearch} setSearch={setLibrarySearch} thumbnails={libraryThumbnails} setThumbnails={setLibraryThumbnails}>
+            {(assetCategory === 'Garment' || assetCategory === 'Patterns') ? GARMENT_TEMPLATES.filter(template => libraryItemMatches(template.name)).map((template) => (
+              <button className="asset-template garment-tile" key={template.id} onClick={() => applyGarmentTemplate(template.id)} title={`${template.name} · ${template.description}`}>
+                <span className="asset-template-icon">{assetCategory === 'Patterns' ? <PatternLibraryThumbnail templateId={template.id} name={template.name}/> : <GarmentSilhouette type={template.name}/>}</span><span className="asset-template-label">{template.name}</span>
+              </button>
+            )) : assetCategory === 'Fabric' || assetCategory === 'Material' ? <>
+              <div className="clo-fabric-library-divider">PROJECT SWATCHES · CLICK TO APPLY TO SELECTED PATTERN</div>
+              {Object.entries(project.fabrics || {}).filter(([,item]) => libraryItemMatches(item.name)).map(([id, item]) => (
+                <button className="asset-template garment-tile" key={id} onClick={() => assignFabric(id)} title={`Apply ${item.name} to selected garment pattern`}><span className="asset-template-icon fabric-library-thumbnail" style={{background:item.color || '#737989'}}><span/></span><span className="asset-template-label">{item.name}</span></button>
+              ))}
+              <div className="clo-fabric-library-divider">TEXTILES · ADD & APPLY</div>
+              {Object.entries(FABRIC_PRESETS).filter(([,item]) => libraryItemMatches(item.name)).map(([id,item]) => (
+                <button className="asset-template garment-tile" key={`preset-${id}`} onClick={() => addAndApplyFabricPreset(id)} title={`Create ${item.name} and apply to selected pattern`}><span className="asset-template-icon fabric-library-thumbnail" style={{background:item.color || '#737989'}}><span/></span><span className="asset-template-label">+ {item.name}</span></button>
+              ))}
+            </> : assetCategory === 'Avatar' ? AVAILABLE_AVATARS.filter(({ name }) => libraryItemMatches(name)).map(({ name, model }) => (
+              <button className="asset-template garment-tile" key={name} onClick={() => { setActiveSection('Avatar'); setAvatarModel(model) }}><span className="asset-template-icon avatar-library-thumbnail">♙</span><span className="asset-template-label">{name}</span></button>
+            )) : assetCategory === 'Hardware and Trims' ? (
+              <>
+                <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addButtonRow(selectedPiece.id, 5); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="buttons" size={48}/></span><span className="asset-template-label">Five-button row</span></button>
+                <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addButtonholeRow(selectedPiece.id, 5); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="buttonholes" size={48}/></span><span className="asset-template-label">Five buttonholes</span></button>
+                <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addZipper(selectedPiece.id, trimEdgeIndex); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="trim" size={48}/></span><span className="asset-template-label">Edge zipper</span></button>
+                <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addTopstitch(selectedPiece.id, trimEdgeIndex); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="topstitch" size={48}/></span><span className="asset-template-label">Topstitch seam</span></button>
+                <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addBinding(selectedPiece.id, trimEdgeIndex); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="seam-weld" size={48}/></span><span className="asset-template-label">Edge binding</span></button>
+              </>
+            ) : assetCategory === 'Stage' ? (
+              <>
+                <div className="clo-fabric-library-divider">STUDIO ENVIRONMENTS · LIVE LIGHTING</div>
+                {[
+                  ['studio','Classic Studio'],
+                  ['softbox','Softbox'],
+                  ['neutral','Neutral White'],
+                  ['dramatic','Dramatic Contrast'],
+                ].filter(([,name]) => libraryItemMatches(name)).map(([id,name]) => <button key={id} className={`asset-template garment-tile clo-stage-option ${(project.render?.environmentPreset || 'studio') === id ? 'selected' : ''}`} onClick={() => { updateRenderSetting('environmentPreset', id); setActiveSection('Render') }} title={`Use ${name} lighting on the 3D garment`}><span className={`asset-template-icon clo-stage-preview stage-${id}`}><span className="clo-stage-floor"/><Shirt size={36}/></span><span className="asset-template-label">{name}</span></button>)}
+              </>
+            ) : <div className="asset-placeholder"><FolderOpen size={26}/><strong>{assetCategory}</strong><span>The collection is reserved for future assets.</span></div>}
+          </LibraryChrome>
+          </>}
+          <div className="clo-panel-resizer clo-left-resizer" role="separator" aria-orientation="vertical" aria-label="Resize Library width" title="Drag to resize Library" onPointerDown={(event) => beginPanelResize('library', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setLibraryWidth(232)}/>
+        </aside>
+        <aside className={`tool-rail ${compactTools ? 'compact' : ''}`} aria-label="3D and sewing toolbar">
+          <div className="clo-rail-section"><strong>3D TOOLS</strong><span>⌄</span></div>
+          <div className="clo-left-3d-double-bars" aria-label="3D dual-column CLO toolbar">
+            <div className="clo-left-3d-column" aria-label="3D editing column A">
+              <button className={running ? 'active' : ''} onClick={toggleSimulation} title="Simulate / pause · Space"><CadToolIcon id="simulate" size={20}/></button>
+              <button className={viewportTool === 'transform' ? 'active' : ''} onClick={() => setViewportTool('transform')} title="Select / Move · garment-centered 3D gizmo (T)"><CadToolIcon id="select-3d" size={20}/></button>
+              <button className={viewportTool === 'mesh-select' ? 'active' : ''} title="Select Mesh (Box / Lasso / Brush)" aria-label="Select Mesh (Box / Lasso / Brush)" onClick={() => { setViewportTool('mesh-select'); setWireframe(true) }}><CadToolIcon id="wireframe" size={20}/></button>
+              <button title="Edit Styleline · planned" aria-label="Edit Styleline · planned" disabled><CadToolIcon id="curve" size={20}/></button>
+              <button className={showSewingGuides ? 'active subtle-active' : ''} title="Edit Sewing · show sewing correspondence" onClick={() => setShowSewingGuides(value => !value)}><CadToolIcon id="seam-links" size={20}/></button>
+              <button className={tool === 'sew' ? 'active' : ''} onClick={() => setTool('sew')} title="Free Sewing · sew edges"><CadToolIcon id="sew" size={20}/></button>
+              <button className={tool === 'pin' ? 'active' : ''} onClick={() => setTool('pin')} title="Pin (Box / Lasso) · manual pin"><CadToolIcon id="pin" size={20}/></button>
+            </div>
+            <div className="clo-left-3d-column" aria-label="3D garment column B">
+              <button className={leftSimulationMenuOpen ? 'active' : ''} onClick={() => { setSimulationMenuOpen(false); setLeftSimulationMenuOpen(value => !value) }} title="Simulation modes · auxiliary" aria-expanded={leftSimulationMenuOpen}><CadToolIcon id="simulation-modes" size={20}/></button>
+              <button className={viewportTool === 'hand' ? 'active' : ''} onClick={() => setViewportTool('hand')} title="3D fabric hand tool"><CadToolIcon id="hand" size={20}/></button>
+              <button className={viewportTool === 'move' ? 'active' : ''} onClick={() => setViewportTool('move')} title="3D move garment"><CadToolIcon id="move-3d" size={20}/></button>
+              <button className={viewportTool === 'rotate' ? 'active' : ''} onClick={() => setViewportTool('rotate')} title="3D rotate selected fabric"><CadToolIcon id="rotate-3d" size={20}/></button>
+              <button className={wireframe ? 'active' : ''} title="Toggle garment mesh wireframe" onClick={() => setWireframe(value => !value)}><CadToolIcon id="wireframe" size={20}/></button>
+              <button className={analysisMode === 'strain' ? 'active' : ''} title="Strain map" onClick={() => setAnalysisMode(analysisMode === 'strain' ? 'surface' : 'strain')}><CadToolIcon id="surface" size={20}/></button>
+            </div>
+          </div>
+          {leftSimulationMenuOpen && <div className="clo-simulation-popover clo-simulation-left-popover">
+            <strong>SIMULATION · SOLVER MODES</strong>
+            <button onClick={() => { applySimulationQuality('draft'); setLeftSimulationMenuOpen(false) }}><Activity size={14}/> Fast · Draft</button>
+            <button onClick={() => { applySimulationQuality('balanced'); setLeftSimulationMenuOpen(false) }}><Check size={14}/> Normal · Balanced</button>
+            <button onClick={() => { applySimulationQuality('final'); setLeftSimulationMenuOpen(false) }}><SlidersHorizontal size={14}/> Fitting · Quality</button>
+            <button onClick={() => { requestNativeSolve(); setLeftSimulationMenuOpen(false) }} disabled={nativeServiceStatus !== 'ready'}><Cpu size={14}/> Native XPBD {nativeServiceStatus !== 'ready' ? '· OFFLINE' : ''}</button>
+            <button onClick={() => { resetSimulation(); setLeftSimulationMenuOpen(false) }}><RotateCcw size={14}/> Reset to flat pieces</button>
+          </div>}
+          <span className="rail-divider" /><div className="clo-rail-section"><strong>2D PATTERN</strong></div>
+          <div className="clo-left-3d-double-bars clo-left-secondary-bars" aria-label="Pattern shortcuts in two columns">
+            <div className="clo-left-3d-column">
+              <button className={tool === 'select' ? 'active' : ''} onClick={() => setTool('select')} title="Select / move"><CadToolIcon id="select-2d" size={20}/></button>
+              <button className={tool === 'point' ? 'active' : ''} onClick={() => setTool('point')} title="Edit points"><CadToolIcon id="points" size={20}/></button>
+              <button className={tool === 'split' ? 'active' : ''} onClick={() => setTool('split')} title="Split edge / add point"><CadToolIcon id="split" size={20}/></button>
+              <button className={tool === 'curve' ? 'active' : ''} onClick={() => setTool('curve')} title="Curve edges"><CadToolIcon id="curve" size={20}/></button>
+              <button className={tool === 'internal' ? 'active' : ''} onClick={() => setTool('internal')} title="Internal line / dart"><CadToolIcon id="internal" size={20}/></button>
+            </div>
+            <div className="clo-left-3d-column">
+              <button onClick={addPolygonPiece} title="Add pattern" aria-label="Add clipped-corner polygon pattern"><CadToolIcon id="polygon-tool" size={20}/></button>
+              <button className={tool === 'notch' ? 'active' : ''} onClick={() => setTool('notch')} title="Add notch"><CadToolIcon id="notch" size={20}/></button>
+              <button className={tool === 'fastener' ? 'active' : ''} onClick={() => setTool('fastener')} title="Button / snap / hook fastener"><CadToolIcon id="fastener" size={20}/></button>
+              <button className={tool === 'measure' ? 'active' : ''} onClick={() => setTool('measure')} title="Tape measure"><CadToolIcon id="measure" size={20}/></button>
+            </div>
+          </div>
           <span className="rail-divider" />
-          <button onClick={addPiece} title="Add pattern"><Plus size={18} /></button>
-          <button onClick={deleteSelectedPiece} disabled={!selectedPiece} title="Delete selected"><Trash2 size={18} /></button>
+          <button onClick={deleteSelectedPiece} disabled={!selectedPiece} title="Delete selected"><CadToolIcon id="delete-piece" size={20}/></button>
+          <button onClick={() => setCompactTools(value => !value)} title="Compact / expanded toolbar"><CadToolIcon id="settings" size={20}/></button>
+          <span className="rail-divider"/><div className="clo-rail-section"><strong>VIEW & EDIT</strong></div>
+          <button onClick={() => setShow2DGrid(value => !value)} className={show2DGrid ? 'active' : ''} title="Show or hide 2D drafting grid"><CadToolIcon id="grid-2d" size={20}/></button>
+          <button onClick={() => setShow2DSeams(value => !value)} className={show2DSeams ? 'active' : ''} title="Show or hide 2D sewing links"><CadToolIcon id="seam-links" size={20}/></button>
+          <button onClick={() => setActiveSection('Fabric')} title="Open fabric properties"><CadToolIcon id="fabric" size={20}/></button>
+          <button onClick={() => setActiveSection('Avatar')} title="Open avatar properties"><CadToolIcon id="avatar" size={20}/></button>
+          <button onClick={() => setActiveSection('Sewing')} title="Open sewing inspector"><CadToolIcon id="sewing-inspector" size={20}/></button>
+          <button onClick={() => setActiveSection('Pattern')} title="Open selected pattern properties"><CadToolIcon id="pattern-properties" size={20}/></button>
+          <button onClick={() => setActiveSection('Fit')} title="Open fitting and simulation controls"><CadToolIcon id="fit" size={20}/></button>
+          <button onClick={() => setActiveSection('Production')} title="Open production and grading"><CadToolIcon id="grading" size={20}/></button>
+          <button onClick={() => setActiveSection('Render')} title="Open renderer settings"><CadToolIcon id="render" size={20}/></button>
+          <button onClick={() => setFitCameraSignal(value => value + 1)} title="Frame avatar in 3D"><CadToolIcon id="camera" size={20}/></button>
+          <button onClick={() => duplicateSelectedPiece(false)} disabled={!selectedPiece} title="Duplicate selected pattern"><CadToolIcon id="duplicate-piece" size={20}/></button>
+          <button onClick={() => duplicateSelectedPiece(true)} disabled={!selectedPiece} title="Create mirrored pattern copy"><CadToolIcon id="mirror" size={20}/></button>
+          <button onClick={() => setShowObjectBrowser(value => !value)} title="Show or hide object browser"><CadToolIcon id="panel" size={20}/></button>
+          <button onClick={() => setAssetCategory('Fabric')} title="Browse fabric assets"><CadToolIcon id="fabric-roll" size={20}/></button>
+          <button onClick={() => { setObjectTab('Topstitch'); setActiveSection('Sewing') }} title="Open topstitch object browser"><CadToolIcon id="topstitch" size={20}/></button>
+          <button onClick={() => { setObjectTab('Button'); setActiveSection('Sewing') }} title="Open button object browser"><CadToolIcon id="buttons" size={20}/></button>
+          <button onClick={() => { setObjectTab('Trim'); setActiveSection('Sewing') }} title="Open trims and zipper browser"><CadToolIcon id="trim" size={20}/></button>
+          <button onClick={() => { setObjectTab('Grading'); setActiveSection('Production') }} title="Open size grading browser"><CadToolIcon id="grading" size={20}/></button>
+          <button onClick={() => { setObjectTab('POM'); setActiveSection('Production') }} title="Open points-of-measure browser"><CadToolIcon id="pom" size={20}/></button>
+          <button onClick={() => { setAnalysisMode('pressure'); setActiveSection('Fit') }} title="Inspect garment pressure distribution"><CadToolIcon id="pressure" size={20}/></button>
         </aside>
 
-        <section className="workspaces">
+        <section className={`workspaces workspace-layout-${viewportLayout}`} aria-label="3D and 2D windows" data-viewport-layout={viewportLayout} style={{ '--viewport-left-percent': `${viewportSplit}%` }}>
+          {zozoReference ? <div className="viewport-shell zozo-reference-shell" data-testid="zozo-reference-workspace">
+            <div className="workspace-head viewport-head">
+              <div><strong>ZOZO GITHUB DRESS · RUST/METAL REFERENCE</strong><span>14 original panels · 851 sewing constraints · read-only cached simulation</span></div>
+              <div className="sim-indicator"><i/>EXPERIMENTAL · NOT VERIFIED FIT</div>
+            </div>
+            <ZozoReferenceDressViewer reference={zozoReference} frame={zozoReferenceFrame} showBody={zozoReferenceBodyVisible}/>
+          </div> : <GarmentViewport
+            project={displayProject}
+            ppfPreview={ppfPreview}
+            running={running}
+            hasSimulated={hasSimulated}
+            resetSignal={resetSignal}
+            wireframe={wireframe}
+            analysisMode={analysisMode}
+            backendId={displayProject.simulation?.backendId || 'browser-pbd'}
+            nativeSolveSignal={nativeSolveSignal}
+            nativeQuality={displayProject.simulation?.nativeQuality || 'draft'}
+            exportSignal={meshExportSignal}
+            glbExportSignal={glbExportSignal}
+            renderSignal={renderSignal}
+            hdriUrl={hdriUrl}
+            customAvatar={customAvatar}
+            viewportTool={viewportTool}
+            onMeshSelection={setMeshSelection}
+            fitCameraSignal={fitCameraSignal}
+            selectedPieceId={selectedPieceId}
+            onSelectPiece={selectIn3D}
+            onChangeViewportTool={setViewportTool}
+            onToggleWireframe={() => setWireframe(value => !value)}
+            onToggleSewingGuides={() => setShowSewingGuides(value => !value)}
+            onChangeAnalysisMode={setAnalysisMode}
+            showSewingGuides={showSewingGuides}
+            highlightSeamId={activeSection === 'Sewing' ? seamWalkId : null}
+            arrangementSpread={arrangementSpread}
+            onMoveStagedPanel={moveStagedPanel}
+            onExportMesh={downloadObj}
+            onExportGlb={downloadGlb}
+            onRenderStill={downloadRenderStill}
+            onStats={setStats}
+            onNativeSolve={handleNativeSolve}
+          />}
           <PatternEditor
             project={displayProject}
+            showGrid={show2DGrid}
+            showSeamLinks={show2DSeams}
+            layout2DSignal={layout2DSignal}
+            onToggleGrid={() => setShow2DGrid(value => !value)}
+            onToggleSeams={() => setShow2DSeams(value => !value)}
+            onAutoArrange={tidy2DPatterns}
             gradeNestProjects={gradeNestProjects}
             highlightSeamId={activeSection === 'Sewing' ? seamWalkId : null}
             selectedPieceId={selectedPieceId}
             tool={activeSection === 'Production' && gradePreviewSize !== project.grading?.baseSize ? 'inspect' : tool}
-            onSelectPiece={setSelectedPieceId}
+            onSelectPiece={selectIn3D}
             onMovePiece={movePiece}
+            onChangeTool={setTool}
             onMovePoint={movePoint}
+            onSetPoint={setPointPrecision}
             onMoveCurve={moveCurve}
+            onSetCurve={setCurvePrecision}
+            onSetEdgeAllowance={updatePatternEdgeAllowance}
             onSplitEdge={splitPatternEdge}
+            onSplitEdgePrecise={splitPatternEdgePrecise}
+            onUnfoldEdge={unfoldPatternEdge}
             onDeletePoint={deletePatternPoint}
             onCreatePin={createPin}
             onRemovePin={removePin}
@@ -2929,33 +4255,74 @@ export default function App() {
             onBeginGesture={beginGesture}
             onEndGesture={endGesture}
           />
-          <GarmentViewport
-            project={displayProject}
-            running={running}
-            resetSignal={resetSignal}
-            wireframe={wireframe}
-            analysisMode={analysisMode}
-            backendId={displayProject.simulation?.backendId || 'browser-pbd'}
-            nativeSolveSignal={nativeSolveSignal}
-            nativeClothModel={displayProject.simulation?.nativeClothModel || 'distance'}
-            nativeBendingModel={displayProject.simulation?.nativeBendingModel || 'distance'}
-            exportSignal={meshExportSignal}
-            glbExportSignal={glbExportSignal}
-            renderSignal={renderSignal}
-            hdriUrl={hdriUrl}
-            onExportMesh={downloadObj}
-            onExportGlb={downloadGlb}
-            onRenderStill={downloadRenderStill}
-            onStats={setStats}
-            onNativeSolve={handleNativeSolve}
-          />
+          {['split','stack'].includes(viewportLayout) && <div className="clo-viewport-resizer" role="separator" tabIndex={0} aria-orientation={viewportLayout === 'stack' ? 'horizontal' : 'vertical'} aria-label="Resize 3D and 2D windows" aria-valuemin={20} aria-valuemax={80} aria-valuenow={viewportSplit} aria-valuetext={`${viewportSplit}% 3D window, ${100-viewportSplit}% 2D window`} title="Drag to resize 3D / 2D · double-click for equal windows" onPointerDown={beginViewportResize} onPointerMove={moveViewportResize} onPointerUp={endViewportResize} onLostPointerCapture={endViewportResize} onDoubleClick={() => setViewportSplit(50)} onKeyDown={event => {
+            const increment = viewportLayout === 'stack' ? 'ArrowDown' : 'ArrowRight'
+            const decrement = viewportLayout === 'stack' ? 'ArrowUp' : 'ArrowLeft'
+            if (event.key === increment || event.key === decrement) { event.preventDefault(); setViewportSplit(value => clamp(value + (event.key === increment ? 5 : -5), 20, 80)) }
+            if (event.key === 'Home') { event.preventDefault(); setViewportSplit(20) }
+            if (event.key === 'End') { event.preventDefault(); setViewportSplit(80) }
+          }}><span/></div>}
         </section>
 
-        <aside className="inspector">
-          <div className="inspector-head"><span>INSPECTOR</span><strong>{activeSection.toUpperCase()}</strong></div>
+        <aside className="inspector clo-inspector" hidden={!inspectorVisible}>
+          <div className="clo-panel-resizer clo-right-resizer" role="separator" aria-orientation="vertical" aria-label="Resize Inspector width" title="Drag to resize Object Browser and Property Editor" onPointerDown={(event) => beginPanelResize('inspector', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setInspectorWidth(392)}/>
+          <RightToolPalette activeSection={activeSection} viewportTool={viewportTool} tool={tool} setViewportTool={setViewportTool} setTool={setTool} setActiveSection={setActiveSection} setObjectTab={setObjectTab} onRevealBrowser={() => setShowObjectBrowser(true)} showSewingGuides={showSewingGuides} setShowSewingGuides={setShowSewingGuides} wireframe={wireframe} setWireframe={setWireframe} analysisMode={analysisMode} setAnalysisMode={setAnalysisMode} toggleSimulation={toggleSimulation} resetSimulation={resetSimulation} exportProject={exportProject} onFitCamera={() => setFitCameraSignal(value => value + 1)} onMirrorSelected={() => duplicateSelectedPiece(true)} running={running}/>
+          <div className="clo-inspector-content">
+          <div className="clo-inspector-topline"><button title={showObjectBrowser ? 'Hide Object Browser' : 'Show Object Browser'} onClick={() => setShowObjectBrowser(value => !value)}><PanelRight size={15}/></button><span>OBJECTS & PROPERTIES</span><button title="Choose Fabric" onClick={() => { setObjectTab('Fabric'); setActiveSection('Fabric') }}><Shirt size={15}/></button></div>
+          {showObjectBrowser && <ObjectBrowser tab={objectTab} setTab={setObjectTab} project={project} setSelectedPieceId={selectIn3D} setSelectedFabricId={setSelectedFabricId} onApplyFabric={assignFabric} setActiveSection={setActiveSection} selectedPieceId={selectedPieceId} selectedFabricId={selectedFabricId} onAddFabric={addFabricSwatch} onAddPattern={addPiece} onTogglePieceProperty={(pieceId, field) => mutateProject(next => { const piece = next.pieces.find(item => item.id === pieceId); if (piece && (field === 'visible3d' || field === 'locked')) piece[field] = field === 'visible3d' ? piece.visible3d === false : !piece.locked })}/>}
+          {showObjectBrowser && <div className="clo-browser-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize Object Browser height" title="Drag to resize Object Browser and Property Editor" onPointerDown={(event) => beginPanelResize('objects', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setObjectBrowserHeight(390)}><span/></div>}
+          <PropertyCategoryNavigator activeSection={activeSection} setActiveSection={setActiveSection} setObjectTab={setObjectTab} onRevealBrowser={() => setShowObjectBrowser(true)}/>
+          <div className="clo-property-panel">
+            <div className="inspector-head"><span>PROPERTY EDITOR</span><strong>{activeSection.toUpperCase()}</strong></div>
+            <div id="clo-pattern-properties-host" className="clo-pattern-properties-host" hidden={!['Pattern', 'Sewing', 'Production'].includes(activeSection)} />
+
+          {selectedPiece && activeSection === 'Pattern' && <section className="clo-selected-summary" aria-label="Selected pattern properties">
+            <div className="clo-selected-summary-title"><strong>{selectedPiece.name}</strong><span>{selectedPiece.id}</span></div>
+            <div className="clo-selected-stats">
+              <div><span>Area</span><strong>{selectedArea.toFixed(1)} cm²</strong></div>
+              <div><span>Perimeter</span><strong>{selectedPiece.points.reduce((sum, _, i) => sum + edgeLength(selectedPiece, i), 0).toFixed(1)} cm</strong></div>
+              <div><span>Vertices</span><strong>{selectedPiece.points.length}</strong></div>
+              <div><span>Seam links</span><strong>{project.seams.filter(seam => seam.a?.pieceId === selectedPiece.id || seam.b?.pieceId === selectedPiece.id).length}</strong></div>
+            </div>
+            <div className="clo-selected-material-row"><span className="clo-fabric-thumb-small" style={{ background: project.fabrics?.[selectedPiece.fabricId || 'main']?.color || '#818a96' }}/><span>{project.fabrics?.[selectedPiece.fabricId || 'main']?.name || 'Unassigned fabric'}</span><button onClick={() => { setObjectTab('Fabric'); setActiveSection('Fabric'); setSelectedFabricId(selectedPiece.fabricId || 'main') }}>EDIT FABRIC</button></div>
+          </section>}
 
           {activeSection === 'Pattern' && (
             <>
+              <div className="panel-section" aria-label="Seamly2D measurement interoperability">
+                <div className="panel-title"><span>Seamly2D / SeamlyMe</span><strong>MEASUREMENT BRIDGE</strong></div>
+                <p className="panel-copy">Import real SeamlyMe individual (.smis) or multisize (.smms) measurements with centimeter conversion and original size increments retained. No proprietary pattern data is modified.</p>
+                <button className="wide-action" onClick={() => seamlyMeasureInputRef.current?.click()}><Upload size={15}/>IMPORT SEAMLY MEASUREMENTS</button>
+                {project.measurementLibrary?.seamly && <>
+                  <p className="panel-copy">{project.measurementLibrary.seamly.sourceName || 'SeamlyMe measurements'} · {project.measurementLibrary.seamly.measurementCount} values · base {project.measurementLibrary.seamly.kind === 'smms' ? 'multisize' : 'individual'}.</p>
+                  <button className="wide-action compact-action" onClick={applySeamlyToAvatar}><Ruler size={15}/>APPLY MEASURED BODY VALUES TO AVATAR</button>
+                  <p className="panel-copy">{project.measurementLibrary.seamly.assumptions}</p>
+                </>}
+                <div className="panel-title"><span>Parametric drafting reference</span><strong>.SM2D</strong></div>
+                <p className="panel-copy">Inspect a real Seamly2D source construction graph, tool IDs, pattern blocks and original increment formulas. Imported references are read-only and will not overwrite the editable garment.</p>
+                <button className="wide-action compact-action" onClick={() => seamlyPatternInputRef.current?.click()}><Upload size={14}/>LOAD .SM2D CONSTRUCTION REFERENCE</button>
+                {project.seamlyConstructionReference && <div className="seamly-construction-reference" aria-label="Imported Seamly2D construction reference">
+                  <p className="panel-copy"><strong>{project.seamlyConstructionReference.sourceName || 'Seamly reference'}</strong> · version {project.seamlyConstructionReference.version} · {project.seamlyConstructionReference.toolCount} construction operations · {project.seamlyConstructionReference.incrementCount} formulas</p>
+                  {project.seamlyConstructionReference.blocks.map(block=><details key={block.id} className="seamly-reference-block">
+                    <summary>{block.name} · {block.toolCount} tools</summary>
+                    <ol>{block.nodes.slice(0,14).map(node=><li key={node.id}><strong>{node.name || node.id}</strong> · {node.family}/{node.type}{node.attributes.length ? ` · length ${node.attributes.length}` : ''}</li>)}</ol>
+                    {block.toolCount>14 && <small>Showing first 14 operations of {block.toolCount}. Original references and formulas are preserved in the saved project.</small>}
+                  </details>)}
+                  <p className="panel-copy">{project.seamlyConstructionReference.note}</p>
+                </div>}
+                <p className="panel-copy">The .sm2d tool graph is a different parametric model from a cut-and-sewn garment. Seamly2D is still required to execute construction formulas and resolve details until an equivalent tested graph evaluator exists.</p>
+              </div>
+              {project.templateId === 'tee' && <div className="panel-section" aria-label="Foundation Tee pattern correction">
+                <div className="panel-title"><span>T-shirt pattern engineering</span><strong>SIZE M · SAMPLE</strong></div>
+                <p className="panel-copy">The updated regular-fit T-shirt block uses recessed armscyes, independently cut short sleeves, true measured stitch-line dimensions and graded DXF seam allowances. The base pattern matches 14 seam relationships to within 0.11%. Saved garments are only updated by the button below, with Undo available.</p>
+                <button className="wide-action" onClick={correctTeeArmholes}><CadToolIcon id="curve" size={17}/>APPLY CORRECTED T-SHIRT BLOCK</button>
+                <div className="clo-tee-manufacturing-status"><strong>Production status</strong><span>{project.productionSpec?.approvalStatus === 'FIT_SAMPLE_AND_FACTORY_VALIDATION_REQUIRED' ? 'ENGINEERING SAMPLE · NOT FACTORY APPROVED' : 'LEGACY DRAFT · APPLY BLOCK ABOVE'}</span></div>
+                <div className="clo-tee-measurement-grid" aria-label="T-shirt point of measure values">
+                  {(measurementRun[project.grading?.baseSize || 'M'] || []).filter(item => ['body-length','chest-half','waist-half','hem-half','front-armhole','sleeve-length','bicep-half','cuff-half'].includes(item.id)).map(item => <div key={item.id}><span>{item.label}</span><strong>{item.cm.toFixed(1)} cm</strong><small>±{item.toleranceCm.toFixed(1)} cm</small></div>)}
+                </div>
+                <p className="panel-copy">Neck rib is specified by measured neckline length but still requires its own final cut pattern, physical sample and wash-shrink adjustment. Do not release directly for bulk production.</p>
+                <button className="wide-action compact-action" onClick={exportMeasurements}><FileDown size={14}/>EXPORT MEASUREMENTS · XS–XXL</button>
+              </div>}
               <div className="panel-section">
                 <div className="panel-title"><span>Pattern pieces</span><button onClick={addPiece}><Plus size={14} /></button></div>
                 <div className="piece-list">
@@ -2984,10 +4351,29 @@ export default function App() {
                       <label><span>Points</span><strong>{selectedPiece.points.length}</strong></label>
                       <label><span>Area</span><strong>{selectedArea.toFixed(0)} cm²</strong></label>
                     </div>
+                    {viewportTool === 'mesh-select' && <div className="panel-section" aria-label="3D cloth mesh inspector">
+                      <div className="panel-title"><span>Mesh selection</span><strong>INSPECT</strong></div>
+                      <p className="panel-copy">Click a garment triangle to inspect it. Shift-click or Command-click to add/remove triangles without changing the pattern.</p>
+                      <p className="panel-copy">{meshSelection?.pieceId === selectedPiece.id ? `${meshSelection.triangleIndices.length} triangle(s) · ${meshSelection.vertices.length} unique vertices · faces ${meshSelection.triangleIndices.map(index => index + 1).join(', ')}` : 'No triangles selected'}</p>
+                      <button className="wide-action compact-action" onClick={() => { setViewportTool('transform'); setMeshSelection(null) }}>RETURN TO 3D TRANSFORM</button>
+                    </div>}
                     <div className="control-row split-control"><span>Seam allowance</span><NumberField value={selectedPiece.seamAllowance} min={0} max={8} step={0.1} suffix="cm" onChange={(value) => updateSelectedPiece('seamAllowance', clamp(value, 0, 8))} /></div>
                     <div className="control-row split-control"><span>Grain angle</span><NumberField value={selectedPiece.grainAngleDeg ?? 0} min={-90} max={90} step={1} suffix="°" onChange={(value) => updateSelectedPiece('grainAngleDeg', clamp(value, -90, 90))} /></div>
                     <div className="control-row split-control"><span>Cut quantity</span><NumberField value={selectedPiece.cutQuantity ?? 1} min={1} max={99} step={1} suffix="×" onChange={(value) => updateSelectedPiece('cutQuantity', Math.max(1, Math.round(value)))} /></div>
                     <div className="control-row split-control"><span>Collision layer</span><NumberField value={selectedPiece.layerIndex ?? 0} min={0} max={8} step={1} suffix="L" onChange={(value) => updateSelectedPiece('layerIndex', Math.max(0, Math.min(8, Math.round(value))))} /></div>
+                    <div className="clo-placement-panel" aria-label="Exact 3D pattern placement">
+                      <div className="clo-placement-header"><strong>3D PATTERN PLACEMENT</strong><span>POSITION · cm / ROTATE · °</span></div>
+                      <fieldset className="clo-placement-fields" disabled={hasSimulated}>
+                        <div className="clo-placement-inputs">
+                          {['X', 'Y', 'Z'].map(axis => <div key={`position-${axis}`}><span>MOVE {axis}</span><NumberField ariaLabel={`3D move ${axis} (cm)`} value={Number(selectedPiece.arrangement3d?.[`stagingOffset${axis}`] || 0) * 100} min={-200} max={200} step={0.1} suffix="cm" onChange={value => setStagedPlacementField(selectedPiece.id, `stagingOffset${axis}`, value)}/></div>)}
+                        </div>
+                        <div className="clo-placement-inputs">
+                          {['X', 'Y', 'Z'].map(axis => <div key={`rotation-${axis}`}><span>ROTATE {axis}</span><NumberField ariaLabel={`3D rotate ${axis} (degrees)`} value={Number(selectedPiece.arrangement3d?.[`stagingRotation${axis}`] || 0)} min={-360} max={360} step={0.1} suffix="°" onChange={value => setStagedPlacementField(selectedPiece.id, `stagingRotation${axis}`, value)}/></div>)}
+                        </div>
+                        <button type="button" className="clo-placement-reset" onClick={() => resetStagedPlacement(selectedPiece.id)}><RotateCcw size={12}/> RESET PANEL PLACEMENT</button>
+                      </fieldset>
+                      {hasSimulated && <p>Pause and use the 3D gizmo to adjust simulated cloth. Reset simulation to edit pre-sew arrangement numbers.</p>}
+                    </div>
                     <button className={`toggle-row ${selectedPiece.locked ? 'active' : ''}`} onClick={() => updateSelectedPiece('locked', !selectedPiece.locked)}><span><Lock size={15} />Lock 2D editing</span><i /></button>
                     <button className={`toggle-row ${selectedPiece.frozen3d ? 'active' : ''}`} onClick={() => updateSelectedPiece('frozen3d', !selectedPiece.frozen3d)}><span><Pause size={15} />Freeze 3D cloth</span><i /></button>
                     <button className={`toggle-row ${selectedPiece.active3d !== false ? 'active' : ''}`} onClick={() => updateSelectedPiece('active3d', selectedPiece.active3d === false)}><span><Cpu size={15} />Active in 3D solver</span><i /></button>
@@ -3002,6 +4388,8 @@ export default function App() {
                     )}
                     <button className={`toggle-row ${selectedPiece.marker?.allowCrossGrain ? 'active' : ''}`} onClick={() => updateSelectedMarker('allowCrossGrain', !selectedPiece.marker?.allowCrossGrain)}><span><RotateCcw size={15} />Allow 90° cross-grain marker rotation</span><i /></button>
                     <label className="select-field"><span>Simulation detail</span><select value={selectedPiece.simulationResolution ?? project.simulation.resolution ?? 1} onChange={(event) => updateSelectedPiece('simulationResolution', Number(event.target.value))}><option value={0}>Draft · coarse</option><option value={1}>Normal</option><option value={2}>Fine</option><option value={3}>Ultra</option></select></label>
+                    <div className="clo-simulation-property-group"><strong>Simulation mesh</strong><p>Mesh density is controlled by subdivision levels. Exact millimeter-based particle distance requires a remeshing kernel.</p><div className="control-row split-control"><span>Subdivision level</span><NumberField value={selectedPiece.simulationResolution ?? project.simulation.resolution ?? 1} min={0} max={3} step={1} suffix="level" onChange={(value) => updateSelectedPiece('simulationResolution', Math.round(clamp(value, 0, 3)))} /></div></div>
+                    <div className="clo-simulation-property-group"><strong>Fabric shrinkage / thickness</strong><div className="control-row split-control"><span>Warp shrinkage</span><NumberField value={(project.fabrics?.[selectedPiece.fabricId || 'main']?.shrinkWarp ?? 0) * 100} min={-15} max={25} step={0.5} suffix="%" onChange={value => mutateProject(next => { const f = next.fabrics?.[selectedPiece.fabricId || 'main']; if (f) f.shrinkWarp = clamp(value / 100, -.15, .25) })}/></div><div className="control-row split-control"><span>Weft shrinkage</span><NumberField value={(project.fabrics?.[selectedPiece.fabricId || 'main']?.shrinkWeft ?? 0) * 100} min={-15} max={25} step={0.5} suffix="%" onChange={value => mutateProject(next => { const f = next.fabrics?.[selectedPiece.fabricId || 'main']; if (f) f.shrinkWeft = clamp(value / 100, -.15, .25) })}/></div><div className="control-row split-control"><span>Cloth thickness</span><NumberField value={(project.fabrics?.[selectedPiece.fabricId || 'main']?.thickness ?? .002) * 1000} min={0.2} max={12} step={0.1} suffix="mm" onChange={value => mutateProject(next => { const f = next.fabrics?.[selectedPiece.fabricId || 'main']; if (f) f.thickness = clamp(value, .2, 12) / 1000 })}/></div></div>
                     {selectedPiece.linkedMirrorSourceId && (
                       <div className="linked-pattern-notice">
                         <div><Link2 size={13} /><span>Linked mirror</span></div>
@@ -3163,6 +4551,18 @@ export default function App() {
                       <div><span>Y</span><NumberField value={(selectedPiece.arrangement3d?.y || 0) * 100} min={0} max={250} step={0.5} suffix="cm" onChange={(value) => updateSelectedArrangement('y', value / 100)} /></div>
                       <div><span>Z</span><NumberField value={(selectedPiece.arrangement3d?.z || 0) * 100} min={-150} max={150} step={0.5} suffix="cm" onChange={(value) => updateSelectedArrangement('z', value / 100)} /></div>
                     </div>
+                    <p className="panel-copy">Before simulation, the 3D Move tool drags an individual flat panel. These offsets are kept separate from its sewn fitting pose.</p>
+                    <div className="arrangement-grid">
+                      <div><span>Flat X</span><NumberField value={(selectedPiece.arrangement3d?.stagingOffsetX || 0) * 100} min={-200} max={200} step={0.5} suffix="cm" onChange={(value) => updateSelectedArrangement('stagingOffsetX', value / 100)} /></div>
+                      <div><span>Flat Y</span><NumberField value={(selectedPiece.arrangement3d?.stagingOffsetY || 0) * 100} min={-200} max={200} step={0.5} suffix="cm" onChange={(value) => updateSelectedArrangement('stagingOffsetY', value / 100)} /></div>
+                      <div><span>Flat Z</span><NumberField value={(selectedPiece.arrangement3d?.stagingOffsetZ || 0) * 100} min={-200} max={200} step={0.5} suffix="cm" onChange={(value) => updateSelectedArrangement('stagingOffsetZ', value / 100)} /></div>
+                    </div>
+                    <div className="panel-title"><span>Flat 3D rotation</span><Rotate3d size={14}/></div>
+                    <div className="arrangement-grid">
+                      <div><span>Rotate X</span><NumberField value={selectedPiece.arrangement3d?.stagingRotationX || 0} min={-180} max={180} step={1} suffix="°" onChange={(value) => updateSelectedArrangement('stagingRotationX', value)} /></div>
+                      <div><span>Rotate Y</span><NumberField value={selectedPiece.arrangement3d?.stagingRotationY || 0} min={-180} max={180} step={1} suffix="°" onChange={(value) => updateSelectedArrangement('stagingRotationY', value)} /></div>
+                      <div><span>Rotate Z</span><NumberField value={selectedPiece.arrangement3d?.stagingRotationZ || 0} min={-180} max={180} step={1} suffix="°" onChange={(value) => updateSelectedArrangement('stagingRotationZ', value)} /></div>
+                    </div>
                     <button className={`toggle-row ${selectedPiece.arrangement3d?.flip ? 'active' : ''}`} onClick={() => updateSelectedArrangement('flip', !selectedPiece.arrangement3d?.flip)}><span><RotateCcw size={15} />Flip pattern orientation</span><i /></button>
                   </div>
                 </>
@@ -3172,9 +4572,92 @@ export default function App() {
 
           {activeSection === 'Sewing' && (
             <>
+              <div className="panel-section stage-overview">
+                <div className="panel-title"><span>Construction workflow</span><strong>{!hasSimulated ? 'PRE-SIMULATION' : running ? 'SIMULATING' : 'DRAPED / PAUSED'}</strong></div>
+                <div className="workflow-stages"><span className="active">1 · ARRANGE</span><span className={project.seams.length ? 'active' : ''}>2 · SEW EDGES</span><span className={hasSimulated ? 'active' : ''}>3 · SIMULATE</span></div>
+                <p className="panel-copy">Patterns remain flat in 3D until simulation. Assign stitches using the Sew tool in 2D; orange links show exactly which edges will join in the 3D view.</p>
+                <button className="wide-action" onClick={toggleSimulation}>{running ? 'PAUSE PHYSICAL SIMULATION' : 'SIMULATE SEWN GARMENT'}</button>
+                <button className="wide-action compact-action" onClick={resetSimulation}>RESET TO FLAT ARRANGEMENT</button>
+              </div>
+              <div className="panel-section" aria-label="PPF physical sewing simulation">
+                <div className="panel-title"><span>PPF contact + sewing</span><strong>METAL · FEM</strong></div>
+                <div className="panel-section" aria-label="Original ZOZO GitHub dress reference">
+                  <div className="panel-title"><span>First official test · ZOZO GitHub dress</span><strong>ORIGINAL SOURCE</strong></div>
+                  <p className="panel-copy">Load the exact 14-panel Codim-IPC dress, all 851 native sewing constraints, its original dancing body, and the 241 saved Rust/Metal frames. Playback is read-only and never overwrites this project's patterns or physics.</p>
+                  <button className="wide-action" disabled={zozoReferenceLoading} onClick={openZozoReference}>
+                    <Shirt size={15}/>{zozoReferenceLoading ? 'LOADING ORIGINAL DRESS…' : zozoReference ? 'RETURN TO EDITABLE GARMENT' : 'OPEN ORIGINAL GITHUB DRESS TEST'}
+                  </button>
+                  {zozoReferenceError && <p className="panel-copy" role="alert" style={{color:'#f39a88'}}>{zozoReferenceError}</p>}
+                  {zozoReference && <div className="zozo-reference-controls" data-testid="zozo-reference-controls">
+                    <div className="panel-title"><span>Rust/Metal recorded frame</span><strong>{zozoReferenceFrame + 1}/{zozoReference.manifest.frames}</strong></div>
+                    <div className="zozo-reference-actions">
+                      <button type="button" onClick={() => setZozoReferenceFrame(0)}>START</button>
+                      <button type="button" onClick={() => setZozoReferencePlaying(value => !value)}>{zozoReferencePlaying ? 'PAUSE' : 'PLAY'}</button>
+                      <button type="button" onClick={() => setZozoReferenceFrame(240)}>FINAL FRAME</button>
+                      <button type="button" onClick={() => setZozoReferenceBodyVisible(value => !value)}>{zozoReferenceBodyVisible ? 'HIDE BODY' : 'SHOW BODY'}</button>
+                    </div>
+                    <input aria-label="ZOZO GitHub dress simulation frame" type="range" min="0" max={zozoReference.manifest.frames - 1} step="1" value={zozoReferenceFrame} onChange={event => {setZozoReferencePlaying(false);setZozoReferenceFrame(Number(event.target.value))}} />
+                    <p className="panel-copy" role="status" data-testid="zozo-reference-metrics">Frame {zozoReferenceFrame}: {zozoReference.manifest.audits[zozoReferenceFrame].bodyCrossings} cloth/body crossing pairs · mean seam gap {zozoReference.manifest.audits[zozoReferenceFrame].meanSeamGapCm.toFixed(3)} cm · worst gap {zozoReference.manifest.audits[zozoReferenceFrame].maxSeamGapCm.toFixed(3)} cm.</p>
+                    <p className="panel-copy" style={{color:'#f39a88'}}>Original solver run completed but FAILED collision certification: 492 body triangle crossings at frame 90 and additional crossings at frames 87 and 174. This is an experimental reference, not an accepted fitted garment or editable CLO pattern.</p>
+                  </div>}
+                </div>
+                <p className="panel-copy">ZOZO's contact solver treats 2D seam matches as physical stitch springs. It joins fabric while resolving contact with the body. Start with 10 frames on Apple Metal; longer runs can take minutes or stall around tightly closed armholes. Interactive XPBD remains available above.</p>
+                <div className="control-row split-control"><span>Stitch spring strength</span><NumberField value={project.simulation?.ppfStitchStiffness ?? 1} min={0.1} max={10000} step={0.5} onChange={(value) => updateSimulation('ppfStitchStiffness', clamp(value, 0.1, 10000))} /></div>
+                <div className="control-row split-control"><span>PPF maximum stretch</span><NumberField value={project.simulation?.ppfStrainLimitPercent ?? 5} min={1} max={40} step={0.5} suffix="%" onChange={(value) => updateSimulation('ppfStrainLimitPercent', clamp(value, 1, 40))} /></div>
+                <div className="control-row split-control"><span>PPF contact gap</span><NumberField value={(project.simulation?.ppfContactGap ?? .001)*1000} min={0.1} max={10} step={0.1} suffix="mm" onChange={(value) => updateSimulation('ppfContactGap', clamp(value, 0.1, 10)/1000)} /></div>
+                <div className="control-row split-control"><span>PPF contact offset</span><NumberField value={(project.simulation?.ppfContactOffset ?? 0)*1000} min={0} max={5} step={0.1} suffix="mm" onChange={(value) => updateSimulation('ppfContactOffset', clamp(value, 0, 5)/1000)} /></div>
+                <div className="control-row split-control"><span>Avatar contact gap</span><NumberField value={(project.simulation?.ppfAvatarContactGap ?? .001)*1000} min={0.1} max={10} step={0.1} suffix="mm" onChange={(value) => updateSimulation('ppfAvatarContactGap', clamp(value, 0.1, 10)/1000)} /></div>
+                <div className="control-row split-control"><span>Avatar contact offset</span><NumberField value={(project.simulation?.ppfAvatarContactOffset ?? 0)*1000} min={0} max={5} step={0.1} suffix="mm" onChange={(value) => updateSimulation('ppfAvatarContactOffset', clamp(value, 0, 5)/1000)} /></div>
+                <p className="panel-copy">Both PPF contact groups now use explicit millimeter gaps (default 1 mm each) rather than scaling the avatar gap with body size. PPF strain limiting is explicitly enabled for new jobs; the default is 5% maximum stretch, not 2%. These settings do not alter browser PBD collision margins or certify a collision-free drape.</p>
+                <button className={`toggle-row ${project.simulation?.ppfShoulderSupports === true ? 'active' : ''}`} onClick={() => updateSimulation('ppfShoulderSupports', project.simulation?.ppfShoulderSupports !== true)}><span><MapPin size={15} />Experimental soft shoulder supports</span><i /></button>
+                <div className="control-row split-control"><span>PPF torso staging height</span><NumberField value={(project.simulation?.ppfTorsoYOffset ?? 0)*100} min={-15} max={15} step={1} suffix="cm" onChange={(value) => updateSimulation('ppfTorsoYOffset', clamp(value, -15, 15)/100)} /></div>
+                <p className="panel-copy">Experimental shoulder supports pull four top-panel landmarks for the first 20% of the solve, then release. The latest Thomas test still intersected the body and left large seam gaps, so these supports and the staging-height adjustment are off by default. A failed PPF result is never accepted as a fitted garment.</p>
+                <p className="panel-copy">PPF uses the installed calibrated Cotton/Silk/Wool/Denim material presets as starting values for membrane and bend stiffness. Gravity remains 9.81 m/s². Longer solves allow settling; they cannot correct excessive pattern ease or unsafe stitching. These are PPF-specific settings, not the interactive Browser PBD controls.</p>
+                <div className="control-row split-control"><span>PPF sewing frames</span><NumberField value={ppfFrames} min={10} max={180} step={5} onChange={(value) => setPpfFrames(Math.round(clamp(value, 10, 180)))} /></div>
+                <button className="wide-action" disabled={!project.seams.length || ['queued', 'running', 'connecting'].includes(ppfSewing.status)} onClick={() => startPpfSewing()}>
+                  <Link2 size={15}/>{['queued', 'running', 'connecting'].includes(ppfSewing.status) ? 'PPF SEWING IN PROGRESS' : 'RUN PHYSICAL SEWING · PPF METAL'}
+                </button>
+                <p className="panel-copy" role="status">PPF: {ppfSewing.status === 'idle' ? 'Ready to submit to the local solver service' : `${ppfSewing.status.toUpperCase()} · ${ppfSewing.phase}`}</p>
+                {ppfSewing.error && <p className="panel-copy" style={{ color: '#f39a88' }}>{ppfSewing.error}{ppfSewing.phase === 'connection' && <>. Start the local service with <code>npm run ppf:serve</code> if it is offline.</>}</p>}
+                {ppfSewing.summary?.stitchEdges !== undefined && <p className="panel-copy">{ppfSewing.summary.stitchEdges} physical stitch pairs · {ppfSewing.summary.vertices} cloth vertices · zero-intersection staging: {ppfSewing.summary.intersections === 0 ? 'cloth preflight passed' : 'pending'} · actual body contact: {ppfSewing.summary.initialBodyContactVerified ? 'initial frame verified' : 'not yet verified'}</p>}
+                {ppfSewing.summary?.assembly && <p className="panel-copy" style={ppfSewing.summary.assembly.fittingReady ? undefined : {color:'#f39a88'}}>NONRIGID ASSEMBLY: {ppfSewing.summary.assembly.startingSeamMeanCm.toFixed(2)} → {ppfSewing.summary.assembly.assembledSeamMeanCm.toFixed(2)} cm mean stitch gap · worst {ppfSewing.summary.assembly.largestGapCm.toFixed(2)} cm · maximum geometric edge change {(100*ppfSewing.summary.assembly.maximumEdgeChange).toFixed(2)}% · Thomas crossings {ppfSewing.summary.assembly.realBodyIntersectionPairs} · {ppfSewing.summary.assembly.fittingReady ? 'initial assembly eligible for PPF' : 'still requires full shoulder/side seam assembly; not a certified fit'}.</p>}
+                {ppfSewing.artifacts?.assemblyPayload && <>
+                  <button className="wide-action compact-action" disabled={ppfPreviewLoading} onClick={() => showPpfPreview(ppfSewing.jobId, 0, 'initial-assembly')}>
+                    {ppfPreviewLoading ? 'LOADING INITIAL GARMENT…' : 'VIEW COLLISION-CHECKED INITIAL ASSEMBLY'}
+                  </button>
+                  <p className="panel-copy">This is the staged cloth geometry, not a solved or fully sewn garment. Stored locally at <code style={{overflowWrap:'anywhere'}}>{ppfSewing.artifacts.assemblyPayload}</code>.</p>
+                  {ppfPreview?.stage === 'initial-assembly' && <p className="panel-copy" style={{color:'#f39a88'}}>{ppfPreview.warning}</p>}
+                  {ppfPreview?.stage === 'initial-assembly' && <button className="wide-action compact-action" onClick={() => setPpfPreview(null)}>RETURN TO EDITABLE GARMENT</button>}
+                  {ppfPreviewError && <p className="panel-copy" role="alert" style={{color:'#f39a88'}}>{ppfPreviewError}</p>}
+                </>}
+                {ppfSewing.summary?.stagingSeams?.warning && <p className="panel-copy" style={{color:'#f39a88'}}>PATTERN ASSEMBLY: {ppfSewing.summary.stagingSeams.warning} Worst: {ppfSewing.summary.stagingSeams.worstSeams?.[0]?.id || 'unknown'} ({ppfSewing.summary.stagingSeams.worstSeams?.[0]?.meanGapCm?.toFixed(1)} cm mean).</p>}
+                {ppfSewing.summary?.sewing && <p className="panel-copy">Measured seam closure: {ppfSewing.summary.sewing.initialMeanGapCm.toFixed(1)} → {ppfSewing.summary.sewing.finalMeanGapCm.toFixed(1)} cm ({ppfSewing.summary.sewing.closurePercent}% closed). Largest remaining seam: {ppfSewing.summary.sewing.worstSeams?.[0]?.id || 'none'}.</p>}
+                {ppfSewing.summary?.contact && <p className="panel-copy" style={ppfSewing.summary.collisionQuality === 'pass' ? undefined : { color: '#f39a88' }}>Collision quality: {ppfSewing.summary.collisionQuality === 'pass' ? 'PASS' : 'FAILED — experimental result, not a finished garment'}. Frame-by-frame: {ppfSewing.summary.contact.allFramesAvatarIntersectionFree ? 'no detected avatar crossings' : `up to ${ppfSewing.summary.contact.maxAvatarIntersectionPairs} avatar triangle crossings`}; {ppfSewing.summary.contact.allFramesSelfIntersectionFree ? 'no fabric crossings' : `up to ${ppfSewing.summary.contact.maxSelfIntersectionPairs} fabric crossings`}. Final-frame shell overlaps: {ppfSewing.summary.contact.finalFrame?.clothSelfIntersectionPairs ?? 'unknown'}.</p>}
+                {ppfSewing.summary?.contact?.allFramesWithinStrainLimit !== undefined && <p className="panel-copy" style={ppfSewing.summary.contact.allFramesWithinStrainLimit ? undefined : { color: '#f39a88' }}>Exported-frame strain: {ppfSewing.summary.contact.allFramesWithinStrainLimit ? 'PASS' : 'FAILED'} · maximum principal stretch {Number(ppfSewing.summary.contact.maxPrincipalStretch || 0).toFixed(3)}×. Raw cloth positions are evaluated without post-simulation seam snapping.</p>}
+                {ppfSewing.summary?.fitClearance?.final && <p className="panel-copy" style={ppfSewing.summary.fitClearance.shoulderFitPass ? undefined : {color:'#f39a88'}}>Thomas proximity: shoulder mean {ppfSewing.summary.fitClearance.final.shoulder.meanCm.toFixed(1)} cm, shoulder p90 {ppfSewing.summary.fitClearance.final.shoulder.p90Cm.toFixed(1)} cm, torso mean {ppfSewing.summary.fitClearance.final.torso.meanCm.toFixed(1)} cm. {ppfSewing.summary.fitClearance.shoulderFitPass ? 'Provisional shoulder-fit thresholds passed.' : 'FLOATING / BALLOONING RISK — not an accepted fit.'}</p>}
+                {ppfSewing.summary?.contact?.firstAvatarCrossingFrame != null && <p className="panel-copy">First body penetration: frame {ppfSewing.summary.contact.firstAvatarCrossingFrame}. Main affected collider: {ppfSewing.summary.contact.avatarPartsRankedByTotalCrossings?.[0]?.name?.replace('PPF_Avatar_', '') || 'unknown'}. This result requires collision repair before production use.</p>}
+                {ppfSewing.artifacts?.blend && <p className="panel-copy">Solver completed. Blender scene saved at <code style={{ overflowWrap: 'anywhere' }}>{ppfSewing.artifacts.blend}</code>. Preview frames can be inspected without modifying the live XPBD garment or the pattern.</p>}
+                {ppfSewing.status === 'done' && <div className="panel-section" aria-label="ZOZO PPF read-only simulation preview">
+                  <div className="panel-title"><span>ZOZO simulation playback</span><strong>{ppfSewing.summary?.fitAcceptance?.accepted ? 'VERIFIED FIT' : 'EXPERIMENTAL · UNSAFE'}</strong></div>
+                  <button className="wide-action" disabled={ppfPreviewLoading} onClick={() => showPpfPreview()}>{ppfPreviewLoading ? 'READING PPF CACHE…' : 'SHOW LAST ZOZO FRAME ON AVATAR'}</button>
+                  {ppfPreview?.frames > 1 && <label className="select-field"><span>Solver frame {ppfPreview.frame + 1}/{ppfPreview.frames}</span><input type="range" min="0" max={ppfPreview.frames - 1} step="1" value={ppfPreview.frame} disabled={ppfPreviewLoading} onChange={(event) => showPpfPreview(ppfPreview.jobId, Number(event.target.value))}/></label>}
+                  {ppfPreview && <button className="wide-action compact-action" onClick={() => setPpfPreview(null)}>RETURN TO EDITABLE GARMENT</button>}
+                  {ppfPreview && !ppfPreview.accepted && <p className="panel-copy" style={{color:'#f39a88'}}>This playback shows raw, experimental solver geometry. Contact, strain or seam checks failed; it is not a completed wearable fit.</p>}
+                  {ppfPreviewError && <p className="panel-copy" role="alert" style={{color:'#f39a88'}}>{ppfPreviewError}</p>}
+                </div>}
+              </div>
+              <div className="panel-section">
+                <div className="panel-title"><span>Sewing visualization</span><Link2 size={15} /></div>
+                <p className="panel-copy">The 2D editor and 3D flat arrangement show the same seam constraint pairs before simulation. Sew first; simulate afterward.</p>
+                <button className={`toggle-row ${showSewingGuides ? 'active' : ''}`} onClick={() => setShowSewingGuides((value) => !value)}><span><Link2 size={14} />Show 3D sewing lines</span><i /></button>
+                <label className="select-field"><span>Exploded arrangement: {Math.round(arrangementSpread * 100)}%</span><input type="range" min="0" max="1" step="0.05" value={arrangementSpread} onChange={(event) => { setArrangementSpread(Number(event.target.value)); setShowSewingGuides(true); setRunning(false) }} /></label>
+                <button className="wide-action compact-action" onClick={() => setArrangementSpread(0)}>RETURN TO CURRENT ARRANGEMENT</button>
+              </div>
               <div className="panel-section grow-section">
                 <div className="panel-title"><span>Seam graph</span><strong>{project.seams.length}</strong></div>
-                <p className="panel-copy">Choose the sew tool, then click two pattern edges. The same seam relationship is sent directly to the cloth solver.</p>
+                <p className="panel-copy">Segment Sewing: click two edges. Free Sewing: Shift-click a start and end on each edge; this creates an exact, editable range that follows the source cutline rather than the nearest mesh vertex.</p>
+                <p className="panel-copy" role="status">Construction audit: {sewingConstructionAudit.validSewingLinks}/{sewingConstructionAudit.sourceSeams} sewing links valid · {sewingConstructionAudit.categories.invalidEndpoints} invalid cutlines · {sewingConstructionAudit.categories.overlappingRanges} conflicting overlaps · {sewingConstructionAudit.categories.inactive3d} links to 2D-only patterns · {sewingConstructionAudit.categories.lengthMismatch} length mismatches above 6%.</p>
+                {sewingConstructionAudit.issues.length > 0 && <details className="sewing-audit-detail"><summary>Inspect construction warnings</summary>{sewingConstructionAudit.issues.map((issue, index) => <p key={`${issue.seamId}-${index}`} className="panel-copy">{issue.seamId}: {issue.detail}</p>)}</details>}
                 <div className="seam-health-strip">
                   <span><i className="good" />{project.seams.filter((seam) => seamLengthReport(project, seam).status === 'good').length} matched</span>
                   <span><i className="warning" />{project.seams.filter((seam) => seamLengthReport(project, seam).status === 'warning').length} warning</span>
@@ -3194,10 +4677,10 @@ export default function App() {
                         </div>
                         {(seam.a?.startT !== undefined || seam.a?.endT !== undefined || seam.b?.startT !== undefined || seam.b?.endT !== undefined) && (
                           <div className="seam-range-controls">
-                            <div><span>A start</span><NumberField value={(seam.a?.startT ?? 0) * 100} min={0} max={98} step={1} suffix="%" onChange={(value) => updateSeamRange(seam.id, 'a', 'startT', value / 100)} /></div>
-                            <div><span>A end</span><NumberField value={(seam.a?.endT ?? 1) * 100} min={2} max={100} step={1} suffix="%" onChange={(value) => updateSeamRange(seam.id, 'a', 'endT', value / 100)} /></div>
-                            <div><span>B start</span><NumberField value={(seam.b?.startT ?? 0) * 100} min={0} max={98} step={1} suffix="%" onChange={(value) => updateSeamRange(seam.id, 'b', 'startT', value / 100)} /></div>
-                            <div><span>B end</span><NumberField value={(seam.b?.endT ?? 1) * 100} min={2} max={100} step={1} suffix="%" onChange={(value) => updateSeamRange(seam.id, 'b', 'endT', value / 100)} /></div>
+                            <div><span>A start</span><NumberField value={(seam.a?.startT ?? 0) * 100} min={0} max={99.99} step={0.01} suffix="%" onChange={(value) => updateSeamRange(seam.id, 'a', 'startT', value / 100)} /></div>
+                            <div><span>A end</span><NumberField value={(seam.a?.endT ?? 1) * 100} min={0.01} max={100} step={0.01} suffix="%" onChange={(value) => updateSeamRange(seam.id, 'a', 'endT', value / 100)} /></div>
+                            <div><span>B start</span><NumberField value={(seam.b?.startT ?? 0) * 100} min={0} max={99.99} step={0.01} suffix="%" onChange={(value) => updateSeamRange(seam.id, 'b', 'startT', value / 100)} /></div>
+                            <div><span>B end</span><NumberField value={(seam.b?.endT ?? 1) * 100} min={0.01} max={100} step={0.01} suffix="%" onChange={(value) => updateSeamRange(seam.id, 'b', 'endT', value / 100)} /></div>
                           </div>
                         )}
                         <div className="seam-treatment-controls">
@@ -3365,11 +4848,31 @@ export default function App() {
                 <label className="text-field"><span>Name</span><input value={fabric.name || ''} onChange={(event) => updateFabric('name', event.target.value)} /></label>
                 <label className="select-field"><span>Preset</span><select value={Object.keys(FABRIC_PRESETS).find((key) => FABRIC_PRESETS[key].name === fabric.name) || ''} onChange={(event) => applyFabricPreset(event.target.value)}><option value="">Custom</option>{Object.entries(FABRIC_PRESETS).map(([key, preset]) => <option key={key} value={key}>{preset.name}</option>)}</select></label>
                 <label className="color-field"><span>Surface color</span><input type="color" value={fabric.color} onChange={(event) => updateFabric('color', event.target.value)} /><strong>{fabric.color.toUpperCase()}</strong></label>
+                <div className="clo-fabric-apply-actions">
+                  <button disabled={!selectedPiece} onClick={() => assignFabric(selectedFabricId)}>APPLY TO SELECTED PATTERN</button>
+                  <button onClick={() => assignFabric(selectedFabricId, true)}>APPLY TO ALL GARMENT PIECES</button>
+                </div>
                 {selectedPiece && <label className="select-field"><span>{selectedPiece.name} material</span><select value={selectedPiece.fabricId || 'main'} onChange={(event) => updateSelectedPiece('fabricId', event.target.value)}>{Object.entries(project.fabrics || {}).map(([fabricId, item]) => <option key={fabricId} value={fabricId}>{item.name || fabricId}</option>)}</select></label>}
                 {selectedFabricId !== 'main' && <button className="wide-action danger-action" onClick={() => deleteFabricSwatch(selectedFabricId)}><Trash2 size={14} />DELETE SWATCH · REASSIGN TO MAIN</button>}
               </div>
               <div className="panel-section">
                 <div className="panel-title"><span>Textile surface</span><strong>{fabric.texture?.src ? 'MAPPED' : 'COLOR'}</strong></div>
+                <FabricMaterialPreview fabric={fabric} />
+                <label className="select-field"><span>Fabric structure</span><select value={fabric.surfaceFamily || 'auto'} onChange={(event) => updateFabric('surfaceFamily', event.target.value)}>
+                  <option value="auto">Auto-detect from fabric name</option>
+                  <option value="plain-weave">Plain woven cotton / linen</option>
+                  <option value="twill">Twill / denim diagonal weave</option>
+                  <option value="jersey-knit">Jersey single knit</option>
+                  <option value="rib-knit">Rib knit</option>
+                  <option value="corduroy">Corduroy raised wales</option>
+                  <option value="terry-knit">French terry / fleece</option>
+                  <option value="silk">Silk / satin weave</option>
+                  <option value="synthetic">Technical nylon / polyester</option>
+                  <option value="ripstop">Ripstop woven reinforcement</option>
+                  <option value="suede">Suede / brushed nap</option>
+                  <option value="leather">Grained leather</option>
+                </select></label>
+                <p className="panel-copy">Changes the 3D yarn structure, surface normals and micro-roughness without disturbing the garment's drape. Fabric appearance is separate from mechanical calibration.</p>
                 {fabric.texture?.src ? (
                   <>
                     <div className="fabric-texture-card">
@@ -3392,8 +4895,18 @@ export default function App() {
                 )}
               </div>
               <div className="panel-section">
-                <div className="panel-title"><span>Textile PBR maps</span><strong>{[fabric.texture?.normalSrc, fabric.texture?.roughnessSrc].filter(Boolean).length}/2</strong></div>
-                <p className="panel-copy">Normal and roughness maps share the color texture's real-centimeter repeat and grain rotation, so weave detail stays registered to the pattern.</p>
+                <div className="panel-title"><span>Textile PBR maps</span><strong>{[fabric.texture?.normalSrc, fabric.texture?.roughnessSrc, fabric.texture?.metalnessSrc, fabric.texture?.opacitySrc, fabric.texture?.displacementSrc].filter(Boolean).length}/5</strong></div>
+                <button className="wide-action" onClick={() => fabricPbrSetInputRef.current?.click()}><Upload size={14} />IMPORT MATCHING PBR MAP SET</button>
+                <p className="panel-copy">Select multiple image files named e.g. fabric_diff, fabric_nor_gl, fabric_rough, fabric_metal, fabric_opacity and fabric_height. DirectX normal and packed ARM maps are not auto-converted.</p>
+                <p className="panel-copy">Normal, roughness, metalness, opacity and displacement maps share the fabric's centimeter-based pattern UVs and grain rotation. Grayscale opacity maps control sheer and perforated regions.</p>
+                {fabric.texture?.src && (
+                  <>
+                    <button className="wide-action" disabled={fabricGeneratingPbr || Boolean(fabric.texture.normalSrc && fabric.texture.roughnessSrc)} onClick={autoGenerateFabricPbr}>
+                      <Sparkles size={14} />{fabricGeneratingPbr ? 'GENERATING MAPS...' : 'GENERATE NORMAL + ROUGHNESS FROM PHOTO'}
+                    </button>
+                    <p className="panel-copy">Image-derived PBR maps estimate surface detail from brightness; they are not scanned or physically calibrated. Existing manual maps are preserved.</p>
+                  </>
+                )}
                 {fabric.texture?.normalSrc ? (
                   <div className="fabric-texture-card">
                     <img src={fabric.texture.normalSrc} alt="" />
@@ -3410,11 +4923,43 @@ export default function App() {
                 ) : <button className="wide-action compact-action" onClick={() => fabricRoughnessInputRef.current?.click()}><Upload size={14} />LOAD ROUGHNESS MAP</button>}
                 {fabric.texture?.normalSrc && <button className="wide-action compact-action" onClick={() => fabricNormalInputRef.current?.click()}><Upload size={13} />REPLACE NORMAL</button>}
                 {fabric.texture?.roughnessSrc && <button className="wide-action compact-action" onClick={() => fabricRoughnessInputRef.current?.click()}><Upload size={13} />REPLACE ROUGHNESS</button>}
+                {fabric.texture?.metalnessSrc ? (
+                  <div className="fabric-texture-card">
+                    <img src={fabric.texture.metalnessSrc} alt="" />
+                    <div><strong>{fabric.texture.metalnessName || 'Metalness map'}</strong><small>Linear grayscale · metallic finish mask</small></div>
+                    <button onClick={() => removeFabricPbrMap('metalness')}><Trash2 size={12} /></button>
+                  </div>
+                ) : <button className="wide-action compact-action" onClick={() => fabricMetalnessInputRef.current?.click()}><Upload size={14} />LOAD METALNESS MAP</button>}
+                {fabric.texture?.opacitySrc ? (
+                  <div className="fabric-texture-card">
+                    <img src={fabric.texture.opacitySrc} alt="" />
+                    <div><strong>{fabric.texture.opacityName || 'Opacity map'}</strong><small>White = opaque · black = transparent</small></div>
+                    <button onClick={() => removeFabricPbrMap('opacity')}><Trash2 size={12} /></button>
+                  </div>
+                ) : <button className="wide-action compact-action" onClick={() => fabricOpacityInputRef.current?.click()}><Upload size={14} />LOAD OPACITY MAP</button>}
+                {fabric.texture?.displacementSrc ? (
+                  <div className="fabric-texture-card">
+                    <img src={fabric.texture.displacementSrc} alt="" />
+                    <div><strong>{fabric.texture.displacementName || 'Height / displacement map'}</strong><small>Linear grayscale · visual surface height</small></div>
+                    <button onClick={() => removeFabricPbrMap('displacement')}><Trash2 size={12} /></button>
+                  </div>
+                ) : <button className="wide-action compact-action" onClick={() => fabricDisplacementInputRef.current?.click()}><Upload size={14} />LOAD HEIGHT / DISPLACEMENT MAP</button>}
                 <SliderRow label="Normal strength" value={fabric.normalStrength ?? 1} min={0} max={4} step={0.05} display={`${(fabric.normalStrength ?? 1).toFixed(2)}×`} onChange={(value) => updateFabric('normalStrength', value)} />
                 <SliderRow label="Surface roughness" value={fabric.roughness ?? 0.82} min={0.04} max={1} step={0.01} display={(fabric.roughness ?? 0.82).toFixed(2)} onChange={(value) => updateFabric('roughness', value)} />
+                <SliderRow label="Fabric opacity" value={fabric.opacity ?? 1} min={0.05} max={1} step={0.01} display={`${Math.round((fabric.opacity ?? 1) * 100)}%`} onChange={(value) => updateFabric('opacity', value)} />
+                <SliderRow label="Visual displacement" value={fabric.displacementMm ?? 0} min={0} max={2} step={0.05} display={`${(fabric.displacementMm ?? 0).toFixed(2)} mm`} onChange={(value) => updateFabric('displacementMm', value)} />
                 <SliderRow label="Sheen" value={fabric.sheen ?? 0.22} min={0} max={1} step={0.01} display={(fabric.sheen ?? 0.22).toFixed(2)} onChange={(value) => updateFabric('sheen', value)} />
                 <SliderRow label="Sheen roughness" value={fabric.sheenRoughness ?? 0.84} min={0.04} max={1} step={0.01} display={(fabric.sheenRoughness ?? 0.84).toFixed(2)} onChange={(value) => updateFabric('sheenRoughness', value)} />
                 <SliderRow label="Metalness" value={fabric.metalness ?? 0} min={0} max={1} step={0.01} display={(fabric.metalness ?? 0).toFixed(2)} onChange={(value) => updateFabric('metalness', value)} />
+                <div className="panel-title"><span>Yarn-direction highlights</span><strong>ANISOTROPIC</strong></div>
+                <SliderRow label="Fiber anisotropy" value={fabric.fiberAnisotropy ?? .16} min={0} max={1} step={0.01} display={(fabric.fiberAnisotropy ?? .16).toFixed(2)} onChange={(value) => updateFabric('fiberAnisotropy', value)} />
+                <SliderRow label="Yarn highlight angle" value={fabric.fiberAngleDeg ?? 0} min={-180} max={180} step={1} display={`${Math.round(fabric.fiberAngleDeg ?? 0)}°`} onChange={(value) => updateFabric('fiberAngleDeg', value)} />
+                <SliderRow label="Coating / finish" value={fabric.clearcoat ?? 0} min={0} max={1} step={0.01} display={(fabric.clearcoat ?? 0).toFixed(2)} onChange={(value) => updateFabric('clearcoat', value)} />
+                <SliderRow label="Coating roughness" value={fabric.clearcoatRoughness ?? .45} min={.04} max={1} step={.01} display={(fabric.clearcoatRoughness ?? .45).toFixed(2)} onChange={(value) => updateFabric('clearcoatRoughness', value)} />
+                <div className="panel-title"><span>Procedural yarn surface</span><strong>CM-SCALED</strong></div>
+                <SliderRow label="Yarn tile scale" value={fabric.weaveScaleCm ?? 3} min={.3} max={10} step={.1} display={`${(fabric.weaveScaleCm ?? 3).toFixed(1)} cm`} onChange={(value) => updateFabric('weaveScaleCm', value)} />
+                <SliderRow label="Subtle dye variation" value={fabric.colorVariation ?? .25} min={0} max={1} step={.05} display={`${Math.round((fabric.colorVariation ?? .25) * 100)}%`} onChange={(value) => updateFabric('colorVariation', value)} />
+                <p className="panel-copy">Directional highlights, coating and yarn microdetail are optical material controls, not physical fabric calibration. Uploaded color, normal and roughness maps take priority over generated yarn maps.</p>
               </div>
               <div className="panel-section">
                 <SliderRow label="Weight" value={fabric.gsm} min={40} max={900} step={5} display={`${fabric.gsm} gsm`} onChange={(value) => updateFabric('gsm', value)} />
@@ -3434,7 +4979,9 @@ export default function App() {
             <>
               <div className="panel-section">
                 <div className="panel-title"><span>Avatar</span><strong>{project.avatar.name}</strong></div>
-                <div className="avatar-card"><div className="avatar-silhouette"><i /><i /><i /></div><div><span>BODY PROFILE</span><strong>{project.avatar.heightCm} cm</strong><em>Parametric collision body</em></div></div>
+                <div className="avatar-card"><div className="avatar-silhouette"><i /><i /><i /></div><div><span>BODY PROFILE</span><strong>{project.avatar.heightCm} cm</strong><em>{project.avatar.model === 'theo' || project.avatar.model === 'nora' ? 'Rigged CC0 fitting body' : 'CC0 MakeHuman fitting body'}</em></div></div>
+                <label className="select-field"><span>Fitting avatar</span><select value={project.avatar.model || 'makehuman-base'} onChange={(event) => setAvatarModel(event.target.value)}>{AVAILABLE_AVATARS.map(({ name, model }) => <option key={model} value={model}>{name}{model === 'makehuman-base' ? ' · Neutral base' : model === 'clo-thomas' ? ' · CLO3D Export' : ' · Rigged fitting'}</option>)}{project.avatar.model === 'custom-export' && <option value="custom-export">Imported OBJ / GLB mesh</option>}</select></label><button className="wide-action" onClick={() => avatarMeshInputRef.current?.click()}><Upload size={14}/>IMPORT AVATAR OBJ / GLB</button><p className="panel-copy">Imported meshes are visual until mesh-to-body collision fitting is implemented. Use assets you have permission to import.</p>
+                {(project.avatar.model === 'theo' || project.avatar.model === 'nora') && <p className="panel-copy">Rigged OpenSew/MPFB fitting body · CC0. Selecting it also moves the analytic collision arms to the matching 60° apparel fitting pose.</p>}
               </div>
               <div className="panel-section measure-list">
                 {[
@@ -3457,6 +5004,40 @@ export default function App() {
 
           {activeSection === 'Fit' && (
             <>
+              <div className="panel-section" aria-label="ZOZO GitHub original dress simulation test">
+                <div className="panel-title"><span>Original GitHub dress · first fabric test</span><strong>RUST/METAL</strong></div>
+                <p className="panel-copy">The source dress is the original 14-panel upstream example, not a reconstructed pattern. Inspect its real 241-frame body and fabric simulation in the 3D viewport while preserving this editable garment project.</p>
+                <button className="wide-action" disabled={zozoReferenceLoading} onClick={openZozoReference}><Shirt size={15}/>{zozoReferenceLoading ? 'LOADING ORIGINAL DRESS…' : zozoReference ? 'RETURN TO EDITABLE GARMENT' : 'OPEN GITHUB DRESS · ORIGINAL PPF TEST'}</button>
+                {zozoReferenceError && <p className="panel-copy" role="alert" style={{color:'#f39a88'}}>{zozoReferenceError}</p>}
+                {zozoReference && <div className="zozo-reference-controls" data-testid="zozo-reference-controls">
+                  <div className="panel-title"><span>Original solver frame</span><strong>{zozoReferenceFrame + 1}/{zozoReference.manifest.frames}</strong></div>
+                  <div className="zozo-reference-actions">
+                    <button type="button" onClick={() => setZozoReferenceFrame(0)}>START</button>
+                    <button type="button" onClick={() => setZozoReferencePlaying(value => !value)}>{zozoReferencePlaying ? 'PAUSE' : 'PLAY'}</button>
+                    <button type="button" onClick={() => setZozoReferenceFrame(240)}>FINAL FRAME</button>
+                    <button type="button" onClick={() => setZozoReferenceBodyVisible(value => !value)}>{zozoReferenceBodyVisible ? 'HIDE BODY' : 'SHOW BODY'}</button>
+                  </div>
+                  <input aria-label="ZOZO GitHub dress simulation frame" type="range" min="0" max="240" step="1" value={zozoReferenceFrame} onChange={event => {setZozoReferencePlaying(false);setZozoReferenceFrame(Number(event.target.value))}} />
+                  <p className="panel-copy" role="status" data-testid="zozo-reference-metrics">Frame {zozoReferenceFrame}: {zozoReference.manifest.audits[zozoReferenceFrame].bodyCrossings} body intersections · mean seam gap {zozoReference.manifest.audits[zozoReferenceFrame].meanSeamGapCm.toFixed(3)} cm · worst gap {zozoReference.manifest.audits[zozoReferenceFrame].maxSeamGapCm.toFixed(3)} cm.</p>
+                  <p className="panel-copy" style={{color:'#f39a88'}}>Real Rust/Metal simulation, but NOT a fully validated fit. Known collisions at frames 87, 90 and 174. The editable project and 2D pattern remain untouched.</p>
+                </div>}
+              </div>
+              <div className="panel-section" aria-label="PPF body drape validation">
+                <div className="panel-title"><span>PPF body-contact fitting</span><strong>OFFLINE · METAL</strong></div>
+                <p className="panel-copy">Run the installed ST-Tech/ZOZO PPF Metal contact solver against the local Thomas skin mesh when CLO Thomas is selected, or the measurement proxy otherwise. It automatically tests multiple safe starting placements before sewing. A final fit is accepted only after physical seam closure and every-frame collision validation; unfinished attempts remain available for diagnosis without overwriting your patterns.</p>
+                <button className={`toggle-row ${automaticPpfOnSimulate ? 'active' : ''}`} aria-label="Automatically run high-fidelity contact validation when Simulate starts" onClick={() => setAutomaticPpfOnSimulate(value => !value)}><span><Link2 size={15}/>Auto-run PPF contact validation after pressing Simulate</span><i/></button>
+                <p className="panel-copy">Optional and off by default: starts a separate local Metal fit job on first simulation while keeping interactive cloth usable. Unvalidated output is never applied to the visible garment.</p>
+                <button className="wide-action" disabled={!project.seams.length || ['queued','running','connecting'].includes(ppfSewing.status)} onClick={() => startPpfSewing()}>
+                  <CadToolIcon id="fit" size={17}/>
+                  {['queued','running','connecting'].includes(ppfSewing.status) ? 'PPF BODY DRAPE RUNNING…' : 'RUN PPF BODY + SEAM FIT'}
+                </button>
+                <p className="panel-copy" role="status">PPF Metal: {ppfSewing.status === 'idle' ? 'READY TO CHECK LOCAL SERVICE' : `${ppfSewing.status.toUpperCase()} · ${ppfSewing.phase}`}</p>
+                {ppfSewing.error && <p className="panel-copy" style={{color:'#efad9a'}}>{ppfSewing.error}</p>}
+                {ppfSewing.summary?.ipcCcd?.tested && <p className="panel-copy" style={ppfSewing.summary.ipcCcd.allTestedStepsCollisionFree ? undefined : {color:'#f39a88'}}>IPC SWEPT COLLISION: {ppfSewing.summary.ipcCcd.allTestedStepsCollisionFree ? 'PASSED' : 'FAILED'} across {ppfSewing.summary.ipcCcd.framesAudited} Thomas-body frames{ppfSewing.summary.ipcCcd.firstBlockedFrame !== null ? `; first unsafe movement enters frame ${ppfSewing.summary.ipcCcd.firstBlockedFrame}` : ''}. This checks between-frame crossings against Thomas's actual collision triangles; a failed trajectory cannot be accepted as a valid final fit.</p>}
+                {ppfSewing.summary?.contact && <p className="panel-copy">Measured contact across {ppfSewing.summary.contact.framesChecked} frames: avatar {ppfSewing.summary.contact.allFramesAvatarIntersectionFree ? 'PASS' : 'INTERSECTIONS DETECTED'}; cloth self-contact {ppfSewing.summary.contact.allFramesSelfIntersectionFree ? 'PASS' : 'INTERSECTIONS DETECTED'}. These checks use exported solver frames.</p>}
+                {ppfSewing.summary?.sewing && <p className="panel-copy">Seam gap: {ppfSewing.summary.sewing.initialMeanGapCm.toFixed(1)} → {ppfSewing.summary.sewing.finalMeanGapCm.toFixed(1)} cm. Not a certified closed garment until all gaps and contact checks pass.</p>}
+                {ppfSewing.artifacts?.blend && <p className="panel-copy">Blender output: <code style={{overflowWrap:'anywhere'}}>{ppfSewing.artifacts.blend}</code></p>}
+              </div>
               <div className="panel-section">
                 <div className="panel-title"><span>Fit analysis</span><Activity size={15} /></div>
                 <div className="analysis-switch">
@@ -3469,33 +5050,63 @@ export default function App() {
                   <MiniStat label="Solver backend" value={stats.backendId === 'native-xpbd' ? 'Native XPBD' : 'Browser PBD'} />
                   {stats.backendId === 'native-xpbd' && <MiniStat label="Native batch" value={stats.backendError ? 'OFFLINE' : `${stats.backendElapsedMs.toFixed(0)} ms`} />}
                   {stats.backendId === 'native-xpbd' && <MiniStat label="Native frames" value={stats.backendFrame.toLocaleString()} />}
+                  {stats.backendId === 'native-xpbd' && stats.backendInitialAssembly?.status === 'STAGING_REQUIRES_REPAIR' && <p className="panel-copy" style={{color:'#f39a88'}}>Native preflight: assembly starts {stats.backendInitialAssembly.initialSeamGapMaximumMm.toFixed(1)} mm apart at its worst sewn pair ({stats.backendInitialAssembly.worstSewingGroups?.[0]?.seamId || 'unknown'}). This pose needs correction before physical fitting can pass.</p>}
+                  {stats.backendId === 'native-xpbd' && stats.backendFitAssessment?.status === 'FAILED' && <p className="panel-copy" style={{color:'#f39a88'}}>Native solver status: FIT FAILED. Numerical output is retained for diagnosis but is not a validated drape.</p>}
                   <MiniStat label="Vertices" value={stats.vertices.toLocaleString()} />
+                  {Number.isFinite(stats.hemRiseM) && <MiniStat label="Hem displacement" value={`${stats.hemRiseM >= 0 ? '+' : ''}${(stats.hemRiseM * 100).toFixed(1)} cm`} />}
+                  {stats.hemFloatingWarning && <p className="panel-copy" style={{ color: '#f39a88' }}>FLOATING FIT WARNING: the lowest torso point rose more than 8 cm after simulation began. This is a detected physics problem, not a validated garment fit. Check the shoulder contact, sewing forces and body intersections before exporting.</p>}
                   <MiniStat label="Constraints" value={stats.constraints.toLocaleString()} />
                   <MiniStat label="Internal constraints" value={stats.internal.toLocaleString()} />
                   <MiniStat label="Seam treatments" value={stats.treatments.toLocaleString()} />
                   <MiniStat label="Average strain" value={`${(stats.averageStrain * 100).toFixed(1)}%`} />
                   <MiniStat label="Peak strain" value={`${(stats.maxStrain * 100).toFixed(1)}%`} />
+                  {Number.isFinite(stats.p95StrainPercent) && <MiniStat label="95th %ile strain" value={`${stats.p95StrainPercent.toFixed(1)}%`} />}
+                  {Number.isFinite(stats.meanSeamGapMm) && <MiniStat label="Seam gap · mean" value={`${stats.meanSeamGapMm.toFixed(1)} mm`} />}
+                  {Number.isFinite(stats.p95SeamGapMm) && <MiniStat label="Seam gap · p95" value={`${stats.p95SeamGapMm.toFixed(1)} mm`} />}
+                  {Number.isFinite(stats.maxSeamGapMm) && <MiniStat label="Seam gap · worst" value={`${stats.maxSeamGapMm.toFixed(1)} mm`} />}
                   <MiniStat label="Average ease" value={`${stats.averageEaseCm.toFixed(1)} cm`} />
                   <MiniStat label="Body contact" value={`${Math.round(stats.contactRatio * 100)}%`} />
                   <MiniStat label="Tight area" value={`${Math.round(stats.tightRatio * 100)}%`} />
                   <MiniStat label="Pressure peak" value={`${Math.round(stats.maxPressureIndex * 100)}%`} />
+                  {Number.isFinite(stats.sampledPenetratingFaces) && <MiniStat label="Sampled penetrating faces" value={stats.sampledPenetratingFaces.toLocaleString()} />}
+                  {Number.isFinite(stats.sampledIntrusionMm) && <MiniStat label="Sampled intrusion" value={`${stats.sampledIntrusionMm.toFixed(1)} mm`} />}
+                  {Number.isFinite(stats.sampledCorrectedVertices) && <MiniStat label="Contact-adjusted vertices" value={stats.sampledCorrectedVertices.toLocaleString()} />}
                 </div>
+                <p className="panel-copy" style={{ color: '#f39a88' }}>Interactive fit is not collision-certified: body/cloth triangle CCD and all-frame penetration validation are not yet implemented in this solver. Low seam gaps alone do not mean the garment fits.</p>
               </div>
               <div className="panel-section">
-                <div className="panel-title"><span>Native XPBD</span><strong>{nativeSolveStatus === 'solving' ? 'SOLVING' : nativeSolveStatus === 'done' ? 'SOLVED' : nativeServiceStatus === 'ready' ? 'READY' : nativeServiceStatus.toUpperCase()}</strong></div>
-                <label className="select-field"><span>Native cloth model</span><select value={project.simulation.nativeClothModel || 'distance'} onChange={(event) => updateSimulation('nativeClothModel', event.target.value)}><option value="distance">Distance XPBD · stable</option><option value="strain-triangle">Anisotropic strain triangle · experimental</option></select></label>
-                <label className="select-field"><span>Native bending</span><select value={project.simulation.nativeBendingModel || 'distance'} onChange={(event) => updateSimulation('nativeBendingModel', event.target.value)}><option value="distance">Distance bend · stable</option><option value="isometric-xpbd">Isometric XPBD · experimental</option></select></label>
+                <div className="panel-title"><span>Native XPBD</span><strong>{nativeSolveStatus === 'solving' ? 'SOLVING' : nativeSolveStatus === 'unfit' ? 'FIT FAILED' : nativeSolveStatus === 'done' ? 'MEASURED' : nativeServiceStatus === 'ready' ? 'READY' : nativeServiceStatus.toUpperCase()}</strong></div>
+                <label className="select-field"><span>Native quality</span><select value={project.simulation.nativeQuality || 'draft'} onChange={(event) => applyNativeQuality(event.target.value)}>{Object.values(NATIVE_QUALITY_PROFILES).map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}</select></label>
+                <button className={`toggle-row ${project.simulation.experimentalNativeSewFirst === true ? 'active' : ''}`} aria-label="Experimental sew-first preassembly" onClick={() => updateSimulation('experimentalNativeSewFirst', project.simulation.experimentalNativeSewFirst !== true)}><span><Link2 size={15} />Experimental sew-first preassembly</span><i /></button>
+                <p className="panel-copy">Research mode, off by default. It joins corresponding sewing samples while preserving cloth rest lengths before native simulation. It does not establish collision-safe fit and can make the subsequent solve worse. The 2D pattern remains unchanged.</p>
                 <button className="wide-action" disabled={nativeSolveStatus === 'solving'} onClick={requestNativeSolve}><Cpu size={15} />{nativeSolveStatus === 'solving' ? 'SOLVING NATIVE XPBD…' : 'SOLVE NATIVE XPBD · 60 FRAMES'}</button>
                 {nativeLastSolve && <div className="stat-grid"><MiniStat label="Native solve" value={`${nativeLastSolve.elapsedMs.toFixed(1)} ms`} /><MiniStat label="Native seam avg" value={`${((nativeLastSolve.stats?.seamAverageDistance || 0) * 1000).toFixed(1)} mm`} /><MiniStat label="Native seam peak" value={`${((nativeLastSolve.stats?.seamMaxDistance || 0) * 1000).toFixed(1)} mm`} /><MiniStat label="Native particles" value={(nativeLastSolve.stats?.particles || 0).toLocaleString()} /></div>}
-                <p className="panel-copy">Runs the compiled PositionBasedDynamics XPBD sidecar locally, then writes the solved native vertices back into this viewport. Browser PBD remains available for continuous interactive playback.</p>
+                {nativeLastSolve?.payload?.initialAssembly === 'STAGING_REQUIRES_REPAIR' && <p className="panel-copy" style={{color:'#f39a88'}} role="status">INITIAL ASSEMBLY REQUIRES REPAIR: sewing pieces begin as much as {Number(nativeLastSolve.payload.initialSeamGapMaximumMm || 0).toFixed(1)} mm apart; the initial mapped mesh has {Number(nativeLastSolve.payload.initialMeshPeakEdgeStrainPercent || 0).toFixed(1)}% peak edge strain. Worst sewing group: {nativeLastSolve.payload.worstInitialSeam || 'unknown'}. The solver is being asked to close incompatible starting geometry.</p>}
+                {nativeLastSolve?.payload?.sewFirstResearch && <p className="panel-copy" style={{color:'#efad9a'}} role="status">EXPERIMENTAL SEW-FIRST: initial worst seam gap {nativeLastSolve.payload.sewFirstResearch.originalMaximumSeamGapMm.toFixed(1)} → {nativeLastSolve.payload.sewFirstResearch.assembledMaximumSeamGapMm.toFixed(1)} mm. Rest-edge strain {nativeLastSolve.payload.sewFirstResearch.originalPeakEdgeStrainPercent.toFixed(1)}% → {nativeLastSolve.payload.sewFirstResearch.assembledPeakEdgeStrainPercent.toFixed(1)}%. Sampled body intrusion up to {nativeLastSolve.payload.sewFirstResearch.sampledMaximumIntrusionMm.toFixed(1)} mm. Not a validated fit.</p>}
+                {nativeLastSolve?.fitAssessment && <p className="panel-copy" style={nativeLastSolve.fitAssessment.status==='FAILED'?{color:'#f39a88'}:undefined} role="status">NATIVE PHYSICAL FIT: {nativeLastSolve.fitAssessment.status}. {nativeLastSolve.fitAssessment.failures?.join(', ') || nativeLastSolve.fitAssessment.unknown?.join(', ') || 'Measured checks completed'}. Full cloth/body triangle CCD is not validated, regardless of numerical finiteness.</p>}
+                {nativeLastSolve?.fitTrajectory?.frames?.length>0 && <div className="stat-grid"><MiniStat label="Trajectory peak strain" value={`${Number(nativeLastSolve.fitTrajectory.peakFullMeshEdgeStrainPercent||0).toFixed(1)}%`}/><MiniStat label="Trajectory worst seam" value={`${Number(nativeLastSolve.fitTrajectory.peakSewnGapMm||0).toFixed(1)} mm`}/></div>}
+                <p className="panel-copy">Draft uses distance constraints. Balanced keeps distance cloth but upgrades bending to XPBD isometric. Quality uses grain-aware strain triangles plus isometric bending; the unstable strain-only combination is intentionally blocked.</p>
               </div>
               <div className="panel-section">
                 <label className="select-field"><span>Simulation backend</span><select value={project.simulation.backendId || 'browser-pbd'} onChange={(event) => updateSimulation('backendId', event.target.value)}>{SIMULATION_BACKENDS.map((backend) => <option key={backend.id} value={backend.id}>{backend.label}</option>)}</select></label>
                 <label className="select-field"><span>Simulation quality</span><select value={(project.simulation.substeps ?? 2) === 1 ? 'draft' : (project.simulation.substeps ?? 2) === 4 ? 'final' : 'balanced'} onChange={(event) => applySimulationQuality(event.target.value)}><option value="draft">Draft · 1× substep</option><option value="balanced">Balanced · 2× substeps</option><option value="final">Final · 4× substeps</option></select></label>
                 <button className={`toggle-row ${project.simulation.autoFitTacks !== false ? 'active' : ''}`} onClick={() => updateSimulation('autoFitTacks', project.simulation.autoFitTacks === false)}><span><Link2 size={15} />Auto-fit shoulder tacks</span><i /></button>
+                <button className={`toggle-row ${project.simulation.autoFitPlacement !== false ? 'active' : ''}`} onClick={() => updateSimulation('autoFitPlacement', project.simulation.autoFitPlacement === false)}><span><Link2 size={15} />Auto-correct panel placement</span><i /></button>
+                <p className="panel-copy">Recommended: the simulated garment starts from a fitted arrangement scaled to the avatar rather than the manually staged flat panels. The panels transition into place on screen; original pattern measurements and sewn edges remain unchanged. Turn this off to simulate directly from the manual staging pose.</p>
                 <p className="panel-copy">Fit tacks behave like temporary garment placement pins: they keep the shoulder construction seated on the avatar while the sewn panels drape and settle.</p>
                 <button className={`toggle-row ${project.simulation.collisions !== false ? 'active' : ''}`} onClick={() => updateSimulation('collisions', project.simulation.collisions === false)}><span><Box size={15} />Avatar collision</span><i /></button>
+                <button className={`toggle-row ${project.simulation.bodyTriangleContactAssist === true ? 'active' : ''}`} onClick={() => updateSimulation('bodyTriangleContactAssist', project.simulation.bodyTriangleContactAssist !== true)}><span><Box size={15} />Triangle centroid contact assist</span><i /></button>
+                <button className={`toggle-row ${project.simulation.adaptiveCutlineMeshing === true ? 'active' : ''}`} aria-label="Experimental adaptive simulation cutline mesh" onClick={() => updateSimulation('adaptiveCutlineMeshing', project.simulation.adaptiveCutlineMeshing !== true)}><span><Spline size={15} />Adaptive simulation-only cutline mesh</span><i /></button>
+                {project.simulation.adaptiveCutlineMeshing === true && <div className="control-row split-control"><span>Physics contour tolerance</span><NumberField value={project.simulation.cutlineToleranceCm ?? 0.08} min={0.02} max={0.18} step={0.01} suffix="cm" ariaLabel="Simulation contour tolerance in centimeters" onChange={(value) => updateSimulation('cutlineToleranceCm', clamp(value, 0.02, 0.18))}/></div>}
+                {project.simulation.adaptiveCutlineMeshing === true && <p className="panel-copy" style={{color:'#f3b970'}}>Experimental for dense imported CLO/DXF contours. Only the simulation mesh is simplified; editable cutlines and exact sewing remain unchanged. Not certified for every trim, dart, or physical material and does not replace collision validation.</p>}
+                <button className={`toggle-row ${project.simulation.continuousSurfaceContact === true ? 'active' : ''}`} onClick={() => updateSimulation('continuousSurfaceContact', project.simulation.continuousSurfaceContact !== true)}><span><Box size={15} />Continuous sampled body contact</span><i /></button>
+                <button className={`toggle-row ${project.simulation.meshAvatarContact === true ? 'active' : ''}`} onClick={() => updateSimulation('meshAvatarContact', project.simulation.meshAvatarContact !== true)}><span><Box size={15} />Actual avatar mesh contact (experimental)</span><i /></button>
+                <p className="panel-copy">Uses a static triangle BVH of the loaded avatar, with bounded per-frame particle surface corrections. Analytic avatar collisions still run. This is not swept cloth/mesh collision detection; open, layered, and skinned avatar surfaces may produce unreliable inside/outside results.</p>
+                <p className="panel-copy">Experimental: after each browser PBD frame, check sampled cloth triangles against the analytic avatar and accept bounded corrections only when sampled penetration improves. This costs extra CPU and does not provide swept collision detection or actual avatar-mesh contact.</p>
+                <p className="panel-copy">Experimental triangle-interior projection can reduce extreme stretching when a face penetrates between its vertices. It is not swept triangle collision detection and does not certify the garment as intersection-free.</p>
                 <button className={`toggle-row ${project.simulation.selfCollision !== false ? 'active' : ''}`} onClick={() => updateSimulation('selfCollision', project.simulation.selfCollision === false)}><span><Spline size={15} />Cloth self-collision</span><i /></button>
+                <div className="control-row split-control"><span>Interactive avatar clearance</span><NumberField value={(project.simulation?.collisionMargin ?? .012) * 1000} min={1} max={20} step={0.5} suffix="mm" onChange={(value) => updateSimulation('collisionMargin', clamp(value, 1, 20) / 1000)} /></div>
+                <p className="panel-copy">Browser PBD starts with a 12 mm avatar collision cushion, distinct from PPF's 1 mm contact gap. Smaller values may cause more body penetration; contact diagnostics must be checked after changing this.</p>
                 <div className="control-row split-control"><span>Self-collision gap</span><NumberField value={(project.simulation.selfCollisionMargin ?? 0.002) * 1000} min={0} max={12} step={0.5} suffix="mm" onChange={(value) => updateSimulation('selfCollisionMargin', clamp(value, 0, 12) / 1000)} /></div>
                 <SliderRow label="Solver stiffness" value={project.simulation.stiffness} min={0.5} max={0.995} step={0.005} display={project.simulation.stiffness.toFixed(3)} onChange={(value) => updateSimulation('stiffness', value)} />
                 <SliderRow label="Seam stiffness" value={project.simulation.seamStiffness} min={0.5} max={0.999} step={0.005} display={project.simulation.seamStiffness.toFixed(3)} onChange={(value) => updateSimulation('seamStiffness', value)} />
@@ -3568,6 +5179,7 @@ export default function App() {
                 )}
                 <div className="control-row split-control"><span>{markerFabricIds.length > 1 ? 'Selected fabric width' : 'Fabric width'}</span><NumberField value={marker.width ?? project.markerSettings?.fabricWidthCm ?? 150} min={30} max={300} step={0.5} suffix="cm" onChange={(value) => updateMarkerFabricWidth(marker.fabricId || markerFabricId || 'main', clamp(value, 30, 300))} /></div>
                 <div className="control-row split-control"><span>Piece spacing</span><NumberField value={project.markerSettings?.gapCm ?? 1.5} min={0} max={10} step={0.1} suffix="cm" onChange={(value) => updateMarkerSetting('gapCm', clamp(value, 0, 10))} /></div>
+                <label className="select-field"><span>Supplier price per fabric meter · {productionCosts.currency}</span><input type="number" min="0" step="0.01" placeholder="Price not set" aria-label="Supplier price per fabric meter" value={project.fabrics?.[marker.fabricId || markerFabricId]?.pricePerMeter ?? ''} onChange={(event) => updateMarkerFabricPrice(marker.fabricId || markerFabricId || 'main', event.target.value)} /></label>
                 <MarkerPreview marker={marker} />
                 <div className="production-number"><strong>{estimatedLength.toFixed(2)}</strong><span>m {marker.unusedPieces ? 'PLACED ONLY · ' : ''}{project.fabrics?.[marker.fabricId]?.name || marker.fabricId || 'FABRIC'} / {marker.width.toFixed(0)} cm width</span></div>
                 <div className="field-grid two">
@@ -3582,6 +5194,11 @@ export default function App() {
                     })}
                   </div>
                 )}
+                <div className="field-grid two">
+                  <label><span>Estimated material cost · {gradePreviewSize}</span><strong>{productionCosts.totals.find((item) => item.size === gradePreviewSize)?.ready ? `${productionCosts.currency} ${productionCosts.totals.find((item) => item.size === gradePreviewSize).materialCost.toFixed(2)}` : 'INCOMPLETE'}</strong></label>
+                  <label><span>Costing basis</span><strong>FABRIC ONLY</strong></label>
+                </div>
+                <p className="panel-copy">Costs reflect one garment's marker consumption; missing supplier prices or cut pieces prevent a total. Labor, trims, freight, shrinkage and taxes are excluded.</p>
               </div>
               <div className="panel-section">
                 <div className="panel-title"><span>POM spec · {gradePreviewSize}</span><strong>{productionMeasurements.length} POM</strong></div>
@@ -3598,8 +5215,19 @@ export default function App() {
               <div className="panel-section">
                 <div className="panel-title"><span>Production data</span><strong>LIVE</strong></div>
                 <div className="production-list"><span><i />Pattern geometry</span><span><i />Seam graph</span><span><i />Fabric physicals</span><span><i />Avatar measurements</span><span><i />XS–XXL graded size run</span><span><i />Grain-safe configurable marker</span><span><i />POM measurement size run</span><span><i />DXF cut + allowance + notches</span><span><i />DXF grainlines + piece labels</span><span><i />GarmentCode / PyGarment JSON</span><span><i />3D OBJ garment mesh</span><span><i />Binary GLB / glTF garment</span><span><i />Structured tech-pack data</span></div>
+                <button className={`toggle-row ${exportSelectedPatternOnly ? 'active' : ''}`} onClick={() => setExportSelectedPatternOnly((value) => !value)}><span><Scissors size={15} />DXF export selected pattern only{exportSelectedPatternOnly ? ` · ${selectedPiece?.name || 'Select pattern'}` : ''}</span><i /></button>
+                <p className="panel-copy">Standard DXF uses millimeters and separate cut, seam allowance, notch, grain, and annotation layers. Industrial AAMA/ASTM imports still require validation in the target CAD system.</p>
+              </div>
+              <div className="panel-section">
+                <div className="panel-title"><span>Manufacturing preflight · all sizes</span><strong>{productionPreflight.status.replaceAll('_', ' ')}</strong></div>
+                <p className="panel-copy">{productionPreflight.blockers} blocking issue(s) · {productionPreflight.warnings} construction warning(s). These are document checks, not factory certification or a physical sample approval.</p>
+                {productionPreflight.issues.length > 0 && <div className="marker-overflow-warning">{productionPreflight.issues.slice(0, 8).map((issue, index) => <span key={`${issue.code}-${issue.scope}-${index}`}><strong>{issue.severity.toUpperCase()} · {issue.scope}</strong> — {issue.message}</span>)}{productionPreflight.issues.length > 8 && <span>+{productionPreflight.issues.length - 8} additional issues. Export the factory ZIP for the complete report.</span>}</div>}
+                {!productionPreflight.issues.length && <p className="panel-copy">Structural and marker checks passed for the size run. Factory system import, print scaling, fit and sample approval remain to be verified.</p>}
               </div>
               <button className="wide-action" onClick={exportDxf}><FileDown size={15} />EXPORT DXF · {gradePreviewSize}</button>
+              <button className="wide-action" onClick={() => exportMarker('pdf')}><FileDown size={15} />EXPORT TRUE-SCALE MARKER PDF · {gradePreviewSize}</button>
+              <button className="wide-action" onClick={() => exportMarker('svg')}><FileDown size={15} />EXPORT TRUE-SCALE MARKER SVG · {gradePreviewSize}</button>
+              <button className="wide-action" onClick={exportBomXml}><FileDown size={15} />EXPORT BOM · XML</button>
               <button className="wide-action" onClick={requestObjExport}><Box size={15} />EXPORT 3D OBJ · {gradePreviewSize}</button>
               <button className="wide-action" onClick={requestGlbExport}><Box size={15} />EXPORT GLB · {gradePreviewSize}</button>
               <button className="wide-action" onClick={exportMeasurements}><FileDown size={15} />EXPORT POM CSV</button>
@@ -3654,18 +5282,21 @@ export default function App() {
           <div className="inspector-footer">
             <Cpu size={14} /><span>{commandResult}</span>
           </div>
+          </div>
+          </div>
         </aside>
       </main>
 
       <footer className="simulation-bar">
         <div className="sim-left">
-          <button className={`sim-play ${running ? 'active' : ''}`} onClick={() => setRunning((value) => !value)}>{running ? <Pause size={16} /> : <Play size={16} />}{running ? 'PAUSE' : 'SIMULATE'}</button>
+          <button className={`sim-play ${running ? 'active' : ''}`} onClick={toggleSimulation}>{running ? <Pause size={16} /> : <Play size={16} />}{running ? 'PAUSE' : 'SIMULATE'}</button>
           <button className="sim-reset" onClick={resetSimulation}><RotateCcw size={15} />RESET</button>
-          <span className="sim-copy">SPACE toggles simulation</span>
+          <span className="sim-copy">{!hasSimulated ? 'ARRANGE → SEW → SIMULATE' : running ? 'Draping on avatar…' : 'Paused · Press SIMULATE to resume'}</span>
         </div>
         <div className="sim-stats"><span><Activity size={13} />{stats.vertices.toLocaleString()} vertices</span><span>{stats.constraints.toLocaleString()} constraints</span><span>{stats.seams.toLocaleString()} seam links</span><span>{stats.anchors.toLocaleString()} fit tacks</span></div>
         <div className="engine-badge"><i className={running ? 'active' : ''} /><span>XPBD CLOTH</span><strong>GPU UI / CPU SOLVER</strong></div>
       </footer>
+      <WorkspaceCommandPalette open={commandPaletteOpen} commands={STUDIO_COMMANDS} onExecute={executeStudioAction} onClose={() => setCommandPaletteOpen(false)} />
     </div>
   )
 }

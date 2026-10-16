@@ -867,6 +867,16 @@ button:disabled {
   display: block;
 }
 
+/* Source-faithful, read-only upstream Rust/Metal fitting example. */
+.zozo-reference-shell { min-width: 0; background: #e3e5e8; }
+.zozo-reference-shell .viewport-head { background: #252b32; color: #eef0f3; }
+.zozo-reference-canvas { position: absolute; inset: 0; min-width: 0; width: 100%; height: 100%; overflow: hidden; }
+.zozo-reference-canvas canvas { display: block; width: 100%; height: 100%; }
+.zozo-reference-controls { display: flex; flex-direction: column; gap: 10px; padding-top: 9px; }
+.zozo-reference-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.zozo-reference-actions button { min-width: 0; padding: 8px; border: 1px solid var(--line); border-radius: 4px; font-size: 11px; }
+.zozo-reference-controls input[type="range"] { width: 100%; }
+
 .viewport-head {
   pointer-events: none;
 }
@@ -1141,6 +1151,52 @@ button:disabled {
   font-size: 6px;
   font-weight: 750;
   letter-spacing: .08em;
+}
+
+.fabric-material-preview {
+  overflow: hidden;
+  margin: 7px 0 12px;
+  border: 1px solid #39414a;
+  border-radius: 7px;
+  background: #20252a;
+}
+
+.fabric-material-preview-canvas {
+  position: relative;
+  height: clamp(116px, 16vh, 172px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #d2d9df;
+  text-align: center;
+  font-size: 10px;
+}
+
+.fabric-material-preview-canvas canvas {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
+.fabric-material-preview-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 7px;
+  padding: 8px;
+  border-top: 1px solid #343a40;
+}
+
+.fabric-material-preview-meta strong {
+  color: #e3e8ee;
+  font-size: 8px;
+  letter-spacing: .08em;
+}
+
+.fabric-material-preview-meta span {
+  color: #8896a4;
+  font-size: 7px;
+  text-align: right;
 }
 
 .fabric-texture-card {
@@ -3049,4 +3105,162 @@ input[type="range"]::-webkit-slider-thumb {
 .seam-range-controls .number-field input {
   width: 42px;
   font-size: 6.5px;
+}
+
+/* CLO-inspired working arrangement: library, tools, 3D left, 2D right, properties. */
+.main-layout { grid-template-columns: 180px 46px minmax(0,1fr) 286px; }
+.workspaces { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.viewport-shell { border-right: 1px solid var(--line); }
+.pattern-editor-shell { border-right: 0; }
+.asset-browser { display:flex; flex-direction:column; min-height:0; overflow:hidden; background:#111; border-right:1px solid var(--line); }
+.asset-browser-heading { display:flex; align-items:center; gap:8px; padding:14px 12px; border-bottom:1px solid var(--line); font-size:10px; letter-spacing:.1em; }
+.asset-category-list { padding:8px 6px; border-bottom:1px solid var(--line); }
+.asset-category-list button { width:100%; display:flex; align-items:center; gap:8px; padding:8px; border:0; background:none; color:#999; text-align:left; font-size:11px; cursor:pointer; border-radius:4px; }
+.asset-category-list button:hover,.asset-category-list button.active { background:#272727; color:#fff; }
+.asset-category-list button.active svg { transform:rotate(-90deg); color:var(--accent); }
+.asset-library-content { flex:1; overflow:auto; padding:12px 8px; }
+.asset-section-heading { display:block; font-size:9px; letter-spacing:.1em; color:#777; margin:0 4px 12px; }
+.asset-template { width:100%; display:flex; align-items:center; gap:8px; border:1px solid transparent; background:none; border-radius:4px; padding:6px; text-align:left; color:#bbb; font-size:10px; cursor:pointer; }
+.asset-template:hover { background:#252525; color:#fff; border-color:#353535; }
+.asset-template-icon { display:grid; place-items:center; width:29px; height:29px; background:#232323; border:1px solid #383838; border-radius:4px; color:#aab5d5; font-size:17px; flex-shrink:0; }
+.asset-placeholder { color:#777; font-size:10px; line-height:1.7; padding:0 5px; }
+.pattern-navigation { position:absolute; z-index:5; top:47px; right:9px; display:flex; gap:3px; background:#161616; border:1px solid #393939; padding:3px; border-radius:5px; }
+.pattern-navigation button { color:#ddd; min-width:26px; height:25px; padding:0 6px; background:#272727; border:0; border-radius:3px; font-size:11px; cursor:pointer; }
+.pattern-navigation button:hover { background:#424242; }
+.pattern-navigation button.active { color:#f5ad70; background:#39312b; }
+.pattern-seam-correspondence { pointer-events:none; stroke:#f3a568; stroke-width:.55; stroke-dasharray:2.3 2.8; stroke-opacity:.45; vector-effect:non-scaling-stroke; }
+.pattern-seam-correspondence.active { stroke:#f6c18f; stroke-width:1; stroke-opacity:.9; }
+@media(max-width:1350px){.main-layout{grid-template-columns:145px 42px minmax(0,1fr) 245px}.workspaces{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
+
+/* Desktop application: keep the exact Three.js workspace structure while
+   making controls legible on Retina displays at normal macOS window sizes. */
+.desktop-workspace {
+  --surface: #13151a;
+  --surface-2: #191b20;
+  --line: #30323a;
+  --line-soft: #262830;
+  --muted: #a2a5af;
+  --subtle: #7d818b;
+}
+.desktop-workspace .app-shell { grid-template-rows: 58px 48px minmax(0, 1fr) 51px; }
+.desktop-workspace .topbar,
+.desktop-workspace .project-strip,
+.desktop-workspace .simulation-bar { background: #101114; }
+.desktop-workspace .topbar { grid-template-columns: 195px minmax(400px, 1fr) 220px; }
+.desktop-workspace .brand-lockup { padding-inline: 12px; }
+.desktop-workspace .brand-lockup strong { font-size: 12px; }
+.desktop-workspace .brand-lockup span { font-size: 9px; }
+.desktop-workspace .section-tabs button { min-width: 0; flex: 1 1 auto; font-size: 11px; padding-inline: 5px; }
+.desktop-workspace .file-actions { padding-inline: 7px; }
+.desktop-workspace .icon-button { width: 30px; height: 32px; }
+.desktop-workspace .save-button { min-width: 69px; font-size: 10px; }
+.desktop-workspace .project-strip { grid-template-columns: minmax(260px, 30%) minmax(160px, 1fr) minmax(270px, 34%); }
+.desktop-workspace .project-name { gap: 8px; padding-inline: 10px; }
+.desktop-workspace .project-name input { width: min(130px, 40%); font-size: 12px; }
+.desktop-workspace .template-select { width: min(130px, 40%); font-size: 10px; }
+.desktop-workspace .project-meta { gap: 10px; padding-inline: 12px; }
+.desktop-workspace .project-name span,
+.desktop-workspace .project-meta span { font-size: 9px; }
+.desktop-workspace .command-bar input { font-size: 11px; }
+.desktop-workspace .command-bar button { font-size: 10px; }
+.desktop-workspace .main-layout { grid-template-columns: 165px 46px minmax(0, 1fr) 285px; }
+.desktop-workspace .workspaces { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.desktop-workspace .asset-browser { background: #131417; }
+.desktop-workspace .asset-browser-heading { font-size: 11px; }
+.desktop-workspace .asset-category-list button { min-height: 34px; font-size: 12px; }
+.desktop-workspace .asset-section-heading { font-size: 10px; }
+.desktop-workspace .asset-template { min-height: 38px; font-size: 11px; }
+.desktop-workspace .workspace-head { height: 43px; }
+.desktop-workspace .workspace-head strong { font-size: 11px; }
+.desktop-workspace .workspace-head span,
+.desktop-workspace .workspace-hint { font-size: 9px; }
+.desktop-workspace .inspector { background: #121316; }
+.desktop-workspace .inspector-head { height: 43px; flex-basis: 43px; }
+.desktop-workspace .inspector-head span,
+.desktop-workspace .inspector-head strong { font-size: 10px; }
+.desktop-workspace .panel-section { padding: 13px; }
+.desktop-workspace .panel-title > span { font-size: 11px; }
+.desktop-workspace .panel-title > strong { font-size: 10px; }
+.desktop-workspace .piece-list button { height: 41px; }
+.desktop-workspace .piece-list button > span,
+.desktop-workspace .piece-list button > em { font-size: 10px; }
+.desktop-workspace .piece-list button > strong { font-size: 11px; }
+.desktop-workspace .seam-item { min-height: 48px; }
+.desktop-workspace .seam-item > span,
+.desktop-workspace .seam-item em,
+.desktop-workspace .seam-item small { font-size: 9px; }
+.desktop-workspace .seam-item strong { font-size: 11px; }
+.desktop-workspace .fabric-library > button strong,
+.desktop-workspace .fabric-texture-card strong { font-size: 11px; }
+.desktop-workspace .fabric-library > button small,
+.desktop-workspace .fabric-texture-card small { font-size: 9px; }
+.desktop-workspace .number-field input { font-size: 11px; }
+.desktop-workspace .number-field > span { font-size: 9px; }
+.desktop-workspace .sim-play,
+.desktop-workspace .sim-reset { font-size: 10px; }
+.desktop-workspace .sim-stats,
+.desktop-workspace .sim-copy { font-size: 9px; }
+.desktop-workspace .engine-badge span { font-size: 9px; }
+.desktop-workspace .engine-badge strong { font-size: 8px; }
+.desktop-workspace .tool-rail button { width: 37px; height: 37px; }
+.desktop-workspace .tool-rail button:focus-visible,
+.desktop-workspace .asset-category-list button:focus-visible { outline: 2px solid var(--accent); }
+
+/* CLO-style workflow: flat 3D arrangement > seam matching > simulation. */
+.staging-viewport-tag {
+  position: absolute;
+  left: 14px;
+  top: 56px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: min(280px, calc(100% - 28px));
+  padding: 11px 13px;
+  background: rgba(14, 17, 23, .90);
+  border: 1px solid rgba(165, 178, 216, .20);
+  border-radius: 7px;
+  box-shadow: 0 9px 30px rgba(0, 0, 0, .25);
+  pointer-events: none;
+}
+.staging-viewport-tag strong {
+  font-size: 10px;
+  color: #f1f1f4;
+  letter-spacing: .09em;
+}
+.staging-viewport-tag span {
+  font-size: 10px;
+  line-height: 1.4;
+  color: #a3aabe;
+}
+.staging-viewport-tag span:last-child { color: #e6ac76; }
+.workflow-stages {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.workflow-stages span {
+  min-width: 0;
+  padding: 10px 5px;
+  border: 1px solid #31333b;
+  border-radius: 5px;
+  background: #16171b;
+  color: #80838e;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+.workflow-stages span.active {
+  color: #f2d6bb;
+  border-color: #74543d;
+  background: #2c211d;
+}
+.stage-overview .wide-action { margin-top: 7px; }
+.desktop-workspace .viewport-instructions { font-size: 9px; }
+@media(max-width:1400px) {
+  .desktop-workspace .main-layout { grid-template-columns: 140px 43px minmax(0, 1fr) 255px; }
+  .desktop-workspace .topbar { grid-template-columns: 178px minmax(380px,1fr) 208px; }
+  .desktop-workspace .section-tabs button { font-size: 10px; }
 }

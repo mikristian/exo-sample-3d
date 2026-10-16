@@ -6,18 +6,26 @@ const backends = new Map([
   [nativeServiceBackend.id, nativeServiceBackend],
 ])
 
-export function registerSimulationBackend(backend) {
+function validateBackendContract(backend) {
   if (!backend?.id) throw new Error('Simulation backend requires an id')
   if (typeof backend.create !== 'function' || typeof backend.step !== 'function') {
     throw new Error(`Simulation backend ${backend.id} must implement create() and step()`)
   }
+  if (backend.async === true && typeof backend.stepAsync !== 'function') {
+    throw new Error(`Asynchronous simulation backend ${backend.id} requires stepAsync()`)
+  }
+  return backend
+}
+
+export function registerSimulationBackend(backend) {
+  validateBackendContract(backend)
   if (backends.has(backend.id)) throw new Error(`Simulation backend already registered: ${backend.id}`)
   backends.set(backend.id, backend)
   return backend
 }
 
 export function replaceSimulationBackend(backend) {
-  if (!backend?.id) throw new Error('Simulation backend requires an id')
+  validateBackendContract(backend)
   backends.set(backend.id, backend)
   return backend
 }

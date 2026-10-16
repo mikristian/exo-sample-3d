@@ -1,5 +1,12 @@
+import { resolveSelfCollisions } from './physics/selfCollision.js'
+import { avatarContactParameters, projectAvatarContacts } from './physics/avatarContactPass.js'
+import { resolveSolverTimestep } from './physics/timestep.js'
+import { assessSimulationFit } from './physics/qualityGate.js'
+import { inspectClothMesh } from './physics/meshQuality.js'
+import { optimizeTriangleQuality } from './physics/qualityTriangulation.js'
 import * as THREE from 'three'
-import { samplePieceBoundary } from './project.js'
+import { edgePointAt, edgeRangeLength, samplePieceBoundary } from './project.js'
+import { simplifiedClothBoundary } from './clothMeshing.js'
 
 // Three.js world units are meters throughout the solver. Pattern geometry is
 // authored in centimeters, so 1 cm must equal 0.01 world units.
@@ -326,7 +333,23 @@ function initialPosition(piece, point, bounds, avatar) {
         -0.15 + Math.cos(angle) * foldDepth - hoodY * 0.045,
       )
     }
-    const worldY = bodyY(avatar, arrangement.y || 1.59) + (point.y - bounds.minY) * CM_TO_WORLD
+    const necklineProfile = Array.isArray(arrangement.necklineYProfile) ? arrangement.necklineYProfile : []
+    let necklineBaseY = Number(arrangement.y || 1.59)
+    if (necklineProfile.length) {
+      const clampedX = THREE.MathUtils.clamp(point.x, necklineProfile[0].x, necklineProfile[necklineProfile.length - 1].x)
+      let left = necklineProfile[0]
+      let right = necklineProfile[necklineProfile.length - 1]
+      for (let index = 0; index < necklineProfile.length - 1; index += 1) {
+        if (clampedX >= necklineProfile[index].x && clampedX <= necklineProfile[index + 1].x) {
+          left = necklineProfile[index]
+          right = necklineProfile[index + 1]
+          break
+        }
+      }
+      const span = Math.max(1e-5, right.x - left.x)
+      necklineBaseY = THREE.MathUtils.lerp(left.y, right.y, THREE.MathUtils.clamp((clampedX - left.x) / span, 0, 1))
+    }
+    const worldY = bodyY(avatar, necklineBaseY) + (point.y - bounds.minY) * CM_TO_WORLD
     const sampleBaseY = THREE.MathUtils.clamp(worldY / getAvatarHeightScale(avatar), 1.70, 2.07)
     const normalizedY = THREE.MathUtils.clamp((sampleBaseY - 1.88) / 0.22, -0.98, 0.98)
     const headSection = Math.sqrt(Math.max(0.04, 1 - normalizedY * normalizedY))
@@ -535,6 +558,95 @@ function nearestFlatParticle(pieceSim, target, predicate = null) {
   return best
 }
 
+function barycentricWeights2d(point, a, b, c) {
+  const v0x = b.x - a.x
+  const v0y = b.y - a.y
+  const v1x = c.x - a.x
+  const v1y = c.y - a.y
+  const v2x = point.x - a.x
+  const v2y = point.y - a.y
+  const denominator = v0x * v1y - v1x * v0y
+  if (Math.abs(denominator) <= EPSILON) return null
+  const wb = (v2x * v1y - v1x * v2y) / denominator
+  const wc = (v0x * v2y - v2x * v0y) / denominator
+  const wa = 1 - wb - wc
+  return [wa, wb, wc]
+}
+
+function nearestSurfaceTarget(pieceSim, target) {
+  const tolerance = 1e-5
+  for (const face of pieceSim.faces || []) {
+    const [ia, ib, ic] = face
+    const weights = barycentricWeights2d(target, pieceSim.flatVertices[ia], pieceSim.flatVertices[ib], pieceSim.flatVertices[ic])
+    if (!weights) continue
+    if (weights.every((weight) => weight >= -tolerance && weight <= 1 + tolerance)) {
+      const normalized = weights.map((weight) => Math.max(0, weight))
+      const total = normalized.reduce((sum, weight) => sum + weight, 0) || 1
+      return {
+        indices: [ia, ib, ic],
+        weights: normalized.map((weight) => weight / total),
+      }
+    }
+  }
+
+  let best = null
+  const seenEdges = new Set()
+  for (const face of pieceSim.faces || []) {
+    for (const [left, right] of [[face[0], face[1]], [face[1], face[2]], [face[2], face[0]]]) {
+      const key = left < right ? `${left}:${right}` : `${right}:${left}`
+      if (seenEdges.has(key)) continue
+      seenEdges.add(key)
+      const a = pieceSim.flatVertices[left]
+      const b = pieceSim.flatVertices[right]
+      const abx = b.x - a.x
+      const aby = b.y - a.y
+      const lengthSq = abx * abx + aby * aby
+      if (lengthSq <= EPSILON) continue
+      const t = THREE.MathUtils.clamp(((target.x - a.x) * abx + (target.y - a.y) * aby) / lengthSq, 0, 1)
+      const x = a.x + abx * t
+      const y = a.y + aby * t
+      const distanceSq = (target.x - x) ** 2 + (target.y - y) ** 2
+      if (!best || distanceSq < best.distanceSq) best = { indices: [left, right], weights: [1 - t, t], distanceSq }
+    }
+  }
+  return best || { indices: [nearestFlatParticle(pieceSim, target)], weights: [1] }
+}
+
+function surfaceTargetPosition(constraint, previous = false) {
+  if (!constraint.targetParticles?.length) return previous ? constraint.b.previous.clone() : constraint.b.position.clone()
+  const result = new THREE.Vector3()
+  constraint.targetParticles.forEach((particle, index) => {
+    result.addScaledVector(previous ? particle.previous : particle.position, constraint.targetWeights[index] ?? 0)
+  })
+  return result
+}
+
+function satisfySurfaceAttachment(constraint) {
+  const source = constraint.a
+  const targets = constraint.targetParticles
+  if (!source || !targets?.length) return
+  const targetPosition = surfaceTargetPosition(constraint)
+  const delta = targetPosition.sub(source.position)
+  const length = delta.length()
+  if (length <= EPSILON) return
+  const sourceMass = source.invMass || 0
+  let targetMass = 0
+  targets.forEach((particle, index) => {
+    const weight = constraint.targetWeights[index] ?? 0
+    targetMass += weight * weight * (particle.invMass || 0)
+  })
+  const total = sourceMass + targetMass
+  if (total <= EPSILON) return
+  const error = (length - constraint.rest) / length
+  const correction = delta.multiplyScalar(error * constraint.stiffness)
+  if (sourceMass > 0) source.position.addScaledVector(correction, sourceMass / total)
+  targets.forEach((particle, index) => {
+    const invMass = particle.invMass || 0
+    const weight = constraint.targetWeights[index] ?? 0
+    if (invMass > 0 && weight > 0) particle.position.addScaledVector(correction, -(weight * invMass) / total)
+  })
+}
+
 function addInternalGeometryConstraints(pieceSim, constraints) {
   const internalConstraints = []
   const addFoldCrease = (foldLine, constraintType, restFactor, stiffness, internalLineId, bandCm = 14) => {
@@ -694,6 +806,92 @@ function pairEdgeParticles(aIndices, bIndices, pieceA, pieceB, reverseOverride =
   return pairs
 }
 
+// Microscopic/partial CLO-style stitching must be attached to the original
+// cutline position, not snapped to the nearest simulation vertex. Snapping a
+// 0.2 mm segment onto a 10 mm mesh can miss the seam entirely or attach it
+// outside its authored interval. Barycentric samples make the relationship
+// independent of simulation tessellation while preserving exact 2D topology.
+function buildVirtualSeamSamples(seam, pieceA, pieceB) {
+  const sourceA = pieceA.piece
+  const sourceB = pieceB.piece
+  const lengthA = edgeRangeLength(sourceA, seam.a.edgeIndex, seam.a.startT, seam.a.endT)
+  const lengthB = edgeRangeLength(sourceB, seam.b.edgeIndex, seam.b.startT, seam.b.endT)
+  if (!Number.isFinite(lengthA) || !Number.isFinite(lengthB) || lengthA <= 1e-8 || lengthB <= 1e-8) return []
+  const startA = THREE.MathUtils.clamp(Number(seam.a.startT ?? 0), 0, 1)
+  const endA = THREE.MathUtils.clamp(Number(seam.a.endT ?? 1), 0, 1)
+  const startB = THREE.MathUtils.clamp(Number(seam.b.startT ?? 0), 0, 1)
+  const endB = THREE.MathUtils.clamp(Number(seam.b.endT ?? 1), 0, 1)
+  const samples = Math.max(1, Math.min(25, Math.ceil(Math.max(lengthA, lengthB) / 1.0)))
+  // Physical sewing strength must not grow 20x just because a CLO/DXF source
+  // curve was split into 20 micro-segments. Each stitch station represents
+  // only its share of approximately 1cm of sewn cutline arclength.
+  const arclengthWeight = Math.max(0.001, Math.min(1, Math.max(lengthA, lengthB) / samples))
+  const result = []
+  for (let index = 0; index < samples; index++) {
+    // Centers avoid double-weighting endpoints shared by adjacent authored
+    // partial segments. Longer cutline intervals are sampled every ~1 cm.
+    const progress = (index + 0.5) / samples
+    const tA = THREE.MathUtils.lerp(startA, endA, progress)
+    const tB = THREE.MathUtils.lerp(startB, endB, seam.reverseB ? 1 - progress : progress)
+    const pointA = edgePointAt(sourceA, seam.a.edgeIndex, tA)?.point
+    const pointB = edgePointAt(sourceB, seam.b.edgeIndex, tB)?.point
+    if (!pointA || !pointB) continue
+    const anchorA = nearestSurfaceTarget(pieceA, pointA)
+    const anchorB = nearestSurfaceTarget(pieceB, pointB)
+    if (!anchorA?.indices.length || !anchorB?.indices.length) continue
+    result.push({
+      sourceParticles: anchorA.indices.map((particleIndex) => pieceA.particles[particleIndex]),
+      sourceWeights: anchorA.weights,
+      targetParticles: anchorB.indices.map((particleIndex) => pieceB.particles[particleIndex]),
+      targetWeights: anchorB.weights,
+      progress,
+      arclengthWeight,
+    })
+  }
+  return result
+}
+
+function virtualSeamPosition(particles, weights, previous = false) {
+  const position = new THREE.Vector3()
+  for (let index = 0; index < particles.length; index++) {
+    position.addScaledVector(previous ? particles[index].previous : particles[index].position, weights[index] ?? 0)
+  }
+  return position
+}
+
+function seamGap(constraint) {
+  if (constraint.type === 'seam-virtual' && constraint.sourceParticles?.length && constraint.targetParticles?.length) {
+    return virtualSeamPosition(constraint.sourceParticles, constraint.sourceWeights)
+      .distanceTo(virtualSeamPosition(constraint.targetParticles, constraint.targetWeights))
+  }
+  return constraint.a.position.distanceTo(constraint.b.position)
+}
+
+function satisfyVirtualSeam(constraint) {
+  const source = virtualSeamPosition(constraint.sourceParticles, constraint.sourceWeights)
+  const target = virtualSeamPosition(constraint.targetParticles, constraint.targetWeights)
+  const delta = target.sub(source)
+  const length = delta.length()
+  if (length <= EPSILON) return
+  const gradients = new Map()
+  for (const [particles, weights, sign] of [
+    [constraint.sourceParticles, constraint.sourceWeights, 1],
+    [constraint.targetParticles, constraint.targetWeights, -1],
+  ]) {
+    for (let index = 0; index < particles.length; index++) {
+      const particle = particles[index]
+      gradients.set(particle, (gradients.get(particle) || 0) + sign * (weights[index] ?? 0))
+    }
+  }
+  let denominator = 0
+  for (const [particle, gradient] of gradients) denominator += particle.invMass * gradient * gradient
+  if (denominator <= EPSILON) return
+  const correction = ((length - constraint.rest) / length) * constraint.stiffness / denominator
+  for (const [particle, gradient] of gradients) {
+    if (particle.invMass > 0) particle.position.addScaledVector(delta, correction * gradient * particle.invMass)
+  }
+}
+
 function addEdgeTreatmentConstraints(pieceSim, indices, ratio, stiffness, seamId, constraints, treatmentConstraints) {
   if (!pieceSim || indices.length < 2) return
   const safeRatio = Math.max(0.3, Math.min(1.2, Number(ratio ?? 1)))
@@ -767,7 +965,7 @@ function addPieceTrimConstraints(pieceSim, constraints) {
   return trimConstraints
 }
 
-export function buildSimulation(project) {
+export function buildSimulation(project, { optimizeMesh = false } = {}) {
   const pieces = new Map()
   const constraints = []
   const anchorConstraints = []
@@ -813,20 +1011,35 @@ export function buildSimulation(project) {
     // strain. Keep the simulation boundary deliberately coarser and let the
     // render layer carry the higher visual fidelity.
     const simulationCurveSegments = Math.max(2, Math.min(4, project.simulation?.curveSegments ?? 2))
-    const sampled = samplePieceBoundary(piece, simulationCurveSegments)
+    const originalSampled = samplePieceBoundary(piece, simulationCurveSegments)
+    const adaptedCutline = project.simulation?.adaptiveCutlineMeshing === true &&
+      originalSampled.points.length > 48
+    const sampled = adaptedCutline
+      ? { ...originalSampled, points: simplifiedClothBoundary(originalSampled.points,
+          Math.max(0.02, Math.min(0.18, Number(project.simulation?.cutlineToleranceCm ?? 0.08)))) }
+      : originalSampled
     const sourcePoints = sampled.points.map((point) => new THREE.Vector2(point.x, point.y))
     const edgePaths = sampled.edgePaths.map((path) => path.map((point) => new THREE.Vector2(point.x, point.y)))
     const hasPhysicalInternalGeometry = (piece.internalLines || []).some((line) => ['fold', 'dart', 'pleat'].includes(line.type))
     const requestedResolution = piece.simulationResolution ?? project.simulation?.resolution ?? 1
     const effectiveResolution = hasPhysicalInternalGeometry ? Math.max(2, requestedResolution) : requestedResolution
-    const mesh = triangulate(sampled.points, effectiveResolution)
+    const baseMesh = triangulate(sampled.points, effectiveResolution)
+    // Quality-level native strain models require well-shaped rest triangles.
+    // The interactive PBD path intentionally preserves legacy topology and
+    // its saved drape. Optimizing interior edges does not alter cut boundaries
+    // or user patterns; the remaining slivers are filtered by the native
+    // strain safety gate while keeping their distance-edge constraints.
+    const mesh = optimizeMesh ? optimizeTriangleQuality(baseMesh) : baseMesh
+    const meshQuality = inspectClothMesh(mesh.vertices, mesh.faces)
     const bounds = patternBounds(sampled.points)
     const centerX = (bounds.minX + bounds.maxX) * 0.5
     const halfWidth = Math.max(1, (bounds.maxX - bounds.minX) * 0.5)
+    const patternHeight = Math.max(1, bounds.maxY - bounds.minY)
     const particles = mesh.vertices.map((point, index) => {
       const position = initialPosition(piece, point, bounds, project.avatar)
       const wrapMode = piece.arrangement3d?.wrap || null
       const localPatternU = Math.max(-1, Math.min(1, (point.x - centerX) / halfWidth))
+      const localPatternV = Math.max(0, Math.min(1, (point.y - bounds.minY) / patternHeight))
       const splitTorsoPanel = ['front', 'back'].includes(wrapMode) && (
         (Array.isArray(piece.fitShoulderSides) && piece.fitShoulderSides.length === 1) ||
         String(piece.generatedRole || '').startsWith('zip-front')
@@ -841,7 +1054,9 @@ export function buildSimulation(project) {
         previous: position.clone(),
         collisionSideZ: Math.sign(piece.arrangement3d?.z || 0) || 1,
         patternU: torsoPatternU,
+        patternV: localPatternV,
         patternOffsetX: (point.x - centerX) * CM_TO_WORLD,
+        patternOffsetY: (point.y - bounds.minY) * CM_TO_WORLD,
         wrapMode,
         avatarHeightScale,
         fabricId: piece.fabricId || 'main',
@@ -856,6 +1071,7 @@ export function buildSimulation(project) {
     const simPiece = {
       id: piece.id,
       piece,
+      meshQuality,
       sourcePoints,
       edgePaths,
       flatVertices: mesh.vertices,
@@ -1007,7 +1223,17 @@ export function buildSimulation(project) {
             type: 'fit-anchor',
             particle: neckParticle,
             target: new THREE.Vector3(0, targetY, sideZ * (surfaceZ + 0.01)),
-            stiffness: 0.18,
+            // The neck tack is an elevation guide, not a rigid XYZ pin.
+            // Pulling it toward a guessed clavicle depth made nearby 1 cm
+            // armhole edges jump to opposite sides of the avatar collider
+            // (up to 1300% stretch on 160 cm body). Let the sewn cloth solve
+            // its own lateral position while supporting neckline height.
+            axes: 'y',
+            // A gentle altitude guide is enough to discourage the collar from
+            // dropping, without competing against sewn-edge strain and body
+            // contact. The previous 0.18 was responsible for severe local
+            // spikes on 160 cm / 200 cm avatar regression fixtures.
+            stiffness: 0.01,
             pieceId: piece.id,
           })
         }
@@ -1147,6 +1373,7 @@ export function buildSimulation(project) {
         const t = ordered.length === 1 ? 0.5 : index / (ordered.length - 1)
         const targetT = attachment.reverseTarget ? 1 - t : t
         let targetIndex = -1
+        let targetSurface = null
         if (targetEdgeIndices?.length) {
           targetIndex = targetEdgeIndices[Math.max(0, Math.min(targetEdgeIndices.length - 1, Math.round(targetT * (targetEdgeIndices.length - 1))))]
         } else if (attachment.targetA && attachment.targetB) {
@@ -1154,13 +1381,20 @@ export function buildSimulation(project) {
             x: THREE.MathUtils.lerp(attachment.targetA.x, attachment.targetB.x, targetT),
             y: THREE.MathUtils.lerp(attachment.targetA.y, attachment.targetB.y, targetT),
           }
-          targetIndex = nearestFlatParticle(targetPiece, targetPoint)
+          targetSurface = nearestSurfaceTarget(targetPiece, targetPoint)
+          targetIndex = targetSurface.indices.reduce((best, candidate, candidateIndex) => (
+            (targetSurface.weights[candidateIndex] ?? 0) > (targetSurface.weights[best.weightIndex] ?? -1)
+              ? { index: candidate, weightIndex: candidateIndex }
+              : best
+          ), { index: targetSurface.indices[0], weightIndex: 0 }).index
         }
         if (targetIndex < 0) continue
         const constraint = {
           type: 'surface-stitch',
           a: sourcePiece.particles[ordered[index]],
           b: targetPiece.particles[targetIndex],
+          targetParticles: targetSurface?.indices?.map((targetParticleIndex) => targetPiece.particles[targetParticleIndex]) || null,
+          targetWeights: targetSurface?.weights || null,
           rest: Math.max(0.001, Number(attachment.restM ?? 0.004)),
           stiffness: Math.max(0.5, Math.min(0.995, Number(attachment.stiffness ?? 0.94))),
           seamId: attachment.id,
@@ -1196,6 +1430,8 @@ export function buildSimulation(project) {
       sourceParticle.constructionSideZ = targetParticle.constructionSideZ
       sourceParticle.collisionSideZ = targetParticle.collisionSideZ
       sourceParticle.patternU = targetParticle.patternU
+      sourceParticle.patternV = targetParticle.patternV
+      sourceParticle.patternOffsetY = targetParticle.patternOffsetY
       const constraint = {
         type: 'fuse',
         a: sourceParticle,
@@ -1240,6 +1476,24 @@ export function buildSimulation(project) {
     const edgeA = boundaryIndicesForSeamEndpoint(pieceA, seam.a)
     const edgeB = boundaryIndicesForSeamEndpoint(pieceB, seam.b)
     const seamType = seam.type || 'normal'
+    if (seam.useExactCorrespondence === true || Number.isInteger(seam.sourceCloSeamGroup) || project.simulation?.adaptiveCutlineMeshing === true) {
+      for (const sample of buildVirtualSeamSamples(seam, pieceA, pieceB)) {
+        const constraint = {
+          type: 'seam-virtual',
+          a: sample.sourceParticles.reduce((best, item, index) => sample.sourceWeights[index] > best.weight ? { particle: item, weight: sample.sourceWeights[index] } : best, { particle: sample.sourceParticles[0], weight: -1 }).particle,
+          b: sample.targetParticles.reduce((best, item, index) => sample.targetWeights[index] > best.weight ? { particle: item, weight: sample.targetWeights[index] } : best, { particle: sample.targetParticles[0], weight: -1 }).particle,
+          ...sample,
+          rest: 0.008,
+          stiffness: (project.simulation?.seamStiffness || 0.96) * sample.arclengthWeight,
+          seamId: seam.id,
+          seamType,
+          sourceCloSeamGroup: seam.sourceCloSeamGroup ?? null,
+        }
+        constraints.push(constraint)
+        seamConstraints.push(constraint)
+      }
+      continue
+    }
     const defaultRatio = seamType === 'gather' ? 0.7 : seamType === 'elastic' ? 0.85 : seamType === 'ease' ? 0.96 : 1
     const treatmentRatio = Math.max(0.3, Math.min(1.2, Number(seam.ratio ?? defaultRatio)))
     if (seamType === 'gather') {
@@ -1322,7 +1576,26 @@ export function buildSimulation(project) {
 
   const collisionExclusions = new Set()
   for (const constraint of constraints) {
+    if (constraint.type === 'seam-virtual') {
+      for (const source of constraint.sourceParticles) {
+        for (const target of constraint.targetParticles) {
+          if (source.simIndex === target.simIndex) continue
+          const left = Math.min(source.simIndex, target.simIndex)
+          const right = Math.max(source.simIndex, target.simIndex)
+          collisionExclusions.add(`${left}:${right}`)
+        }
+      }
+      continue
+    }
     if (!['structural', 'bend', 'seam', 'surface-stitch', 'fastener', 'fuse', 'fold', 'dart', 'pleat', 'edge-treatment', 'topstitch', 'zipper-tape'].includes(constraint.type)) continue
+    if (constraint.type === 'surface-stitch' && constraint.targetParticles?.length) {
+      for (const targetParticle of constraint.targetParticles) {
+        const left = Math.min(constraint.a.simIndex, targetParticle.simIndex)
+        const right = Math.max(constraint.a.simIndex, targetParticle.simIndex)
+        collisionExclusions.add(`${left}:${right}`)
+      }
+      continue
+    }
     const left = Math.min(constraint.a.simIndex, constraint.b.simIndex)
     const right = Math.max(constraint.a.simIndex, constraint.b.simIndex)
     collisionExclusions.add(`${left}:${right}`)
@@ -1354,6 +1627,7 @@ export function buildSimulation(project) {
 
   return {
     pieces,
+    meshQuality: Object.fromEntries([...pieces].map(([id,piece])=>[id,piece.meshQuality])),
     constraints,
     clothConstraints: constraints.filter((constraint) => constraint.type !== 'seam'),
     seamConstraints,
@@ -1373,118 +1647,16 @@ export function buildSimulation(project) {
   }
 }
 
-function resolveSelfCollisions(simulation, minimumDistance) {
-  if (minimumDistance <= EPSILON) return
-  const cellSize = minimumDistance
-  const grid = new Map()
-  const particles = []
-  const keyFor = (particle) => {
-    const x = Math.floor(particle.position.x / cellSize)
-    const y = Math.floor(particle.position.y / cellSize)
-    const z = Math.floor(particle.position.z / cellSize)
-    return { x, y, z, key: `${x}:${y}:${z}` }
-  }
-
-  for (const piece of simulation.pieces.values()) {
-    for (const particle of piece.particles) {
-      const cell = keyFor(particle)
-      if (!grid.has(cell.key)) grid.set(cell.key, [])
-      grid.get(cell.key).push(particle)
-      particles.push(particle)
-    }
-  }
-
-  const minSq = minimumDistance * minimumDistance
-  const corrections = new Map()
-  const addCorrection = (particle, direction, scale) => {
-    let correction = corrections.get(particle.simIndex)
-    if (!correction) {
-      correction = new THREE.Vector3()
-      corrections.set(particle.simIndex, correction)
-    }
-    correction.addScaledVector(direction, scale)
-  }
-  const outwardDirection = (particle) => {
-    const mode = particle.wrapMode || ''
-    let centerX = 0
-    if (mode === 'left-arm') centerX = -0.285
-    else if (mode === 'right-arm') centerX = 0.285
-    else if (mode.startsWith('left-leg')) centerX = -0.105
-    else if (mode.startsWith('right-leg')) centerX = 0.105
-    const direction = new THREE.Vector3(particle.position.x - centerX, 0, particle.position.z)
-    if (direction.lengthSq() <= EPSILON) direction.set(0, 0, particle.collisionSideZ || 1)
-    else direction.normalize()
-    return direction
-  }
-  for (const particle of particles) {
-    if (particle.invMass <= 0) continue
-    const cell = keyFor(particle)
-    for (let dx = -1; dx <= 1; dx += 1) {
-      for (let dy = -1; dy <= 1; dy += 1) {
-        for (let dz = -1; dz <= 1; dz += 1) {
-          const candidates = grid.get(`${cell.x + dx}:${cell.y + dy}:${cell.z + dz}`)
-          if (!candidates) continue
-          for (const other of candidates) {
-            if (other.simIndex <= particle.simIndex) continue
-            if (particle.pieceId !== other.pieceId && simulation.fusedPiecePairs?.has([particle.pieceId, other.pieceId].sort().join('|'))) continue
-            const left = particle.simIndex
-            const right = other.simIndex
-            if (simulation.collisionExclusions?.has(`${left}:${right}`)) continue
-            const delta = other.position.clone().sub(particle.position)
-            const distanceSq = delta.lengthSq()
-            if (distanceSq >= minSq) continue
-            const distance = Math.sqrt(Math.max(distanceSq, EPSILON))
-            const layerA = particle.layerIndex || 0
-            const layerB = other.layerIndex || 0
-            if (layerA !== layerB) {
-              const higher = layerA > layerB ? particle : other
-              const outward = outwardDirection(higher)
-              // delta is A -> B. Orient the preferred vector so separation
-              // always places the higher layer farther from the body.
-              const preferred = layerB > layerA ? outward : outward.multiplyScalar(-1)
-              if (distanceSq <= EPSILON) delta.copy(preferred)
-              else {
-                delta.multiplyScalar(1 / distance)
-                if (delta.dot(preferred) < 0.65) delta.lerp(preferred, 0.82).normalize()
-              }
-            } else if (distanceSq <= EPSILON) delta.set(1, 0, 0)
-            else delta.multiplyScalar(1 / distance)
-            const penetration = minimumDistance - distance
-            let wa = particle.invMass
-            let wb = other.invMass
-            const total = wa + wb
-            if (total <= EPSILON) continue
-            if (layerA !== layerB && wa > 0 && wb > 0) {
-              // Collision layers are directional: higher layers are intended
-              // to stay outside lower layers. Preserve a small reaction on the
-              // lower cloth for stability, but send most correction outward.
-              if (layerA > layerB) {
-                wa = 0.9
-                wb = 0.1
-              } else {
-                wa = 0.1
-                wb = 0.9
-              }
-            }
-            const weightedTotal = wa + wb
-            if (wa > 0) addCorrection(particle, delta, -penetration * (wa / weightedTotal))
-            if (wb > 0) addCorrection(other, delta, penetration * (wb / weightedTotal))
-          }
-        }
-      }
-    }
-  }
-
-  // Apply all pair corrections together. This avoids left/right bias from the
-  // iteration order of the piece map and keeps mirrored garments much closer
-  // to physically symmetric behavior.
-  for (const particle of particles) {
-    const correction = corrections.get(particle.simIndex)
-    if (correction && particle.invMass > 0) particle.position.add(correction)
-  }
-}
 
 function satisfyDistance(constraint) {
+  if (constraint.type === 'seam-virtual') {
+    satisfyVirtualSeam(constraint)
+    return
+  }
+  if (constraint.type === 'surface-stitch' && constraint.targetParticles?.length) {
+    satisfySurfaceAttachment(constraint)
+    return
+  }
   const { a, b, rest, stiffness } = constraint
   const wa = a.invMass
   const wb = b.invMass
@@ -1510,6 +1682,12 @@ function satisfyDistance(constraint) {
 function satisfyAnchor(constraint) {
   const particle = constraint.particle
   if (!particle || particle.invMass <= 0) return
+  if (constraint.axes === 'y') {
+    particle.position.y = THREE.MathUtils.lerp(particle.position.y, constraint.target.y, constraint.stiffness)
+    // A support tack should not inject vertical Verlet velocity.
+    particle.previous.y = particle.position.y
+    return
+  }
   if (constraint.axes === 'x') {
     particle.position.x = THREE.MathUtils.lerp(particle.position.x, constraint.target.x, constraint.stiffness)
     particle.previous.x = particle.position.x
@@ -1583,6 +1761,78 @@ function collideEllipsoid(particle, center, radii, margin, friction = 0.3) {
   const scale = 1 / Math.sqrt(q)
   particle.position.set(center.x + dx * scale, center.y + dy * scale, center.z + dz * scale)
   particle.previous.lerp(particle.position, Math.max(0, Math.min(0.16, friction * 0.08)))
+}
+
+function collideEllipsoidPreserveY(particle, center, radii, margin, friction = 0.3) {
+  if (particle.invMass <= 0) return
+  const dy = particle.position.y - center.y
+  const rx = radii.x + margin
+  const ry = radii.y + margin
+  const rz = radii.z + margin
+  const normalizedY = dy / Math.max(EPSILON, ry)
+  if (Math.abs(normalizedY) >= 1) return
+  const crossSection = Math.sqrt(Math.max(EPSILON, 1 - normalizedY * normalizedY))
+  const sectionX = rx * crossSection
+  const sectionZ = rz * crossSection
+  const dx = particle.position.x - center.x
+  const dz = particle.position.z - center.z
+  const q = (dx * dx) / (sectionX * sectionX) + (dz * dz) / (sectionZ * sectionZ)
+  if (q >= 1) return
+  particle.contactDepth = Math.max(
+    particle.contactDepth || 0,
+    (1 - Math.sqrt(Math.max(q, 0))) * Math.min(sectionX, sectionZ),
+  )
+  const sideZ = particle.collisionSideZ || Math.sign(particle.previous.z - center.z) || 1
+  if (q <= EPSILON || Math.abs(particle.patternU ?? 1) < 0.78) {
+    particle.position.z = center.z + sideZ * sectionZ
+  } else {
+    const scale = 1 / Math.sqrt(Math.max(q, EPSILON))
+    particle.position.x = center.x + dx * scale
+    particle.position.z = center.z + dz * scale
+  }
+  particle.previous.x += (particle.position.x - particle.previous.x) * Math.min(0.2, friction * 0.12)
+  particle.previous.z += (particle.position.z - particle.previous.z) * Math.min(0.2, friction * 0.12)
+}
+
+// For torso cloth on the clavicle, project into the nearest horizontal
+// cross-section of the shoulder collider rather than pushing it upward.
+// Unlike an unrestricted lateral projection, the correction is bounded to
+// avoid severe local stretch when a sewn vertex starts deep inside the body.
+function collideShoulderWithLimitedRise(particle, center, radii, margin, friction = 0.3, maxLateral = 0.018) {
+  if (particle.invMass <= 0) return
+  const dy = particle.position.y - center.y
+  const rx = radii.x + margin
+  const ry = radii.y + margin
+  const rz = radii.z + margin
+  const ny = dy / Math.max(EPSILON, ry)
+  if (Math.abs(ny) >= 1) return
+  const section = Math.sqrt(Math.max(EPSILON, 1 - ny * ny))
+  const sx = rx * section
+  const sz = rz * section
+  const dx = particle.position.x - center.x
+  const dz = particle.position.z - center.z
+  const q = dx * dx / (sx * sx) + dz * dz / (sz * sz)
+  if (q >= 1) return
+  const side = particle.collisionSideZ || Math.sign(dz) || 1
+  let tx, tz
+  if (q <= EPSILON || Math.abs(particle.patternU ?? 1) < 0.78) {
+    tx = particle.position.x
+    tz = center.z + side * sz * Math.sqrt(Math.max(0, 1 - dx * dx / (sx * sx)))
+  } else {
+    const scale = 1 / Math.sqrt(Math.max(q, EPSILON))
+    tx = center.x + dx * scale
+    tz = center.z + dz * scale
+  }
+  const moveX = tx - particle.position.x
+  const moveZ = tz - particle.position.z
+  const distance = Math.hypot(moveX, moveZ)
+  const amount = Math.min(1, Math.max(0.001, maxLateral) / Math.max(distance, EPSILON))
+  particle.contactDepth = Math.max(particle.contactDepth || 0, distance)
+  particle.position.x += moveX * amount
+  particle.position.z += moveZ * amount
+  const damping = Math.min(0.2, friction * 0.12)
+  particle.previous.x += (particle.position.x - particle.previous.x) * damping
+  particle.previous.z += (particle.position.z - particle.previous.z) * damping
 }
 
 function collideVerticalEllipse(particle, centerX, centerZ, minY, maxY, radiusX, radiusZ, margin, friction = 0.3) {
@@ -1699,7 +1949,19 @@ function capsuleClearance(position, pose) {
   return position.distanceTo(closest) - pose.radius
 }
 
-function avatarClearance(position, avatar) {
+function shouldUseShoulderCap(particle, upper) {
+  const wrapMode = particle?.wrapMode || ''
+  const patternV = Number.isFinite(particle?.patternV) ? particle.patternV : 1
+  const seamIds = [...(particle?.seamIds || [])]
+  if (['front', 'back'].includes(wrapMode)) {
+    const shoulderSeam = seamIds.some((seamId) => /shoulder/i.test(seamId))
+    return shoulderSeam || patternV >= 0.86
+  }
+  if (['left-arm', 'right-arm'].includes(wrapMode)) return patternV >= 0.72
+  return (particle?.position?.y ?? 0) >= upper.shoulderCenterY - upper.shoulderCapRadiusY * 0.45
+}
+
+export function avatarClearance(position, avatar, particle = null) {
   const upper = getAvatarUpperBodyDimensions(avatar)
   const heightScale = upper.heightScale
   const clearances = []
@@ -1718,15 +1980,20 @@ function avatarClearance(position, avatar) {
   // front/back cylindrical torso all the way over the shoulder plane. This is
   // crucial for sewn shoulder seams: they need to pass over the top surface
   // at z≈0 rather than being classified as front/back cloth and split apart.
-  clearances.push(
-    ellipsoidClearance(
-      position,
-      new THREE.Vector3(0, upper.shoulderCenterY, 0),
-      new THREE.Vector3(upper.shoulderCapRadiusX, upper.shoulderCapRadiusY, upper.shoulderCapRadiusZ),
-    ),
-  )
+  if (shouldUseShoulderCap(particle || { position }, upper)) {
+    clearances.push(
+      ellipsoidClearance(
+        position,
+        new THREE.Vector3(0, upper.shoulderCenterY, 0),
+        new THREE.Vector3(upper.shoulderCapRadiusX, upper.shoulderCapRadiusY, upper.shoulderCapRadiusZ),
+      ),
+    )
+  }
 
-  if (position.y >= 0.76 * heightScale && position.y <= 1.57 * heightScale) {
+  const upperBodice = ['front', 'back'].includes(particle?.wrapMode) &&
+    position.y > upper.shoulderCenterY - upper.shoulderCapRadiusY * 1.15 &&
+    Math.abs(position.x) < upper.shoulderHalfWidth + 0.025
+  if (!upperBodice && position.y >= 0.76 * heightScale && position.y <= 1.57 * heightScale) {
     clearances.push(
       capsuleClearance(position, getAvatarArmPose(avatar, -1)),
       capsuleClearance(position, getAvatarArmPose(avatar, 1)),
@@ -1743,6 +2010,48 @@ function avatarClearance(position, avatar) {
   return Math.min(...clearances)
 }
 
+// Diagnostic only: sample the surface of each cloth triangle, not just its
+// vertices. A fabric face can cut through an avatar collider even if all
+// three vertices are outside. Sampling never moves cloth and cannot by itself
+// certify triangle-level collision freedom or continuous-time contact.
+export function measureAvatarSurfaceIntrusion(simulation, avatar, options = {}) {
+  const epsilon = Math.max(0, Number(options.epsilonM ?? 0.0005))
+  const result = { facesChecked: 0, samplesChecked: 0, penetratingSamples: 0,
+    penetratingFaces: 0, maximumIntrusionMm: 0, byPiece: {} }
+  const weights = [[1 / 3, 1 / 3, 1 / 3], [0.5, 0.5, 0], [0, 0.5, 0.5], [0.5, 0, 0.5]]
+  for (const piece of simulation.pieces.values()) {
+    const metrics = { facesChecked: 0, penetratingFaces: 0, penetratingSamples: 0, maximumIntrusionMm: 0 }
+    for (const [ia, ib, ic] of piece.faces || []) {
+      const a = piece.particles[ia], b = piece.particles[ib], c = piece.particles[ic]
+      if (!a || !b || !c) continue
+      let penetrated = false
+      metrics.facesChecked++
+      result.facesChecked++
+      for (const [wa, wb, wc] of weights) {
+        const point = new THREE.Vector3().addScaledVector(a.position, wa)
+          .addScaledVector(b.position, wb).addScaledVector(c.position, wc)
+        const clearance = avatarClearance(point, avatar, {
+          position: point, wrapMode: a.wrapMode, patternV: (a.patternV + b.patternV + c.patternV) / 3,
+          seamIds: a.seamIds,
+        })
+        result.samplesChecked++
+        if (clearance < -epsilon) {
+          const millimeters = -clearance * 1000
+          metrics.penetratingSamples++
+          result.penetratingSamples++
+          metrics.maximumIntrusionMm = Math.max(metrics.maximumIntrusionMm, millimeters)
+          result.maximumIntrusionMm = Math.max(result.maximumIntrusionMm, millimeters)
+          penetrated = true
+        }
+      }
+      if (penetrated) { metrics.penetratingFaces++; result.penetratingFaces++ }
+    }
+    result.byPiece[piece.id] = metrics
+  }
+  result.maximumIntrusionMm = +result.maximumIntrusionMm.toFixed(3)
+  return result
+}
+
 function updateFitMetrics(simulation, project) {
   let easeTotal = 0
   let pressureTotal = 0
@@ -1753,7 +2062,7 @@ function updateFitMetrics(simulation, project) {
   let count = 0
   for (const piece of simulation.pieces.values()) {
     for (const particle of piece.particles) {
-      const clearanceM = avatarClearance(particle.position, project.avatar)
+      const clearanceM = avatarClearance(particle.position, project.avatar, particle)
       const easeCm = Math.max(0, clearanceM) * 100
       const pressureScale = Math.max(
         0.004,
@@ -1791,25 +2100,117 @@ export function refreshSimulationAnalysis(simulation, project) {
   if (!simulation || !project) return simulation
   updateStrain(simulation)
   updateFitMetrics(simulation, project)
+  // Solver-independent, non-destructive fit telemetry. Mean seam distance
+  // alone can hide a completely open sleeve seam; report the tail and worst
+  // seam independently. These values are diagnostics, not proof of contact
+  // safety (triangle CCD is not implemented in the interactive backend).
+  const percentile = (sorted, fraction) => sorted.length
+    ? sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * fraction) - 1)] : 0
+  const seamGaps = (simulation.seamConstraints || [])
+    .filter((constraint) => constraint?.a && constraint?.b)
+    .map((constraint) => seamGap(constraint) * 1000)
+    .sort((a, b) => a - b)
+  const strains = (simulation.constraints || [])
+    .filter((constraint) => constraint.type === 'structural' && constraint.rest > EPSILON)
+    .map((constraint) => Math.abs(constraint.a.position.distanceTo(constraint.b.position) - constraint.rest) / constraint.rest)
+    .sort((a, b) => a - b)
+  const worstSeams = (simulation.seamConstraints || [])
+    .filter((constraint) => constraint?.a && constraint?.b)
+    .map((constraint) => ({
+      seamId: constraint.seamId || null,
+      gapMm: seamGap(constraint) * 1000,
+    }))
+    .sort((a, b) => b.gapMm - a.gapMm)
+    .slice(0, 5)
+  simulation.quality = {
+    structural: {
+      samples: strains.length,
+      meanStrainPercent: simulation.strain.average * 100,
+      p95StrainPercent: percentile(strains, 0.95) * 100,
+      maxStrainPercent: percentile(strains, 1) * 100,
+    },
+    sewing: {
+      pairs: seamGaps.length,
+      meanGapMm: seamGaps.reduce((sum, gap) => sum + gap, 0) / Math.max(1, seamGaps.length),
+      p95GapMm: percentile(seamGaps, 0.95),
+      maxGapMm: percentile(seamGaps, 1),
+      worstSeams,
+    },
+    collision: { triangleCcdVerified: false, allFrameIntersectionFree: null },
+  }
+  simulation.quality.acceptance = assessSimulationFit(simulation.quality)
   return simulation
 }
 
 function collideAvatar(particle, avatar, margin, friction) {
   const upper = getAvatarUpperBodyDimensions(avatar)
   const heightScale = upper.heightScale
-  if (particle.position.y >= 0.56 * heightScale && particle.position.y <= 1.49 * heightScale) {
+  const legPanel = /^(left|right)-leg-/.test(particle.wrapMode || '')
+  // At the crotch, a full-width pelvic ellipsoid cannot be applied on top
+  // of *both* leg tubes: it pushes paired inseam vertices to opposite front/
+  // back sides of the body by ~31 cm. Begin the pelvis collision above the
+  // crotch instead; dedicated leg colliders handle the trouser tubes below.
+  // The 0.76 transition reduced straight-pants average seam gap from 7.03 cm
+  // to 0.90 cm and fitted jeans from 5.46 cm to 0.99 cm in 180-frame tests.
+  const legTorsoStartY = THREE.MathUtils.clamp(Number(avatar?.legTorsoCollisionStartY ?? 0.76), 0.56, 0.80) * heightScale
+  if (particle.position.y >= 0.56 * heightScale && particle.position.y <= 1.49 * heightScale &&
+      (!legPanel || particle.position.y >= legTorsoStartY)) {
     const radii = getAvatarTorsoRadii(avatar, particle.position.y)
     collideVerticalEllipse(particle, 0, 0, 0.56 * heightScale, 1.49 * heightScale, radii.x, radii.z, margin, friction)
   }
-  collideEllipsoid(
-    particle,
-    new THREE.Vector3(0, upper.shoulderCenterY, 0),
-    new THREE.Vector3(upper.shoulderCapRadiusX, upper.shoulderCapRadiusY, upper.shoulderCapRadiusZ),
-    margin,
-    friction,
-  )
-  collideCapsule(particle, getAvatarArmPose(avatar, -1), margin, friction)
-  collideCapsule(particle, getAvatarArmPose(avatar, 1), margin, friction)
+  const adaptiveShoulder = avatar?.shoulderContactMode === 'adaptive-limited-lateral' &&
+    Number(avatar.heightCm ?? 180) >= 175 && Number(avatar.heightCm ?? 180) <= 190
+  if ((avatar?.shoulderContactMode === 'limited-lateral' || adaptiveShoulder) && ['front', 'back'].includes(particle.wrapMode)) {
+    collideShoulderWithLimitedRise(
+      particle,
+      new THREE.Vector3(0, upper.shoulderCenterY, 0),
+      new THREE.Vector3(upper.shoulderCapRadiusX, upper.shoulderCapRadiusY, upper.shoulderCapRadiusZ),
+      margin,
+      friction,
+      Number(avatar.shoulderMaxLateralCorrectionM ?? 0.018),
+    )
+  } else if (avatar?.shoulderContactMode === 'lateral' && ['front', 'back'].includes(particle.wrapMode) && (particle.patternV ?? 1) >= Number(avatar.shoulderLateralPatternV ?? 0)) {
+    collideEllipsoidPreserveY(
+      particle,
+      new THREE.Vector3(0, upper.shoulderCenterY, 0),
+      new THREE.Vector3(upper.shoulderCapRadiusX, upper.shoulderCapRadiusY, upper.shoulderCapRadiusZ),
+      margin,
+      friction,
+    )
+  } else if (shouldUseShoulderCap(particle, upper)) {
+    collideEllipsoid(
+      particle,
+      new THREE.Vector3(0, upper.shoulderCenterY, 0),
+      new THREE.Vector3(upper.shoulderCapRadiusX, upper.shoulderCapRadiusY, upper.shoulderCapRadiusZ),
+      margin,
+      friction,
+    )
+  } else if (['front', 'back'].includes(particle.wrapMode)) {
+    collideEllipsoidPreserveY(
+      particle,
+      new THREE.Vector3(0, upper.shoulderCenterY, 0),
+      new THREE.Vector3(upper.shoulderCapRadiusX, upper.shoulderCapRadiusY, upper.shoulderCapRadiusZ),
+      margin,
+      friction,
+    )
+  }
+  // A torso panel at the upper armhole can be inside the arm and shoulder
+  // proxy simultaneously. Projecting it against BOTH volumes sequentially
+  // throws adjacent 1 cm cloth edges onto opposite sides of the arm and
+  // creates severe nonphysical stretching. Only sleeve particles are owned
+  // by the full arm capsule. Bodice particles near the shoulder joint use
+  // the shoulder cap and chest instead; outboard bodice particles still
+  // contact the arms so loose garments cannot pass through the biceps.
+  // Tall-body fitting is the reproducible regression; keep the established
+  // 160–190 cm collision path until it is independently tuned and verified.
+  const bodiceAtShoulder =
+    ['front', 'back'].includes(particle.wrapMode) &&
+    particle.position.y > upper.shoulderCenterY - upper.shoulderCapRadiusY * 1.15 &&
+    Math.abs(particle.position.x) < upper.shoulderHalfWidth + 0.025
+  if (!bodiceAtShoulder) {
+    collideCapsule(particle, getAvatarArmPose(avatar, -1), margin, friction)
+    collideCapsule(particle, getAvatarArmPose(avatar, 1), margin, friction)
+  }
   const torsoCloth = ['front', 'back'].includes(particle.wrapMode)
   const useNeckCollider = !torsoCloth || Math.abs(particle.position.x) < upper.neckRadius * 0.86 || particle.position.y > 1.735 * heightScale
   if (useNeckCollider) {
@@ -1845,6 +2246,13 @@ function stabilizeSurfaceAttachments(simulation, project) {
   for (const constraint of simulation.surfaceAttachmentConstraints || []) {
     const { a, b } = constraint
     if (!a || !b || (a.invMass <= 0 && b.invMass <= 0)) continue
+    if (constraint.targetParticles?.length) {
+      // Continuous surface stitches are solved once more after avatar
+      // projection. Their barycentric target already follows the shell, so a
+      // second midpoint/body projection would double-count the target layer.
+      satisfySurfaceAttachment(constraint)
+      continue
+    }
     const midpoint = a.position.clone().add(b.position).multiplyScalar(0.5)
     const previous = a.previous.clone().add(b.previous).multiplyScalar(0.5)
     const proxy = {
@@ -1876,6 +2284,14 @@ function stabilizeSurfaceAttachments(simulation, project) {
 function stabilizeSeamPairs(simulation, project) {
   for (const constraint of simulation.seamConstraints || []) {
     if (!constraint?.a || !constraint?.b) continue
+    if (constraint.type === 'surface-stitch') continue
+    if (constraint.type === 'seam-virtual') {
+      // Virtual stitch positions are interpolated across several vertices on
+      // both panels; projecting a single representative pair through the
+      // avatar would move the *wrong* vertices. Rely on weighted sewing and
+      // the ordinary per-particle collision passes instead.
+      continue
+    }
     const distance = constraint.a.position.distanceTo(constraint.b.position)
     if (distance <= Math.max(0.025, constraint.rest * 2.5)) continue
     const lowerBodyModes = new Set([
@@ -1919,7 +2335,13 @@ function stabilizeSeamPairs(simulation, project) {
     // Use one full-strength closure pass only for reopened outliers. The main
     // seam solver still controls ordinary seam behavior and easing/gathering.
     const originalStiffness = constraint.stiffness
-    constraint.stiffness = 0.995
+    const shoulderRegion = Number(project.avatar?.heightCm ?? 180) < 195 && [constraint.a, constraint.b].some((particle) =>
+      ['front', 'back', 'left-arm', 'right-arm'].includes(particle.wrapMode) &&
+      particle.position.y > getAvatarUpperBodyDimensions(project.avatar).shoulderCenterY - 0.17 * getAvatarHeightScale(project.avatar))
+    // A large full-strength shoulder seam pull in a single iteration crosses
+    // the arm capsule and opens adjacent mesh triangles. Let the regular
+    // per-frame sewing passes converge it incrementally near the clavicle.
+    constraint.stiffness = shoulderRegion ? Math.min(originalStiffness, 0.35) : 0.995
     satisfyDistance(constraint)
     constraint.stiffness = originalStiffness
   }
@@ -2047,22 +2469,70 @@ function resolveBodyFaceCollisions(pieceSim, project, margin, friction) {
   }
 }
 
+// A bounded post-solve contact correction. This is deliberately separate from
+// the ordinary constraint loop: seam/fuse constraints can move vertices back
+// through the body after a prior contact projection. Check interior triangle
+// samples and distribute small corrective impulses to their movable corners.
+// The collider is analytic (not the visual GLB); this is not triangle CCD.
+export function correctAvatarSurfaceIntrusion(simulation, project, options = {}) {
+  const maxCorrectionM = Math.max(0, Math.min(0.008, Number(options.maxCorrectionM ?? 0.003)))
+  const epsilonM = Math.max(0, Math.min(0.005, Number(options.epsilonM ?? 0.0005)))
+  const before = measureAvatarSurfaceIntrusion(simulation, project.avatar, { epsilonM })
+  const result = { before, after: before, correctedFaces: 0, correctedVertices: 0, accepted: false }
+  if (!before.penetratingFaces || project.simulation?.collisions === false || !maxCorrectionM) return result
+  const baseline = [...simulation.pieces.values()].map(piece => ({
+    piece, positions: piece.particles.map(p => p.position.clone()),
+  }))
+  const affected = new Set()
+  for (const piece of simulation.pieces.values()) {
+    const thickness = piece.fabric?.thickness ?? 0.002
+    const margin = (project.simulation?.collisionMargin ?? 0.012) + thickness
+    for (const [ia, ib, ic] of piece.faces || []) {
+      const corners = [ia,ib,ic].map(i => piece.particles[i])
+      if (corners.some(p => !p)) continue
+      const movable = corners.filter(p => p.invMass > 0)
+      if (!movable.length) continue
+      const centroid = new THREE.Vector3()
+      for (const particle of corners) centroid.add(particle.position)
+      centroid.multiplyScalar(1 / 3)
+      const proxy = {
+        position: centroid.clone(), previous: centroid.clone(), invMass: 1,
+        wrapMode: corners[0].wrapMode,
+        patternU: corners.reduce((sum,p) => sum + (p.patternU || 0),0) / 3,
+        patternV: corners.reduce((sum,p) => sum + (p.patternV || 0),0) / 3,
+        collisionSideZ: corners[0].collisionSideZ,
+        contactDepth: 0,
+      }
+      if (avatarClearance(centroid, project.avatar, proxy) >= -epsilonM) continue
+      collideAvatar(proxy, project.avatar, margin, piece.fabric?.friction ?? 0.3)
+      const displacement = proxy.position.sub(centroid)
+      if (!Number.isFinite(displacement.lengthSq()) || displacement.lengthSq() < 1e-12) continue
+      displacement.clampLength(0, maxCorrectionM).multiplyScalar(1 / movable.length)
+      for (const particle of movable) {
+        particle.position.add(displacement)
+        affected.add(particle)
+      }
+      result.correctedFaces++
+    }
+  }
+  result.correctedVertices = affected.size
+  result.after = measureAvatarSurfaceIntrusion(simulation, project.avatar, { epsilonM })
+  result.accepted = result.after.penetratingFaces < before.penetratingFaces &&
+    result.after.maximumIntrusionMm <= before.maximumIntrusionMm + 0.5
+  if (!result.accepted) {
+    for (const {piece,positions} of baseline) piece.particles.forEach((particle,i) => particle.position.copy(positions[i]))
+    result.after = before
+  } else {
+    // Prevent artificial velocity spikes from contact corrections.
+    for (const particle of affected) particle.previous.copy(particle.position)
+  }
+  return result
+}
+
 export function stepSimulation(simulation, project, dt = 1 / 60) {
-  const safeDt = Math.min(dt, 1 / 30)
-  const gravity = project.simulation?.gravity ?? 9.81
-  const substeps = Math.max(1, Math.min(4, Math.round(project.simulation?.substeps || 1)))
-  const subDt = safeDt / substeps
-  const gravityStep = gravity * subDt * subDt
-  const requestedIterations = Math.max(2, Math.min(14, project.simulation?.iterations || 7))
-  // Substeps are for smaller integration/collision time slices, not a license
-  // to multiply the full constraint budget. Distribute the requested solver
-  // iterations across the substeps so 2–4× quality stays practical and does
-  // not become artificially over-stiff.
-  const iterations = Math.max(2, Math.ceil(requestedIterations / substeps))
-  const selfCollisionDistance = Math.max(
-    0.004,
-    (simulation.maxThickness ?? 0.002) * 2 + (project.simulation?.selfCollisionMargin ?? 0.002),
-  )
+  const schedule = resolveSolverTimestep(project.simulation, dt, simulation.maxThickness ?? 0.002)
+  if (!schedule) return simulation
+  const { safeDt, substeps, subDt, gravityStep, iterations, selfCollisionDistance } = schedule
 
   // Keep the largest contact event seen anywhere in this displayed frame so
   // pressure visualization remains meaningful when using multiple substeps.
@@ -2101,21 +2571,47 @@ export function stepSimulation(simulation, project, dt = 1 / 60) {
       // cloth back through the body, so ending each solver iteration with the
       // avatar projection guarantees the committed particle state is outside.
       if (project.simulation?.collisions !== false) {
-        for (const piece of simulation.pieces.values()) {
-          const layerOffset = (piece.layerIndex || 0) * Math.max(0.0025, (piece.fabric?.thickness ?? 0.002) * 1.15)
-          const margin = (project.simulation?.collisionMargin ?? 0.012) + (piece.fabric?.thickness ?? 0.002) + layerOffset
-          const friction = piece.fabric?.friction ?? 0.3
-          for (const particle of piece.particles) collideAvatar(particle, project.avatar, margin, friction)
+        projectAvatarContacts(simulation, project, collideAvatar)
+        if (project.simulation?.bodyTriangleContactAssist === true) {
+          // Interior points of cloth triangles can penetrate the avatar even
+          // while all three vertices lie outside it. Project the centroid,
+          // share only a small correction among movable triangle corners,
+          // then rerun individual vertex contacts below. This optional pass
+          // does not replace triangle/triangle continuous collision detection.
+          for (const piece of simulation.pieces.values()) {
+            const {margin,friction} = avatarContactParameters(project,piece)
+            resolveBodyFaceCollisions(piece, project, margin, friction)
+          }
         }
         stabilizeSurfaceAttachments(simulation, project)
-        stabilizeSeamPairs(simulation, project)
+        if (project.simulation?.stabilizeSeamPairs !== false) stabilizeSeamPairs(simulation, project)
         stabilizeConstructionSides(simulation)
         stabilizeFuseLayers(simulation)
+        // Attachment/seam/fuse stabilization runs *after* the first contact
+        // projection and can push particles straight back inside the avatar.
+        // Finish each iteration with contact again. This is a particle-level
+        // guarantee only; triangle/triangle CCD remains a separate problem.
+        projectAvatarContacts(simulation, project, collideAvatar, { movableOnly: true })
       }
     }
   }
   refreshSimulationAnalysis(simulation, project)
+  // Sampling every simulated frame is optional because it is more expensive
+  // than particle contact; enabled for the interactive body-contact pass.
+  if (project.simulation?.continuousSurfaceContact === true && project.simulation?.collisions !== false) {
+    const surfaceContact = correctAvatarSurfaceIntrusion(simulation, project)
+    simulation.surfaceContact = {
+      penetratingFacesBefore: surfaceContact.before.penetratingFaces,
+      penetratingFacesAfter: surfaceContact.after.penetratingFaces,
+      maximumIntrusionMm: surfaceContact.after.maximumIntrusionMm,
+      correctedVertices: surfaceContact.accepted ? surfaceContact.correctedVertices : 0,
+      correctionAccepted: surfaceContact.accepted,
+      triangleCcdVerified: false,
+    }
+    if (surfaceContact.accepted) refreshSimulationAnalysis(simulation, project)
+  }
   simulation.elapsed += safeDt
+  return simulation
 }
 
 function visualSurfacePosition(particle, project) {
@@ -2177,11 +2673,6 @@ export function createGeometry(pieceSim) {
   const positions = new Float32Array(pieceSim.particles.length * 3)
   const colors = new Float32Array(pieceSim.particles.length * 3)
   const uvs = new Float32Array(pieceSim.particles.length * 2)
-  const repeatWidthCm = Math.max(0.5, Number(pieceSim.fabric?.texture?.repeatWidthCm ?? 20))
-  const repeatHeightCm = Math.max(0.5, Number(pieceSim.fabric?.texture?.repeatHeightCm ?? 20))
-  const grainAngle = THREE.MathUtils.degToRad(Number(pieceSim.piece.grainAngleDeg || 0))
-  const cosine = Math.cos(-grainAngle)
-  const sine = Math.sin(-grainAngle)
   pieceSim.particles.forEach((particle, index) => {
     positions[index * 3] = particle.position.x
     positions[index * 3 + 1] = particle.position.y
@@ -2189,18 +2680,33 @@ export function createGeometry(pieceSim) {
     colors[index * 3] = 1
     colors[index * 3 + 1] = 1
     colors[index * 3 + 2] = 1
-    const flat = pieceSim.flatVertices[index]
-    const grainX = flat.x * cosine - flat.y * sine
-    const grainY = flat.x * sine + flat.y * cosine
-    uvs[index * 2] = grainX / repeatWidthCm
-    uvs[index * 2 + 1] = grainY / repeatHeightCm
   })
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
   geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+  updateGeometryFabricUV(pieceSim, geometry, pieceSim.fabric)
   geometry.setIndex(pieceSim.faces.flat())
   geometry.computeVertexNormals()
   return geometry
+}
+
+// Remap fabric prints and yarns over the unchanged rest-pattern coordinates.
+// Changing a textile image or its physical repeat must never reset a live drape.
+export function updateGeometryFabricUV(pieceSim, geometry, fabric = {}) {
+  const uv = geometry.getAttribute('uv')
+  if (!uv || uv.count !== pieceSim.flatVertices.length) return false
+  const repeatWidthCm = Math.max(0.5, Number(fabric?.texture?.repeatWidthCm ?? 20) || 20)
+  const repeatHeightCm = Math.max(0.5, Number(fabric?.texture?.repeatHeightCm ?? 20) || 20)
+  const grainAngle = THREE.MathUtils.degToRad(Number(pieceSim.piece.grainAngleDeg || 0))
+  const cosine = Math.cos(-grainAngle)
+  const sine = Math.sin(-grainAngle)
+  pieceSim.flatVertices.forEach((flat, index) => {
+    const grainX = flat.x * cosine - flat.y * sine
+    const grainY = flat.x * sine + flat.y * cosine
+    uv.setXY(index, grainX / repeatWidthCm, grainY / repeatHeightCm)
+  })
+  uv.needsUpdate = true
+  return true
 }
 
 export function syncAnalysisColors(pieceSim, geometry, mode = 'surface') {
