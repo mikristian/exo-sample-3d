@@ -4151,9 +4151,12 @@ export default function App() {
           <button type="button" className="clo-command-launch" aria-label="Search commands" title="Find working commands · ⌘K" onClick={() => setCommandPaletteOpen(true)}><Search size={15}/><span>⌘K</span></button>
           <button type="button" className="clo-command-launch clo-panel-toggle" aria-label="Toggle asset browser panel" aria-pressed={libraryVisible} title="Show / hide Library" onClick={() => setLibraryVisible(value => !value)}><PanelLeft size={15}/></button>
           <button type="button" className="clo-command-launch clo-panel-toggle" aria-label="Show or hide Property Editor" aria-pressed={inspectorVisible} title="Show / hide Property Editor" onClick={() => setInspectorVisible(value => !value)}><PanelRight size={15}/></button>
+          {clothcraftHybrid && <div className="exo-v2-rust-engine" role="status" title="Actual ClothCraft Rust VBD + OGC engine · experimental fit">
+            <span className="exo-v2-rust-dot"/><span>ClothCraft <strong>RUST</strong></span>
+          </div>}
           <div className="clo-simulate-control">
             <button className={`clo-simulate-main ${visibleRunning ? 'running' : ''}`} onClick={simForVisibleEngine} title="Simulate or pause visible garment · Space"><ArrowDownToLine size={16}/><span>{visibleRunning ? 'PAUSE' : 'SIM'}</span></button>
-            <button className="clo-simulate-arrow" title="Simulation modes" aria-expanded={simulationMenuOpen} onClick={() => { setLeftSimulationMenuOpen(false); setOpenMenu(null); setSimulationMenuOpen(value => !value) }}><ChevronDown size={13}/></button>
+            {!clothcraftHybrid && <button className="clo-simulate-arrow" title="Simulation modes" aria-expanded={simulationMenuOpen} onClick={() => { setLeftSimulationMenuOpen(false); setOpenMenu(null); setSimulationMenuOpen(value => !value) }}><ChevronDown size={13}/></button>}
             {simulationMenuOpen && <div className="clo-simulation-popover">
               <strong>Simulation mode</strong>
               <button onClick={() => { applySimulationQuality('balanced'); setSimulationMenuOpen(false) }}><Check size={14}/> Normal · Balanced</button>
@@ -4163,6 +4166,7 @@ export default function App() {
               <button onClick={requestNativeSolve} disabled={nativeServiceStatus !== 'ready'} title={nativeServiceStatus === 'ready' ? 'Solve using connected native XPBD service' : 'Native solver service is offline'}><Box size={14}/> Native XPBD solve {nativeServiceStatus !== 'ready' ? <small>OFFLINE</small> : null}</button>
             </div>}
           </div>
+          {clothcraftHybrid && <button className="exo-v2-top-action" aria-label="Step ClothCraft Rust simulation" title="Advance ClothCraft Rust simulation one step" disabled={clothcraftLive?.busy||visibleRunning} onClick={() => rustCommand('step')}><Activity size={13}/> STEP</button>}
           <button className="icon-button" title="Undo" disabled={clothcraftHybrid ? clothcraftLive?.busy||!clothcraftLive?.canUndo : !undoStack.length} onClick={undoForVisibleEngine}><Undo2 size={17} /></button>
           <button className="icon-button" title="Redo" disabled={clothcraftHybrid ? clothcraftLive?.busy||!clothcraftLive?.canRedo : !redoStack.length} onClick={redoForVisibleEngine}><Redo2 size={17} /></button>
           <span className="toolbar-divider" />
@@ -4335,7 +4339,7 @@ export default function App() {
         </aside>
 
         <section className={`workspaces workspace-layout-${viewportLayout} ${clothcraftHybrid ? 'cc-rust-embedded' : ''}`} aria-label="3D and 2D windows" data-viewport-layout={viewportLayout} style={{ '--viewport-left-percent': `${viewportSplit}%` }}>
-          {clothcraftHybrid ? <ClothCraftWorkspace embedded exoSection={activeSection} exoLayout={viewportLayout} exoSplit={viewportSplit} /> : <>
+          {clothcraftHybrid ? <ClothCraftWorkspace embedded exoSection={activeSection} exoLayout={viewportLayout} exoSplit={viewportSplit} environmentPreset={project.render?.environmentPreset || 'studio'} /> : <>
           {zozoReference ? <div className="viewport-shell zozo-reference-shell" data-testid="zozo-reference-workspace">
             <div className="workspace-head viewport-head">
               <div><strong>ZOZO GITHUB DRESS · RUST/METAL REFERENCE</strong><span>14 original panels · 851 sewing constraints · read-only cached simulation</span></div>

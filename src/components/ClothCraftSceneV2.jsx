@@ -2,9 +2,18 @@ import React, {useEffect, useRef} from 'react'
 import * as THREE from 'three'
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
 import {TransformControls} from 'three/addons/controls/TransformControls.js'
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js'
 
 const COLORS = ['#638da2', '#d49b70', '#8caf87', '#b69bc7', '#ceb96d', '#82b7b1']
 const SEAM_COLORS = ['#eb775e', '#55aecd', '#dbb44c', '#8dc575', '#a98cd9', '#dd91b9']
+const setMarkerDiagnostics = (canvas, counts, visible) => {
+  if (!canvas) return
+  const total = counts.reduce((sum, count) => sum + count, 0)
+  canvas.dataset.seamMarkerCount = String(total)
+  canvas.dataset.seamMarkerVisibleCount = String(visible ? total : 0)
+  canvas.dataset.seamMarkerColors = JSON.stringify(SEAM_COLORS.filter((_, index) => counts[index] > 0))
+  canvas.dataset.seamMarkerPalette = JSON.stringify(SEAM_COLORS)
+}
 const degrees = values => values.map(value => THREE.MathUtils.degToRad(Number(value) || 0))
 const finiteVec = values => Array.isArray(values) && values.length >= 3 && values.slice(0, 3).every(Number.isFinite)
 const v3 = values => new THREE.Vector3(...values)
@@ -59,38 +68,63 @@ export default function ClothCraftSceneV2({
   snapshot, active, selected, mode = 'edit', onPick, onHover, onPlace,
   showAvatar = true, showSeams = true, wireframe = false,
   showBoundingBox = false, showContactDots = true, spread = 0,
-  onStretchDrag,
+  onStretchDrag, environmentPreset = 'studio', showFloor = true,
 }) {
   const host = useRef(null)
   const sceneRef = useRef(null)
   const propsRef = useRef({})
   propsRef.current = {snapshot, active, selected, mode, onPick, onHover, onPlace, showAvatar,
-    showSeams, wireframe, showBoundingBox, showContactDots, spread, onStretchDrag}
+    showSeams, wireframe, showBoundingBox, showContactDots, spread, onStretchDrag, environmentPreset, showFloor}
 
   useEffect(() => {
     const hostNode = host.current
     if (!hostNode) return
     const scene = new THREE.Scene()
-    scene.background = new THREE.Color('#ededf0')
+    // The original EXO GarmentViewport daylight backdrop and fog are part of
+    // the studio, independent of the Rust geometry displayed in this scene.
+    const backdropCanvas = document.createElement('canvas')
+    backdropCanvas.width = 8
+    backdropCanvas.height = 512
+    const backdropContext = backdropCanvas.getContext('2d')
+    const backdropGradient = backdropContext.createLinearGradient(0, 0, 0, 512)
+    backdropGradient.addColorStop(0, '#919298')
+    backdropGradient.addColorStop(.48, '#d4d5d9')
+    backdropGradient.addColorStop(1, '#f2f2f7')
+    backdropContext.fillStyle = backdropGradient
+    backdropContext.fillRect(0, 0, 8, 512)
+    const studioBackdrop = new THREE.CanvasTexture(backdropCanvas)
+    studioBackdrop.colorSpace = THREE.SRGBColorSpace
+    scene.background = studioBackdrop
+    scene.fog = new THREE.Fog(0xe9e9eb, 6, 16)
     const camera = new THREE.PerspectiveCamera(34, 1, .005, 150)
     camera.position.set(2.4, 1.65, 3.1)
     const renderer = new THREE.WebGLRenderer({antialias: true, alpha: false})
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 1.35
+    renderer.toneMappingExposure = 1.1
     hostNode.appendChild(renderer.domElement)
+    const pmremGenerator = new THREE.PMREMGenerator(renderer)
+    const roomEnvironment = new RoomEnvironment()
+    const studioEnvironment = pmremGenerator.fromScene(roomEnvironment, .04).texture
+    roomEnvironment.dispose()
+    scene.environment = studioEnvironment
 
     const controls = new OrbitControls(camera, renderer.domElement)
     controls.target.set(0, 0.95, 0)
     controls.enableDamping = true
-    controls.dampingFactor = .075
+    controls.dampingFactor = .07
+    controls.zoomToCursor = true
     controls.minDistance = .15
     controls.maxDistance = 15
     const ambient = new THREE.HemisphereLight(0xffffff, 0xb7b7bc, 1.85)
     scene.add(ambient)
     const key = new THREE.DirectionalLight(0xfffcf8, 2.6)
     key.position.set(2.5, 4.5, 3.1)
+    key.castShadow = true
+    key.shadow.mapSize.set(2048, 2048)
     scene.add(key)
     const fill = new THREE.DirectionalLight(0xe2ecff, .85)
     fill.position.set(-3, 2, -2.5)
@@ -99,13 +133,14 @@ export default function ClothCraftSceneV2({
     const floor = new THREE.Mesh(new THREE.CircleGeometry(3.2, 96), material('#ebebed', {roughness:.94,metalness:0}))
     floor.rotation.x = -Math.PI / 2
     floor.position.y = -.005
+    floor.receiveShadow = true
     scene.add(floor)
     const grid = new THREE.GridHelper(5.5, 22, 0xaeb0b4, 0xdddddf)
     grid.position.y = .002
     scene.add(grid)
     const axes = new THREE.Group()
     axes.add(line(new THREE.Vector3(0,.013,-2.75),new THREE.Vector3(0,.013,2.75),'#8b8c91',.52))
-    scene.add(axes)
+    grid.add(axes)
     // Subtle studio centerline from floor to above the mannequin. The regular
     // 6-metre metric floor grid and orientation axes remain intact.
     const centerGuide = new THREE.Line(
@@ -113,7 +148,7 @@ export default function ClothCraftSceneV2({
       new THREE.LineDashedMaterial({color:'#729bb0',dashSize:.08,gapSize:.045,transparent:true,opacity:.46,depthTest:true}),
     )
     centerGuide.computeLineDistances()
-    scene.add(centerGuide)
+    grid.add(centerGuide)
     const cloth = new THREE.Group()
     const avatar = new THREE.Group()
     const boundaries = new THREE.Group()
@@ -149,6 +184,7 @@ export default function ClothCraftSceneV2({
     ray.params.Line.threshold = .012
     const pointer = new THREE.Vector2()
     const state = {scene, camera, renderer, controls, cloth, avatar, boundaries, seams, dots, boxes,
+      floor, grid, ambient, key, fill, studioBackdrop,
       pivot, transform, ray, pointer, panelMeshes: new Map(), panelOffsets: new Map(),
       down: null, dragging: false, nativeStart: null, handleStart: null, requestId: null,
       sceneSnapshot: null, rings, ringDrag:null, ringEnabled:false}
@@ -464,6 +500,10 @@ export default function ClothCraftSceneV2({
       replaceChildren(cloth); replaceChildren(avatar); replaceChildren(boundaries)
       replaceChildren(seams); replaceChildren(dots); replaceChildren(boxes)
       disposeTree(rings)
+      scene.environment = null
+      studioEnvironment.dispose()
+      pmremGenerator.dispose()
+      studioBackdrop.dispose()
       floor.geometry.dispose();floor.material.dispose()
       grid.geometry.dispose()
       for (const value of [grid.material, axes.material]) {
@@ -481,11 +521,33 @@ export default function ClothCraftSceneV2({
   useEffect(() => {
     const state = sceneRef.current
     if (!state) return
+    state.floor.visible = showFloor
+    state.grid.visible = showFloor
+    const lighting = {
+      studio: {hemi:1.85,key:2.6,rim:.85},
+      softbox: {hemi:2.35,key:2.15,rim:.62},
+      dramatic: {hemi:1.05,key:3.4,rim:1.65},
+      neutral: {hemi:1.95,key:2.3,rim:.8},
+    }[environmentPreset] || {hemi:1.85,key:2.6,rim:.85}
+    state.ambient.intensity = lighting.hemi
+    state.key.intensity = lighting.key
+    state.fill.intensity = lighting.rim
+    state.renderer.domElement.dataset.studioLightingPreset = environmentPreset
+    state.renderer.domElement.dataset.studioFloorVisible = String(showFloor)
+  }, [environmentPreset, showFloor])
+
+  useEffect(() => {
+    const state = sceneRef.current
+    if (!state) return
     const {cloth, boundaries, seams, dots, avatar, boxes, panelMeshes, panelOffsets} = state
     for (const group of [cloth, boundaries, seams, dots, avatar, boxes]) replaceChildren(group)
     panelMeshes.clear()
     panelOffsets.clear()
-    if (!snapshot) return
+    if (!snapshot) {
+      state.markerCounts = SEAM_COLORS.map(() => 0)
+      setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, false)
+      return
+    }
     const world = snapshot.positions || []
     const panels = snapshot.panels || []
     const templatePanels = snapshot.template?.panels || []
@@ -502,6 +564,8 @@ export default function ClothCraftSceneV2({
       panelMesh.position.copy(offset)
       panelMesh.userData = {panel: panel.id}
       panelMesh.material.wireframe = wireframe
+      panelMesh.castShadow = true
+      panelMesh.receiveShadow = true
       cloth.add(panelMesh)
       panelMeshes.set(panel.id, panelMesh)
       panelOffsets.set(panel.id, offset)
@@ -517,8 +581,12 @@ export default function ClothCraftSceneV2({
       }
       if (!piece) return
     })
-    const dotGeometry = new THREE.SphereGeometry(.0055, 6, 5)
-    const sharedDotMaterials = SEAM_COLORS.map(color => new THREE.MeshBasicMaterial({color, depthTest: true}))
+    // Keep precisely the Rust guide endpoints, with clear, unlit marks that
+    // remain legible against the garment even at grazing camera angles.
+    const dotGeometry = new THREE.SphereGeometry(.008, 8, 6)
+    const sharedDotMaterials = SEAM_COLORS.map(color => new THREE.MeshBasicMaterial({
+      color, depthTest:false, depthWrite:false, toneMapped:false,
+    }))
     // One instanced draw call per seam color, regardless of guide count.
     const dotPositions = SEAM_COLORS.map(() => [])
     ;(snapshot.seams || []).forEach((seam, index) => {
@@ -553,9 +621,12 @@ export default function ClothCraftSceneV2({
       })
       mesh.instanceMatrix.needsUpdate = true
       mesh.frustumCulled = false
+      mesh.renderOrder = 85
       mesh.userData.markers=positions
       dots.add(mesh)
     })
+    state.markerCounts = dotPositions.map(positions => positions.length)
+    setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, showSeams && showContactDots)
     dotGeometry.dispose()
     if (snapshot.avatar?.positions?.length && snapshot.avatar?.triangles?.length) {
       avatar.add(buildIndexedMesh(snapshot.avatar.positions, snapshot.avatar.triangles, '#bcbfbe'))
@@ -574,6 +645,7 @@ export default function ClothCraftSceneV2({
     state.boundaries.visible = showSeams
     state.seams.visible = showSeams
     state.dots.visible = showSeams && showContactDots
+    setMarkerDiagnostics(state.renderer.domElement, state.markerCounts || SEAM_COLORS.map(() => 0), state.dots.visible)
     for (const mesh of state.panelMeshes.values()) mesh.material.wireframe = wireframe
     const currentPanel = selected?.panel
     for (const [id, mesh] of state.panelMeshes) {
@@ -615,12 +687,13 @@ export default function ClothCraftSceneV2({
     state.controls.update()
   }
   return <div ref={host} className="cc-scene" aria-label="EXO 3D garment scene: Rust geometry, interactive transform gizmo and sewing guides">
-    <div className="cc-v2-orientation" role="group" aria-label="3D viewport orientation widget">
-      <strong>3D</strong>
-      <button type="button" onClick={() => view([0, .05, 3.3])} title="Front camera">FRONT</button>
-      <button type="button" onClick={() => view([3.3, .05, 0])} title="Right camera">RIGHT</button>
-      <button type="button" onClick={() => view([0, 3.4, .02])} title="Top camera">TOP</button>
-      <button type="button" onClick={() => view([2.4, .7, 3.1])} title="Perspective orbit camera">ORBIT</button>
+    <div className="cc-v2-orientation" role="group" aria-label="3D viewport orientation widget"
+      style={{left:'auto',right:12,top:12,padding:3,background:'rgba(231,238,242,.94)'}}>
+      <strong title="World orientation">XYZ</strong>
+      <button type="button" onClick={() => view([0, .05, 3.3])} title="Front camera: looking along Z">F</button>
+      <button type="button" onClick={() => view([3.3, .05, 0])} title="Right camera: looking along X">R</button>
+      <button type="button" onClick={() => view([0, 3.4, .02])} title="Top camera: looking down Y">T</button>
+      <button type="button" onClick={() => view([2.4, .7, 3.1])} title="Perspective orbit camera">3D</button>
     </div>
   </div>
 }

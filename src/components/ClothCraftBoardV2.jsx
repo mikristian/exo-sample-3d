@@ -1,5 +1,5 @@
 import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
-import FlatAvatarSilhouette from './FlatAvatarSilhouette.jsx'
+import ClothCraftStudioSilhouette from './ClothCraftStudioSilhouette.jsx'
 
 const COLORS = ['#527e91', '#d29465', '#7a9e79', '#a889b2', '#c3ab5d', '#76a5a4']
 const SEAM_COLORS = ['#eb775e', '#55aecd', '#dbb44c', '#8dc575', '#a98cd9', '#dd91b9']
@@ -215,7 +215,7 @@ export default function ClothCraftBoardV2({
     })
   }
   const isDrawing = mode === 'pen' || mode === 'line'
-  return <div className="cc-board" style={{position: 'relative', background: '#e9ebeb'}}>
+  return <div className="cc-board" style={{position: 'relative', background: '#c6c7c9'}}>
     <div role="group" aria-label="2D board view controls" style={{position:'absolute',top:8,left:10,zIndex:3,display:'flex',gap:3,alignItems:'center',border:'1px solid #c2ccce',borderRadius:7,padding:3,background:'rgba(241,244,244,.94)',boxShadow:'0 2px 6px #00000012'}}>
       <span style={{fontSize:10,fontWeight:700,color:'#61757b',padding:'0 7px'}}>2D</span>
       {['FRONT','GRID'].map(preset=><button key={preset} type="button" aria-pressed={viewPreset===preset} onClick={()=>setViewPreset(preset)} style={{fontSize:10,letterSpacing:'.06em',fontWeight:700,border:'none',borderRadius:4,padding:'5px 9px',cursor:'pointer',color:viewPreset===preset?'#fff':'#566970',background:viewPreset===preset?'#50656d':'transparent'}}>{preset}</button>)}
@@ -229,7 +229,7 @@ export default function ClothCraftBoardV2({
         <button type="button" onClick={() => setDraft([])}>Cancel</button>
       </>}
     </div>
-    <svg ref={svg} viewBox={view.join(' ')} preserveAspectRatio="xMidYMid meet"
+    <svg ref={svg} viewBox={view.join(' ')} preserveAspectRatio="xMidYMid meet" style={{background: '#c6c7c9'}}
       aria-label="Metric 2D pattern board with linked sewing and measurements"
       onPointerUp={up} onPointerCancel={() => {drag.current = null}}
       onContextMenu={e => e.preventDefault()}
@@ -248,13 +248,13 @@ export default function ClothCraftBoardV2({
       onWheel={zoom}>
       <defs>
         <pattern id={`${uid}-minor`} width=".05" height=".05" patternUnits="userSpaceOnUse">
-          <path d="M .05 0 L 0 0 0 .05" fill="none" stroke="#d3d8d9" strokeWidth=".001"/>
+          <path d="M .05 0 L 0 0 0 .05" fill="none" stroke="rgba(77,78,82,.16)" strokeWidth=".0028"/>
         </pattern>
         <pattern id={`${uid}-major`} width=".25" height=".25" patternUnits="userSpaceOnUse">
-          <path d="M .25 0 L 0 0 0 .25" fill="none" stroke="#bcc5c7" strokeWidth=".0014"/>
+          <path d="M .25 0 L 0 0 0 .25" fill="none" stroke="rgba(75,76,79,.27)" strokeWidth=".0038"/>
         </pattern>
       </defs>
-      <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill="#e8e9e9" pointerEvents="none"/>
+      <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill="#c6c7c9" pointerEvents="none"/>
       <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-minor)`} opacity={viewPreset==='GRID'?1:.6} pointerEvents="none"/>
       <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-major)`} opacity={viewPreset==='GRID'?1:.65} pointerEvents="none"/>
       <line x1={view[0]-view[2]} x2={view[0]+view[2]*2} y1=".76" y2=".76" stroke="#9aaeb3" strokeWidth=".002" pointerEvents="none"/>
@@ -262,17 +262,15 @@ export default function ClothCraftBoardV2({
       <g pointerEvents="none" fontSize=".022" fill="#6c8188">
         <text x=".02" y=".745">X</text><text x=".015" y=".805">Y</text>
       </g>
-      {showSilhouette && viewPreset==='FRONT' && <g pointerEvents="none" opacity=".24" fill="#747d84" stroke="#858e94" strokeWidth=".15" transform={`translate(0 ${avatarAnchorY}) scale(${avatarScale})`} aria-label="Centered front avatar silhouette">
-        {/* Direct reuse of our original Garment Studio's orthographic body profile.
-            It is a visual drafting reference, not a certified anthropometric scan. */}
-        <FlatAvatarSilhouette avatar={{heightCm:175,shoulderWidthCm:46,chestCm:96,waistCm:78,hipCm:94,armAngleDeg:6}}/>
+      {showSilhouette && viewPreset==='FRONT' && <g pointerEvents="none" opacity=".68" transform={`translate(0 ${avatarAnchorY}) scale(${avatarScale})`} aria-label="Centered front avatar silhouette">
+        <ClothCraftStudioSilhouette avatar={{heightCm:175,shoulderWidthCm:46,chestCm:96,waistCm:78,hipCm:94,armAngleDeg:6}}/>
       </g>}
       <g transform={`translate(${offset[0]} ${offset[1]})`}>
       {panels.map(({panel, range, color, points}) => {
         const selected = active?.panel === panel.id
         return <g key={panel.id} onPointerEnter={() => hover({panel: panel.id})} onPointerLeave={() => hover(null)}>
           <path data-panel={panel.id} d={(s.triangles || []).slice(...range.triangles).map(tri => 'M' + tri.map(index => boardUV[index]?.join(',')).filter(Boolean).join('L') + 'Z').join('')}
-            fill={selected ? '#f4deb7' : color} fillOpacity=".75"
+            fill="#f4f4f3" fillOpacity={1}
             onPointerDown={e => start(e, panel)}
             onClick={e => {e.stopPropagation(); pick({panel: panel.id})}}/>
           {Object.entries(range.boundaries || {}).map(([edge, indices]) => <polyline key={edge} data-edge={`${panel.id}:${edge}`}
