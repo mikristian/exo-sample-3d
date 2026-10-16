@@ -4167,6 +4167,7 @@ export default function App() {
             </div>}
           </div>
           {clothcraftHybrid && <button className="exo-v2-top-action" aria-label="Step ClothCraft Rust simulation" title="Advance ClothCraft Rust simulation one step" disabled={clothcraftLive?.busy||visibleRunning} onClick={() => rustCommand('step')}><Activity size={13}/> STEP</button>}
+          {clothcraftHybrid && <button className="exo-v2-top-action" aria-label="Reset pattern position outside avatar" title="Restore the garment's original off-body arrangement without deleting patterns, seams or materials; then simulate again" disabled={!clothcraftLive?.panels} onClick={() => rustCommand('reset-position')}><RotateCcw size={13}/> RESET PANELS</button>}
           <button className="icon-button" title="Undo" disabled={clothcraftHybrid ? clothcraftLive?.busy||!clothcraftLive?.canUndo : !undoStack.length} onClick={undoForVisibleEngine}><Undo2 size={17} /></button>
           <button className="icon-button" title="Redo" disabled={clothcraftHybrid ? clothcraftLive?.busy||!clothcraftLive?.canRedo : !redoStack.length} onClick={redoForVisibleEngine}><Redo2 size={17} /></button>
           <span className="toolbar-divider" />
