@@ -1,0 +1,42 @@
+/* Dense context-sensitive CLO-style Property Editor. This is deliberately
+   distinct from Object Browser category navigation (which lives above). */
+.clo-inspector .clo-property-panel {min-height:0;}
+.clo-inspector .clo-pe-header {
+  min-height:32px;flex:0 0 32px;align-items:center;
+  border-bottom:1px solid #41474c;
+}
+.clo-inspector .clo-pe-header>span {font-size:11px;font-weight:750;letter-spacing:.065em;color:#a9d2eb;}
+.clo-inspector .clo-pe-header>strong {font-size:9px;font-weight:600;color:#869da9;}
+.clo-inspector .clo-pe-list {overflow-y:auto;flex:1 1 auto;min-height:0;background:#262729;}
+.clo-inspector .clo-pe-section {border-bottom:1px solid #343941;}
+.clo-inspector .clo-pe-trigger {
+  display:flex;align-items:center;gap:8px;width:100%;min-height:34px;
+  padding:7px 12px;border:0;text-align:left;cursor:pointer;
+  background:#303134;color:#a7d3ec;
+}
+.clo-inspector .clo-pe-trigger svg {flex:0 0 auto;color:#9ba4ac;}
+.clo-inspector .clo-pe-trigger span {font-size:11px;font-weight:650;letter-spacing:.015em;}
+.clo-inspector .clo-pe-trigger:hover {background:#3a434b;color:#e1f4ff;}
+.clo-inspector .clo-pe-section.expanded>.clo-pe-trigger {background:#36424a;color:#9fdbff;}
+.clo-inspector .clo-pe-trigger:focus-visible {outline:2px solid #64b5ea;outline-offset:-2px;}
+.clo-inspector .clo-pe-content {padding:9px 12px 12px;background:#25282b;color:#d5dee4;}
+.clo-inspector .clo-pe-content[hidden] {display:none!important;}
+.clo-inspector .clo-pe-readout {display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 1px;border-bottom:1px solid #353b40;font-size:10px;}
+.clo-inspector .clo-pe-readout>span {color:#97aab9;}
+.clo-inspector .clo-pe-readout>strong {max-width:55%;font-size:10px;font-weight:550;text-align:right;overflow-wrap:anywhere;color:#dde5e9;}
+.clo-inspector .clo-pe-note {font-size:10px;line-height:1.55;color:#a4adb5;margin:8px 0 2px;}
+.clo-inspector .clo-pe-actions {display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:9px;}
+.clo-inspector .clo-pe-actions button,.clo-inspector .clo-pe-action {
+  min-height:29px;padding:6px;border:1px solid #506372;border-radius:3px;
+  background:#34434e;color:#c3e0f1;font-size:9px;font-weight:650;cursor:pointer;
+}
+.clo-inspector .clo-pe-action {width:100%;margin-top:9px;}
+.clo-inspector .clo-pe-actions button:hover,.clo-inspector .clo-pe-action:hover {background:#486174;color:#fff;}
+.clo-inspector .clo-pe-fabric {display:grid;grid-template-columns:27px 1fr;grid-template-rows:auto auto;column-gap:9px;align-items:center;padding:8px 0;}
+.clo-inspector .clo-pe-fabric>span {grid-row:span 2;width:27px;height:27px;border:1px solid #7a8894;}
+.clo-inspector .clo-pe-fabric>strong {font-size:11px;color:#dae6eb;}
+.clo-inspector .clo-pe-fabric>small {font-size:10px;color:#90a5b2;}
+.clo-inspector .clo-pe-existing-properties {padding-top:8px;margin-top:10px;border-top:1px solid #3b444a;}
+.clo-inspector .clo-pe-existing-properties>.panel-section {padding:10px 0;}
+.clo-inspector .clo-pe-existing-properties>.clo-selected-summary {padding:9px 0;}
+.clo-inspector .clo-pe-existing-properties .panel-title>span {color:#a8c6d6;}

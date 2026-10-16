@@ -22,6 +22,13 @@ const OBJECT_TAB_ART = {
   Buttonhole:'buttonholes', Topstitch:'topstitch', Puckering:'puckering',
   Trim:'trim', Grading:'grading', POM:'pom',
 }
+const OBJECT_CATEGORY_ART = {
+  '2D Pattern':'pattern-properties',
+  'Sewing':'sew',
+  '3D Form':'select-3d',
+  'Material':'fabric',
+  'Environment':'render',
+}
 
 export const OBJECT_HIERARCHY = [
   {title:'2D Pattern', children:[['Pattern Pieces','Pattern','Scene'],['Internal Lines','Pattern','Scene'],['Grading & Measurements','Production','POM']]},
@@ -99,7 +106,7 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
       <div className="clo-object-actions"><span>OBJECT CATEGORIES · SELECT A GROUP</span></div>
       <nav id="clo-object-hierarchy-menu" className="clo-object-hierarchy-menu" aria-label="Object Browser categories">
       {OBJECT_HIERARCHY.map(item=><div className="clo-object-hierarchy-group" key={item.title}>
-        <button type="button" className={categoryExpanded===item.title?'expanded':''} aria-expanded={categoryExpanded===item.title} onClick={()=>setCategoryExpanded(categoryExpanded===item.title?'':item.title)}><ChevronRight size={13}/><strong>{item.title}</strong></button>
+        <button type="button" className={categoryExpanded===item.title?'expanded':''} aria-expanded={categoryExpanded===item.title} onClick={()=>setCategoryExpanded(categoryExpanded===item.title?'':item.title)}><ChevronRight size={13}/><CadToolIcon id={OBJECT_CATEGORY_ART[item.title]} size={17}/><strong>{item.title}</strong></button>
         {categoryExpanded===item.title && <div className="clo-object-hierarchy-children">{item.children.map(([label,section,objectTab])=><button type="button" key={label} onClick={()=>{setActiveSection(section);setTab(objectTab);setCategoryMenuOpen(false)}}>{label}</button>)}</div>}
       </div>)}
       </nav>
