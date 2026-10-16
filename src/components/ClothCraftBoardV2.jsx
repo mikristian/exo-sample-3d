@@ -62,7 +62,7 @@ function Dimensions({points, selected}) {
 export default function ClothCraftBoardV2({
   s, active, pick = () => {}, hover = () => {}, edit = () => {},
   mode = 'edit', busy = false, onPolygon = () => {},
-  showMeasurements = true, showSilhouette = true, showSeamDots = true,
+  showMeasurements = true, showSilhouette = true, showSeamDots = true, showAvatar = true,
 }) {
   const svg = useRef(null), drag = useRef(null), [view, setView] = useState(INITIAL_VIEW), [draft, setDraft] = useState([])
   const [viewPreset, setViewPreset] = useState('FRONT')
@@ -123,7 +123,6 @@ export default function ClothCraftBoardV2({
   const spanX = displayed.maxX-displayed.minX, spanY=displayed.maxY-displayed.minY
   // This vector is Garment Studio's full-height 175cm body proportion,
   // not a miniature silhouette that shrinks to the two panels' dimensions.
-  const avatarScale = 1.75 / 185
   const avatarAnchorY = .95
   const focus = (selection=false) => {
     let b=displayed
@@ -262,8 +261,8 @@ export default function ClothCraftBoardV2({
       <g pointerEvents="none" fontSize=".022" fill="#6c8188">
         <text x=".02" y=".745">X</text><text x=".015" y=".805">Y</text>
       </g>
-      {showSilhouette && viewPreset==='FRONT' && <g pointerEvents="none" opacity=".68" transform={`translate(0 ${avatarAnchorY}) scale(${avatarScale})`} aria-label="Centered front avatar silhouette">
-        <ClothCraftStudioSilhouette avatar={{heightCm:175,shoulderWidthCm:46,chestCm:96,waistCm:78,hipCm:94,armAngleDeg:6}}/>
+      {showSilhouette && showAvatar && viewPreset==='FRONT' && s?.avatar?.positions?.length > 0 && s?.avatar?.triangles?.length > 0 && <g pointerEvents="none" opacity=".66" transform={`translate(0 ${avatarAnchorY})`} aria-label="Centered front avatar silhouette">
+        <ClothCraftStudioSilhouette avatar={s.avatar}/>
       </g>}
       <g transform={`translate(${offset[0]} ${offset[1]})`}>
       {panels.map(({panel, range, color, points}) => {

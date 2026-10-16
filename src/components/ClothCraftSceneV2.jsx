@@ -632,6 +632,7 @@ export default function ClothCraftSceneV2({
       avatar.add(buildIndexedMesh(snapshot.avatar.positions, snapshot.avatar.triangles, '#bcbfbe'))
     }
     avatar.visible = showAvatar
+    state.renderer.domElement.dataset.avatarVisible = String(showAvatar && avatar.children.length > 0)
     boundaries.visible = showSeams
     seams.visible = showSeams
     dots.visible = showSeams && showContactDots
@@ -642,6 +643,7 @@ export default function ClothCraftSceneV2({
     const state = sceneRef.current
     if (!state) return
     state.avatar.visible = showAvatar
+    state.renderer.domElement.dataset.avatarVisible = String(showAvatar && state.avatar.children.length > 0)
     state.boundaries.visible = showSeams
     state.seams.visible = showSeams
     state.dots.visible = showSeams && showContactDots

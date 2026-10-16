@@ -56,6 +56,34 @@ try{
  await p.goto(ui+'/?desktop=1&engine=clothcraft',{waitUntil:'domcontentloaded'})
  await p.locator('.cc-board [data-panel]').first().waitFor({timeout:50000})
  const board=p.locator('.cc-board svg'),front=p.locator('.cc-board [data-panel]').first()
+ // One 3D avatar mesh is the ONLY source of the 2D silhouette. Both views
+ // appear/disappear together, and no fixed SVG figure is drawn without it.
+ const currentAvatar=p.locator('[aria-label="Silhouette of current 3D avatar"]')
+ const avatarToggle=p.locator('.cc-embedded-bottom').getByRole('button',{name:'Avatar',exact:true})
+ await currentAvatar.waitFor({timeout:30000})
+ await p.waitForFunction(()=>document.querySelector('.cc-scene canvas')?.dataset.avatarVisible==='true')
+ const liveMesh=await currentAvatar.evaluate(e=>({vertices:Number(e.dataset.sourceVertices),faces:Number(e.dataset.sourceFaces),contours:Number(e.dataset.contours),d:e.querySelector('path')?.getAttribute('d')}))
+ assert(liveMesh.vertices>1000 && liveMesh.faces>1000,'SVG must be computed from actual native 3D mesh')
+ assert(liveMesh.d?.length>100,'SVG mask must follow model contours, not a generic primitive')
+ await avatarToggle.click()
+ await p.waitForFunction(()=>document.querySelector('.cc-scene canvas')?.dataset.avatarVisible==='false')
+ assert.equal(await currentAvatar.count(),0,'No 2D body while 3D body is hidden')
+ await avatarToggle.click()
+ await currentAvatar.waitFor({timeout:12000})
+ assert.equal(await p.locator('.cc-scene canvas').getAttribute('data-avatar-visible'),'true')
+ assert.equal(await currentAvatar.evaluate(e=>e.querySelector('path')?.getAttribute('d')),liveMesh.d,'Show/hide must not substitute a different mannequin')
+ // Geometry swap regression: *same triangulation*, changed width gives a
+ // different SVG. Hiding or missing avatar data must never draw a mannequin.
+ const swapped=await p.evaluate(async()=>{
+  const {projectAvatarSilhouette}=await import('/src/components/avatarSilhouetteFromMesh.js')
+  const faces=[[0,1,2],[0,2,3]]
+  const specimen=half=>({positions:[[-half,0,0],[half,0,0],[half,1.8,0],[-half,1.8,0]],triangles:faces})
+  const a=projectAvatarSilhouette(specimen(.20)),b=projectAvatarSilhouette(specimen(.34))
+  return {hasNull:projectAvatarSilhouette(null)!==null,a:a?.d,b:b?.d,contours:a?.contourCount}
+ })
+ assert.equal(swapped.hasNull,false)
+ assert(swapped.a?.startsWith('M')&&swapped.b?.startsWith('M'))
+ assert.notEqual(swapped.a,swapped.b,'Silhouette must adapt when a different 3D mesh is selected')
  // Original EXO chrome and Rust controls occupy ONE top bar, not three
  // duplicate ClothCraft title rows in each viewport.
  assert.equal(await p.locator('.cc-embedded-top,.cc-embedded-disclosure,.cc-embedded-main h2').count(),0)
