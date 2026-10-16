@@ -2,6 +2,20 @@
 
 This integration lives on the separate `integration/clothcraft-private` branch. The canonical EXO worktree and the upstream ClothCraft contribution branch are independent. ClothCraft remains upstream MIT-licensed software; EXO's original files remain GPL-3.0-only. The bridge preserves source EXO projects and runs ClothCraft's actual CPU Rust utilities as separate processes, after generating compatible template JSON using EXO's existing native C++ exporter.
 
+## Separate native ClothCraft.app (macOS)
+
+ClothCraft's own Rust/egui **editor** is also installed independently at `~/Applications/ClothCraft.app`, next to but not inside `EXO Sample 3D ClothCraft.app`. This is the actual native desktop GUI from the unmodified upstream ClothCraft checkout, using `wgpu` (the macOS Metal renderer), not the EXO WebKit interface or a wrapped website. The first Mac desktop build passed `cloth-fit --steps 0 --ui-smoke` and produced a native UI screenshot, then the installed app launched and macOS's window registry confirmed a 1512×900 ClothCraft editor window.
+
+Open from Finder → Applications → ClothCraft, or run:
+
+```sh
+open -a "$HOME/Applications/ClothCraft.app"
+```
+
+To rebuild it locally from the upstream Rust `cloth-fit` desktop binary, use `npm run clothcraft:build-native-app`. Compile that binary once with the desktop feature enabled (`cargo build --locked -j 2 --bin cloth-fit` using the local Rust toolchain). The app includes ClothCraft's original MIT license, its own ram-head Finder/Dock icon and CC0 MakeHuman OBJ with asset notices. The executable starts paused (`--steps 0 --view`) and keeps artifacts in `~/Library/Application Support/ClothCraft/Workspace`. Use ClothCraft's **Export** control to persist edits; this early alpha **does not autosave**. On a later launch, the wrapper reopens `fitting-project.json` in that folder if present. Diagnostics go to `~/Library/Logs/ClothCraft/clothcraft.log`. An ad-hoc local macOS signature is applied; the app is not notarized, release-qualified or intended for redistribution.
+
+This desktop editor is independent of EXO and does not automatically sync EXO patterns, avatar assignments or simulation state. See the integration commands below for explicitly exported interchange. Upstream's README currently lists Windows as the only release-exercised desktop platform, so this successful Mac window smoke is useful but **does not constitute full macOS qualification or a certified garment fit**.
+
 ## Run from the EXO private worktree
 
 For the live personal UI, run `npm run clothcraft:start` to launch both local servers from one terminal (Ctrl+C stops both). Alternatively, start `npm run clothcraft:serve` in one terminal and `npm run clothcraft:dev` in another. Open `http://127.0.0.1:5174` and select the **Production** workspace; the two ClothCraft controls near the bottom validate the editable EXO garment in Rust or bake downloadable ClothCraft OBJ + template JSON. Baking opens an orbitable, read-only 3D preview of the actual ClothCraft mesh inside EXO, alongside saving the OBJ. The private port 5174 allows the original EXO server to stay on 5173 without interference. The localhost bridge listens on 5193 and accepts only requests from the EXO development origins.
