@@ -1,5 +1,5 @@
 {
-  "name": "garment-studio",
+  "name": "exo-sample-3d",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -78,7 +78,8 @@
     "check:ppf-sewing": "node scripts/analyze-ppf-sewing.mjs",
     "check:ppf-metal": "scripts/check-ppf-metal.sh",
     "ppf:serve": "node ppf_backend/server.mjs",
-    "ppf:health": "curl -fsS http://127.0.0.1:5192/health"
+    "ppf:health": "curl -fsS http://127.0.0.1:5192/health",
+    "capture:gallery": "node scripts/capture-exo-public-gallery.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.2",
@@ -91,6 +92,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^5.0.4",
+    "playwright-core": "^1.56.1",
     "vite": "^6.4.3"
   }
 }

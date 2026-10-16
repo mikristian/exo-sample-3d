@@ -59,7 +59,7 @@ garment::Json load(const QString& path) {
 
 int main(int argc,char** argv) {
   QApplication app(argc,argv);
-  QApplication::setApplicationName("Garment Studio C++");
+  QApplication::setApplicationName("EXO Sample 3D · C++");
   QApplication::setOrganizationName("MIKRISTIAN");
   QFont font=app.font();
   font.setPointSize(11);

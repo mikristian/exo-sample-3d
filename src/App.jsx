@@ -3633,7 +3633,7 @@ export default function App() {
     anchor.download = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'garment'}-bom.xml`
     anchor.click()
     URL.revokeObjectURL(url)
-    setCommandResult('BOM XML exported in the open Garment Studio schema (not a proprietary CLO BOM format).')
+    setCommandResult('BOM XML exported in the open EXO Sample 3D schema (not a proprietary CLO BOM format).')
   }
 
   const exportMarker = (format) => {
@@ -3966,8 +3966,8 @@ export default function App() {
 
   return (
     <div className={`app-shell ${showTopWorkspaceTabs ? '' : 'workspace-tabs-hidden'}`}>
-      <div className="clo-mac-menu" role="menubar" aria-label="Garment Studio application menus">
-        <div className="clo-app-menu-brand"><span className="clo-brand-dot">◈</span><strong>Garment Studio</strong></div>
+      <div className="clo-mac-menu" role="menubar" aria-label="EXO Sample 3D application menus">
+        <div className="clo-app-menu-brand"><span className="clo-brand-dot">◈</span><strong>EXO Sample 3D</strong></div>
         {CLO_MENUS.map(menu => <div className="clo-menu-group" key={menu.title}>
           <button type="button" className={openMenu === menu.title ? 'active' : ''} aria-expanded={openMenu === menu.title} onClick={() => { setSimulationMenuOpen(false); setOpenMenu(openMenu === menu.title ? null : menu.title) }}>{menu.title}</button>
           {openMenu === menu.title && <div className="clo-menu-popover" role="menu">{menu.commands.map(([label, action]) => <button key={label} role="menuitem" disabled={!action} onClick={() => executeStudioAction(action)}>{label}{!action && <small>PREVIEW</small>}</button>)}</div>}

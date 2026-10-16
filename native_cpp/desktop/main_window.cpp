@@ -97,7 +97,7 @@ QDoubleSpinBox* MainWindow::measurement(QWidget* parent) {
 MainWindow::MainWindow(Json initial,const QString& sourcePath,QWidget* parent)
     : QMainWindow(parent), document_(std::make_unique<Document>(std::move(initial))),
       sourceFile_(sourcePath) {
-  setWindowTitle("Garment Studio  ·  C++ Native Preview");
+  setWindowTitle("EXO Sample 3D · C++ Native Preview");
   resize(1430, 900);
   setDockOptions(QMainWindow::AllowNestedDocks | QMainWindow::AnimatedDocks);
   const auto color=QStringLiteral(

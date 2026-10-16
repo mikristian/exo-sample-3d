@@ -1,6 +1,6 @@
-# Contributing to Garment Studio
+# Contributing to EXO Sample 3D
 
-Garment Studio welcomes engineering, research, patternmaking, apparel-production, design and documentation contributions.
+EXO Sample 3D welcomes engineering, research, patternmaking, apparel-production, design and documentation contributions.
 
 ## Before opening a pull request
 
@@ -34,7 +34,7 @@ npm run check:native-xpbd
 
 ### Canonical document first
 
-Pattern geometry, seams, fabrics, grading, trims, measurements and production metadata belong in the Garment Studio document model. A simulation backend may cache derived topology, but it must not become the only place the garment exists.
+Pattern geometry, seams, fabrics, grading, trims, measurements and production metadata belong in the EXO Sample 3D document model. A simulation backend may cache derived topology, but it must not become the only place the garment exists.
 
 ### Backends are replaceable
 
