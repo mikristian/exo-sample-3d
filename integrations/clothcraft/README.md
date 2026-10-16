@@ -6,6 +6,18 @@ This integration lives on the separate `integration/clothcraft-private` branch. 
 
 For the live personal UI, run `npm run clothcraft:start` to launch both local servers from one terminal (Ctrl+C stops both). Alternatively, start `npm run clothcraft:serve` in one terminal and `npm run clothcraft:dev` in another. Open `http://127.0.0.1:5174` and select the **Production** workspace; the two ClothCraft controls near the bottom validate the editable EXO garment in Rust or bake downloadable ClothCraft OBJ + template JSON. Baking opens an orbitable, read-only 3D preview of the actual ClothCraft mesh inside EXO, alongside saving the OBJ. The private port 5174 allows the original EXO server to stay on 5173 without interference. The localhost bridge listens on 5193 and accepts only requests from the EXO development origins.
 
+### Installed standalone macOS application
+
+The same personal integration also has a **real signed macOS `.app`** in `~/Applications/EXO Sample 3D ClothCraft.app`. Double-click it from Finder/Applications or launch with:
+
+```sh
+open -a "$HOME/Applications/EXO Sample 3D ClothCraft.app"
+```
+
+It opens a native AppKit window with an embedded WebKit interface rather than a Chrome tab. The bundle contains the compiled EXO interface, native C++ exporter, ClothCraft Rust template/fit executables, a locally licensed CC0 mannequin and its own Node runtime. The app **automatically starts** its two loopback services on ports 5284 (interface) and 5283 (Rust bridge), then stops those processes when quitting normally. No Vite dev server or terminal command is needed just to open the installed app. Browser downloads in the standalone app go to your `~/Downloads` folder, while generated intermediate Rust artifacts are stored outside the signed app in `~/Library/Application Support/EXO-Sample-3D-ClothCraft/Output/`.
+
+Rebuild/reinstall after changes with `npm run clothcraft:build-app` (requires Xcode Swift compiler, locally built EXO C++ CLI and ClothCraft Rust binaries). This is a **personal arm64 macOS build** with an ad-hoc local signature, not a notarized or publicly distributed app. Full ClothCraft solver convergence, on-avatar fit and independent industrial file approvals are still unverified.
+
 Clone ClothCraft into `research/oss/clothcraft` (ignored) or set `EXO_CLOTHCRAFT_REPO` to an existing checkout. Install an appropriate Rust toolchain; ClothCraft's README lists Windows as the only locally validated desktop. The EXO CAD exporter needs to be built once:
 
 ```sh

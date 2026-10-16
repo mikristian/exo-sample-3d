@@ -8,6 +8,7 @@
     "clothcraft:serve": "node integrations/clothcraft/server.mjs",
     "clothcraft:dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
     "clothcraft:start": "node integrations/clothcraft/start.mjs",
+    "clothcraft:build-app": "bash integrations/clothcraft/macos/build.sh",
     "clothcraft:export": "node integrations/clothcraft/bridge.mjs export",
     "clothcraft:validate": "node integrations/clothcraft/bridge.mjs validate",
     "clothcraft:bake": "node integrations/clothcraft/bridge.mjs bake",

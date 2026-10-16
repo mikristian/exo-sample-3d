@@ -3583,7 +3583,8 @@ export default function App() {
     setCommandResult('Sending current garment to local ClothCraft Rust tools…')
     try {
       const operation = bake ? 'bake' : 'validate'
-      const response = await fetch(`http://127.0.0.1:5193/${operation}`, {
+      const bridgeUrl = import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193'
+      const response = await fetch(`${bridgeUrl}/${operation}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ document: project }),
       })
@@ -3599,7 +3600,7 @@ export default function App() {
       }
       download(JSON.stringify(result.template, null, 2), `${project.name.replace(/[^\w-]+/g, '-').toLowerCase()}-clothcraft-template.json`, 'application/json')
       if (bake && result.baking?.artifacts?.includes('cloth.obj')) {
-        const meshResponse = await fetch('http://127.0.0.1:5193/artifacts/cloth.obj')
+        const meshResponse = await fetch(`${bridgeUrl}/artifacts/cloth.obj`)
         if (!meshResponse.ok) throw new Error('ClothCraft baking passed, but the generated OBJ could not be downloaded')
         const obj = await meshResponse.text()
         download(obj, 'clothcraft-baked-geometry.obj', 'text/plain')
