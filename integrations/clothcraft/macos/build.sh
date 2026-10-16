@@ -12,6 +12,28 @@ mkdir -p "$RES/bin" "$RES/integrations/clothcraft" "$RES/native_cpp/build-cmake"
 VITE_CLOTHCRAFT_BRIDGE_URL=http://127.0.0.1:5283 npm run build
 rsync -a --delete dist/ "$RES/web/"
 
+# Personal offline build only: the user's existing private CLO export and CC0
+# MPFB avatars live outside this tracked Git worktree. Never add them to Git
+# or the public release. Missing files stay unavailable in the UI.
+if [[ "${EXO_INCLUDE_PERSONAL_AVATARS:-1}" == "1" ]]; then
+  AVATAR_ROOT="${EXO_PERSONAL_AVATAR_ROOT:-$ROOT/../garment-studio/public/avatars}"
+  if [[ -s "$AVATAR_ROOT/clo-thomas.glb" ]]; then
+    cp "$AVATAR_ROOT/clo-thomas.glb" "$RES/web/avatars/clo-thomas.glb"
+    echo "Included local user-owned Thomas avatar in personal .app only"
+  else
+    echo "Thomas private export unavailable; its UI option will be disabled" >&2
+  fi
+  mkdir -p "$RES/web/avatars/opensew"
+  for character in theo nora; do
+    if [[ -s "$AVATAR_ROOT/opensew/$character.glb" ]]; then
+      cp "$AVATAR_ROOT/opensew/$character.glb" "$RES/web/avatars/opensew/$character.glb"
+    fi
+  done
+  if [[ -f "$AVATAR_ROOT/opensew/README.md" ]]; then
+    cp "$AVATAR_ROOT/opensew/README.md" "$RES/web/avatars/opensew/README.md"
+  fi
+fi
+
 NODE_BIN="${EXO_NODE_BIN:-$(command -v node)}"
 test -x "$NODE_BIN"
 cp "$NODE_BIN" "$RES/bin/node"

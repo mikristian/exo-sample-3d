@@ -353,7 +353,15 @@ function makeAvatar(project) {
   return group
 }
 
-async function upgradeAvatarVisualization(group, project, customAvatar = null) {
+function disposeAvatarObject(root) {
+  root?.traverse((object) => {
+    object.geometry?.dispose?.()
+    const materials = Array.isArray(object.material) ? object.material : object.material ? [object.material] : []
+    for (const material of materials) material?.dispose?.()
+  })
+}
+
+async function upgradeAvatarVisualization(group, project, customAvatar = null, isCurrent = () => true) {
   const avatarModel = project.avatar?.model || 'makehuman-base'
   let detailed
   if (avatarModel === 'clo-thomas') {
@@ -372,6 +380,13 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null) {
     detailed.name = 'makehuman-detailed-avatar'
   }
 
+  // Fast avatar switching can finish an earlier GLB/OBJ request after the new
+  // avatar has been installed. Never attach a stale loaded model to the scene.
+  if (!isCurrent()) {
+    disposeAvatarObject(detailed)
+    return null
+  }
+
   // Skinned CLO avatars need their skeleton updated before computing world bounds.
   detailed.updateMatrixWorld(true)
   const initialBounds = new THREE.Box3().setFromObject(detailed)
@@ -379,6 +394,10 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null) {
   initialBounds.getSize(initialSize)
   const targetHeightM = Math.max(1.4, Math.min(2.2, Number(project.avatar?.heightCm ?? 180) / 100))
   const uniformScale = targetHeightM / Math.max(0.001, initialSize.y)
+  if (!Number.isFinite(uniformScale) || initialSize.y < 0.001) {
+    disposeAvatarObject(detailed)
+    throw new Error('Avatar file contains no measurable body height')
+  }
   detailed.scale.setScalar(uniformScale)
   detailed.updateMatrixWorld(true)
 
@@ -387,6 +406,12 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null) {
   scaledBounds.getCenter(scaledCenter)
   detailed.position.set(-scaledCenter.x, -scaledBounds.min.y, -scaledCenter.z)
   detailed.updateMatrixWorld(true)
+  const finalBounds = new THREE.Box3().setFromObject(detailed)
+  const finalHeightM = finalBounds.max.y - finalBounds.min.y
+  if (!Number.isFinite(finalHeightM) || Math.abs(finalHeightM - targetHeightM) > 0.025) {
+    disposeAvatarObject(detailed)
+    throw new Error(`Avatar normalization failed: ${finalHeightM} m instead of ${targetHeightM} m`)
+  }
 
   const opacity = project.avatar?.visibility ?? 0.82
   const material = new THREE.MeshStandardMaterial({
@@ -417,6 +442,7 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null) {
   for (const child of fallbackChildren) child.visible = false
   group.add(detailed)
   group.userData.visualAvatar = avatarModel
+  group.userData.visualHeightM = finalHeightM
   group.userData.collisionAvatar = 'analytic-parametric'
   return detailed
 }
@@ -1364,10 +1390,7 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
 
     if (avatarRef.current) {
       scene.remove(avatarRef.current)
-      avatarRef.current.traverse((object) => {
-        object.geometry?.dispose?.()
-        if (object.material && object.material !== avatarRef.current?.material) object.material.dispose?.()
-      })
+      disposeAvatarObject(avatarRef.current)
     }
     meshAvatarColliderRef.current?.dispose?.()
     meshAvatarColliderRef.current = null
@@ -1375,8 +1398,17 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
     avatarRef.current.visible = showAvatar
     scene.add(avatarRef.current)
     const avatarGroup = avatarRef.current
-    void upgradeAvatarVisualization(avatarGroup, project, customAvatar).then((detailed) => {
-      if (avatarRef.current === avatarGroup) return
+    if (mountRef.current) {
+      mountRef.current.dataset.avatarModel = project.avatar?.model || 'makehuman-base'
+      mountRef.current.dataset.avatarLoadStatus = 'loading'
+    }
+    void upgradeAvatarVisualization(avatarGroup, project, customAvatar, () => avatarRef.current === avatarGroup).then((detailed) => {
+      if (!detailed || avatarRef.current !== avatarGroup) return
+      if (mountRef.current) {
+        mountRef.current.dataset.avatarLoadStatus = 'ready'
+        mountRef.current.dataset.avatarVisualHeightM = String(avatarGroup.userData.visualHeightM)
+        mountRef.current.dataset.avatarVisibleChildren = String(avatarGroup.children.filter(child => child.visible).length)
+      }
       // Build from the actual imported/displayed avatar model in its final
       // normalized world pose, not the simplified analytic placeholder.
       meshAvatarColliderRef.current?.dispose?.()
@@ -1391,13 +1423,11 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
         meshAvatarColliderRef.current.dispose()
         meshAvatarColliderRef.current = null
       }
-      avatarGroup.remove(detailed)
-      detailed.traverse((object) => {
-        object.geometry?.dispose?.()
-        object.material?.dispose?.()
-      })
     }).catch((error) => {
-      console.warn('Detailed fitting avatar failed to load; using analytic avatar fallback', error)
+      if (avatarRef.current === avatarGroup) {
+        if (mountRef.current) mountRef.current.dataset.avatarLoadStatus = 'fallback'
+        console.warn('Detailed fitting avatar failed to load; using analytic avatar fallback', error)
+      }
     })
 
     if (windHelperRef.current) {
