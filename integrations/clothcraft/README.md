@@ -4,6 +4,8 @@ This integration lives on the separate `integration/clothcraft-private` branch. 
 
 ## Separate native ClothCraft.app (macOS)
 
+**New third workspace:** Jarvis's linked 2D/3D **EXO ClothCraft Studio.app** and its tested, opt-in Rust session backend are documented in [Jarvis workspace review (16 October 2026)](JARVIS_WORKSPACE_REVIEW_2026-10-16.md). This is not the upstream native ClothCraft app, and it does not replace the original full EXO application. Use `npm run clothcraft:build-workspace` to rebuild the standalone integrated Studio.
+
 ClothCraft's own Rust/egui **editor** is also installed independently at `~/Applications/ClothCraft.app`, next to but not inside `EXO Sample 3D ClothCraft.app`. This is the actual native desktop GUI from the unmodified upstream ClothCraft checkout, using `wgpu` (the macOS Metal renderer), not the EXO WebKit interface or a wrapped website. The first Mac desktop build passed `cloth-fit --steps 0 --ui-smoke` and produced a native UI screenshot, then the installed app launched and macOS's window registry confirmed a 1512×900 ClothCraft editor window.
 
 Open from Finder → Applications → ClothCraft, or run:
