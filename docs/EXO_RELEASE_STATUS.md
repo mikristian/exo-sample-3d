@@ -28,7 +28,8 @@ The **EXO Sample 3D** GitHub source is a GPL-3.0-only research/development relea
 - [x] Inspect HEAD and the seven reachable historical commits for common sensitive filenames and GitHub/API-key signatures (no matching secret files found; pattern checks are not a substitute for a full security audit).
 - [x] Pass clean staged-tree source filename gate, isolated npm clean install, Vite public build, non-simulation suite and physics tests.
 - [ ] Verify included soundtrack and any contributed photography have valid publication rights.
-- [ ] Push and verify remote hash, then confirm unauthenticated GitHub access.
+- [x] Push and verify GitHub `main` commit SHA, then confirm the public repository and current 3D gallery are accessible without authentication.
+- [x] Enable GitHub's private vulnerability reporting for responsible disclosure.
 - [ ] Revisit security/dependency inventory and compatibility reports for every subsequent release.
 
 ## Engineering gates for stable software
