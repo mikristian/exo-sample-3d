@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { nativeExport, paths } from './bridge.mjs'
 import { runContact } from './contact_run.mjs'
+import { createWorkspace } from './workspace.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 // Standalone signed .apps must not write generated garments into Contents/Resources.
@@ -14,7 +15,8 @@ const host = '127.0.0.1'
 const port = Number(process.env.EXO_CLOTHCRAFT_PORT || 5193)
 const origins = new Set(['http://127.0.0.1:5173', 'http://localhost:5173',
   'http://127.0.0.1:5174', 'http://localhost:5174',
-  'http://127.0.0.1:5284', 'http://localhost:5284'])
+  'http://127.0.0.1:5284', 'http://localhost:5284',
+  'http://127.0.0.1:5286', 'http://localhost:5286'])
 const maxBytes = 8 * 1024 * 1024
 const files = new Map([
   ['template.json', 'application/json'], ['cloth.obj', 'text/plain'],
@@ -22,6 +24,9 @@ const files = new Map([
   ['grain-guides.obj', 'text/plain'],
 ])
 let activeContactRun = false
+const workspace = createWorkspace(outputs)
+process.on("exit", () => workspace.close())
+process.on("SIGTERM", () => { workspace.close(); server.close(); process.exit(0) })
 
 function send(res, code, payload, origin = '') {
   const content = JSON.stringify(payload)
@@ -75,6 +80,10 @@ const server = http.createServer(async (req, res) => {
       'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '600' })
     return res.end()
+  }
+  if (req.method === 'POST' && req.url === '/workspace') {
+    try { const result = await workspace.request(await readBody(req)); return send(res, result.ok ? 200 : 422, result, origin) }
+    catch (error) { return send(res, 422, {ok:false,error:error.message}, origin) }
   }
   if (req.method === 'GET' && req.url === '/health') {
     const config = paths()

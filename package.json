@@ -94,7 +94,10 @@
     "check:ppf-metal": "scripts/check-ppf-metal.sh",
     "ppf:serve": "node ppf_backend/server.mjs",
     "ppf:health": "curl -fsS http://127.0.0.1:5192/health",
-    "capture:gallery": "node scripts/capture-exo-public-gallery.mjs"
+    "capture:gallery": "node scripts/capture-exo-public-gallery.mjs",
+    "clothcraft:build-workspace": "bash integrations/clothcraft/macos/build-workspace-app.sh",
+    "clothcraft:check-workspace": "node integrations/clothcraft/check-workspace.mjs",
+    "clothcraft:qa-workspace": "node integrations/clothcraft/qa-workspace.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.2",

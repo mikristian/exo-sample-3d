@@ -9,7 +9,7 @@ mkdir -p "$RES/bin" "$RES/integrations/clothcraft" "$RES/native_cpp/build-cmake"
   "$RES/collision-avatars" "$APP/Contents/MacOS"
 
 # Use the exact tested production assets, not a Vite development-server page.
-VITE_CLOTHCRAFT_BRIDGE_URL=http://127.0.0.1:5283 npm run build
+VITE_CLOTHCRAFT_BRIDGE_URL="${EXO_BUILD_BRIDGE_URL:-http://127.0.0.1:5283}" npm run build
 rsync -a --delete dist/ "$RES/web/"
 
 # Personal offline build only: the user's existing private CLO export and CC0
@@ -50,11 +50,11 @@ NODE_BIN="${EXO_NODE_BIN:-$(command -v node)}"
 test -x "$NODE_BIN"
 cp "$NODE_BIN" "$RES/bin/node"
 chmod 755 "$RES/bin/node"
-for file in bridge.mjs server.mjs contact_run.mjs static.mjs; do
+for file in bridge.mjs server.mjs contact_run.mjs workspace.mjs static.mjs; do
   cp "integrations/clothcraft/$file" "$RES/integrations/clothcraft/$file"
 done
 cp native_cpp/build-cmake/garment_cad_cli "$RES/native_cpp/build-cmake/garment_cad_cli"
-for binary in cloth-template cloth-fit; do
+for binary in cloth-template cloth-fit exo-session; do
   cp "research/oss/clothcraft/target/debug/$binary" "$RES/research/oss/clothcraft/target/debug/$binary"
 done
 cp research/oss/clothcraft/Cargo.toml "$RES/research/oss/clothcraft/Cargo.toml"
@@ -63,7 +63,7 @@ cp research/oss/clothcraft/assets/makehuman/mannequin.obj "$RES/research/oss/clo
 cp research/oss/clothcraft/assets/makehuman/LICENSE.ASSETS.md "$RES/research/oss/clothcraft/assets/makehuman/LICENSE.ASSETS.md"
 
 xcrun swiftc -parse-as-library -O -target "arm64-apple-macos13.0" -framework AppKit -framework WebKit \
-  integrations/clothcraft/macos/EXOClothCraft.swift -o "$APP/Contents/MacOS/EXOClothCraft"
+  "${EXO_DESKTOP_SWIFT_SOURCE:-integrations/clothcraft/macos/EXOClothCraft.swift}" -o "$APP/Contents/MacOS/EXOClothCraft"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
