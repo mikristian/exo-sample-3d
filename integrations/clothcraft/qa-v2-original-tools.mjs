@@ -56,6 +56,59 @@ try{
  await p.goto(ui+'/?desktop=1&engine=clothcraft',{waitUntil:'domcontentloaded'})
  await p.locator('.cc-board [data-panel]').first().waitFor({timeout:50000})
  const board=p.locator('.cc-board svg'),front=p.locator('.cc-board [data-panel]').first()
+ // These are our original Garment Studio ViewportQuickTools/CadToolIcon
+ // families, *not* substitute FRONT text buttons. A compact vertical gray
+ // toolbar sits at upper-left of each independent viewport; hover opens a
+ // horizontal right-facing row of working/disabled actions.
+ const widgets = [
+  {dimension:'2D',viewport:'.cc-board',count:6,hover:'Select / Transform'},
+  {dimension:'3D',viewport:'.cc-scene',count:5,hover:'Select / Move'},
+ ]
+ for(const {dimension,viewport,count,hover} of widgets){
+  const host=p.locator(viewport),rail=host.getByRole('toolbar',{name:`${dimension} viewport quick tools`})
+  assert.equal(await rail.count(),1,`${dimension} original corner widget missing`)
+  assert.equal(await rail.locator('.clo-corner-tool-group > button').count(),count)
+  const geometry=await rail.evaluate(node=>{
+   const host=node.closest('.cc-board,.cc-scene').getBoundingClientRect(),rect=node.getBoundingClientRect()
+   const rgb=getComputedStyle(node).backgroundColor,layout=getComputedStyle(node).flexDirection
+   return {left:rect.left-host.left,top:rect.top-host.top,rgb,layout,width:rect.width,height:rect.height}
+  })
+  assert(geometry.left>=0 && geometry.left<20 && geometry.top>=0 && geometry.top<20,`${dimension} widget not in top-left corner: ${JSON.stringify(geometry)}`)
+  assert.equal(geometry.layout,'column',`${dimension} widget rail must be vertical`)
+  assert(geometry.height>geometry.width*2,`${dimension} widget should be taller than wide`)
+  assert(geometry.rgb.includes('40, 42, 45'),`${dimension} tool rail must keep original neutral gray palette`)
+  const family=rail.locator(`.clo-corner-tool-group > button[title="${hover}"]`),row=rail.getByRole('group',{name:`${hover} alternatives`})
+  assert.equal(await row.isVisible(),false,`${dimension} flyout should begin collapsed`)
+  await family.hover()
+  assert.equal(await row.isVisible(),true,`${dimension} hover should open options`)
+  const alignment=await row.evaluate(node=>{
+   const base=node.parentElement.getBoundingClientRect(),rect=node.getBoundingClientRect()
+   return {x:rect.left-base.right,y:Math.abs(rect.top-base.top),orientation:getComputedStyle(node).flexDirection,width:rect.width,height:rect.height}
+  })
+  assert(alignment.x>=-2 && alignment.y<12,`${dimension} hover options must open to the right of original icon`)
+  assert.equal(alignment.orientation,'row',`${dimension} hover tools should be horizontal`)
+  assert(alignment.width>alignment.height*2,`${dimension} flyout should be wider than tall`)
+  await p.screenshot({path:path.join(output,`v2-original-${dimension.toLowerCase()}-corner-hover.png`)})
+  await family.focus()
+  assert.equal(await row.isVisible(),true,`${dimension} alternatives must also work with keyboard focus`)
+  await p.locator('.clo-mac-menu').click({position:{x:10,y:10}})
+ }
+ // The new original icon widgets are functional and dispatch to the same
+ // Rust-backed modes as the existing global EXO controls.
+ const boardTools=p.locator('.cc-board').getByRole('toolbar',{name:'2D viewport quick tools'})
+ const sceneTools=p.locator('.cc-scene').getByRole('toolbar',{name:'3D viewport quick tools'})
+ await boardTools.getByRole('button',{name:'Edit Sewing',exact:true}).click()
+ assert(await p.locator('.cc-embedded-bottom').getByRole('button',{name:'Sew edges'}).evaluate(el=>el.classList.contains('active')))
+ await boardTools.getByRole('button',{name:'Internal Line / Dart',exact:true}).click()
+ assert(await p.locator('.cc-embedded-bottom').getByRole('button',{name:'Internal line'}).evaluate(el=>el.classList.contains('active')))
+ await boardTools.locator('.clo-corner-tool-group > button[title="Select / Transform"]').click()
+ await sceneTools.locator('.clo-corner-tool-group > button[title="Select / Move"]').click()
+ assert(await p.locator('.cc-embedded-bottom').getByRole('button',{name:'Move 3D'}).evaluate(el=>el.classList.contains('active')))
+ await sceneTools.getByRole('button',{name:'Rotate Garment',exact:true}).click()
+ assert(await p.locator('.cc-embedded-bottom').getByRole('button',{name:'Rotate 3D'}).evaluate(el=>el.classList.contains('active')))
+ await sceneTools.getByRole('button',{name:'Fabric Hand',exact:true}).click()
+ assert(await p.locator('.cc-embedded-bottom').getByRole('button',{name:'Grab / stretch'}).evaluate(el=>el.classList.contains('active')))
+ await sceneTools.getByRole('button',{name:'Orbit Camera',exact:true}).click()
  // One 3D avatar mesh is the ONLY source of the 2D silhouette. Both views
  // appear/disappear together, and no fixed SVG figure is drawn without it.
  const currentAvatar=p.locator('[aria-label="Silhouette of current 3D avatar"]')
