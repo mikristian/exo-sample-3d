@@ -8,6 +8,7 @@ import { inspectProduction } from './productionPreflight.js'
 import { projectToBomXml } from './bomXml.js'
 import { markerToPdf, markerToSvg } from './markerArtifacts.js'
 import { buildFabricCostRun, fabricCostRunToCsv } from './productionCost.js'
+import { normalizeWashSpec } from './clothWashProcedurals.js'
 
 function csvCell(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -41,6 +42,8 @@ function materialRows(project) {
     'Warp stretch %', 'Weft stretch %', 'Warp shrink %', 'Weft shrink %',
     'Bending', 'Friction', 'Damping', 'Roughness', 'Sheen', 'Opacity', 'Surface family', 'Visual displacement mm',
     'Color map', 'Normal map', 'Roughness map', 'Metalness map', 'Opacity map', 'Displacement map',
+    'Digital wash effect', 'Digital wash strength', 'Visual blend', 'Absorbency look', 'Wear cycle look',
+    'UV-edge fade', 'Digital wash placement', 'Wash reference disclaimer',
     'Cut pieces', 'Approx pattern area cm2',
   ]]
   for (const [fabricId, fabric] of Object.entries(project.fabrics || {})) {
@@ -71,6 +74,14 @@ function materialRows(project) {
       fabric.texture?.metalnessName || '',
       fabric.texture?.opacityName || '',
       fabric.texture?.displacementName || '',
+      normalizeWashSpec(fabric.wash).type,
+      normalizeWashSpec(fabric.wash).strength.toFixed(2),
+      normalizeWashSpec(fabric.wash).blend,
+      normalizeWashSpec(fabric.wash).absorbency.toFixed(2),
+      normalizeWashSpec(fabric.wash).cycleDuration.toFixed(2),
+      normalizeWashSpec(fabric.wash).seamAbrasion.toFixed(2),
+      JSON.stringify({scale:normalizeWashSpec(fabric.wash).scale,placement:normalizeWashSpec(fabric.wash).placement,rotation:normalizeWashSpec(fabric.wash).rotation,seed:normalizeWashSpec(fabric.wash).seed}),
+      'Digital appearance target only; manufacturer must physically sample and approve',
       cutPieces,
       area.toFixed(1),
     ])

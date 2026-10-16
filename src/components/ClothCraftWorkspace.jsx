@@ -1,9 +1,12 @@
+import {createPortal} from 'react-dom'
 import React,{useState,useEffect,useRef,useCallback} from 'react'
 import * as THREE from 'three'
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
 import {TransformControls} from 'three/addons/controls/TransformControls.js'
+import ClothCraftFabricLibrary from './ClothCraftFabricLibrary.jsx'
 import ClothCraftSceneV2 from './ClothCraftSceneV2.jsx'
 import ClothCraftBoardV2 from './ClothCraftBoardV2.jsx'
+import ClothCraftContextMenu from './ClothCraftContextMenu.jsx'
 import {measureNativeSelection} from '../core/clothcraftSelectionMetrics.js'
 import {Scissors,Shirt,Layers,UserRound,Activity,Factory,Sun,FolderOpen,Save,Download,Undo2,Redo2,Play,Pause,RotateCcw,MousePointer2,PenTool,Move3D,Rotate3D,Search,Settings2,Eye,EyeOff,Grid2X2,Box,ChevronRight,FilePlus2,BookOpen} from 'lucide-react'
 import './ClothCraftWorkspace.css'
@@ -76,11 +79,47 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const [s,setS]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[selected,setSelected]=useState(null),[hovered,setHovered]=useState(null),[mode,setMode]=useState('edit'),[pair,setPair]=useState([]),[reverse,setReverse]=useState(true),[ease,setEase]=useState(false),[playing,setPlaying]=useState(false),[size,setSize]=useState([300,400]),[shape,setShape]=useState('rectangle'),[toolPanel,setToolPanel]=useState(''),[lineId,setLineId]=useState(''),[ruffleWidth,setRuffleWidth]=useState(60),[ruffleRatio,setRuffleRatio]=useState(1.5),[edgeLength,setEdgeLength]=useState(100),[ranges,setRanges]=useState([[0,1],[0,1]])
  const [showBoundingBox,setShowBoundingBox]=useState(false),[showContactDots,setShowContactDots]=useState(true),[showMeasurements,setShowMeasurements]=useState(true),[showSilhouette,setShowSilhouette]=useState(true)
  const [section,setSection]=useState('Pattern'),[libraryTab,setLibraryTab]=useState('Pieces'),[filter,setFilter]=useState(''),[showAvatar,setShowAvatar]=useState(true),[showSeams,setShowSeams]=useState(true),[wireframe,setWireframe]=useState(false),[layout,setLayout]=useState('split'),[libraryOpen,setLibraryOpen]=useState(true),[inspectorOpen,setInspectorOpen]=useState(true)
- const state=useRef(),running=useRef(false),lock=useRef(false),resumeAfterGrab=useRef(false),grabPause=useRef(Promise.resolve());state.current=s
- const request=useCallback(async(data)=>{if(lock.current)return null;lock.current=true;setBusy(true);setError('');try{const res=await fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:state.current?.revision,...data})});const result=await res.json();if(!res.ok||!result.ok)throw Error(result.error||'ClothCraft request failed');if(result.data?.template)setS(prev=>({...result.data,avatar:result.data.avatar||(data.op==='open'?null:prev?.avatar)}));return result.data}catch(e){setError(e.message);running.current=false;setPlaying(false);return null}finally{lock.current=false;setBusy(false)}},[])
+ const [contextMenu,setContextMenu]=useState(null)
+ const [inspectorFabricId,setInspectorFabricId]=useState(null)
+ const [fabricHost,setFabricHost]=useState(null)
+ // The Fabric Property Editor region may first mount when a Fabric object is
+ // selected (after the workspace already switched tabs). Reacquire the portal
+ // host on actual native asset selection/revision, not only on section change.
+ useEffect(()=>{setFabricHost(embedded?document.getElementById('cc-native-fabric-inspector'):null)},
+  [embedded,exoSection,inspectorFabricId,s?.revision])
+ const workspaceRoot=useRef(null), shortcutsFocused=useRef(false)
+ const state=useRef(),running=useRef(false),runToken=useRef(0),lock=useRef(false),resumeAfterGrab=useRef(false),grabPause=useRef(Promise.resolve());state.current=s
+ const request=useCallback(async(data)=>{if(lock.current)return null;lock.current=true;setBusy(true);setError('');try{const res=await fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:state.current?.revision,...data})});const result=await res.json();if(result.data?.template){const next={...result.data,avatar:result.data.avatar||(data.op==='open'?null:state.current?.avatar)};state.current=next;setS(next)}if(!res.ok||!result.ok)throw Error(result.error||'ClothCraft request failed');return result.data}catch(e){setError(e.message.includes('OGC initial intersection')?'A panel overlaps the avatar or another panel. Use Move to place it fully clear, then switch to Hand or press SIM. Reset Panels restores the initial arrangement.':e.message);running.current=false;setPlaying(false);return null}finally{lock.current=false;setBusy(false)}},[])
  useEffect(()=>{request({op:'snapshot',avatar:true});const pause=()=>{running.current=false;fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'pause'}),keepalive:true}).catch(()=>{})};window.addEventListener('pagehide',pause);return()=>{running.current=false;window.removeEventListener('pagehide',pause)}},[request])
  const edit=async c=>{if(running.current){running.current=false;setPlaying(false);while(lock.current)await new Promise(r=>setTimeout(r,20));await request({op:'pause'})}return request({op:'edit',command:c})}
- const pick=value=>{if(embedded)window.dispatchEvent(new CustomEvent('exo-clothcraft-native-pick',{detail:value||null}));if(!value){setSelected(null);setHovered(null);setPair([]);return}setSelected(value);if(mode==='sew'&&value.edge)setPair(p=>p.length===1?[p[0],value]:[value])}
+ const pick=value=>{if(embedded)window.dispatchEvent(new CustomEvent('exo-clothcraft-native-pick',{detail:value||null}));setInspectorFabricId(null);if(!value){setSelected(null);setHovered(null);setPair([]);return}setSelected(value);if(mode==='sew'&&value.edge)setPair(p=>p.length===1?[p[0],value]:[value])}
+ useEffect(()=>{
+  if(!embedded)return undefined
+  const chooseFabric=event=>{const id=event.detail?.id;setInspectorFabricId(typeof id==='string'?id:null)}
+  const onPropertyEdit=async event=>{
+   const d=event.detail||{}
+   const outcome={requestId:d.requestId,ok:false,error:'Property could not be saved'}
+   const allowedField=['name','itemNo'].includes(d.field)||
+     (d.kind==='fabric'&&['construction','supplier','owner'].includes(d.field))
+   if(!['pattern','fabric'].includes(d.kind)||!allowedField||typeof d.id!=='string'){
+     outcome.error='Unsupported native property edit'
+   }else if(running.current||lock.current){
+     outcome.error='Pause simulation before editing properties'
+   }else{
+     const data=await request({op:'set-property',target:d.kind==='pattern'?'panel':'fabric',
+       id:d.id,field:d.field,value:d.value,revision:d.revision})
+     if(data){outcome.ok=true;delete outcome.error}
+     else outcome.error='Native property update failed; check the workspace notice'
+   }
+   window.dispatchEvent(new CustomEvent('exo-clothcraft-property-result',{detail:outcome}))
+  }
+  window.addEventListener('exo-clothcraft-select-fabric',chooseFabric)
+  window.addEventListener('exo-clothcraft-edit-property',onPropertyEdit)
+  return()=>{
+   window.removeEventListener('exo-clothcraft-select-fabric',chooseFabric)
+   window.removeEventListener('exo-clothcraft-edit-property',onPropertyEdit)
+  }
+ },[embedded,request])
  useEffect(()=>{
   const onPropertyCommand=event=>{
    const detail=event.detail
@@ -106,11 +145,47 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  },[])
  const save=async(download=false)=>{const data=await request({op:'save'});if(!data)return;setNotice('Workspace saved with editable patterns, seams and drape.');if(download){const blob=new Blob([JSON.stringify(data.project,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='exo-clothcraft-fitting-project.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}}
  const play=async()=>{
+  // Starting SIM after Select/Move/Rotate switches to the live Fabric Hand
+  // tool, exactly as the native ClothCraft grab workflow. Keep a single
+  // simulation loop: the subsequent mode effect must not start a second one.
+  const token=++runToken.current
   if(running.current){running.current=false;setPlaying(false);while(lock.current)await new Promise(r=>setTimeout(r,20));await request({op:'pause'});return}
-  const started=await request({op:'play'});if(!started)return;running.current=true;setPlaying(true)
-  while(running.current){await new Promise(r=>setTimeout(r,100));if(!running.current)break;const result=await request({op:'snapshot'});if(!result||result.running===false)break}
-  running.current=false;setPlaying(false)
+  while(lock.current)await new Promise(r=>setTimeout(r,20))
+  if(token!==runToken.current)return
+  const started=await request({op:'play'});if(!started||token!==runToken.current)return
+  running.current=true;setPlaying(true)
+  modeIntent.current='stretch3d'
+  setMode('stretch3d')
+  while(running.current&&token===runToken.current){
+   await new Promise(r=>setTimeout(r,100))
+   if(!running.current||token!==runToken.current)break
+   const result=await request({op:'snapshot'})
+   if(!result||result.running===false)break
+  }
+  if(token===runToken.current){running.current=false;setPlaying(false)}
  }
+ // Mode changes own automatic physics. A pending release must never restart
+ // the solver after Select/reset, and an old poll loop must not stop a new one.
+ const modeIntent=useRef(mode), modeTransition=useRef(0), previousMode=useRef(mode)
+ modeIntent.current=mode
+ useEffect(()=>{
+  if(previousMode.current===mode)return
+  previousMode.current=mode
+  const transition=++modeTransition.current
+  if(mode!=='stretch3d'){
+   livePointer.current.held=false;livePointer.current.ready=false
+   void queueLiveGrab(null)
+   ++runToken.current;running.current=false;resumeAfterGrab.current=false;setPlaying(false)
+  }
+  void (async()=>{
+   await grabPause.current
+   while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
+   if(transition!==modeTransition.current)return
+   if(mode==='stretch3d'){
+    if(!running.current&&!resumeAfterGrab.current)void play()
+   }else await request({op:'pause'})
+  })()
+ },[mode])
  const selectedPanel=s?.template.panels.find(p=>p.id===selected?.panel),active=hovered||selected
  const openPreset=async preset=>{if(s&&!window.confirm('Open a new ClothCraft fixture? Export your current project first if you want to keep a separate copy.'))return;running.current=false;setPlaying(false);setPair([]);setSelected(null);await request({op:'open',preset})}
  const importFile=async e=>{const file=e.target.files?.[0];if(!file)return;try{const project=JSON.parse(await file.text());if(s&&!window.confirm('Replace this workspace with the imported project?'))return;await request({op:'open',...(project.template?{project}:{document:project})});setSelected(null)}catch(err){setError(err.message)}e.target.value=''}
@@ -122,31 +197,168 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   setPair([])
   if(value==='sew'||value==='line')setSection('Sewing')
  }
+ const openViewportContext=({x,y,dimension,hit})=>{
+  shortcutsFocused.current=true
+  if(hit?.panel){setSelected(hit);setHovered(null)}
+  setContextMenu({x,y,dimension,hit:hit||null})
+ }
+ const requestHistory=async op=>{
+  if(running.current)return
+  // React updates the panel list slightly before the prior backend request's
+  // busy flag clears. Keyboard repeat/rapid Undo→Redo must wait for the lock
+  // rather than silently dropping the second native history operation.
+  while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
+  if((op==='undo'&&state.current?.canUndo)||(op==='redo'&&state.current?.canRedo))
+   return request({op})
+  return null
+ }
+ const contextItems=(()=>{
+  if(!contextMenu)return []
+  const item=(id,label,shortcut,disabled=false,danger=false)=>({id,label,shortcut,disabled,danger})
+  if(contextMenu.dimension==='shortcuts')return [
+    item('undo','Undo','⌘Z',!s?.canUndo||busy||playing),
+    item('redo','Redo','⌘⇧Z',!s?.canRedo||busy||playing),
+    item('save','Save project','⌘S',busy),
+    item('select','Select / edit','V'),item('draw','Draw pattern','B'),
+    item('sew','Sew boundaries','E'),item('internal','Internal line','I'),
+    item('move','Move 3D garment','G'),item('rotate','Rotate 3D garment','R'),
+    item('hand','Fabric hand / stretch','H'),
+    item('simulate',playing?'Pause simulation':'Start simulation','Space',busy&&!playing),
+    item('delete','Delete selected pattern','⌫',!selected?.panel||busy||playing),
+  ]
+  const is2D=contextMenu.dimension==='2d'
+  const hasPanel=Boolean(contextMenu.hit?.panel)
+  const canEdit=!busy&&!playing
+  const common=[
+    item('undo','Undo','⌘Z',!s?.canUndo||!canEdit),
+    item('redo','Redo','⌘⇧Z',!s?.canRedo||!canEdit),
+    {separator:true},
+  ]
+  const panelActions=hasPanel ? [
+    item('select','Select pattern','V'),
+    item(is2D?'internal':'hand',is2D?'Draw internal line':'Fabric hand / stretch',is2D?'I':'H'),
+    item('duplicate','Duplicate pattern','',!canEdit),
+    item('mirror','Mirror pattern','',!canEdit),
+    item('delete','Delete pattern','⌫',!canEdit,true),
+    {separator:true},
+  ] : []
+  const viewActions=is2D ? [
+    item('draw','Draw new pattern','B',!canEdit),
+    item('sew','Sew boundaries','E',!canEdit),
+  ] : [
+    item('orbit','Orbit / select','V'),
+    item('move','Move garment','G'),
+    item('rotate','Rotate garment','R'),
+    item('hand','Fabric hand / stretch','H'),
+    {separator:true},
+    item('avatar',showAvatar?'Hide avatar':'Show avatar'),
+    item('wireframe',wireframe?'Hide wireframe':'Show wireframe'),
+    item('seams',showSeams?'Hide seam links':'Show seam links'),
+    item('simulate',playing?'Pause simulation':'Start simulation','Space',busy&&!playing),
+  ]
+  return [...common,...panelActions,...viewActions,{separator:true},item('shortcuts','Keyboard shortcuts','?')]
+ })()
+ const executeContextAction=(id,context)=>{
+  const panel=context?.hit?.panel || (context?.dimension==='shortcuts'?selected?.panel:null)
+  switch(id){
+   case 'undo':if(!playing)void requestHistory('undo');break
+   case 'redo':if(!playing)void requestHistory('redo');break
+   case 'save':if(!busy)void save(false);break
+   case 'select':case 'orbit':changeViewportMode('edit');break
+   case 'draw':setMode('pen');setSection('Pattern');setPair([]);break
+   case 'internal':changeViewportMode('line');break
+   case 'sew':changeViewportMode('sew');break
+   case 'move':changeViewportMode('move3d');break
+   case 'rotate':changeViewportMode('rotate3d');break
+   case 'hand':changeViewportMode('stretch3d');break
+   case 'duplicate':if(panel&&!busy&&!playing)void edit({kind:'Duplicate',panel});break
+   case 'mirror':if(panel&&!busy&&!playing)void edit({kind:'Mirror',panel,axis:'x',copy_side:1});break
+   case 'delete':
+    if(panel&&!busy&&!playing&&window.confirm('Remove the selected pattern and its sewing relationships?'))void edit({kind:'RemovePanel',panel})
+    break
+   case 'avatar':setShowAvatar(v=>!v);break
+   case 'wireframe':setWireframe(v=>!v);break
+   case 'seams':setShowSeams(v=>!v);break
+   case 'simulate':if(!busy||playing)void play();break
+   case 'shortcuts':setContextMenu({x:Math.round(window.innerWidth/2-120),y:Math.round(window.innerHeight/2-200),dimension:'shortcuts',hit:null});break
+   default:break
+  }
+ }
+ // Preserve the original EXO keyboard focus when users work elsewhere in the
+ // native app. Modifier shortcuts only intercept keys while this workspace
+ // has been activated, and never while entering property values or file names.
+ useEffect(()=>{
+  const activate=event=>{
+   if(event.target.closest?.('.cc-native-context-menu'))return
+   shortcutsFocused.current=Boolean(workspaceRoot.current?.contains(event.target))
+  }
+  const keyboard=event=>{
+   if(!shortcutsFocused.current||event.defaultPrevented)return
+   const target=event.target
+   if(target?.closest?.('input, textarea, select, [contenteditable="true"], [role="textbox"]'))return
+   const key=event.key.toLowerCase()
+   const modifier=event.metaKey||event.ctrlKey
+   let action=null
+   if(modifier&&!event.altKey){
+    if(key==='z')action=event.shiftKey?'redo':'undo'
+    else if(key==='y')action='redo'
+    else if(key==='s')action='save'
+   } else if(!event.altKey&&!modifier&&!event.shiftKey){
+    const map={v:'select',b:'draw',e:'sew',i:'internal',g:'move',r:'rotate',h:'hand',' ':'simulate','?':'shortcuts'}
+    action=map[key]||null
+    if(key==='delete'||key==='backspace')action='delete'
+   } else if(!modifier&&!event.altKey&&event.key==='?')action='shortcuts'
+   if(event.key==='Escape'){
+    action='select'
+    setContextMenu(null)
+    setPair([])
+    setSelected(null)
+   }
+   if(!action)return
+   event.preventDefault()
+   event.stopPropagation()
+   event.stopImmediatePropagation?.()
+   setContextMenu(null)
+   executeContextAction(action,{dimension:'shortcuts',hit:selected})
+  }
+  document.addEventListener('pointerdown',activate,true)
+  window.addEventListener('keydown',keyboard,true)
+  return()=>{document.removeEventListener('pointerdown',activate,true);window.removeEventListener('keydown',keyboard,true)}
+ },[busy,playing,selected,s?.canUndo,s?.canRedo,contextMenu])
  const downloadText=(content,filename,type)=>{const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
  const exportClothObj=()=>{if(!s)return;const lines=['# EXO ClothCraft Studio research cloth OBJ (not factory fit)','o cloth'];s.positions.forEach(p=>lines.push(`v ${p.join(' ')}`));s.triangles.forEach(t=>lines.push(`f ${t.map(n=>n+1).join(' ')}`));downloadText(lines.join('\n'),'exo-clothcraft-simulation.obj','text/plain');setNotice('Exported the current Rust cloth mesh as a reference OBJ (not fit certified).')}
  const exportPatternSvg=()=>{if(!s)return;const pts=[],lines=s.panels.flatMap((range,i)=>Object.values(range.boundaries).map(indices=>{const coordinates=indices.map(index=>boardPoint(s,index)).map(v=>v.map(n=>n*1000));pts.push(...coordinates);return `<polyline points="${coordinates.map(v=>v.map(n=>n.toFixed(3)).join(',')).join(' ')}" fill="none" stroke="${COLORS[i%COLORS.length]}" stroke-width="1" stroke-linecap="round"/>`}));if(!pts.length)return;const minX=Math.min(...pts.map(p=>p[0]))-50,minY=Math.min(...pts.map(p=>p[1]))-50,maxX=Math.max(...pts.map(p=>p[0]))+50,maxY=Math.max(...pts.map(p=>p[1]))+50;downloadText(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${maxX-minX} ${maxY-minY}"><title>EXO ClothCraft material-space reference only; not a factory pattern</title>${lines.join('')}</svg>`,'exo-clothcraft-pattern-reference.svg','image/svg+xml');setNotice('Saved visual SVG guide. Not a factory pattern or print-to-scale DXF.')}
- // A hand grab temporarily suspends the Rust stepping loop so the visible
- // vertices remain under the pointer; resume only if simulation was running.
- const startClothGrab=()=>{
-  if(!running.current)return
-  resumeAfterGrab.current=true
-  running.current=false
-  setPlaying(false)
-  grabPause.current=(async()=>{
-   while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
-   await request({op:'pause'})
-  })()
+ // Upstream live mouse spring: coalesce pointer targets, never pause physics
+ // or overwrite particles. The solver owns all visible cloth deformation.
+ const livePointer=useRef({pending:undefined,sending:false,held:false})
+ const queueLiveGrab=async value=>{
+  const q=livePointer.current;q.pending=value
+  if(q.sending)return
+  q.sending=true
+  try{
+   while(q.pending!==undefined){
+    const grab=q.pending;q.pending=undefined
+    const response=await fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'grab',grab})})
+    const result=await response.json()
+    if(!response.ok||!result.ok)throw Error(result.error||'Live cloth grab failed')
+   }
+  }catch(error){setError(error.message);q.pending=undefined;q.held=false}
+  finally{q.sending=false}
  }
- const cancelClothGrab=()=>{
-  if(!resumeAfterGrab.current)return
-  resumeAfterGrab.current=false
-  void grabPause.current.then(()=>play())
+ const startClothGrab=async grab=>{
+  livePointer.current.held=true;livePointer.current.ready=false;livePointer.current.target=grab
+  while(lock.current)await new Promise(resolve=>setTimeout(resolve,10))
+  if(!livePointer.current.held||modeIntent.current!=='stretch3d')return
+  if(!running.current){void play();while(lock.current)await new Promise(resolve=>setTimeout(resolve,10))}
+  if(livePointer.current.held&&running.current){livePointer.current.ready=true;void queueLiveGrab(livePointer.current.target)}
  }
+ const cancelClothGrab=()=>{livePointer.current.held=false;livePointer.current.ready=false;void queueLiveGrab(null)}
  // Reset the *3D simulated pose*, not the authored pattern or sewn edges.
  // This is safe even if the user hits Reset while physics or a fabric grab is
  // running: stop automatic stepping, finish any pending operation, then ask
  // Rust to restore the editable garment's original off-body initial_state.
  const resetPatternPosition=async()=>{
+  modeIntent.current='edit';previousMode.current='edit';++modeTransition.current;++runToken.current;setMode('edit')
   if(!state.current?.template){
    const recovered=await request({op:'recover-off-body'})
    if(recovered){
@@ -160,12 +372,12 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   setPlaying(false)
   await grabPause.current
   while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
-  // A diverged solver may return an error from pause even once the pump
-  // stops. Refresh the actual native revision and allow recovery anyway.
+  // A diverged solver may return an error from pause/snapshot even after
+  // stopping. Reset must use the cached last-authoritative revision, rather
+  // than failing because a previous OGC intersection blocks snapshots.
   await request({op:'pause'})
-  const latest=await request({op:'snapshot'})
-  if(!latest)return
-  const result=await request({op:'reset',revision:latest.revision})
+  await request({op:'snapshot'})
+  const result=await request({op:'reset',revision:state.current?.revision})
   if(!result)return
   setPair([])
   setSelected(null)
@@ -173,23 +385,9 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   setMode('edit')
   setNotice('Patterns returned to their original off-body positions. Pattern shapes, sewing links and materials are preserved. Press SIM to drape again.')
  }
- const pullClothPoint=async({panel,origin,delta})=>{
-  await grabPause.current
-  const mesh=s?.panels.find(p=>p.id===panel)
-  if(!mesh||!Array.isArray(origin)||!Array.isArray(delta)||delta.length!==3||delta.some(n=>!Number.isFinite(n))){cancelClothGrab();return}
-  let nearest=-1,distance=Infinity
-  for(let i=mesh.vertices[0];i<mesh.vertices[1];i++){
-   const at=s.positions[i];const d=at.reduce((sum,n,k)=>sum+(n-origin[k])**2,0)
-   if(d<distance){nearest=i;distance=d}
-  }
-  if(nearest<0){cancelClothGrab();return}
-  const target=s.positions[nearest].map((value,index)=>value+delta[index])
-  if(running.current){running.current=false;setPlaying(false);while(lock.current)await new Promise(resolve=>setTimeout(resolve,20));await request({op:'pause'})}
-  const resume=resumeAfterGrab.current
-  resumeAfterGrab.current=false
-  const result=await request({op:'pull-panel',panel,vertex:nearest,target,radius_m:0.16})
-  if(result)setNotice(`Grabbed ${panel} using a 16 cm brush. All other simulated panels remain where they were; resume Rust simulation to relax the pulled fabric.`)
-  if(result&&resume)void play()
+ const pullClothPoint=grab=>{
+  livePointer.current.target=grab
+  if(livePointer.current.held&&livePointer.current.ready&&modeIntent.current==='stretch3d'&&running.current)void queueLiveGrab(grab)
  }
  const placeVisiblePanel=async command=>{
   const original=state.current?.template?.panels?.find(panel=>panel.id===command.panel)
@@ -240,28 +438,43 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  },[embedded,busy,play,request])
  useEffect(()=>{
   if(!embedded||!s)return
+  const panelRefs=(s.template?.panels||[]).map(p=>({
+    id:p.id,name:p.name,type:'pattern',itemNo:s.propertyMetadata?.panels?.[p.id]?.itemNo||'',
+    fabricId:p.fabric,
+  }))
+  const fabricRefs=(s.template?.fabrics||[]).map(f=>({
+    id:f.id,name:f.name,type:'fabric',itemNo:s.propertyMetadata?.fabrics?.[f.id]?.itemNo||'',
+    properties:f.properties||null,
+  }))
+  const measuredSelection=measureNativeSelection(s,selected)
+  const activePanel=panelRefs.find(p=>p.id===measuredSelection?.panelId)
   window.dispatchEvent(new CustomEvent('exo-clothcraft-status',{detail:{
    name:s.template?.name||'ClothCraft garment',revision:s.revision||0,
    panels:s.template?.panels?.length||0,seams:s.template?.seams?.length||0,
+   panelRefs,fabricRefs,
    seamRefs:s.template?.seams?.map(seam=>({id:seam.id,first:seam.a?.panel,second:seam.b?.panel}))||[],
-   vertices:s.positions?.length||0, time:s.time||0,running:playing,busy,
+   vertices:s.positions?.length||0, time:s.time||0,running:playing,busy,mode,
    canUndo:Boolean(s.canUndo),canRedo:Boolean(s.canRedo),
-   selection:measureNativeSelection(s,selected),
+   selection:measuredSelection?{...measuredSelection,itemNo:activePanel?.itemNo||''}:null,
   }}))
- },[embedded,playing,busy,selected?.panel,selected?.edge,selected?.seamId,s?.revision,s?.positions,s?.template?.name,s?.template?.panels?.length,s?.template?.seams?.length,s?.canUndo,s?.canRedo,Math.floor(s?.time||0)])
+ },[embedded,playing,busy,mode,selected?.panel,selected?.edge,selected?.seamId,s?.revision,s?.positions,s?.propertyMetadata,s?.template?.name,s?.template?.panels?.length,s?.template?.fabrics,s?.template?.seams?.length,s?.canUndo,s?.canRedo,Math.floor(s?.time||0)])
  if(embedded){
   const layout=exoLayout==='3d'?'3d':exoLayout==='2d'?'2d':exoLayout==='stack'?'stack':'split'
-  return <div className={`cc-embedded-root cc-embedded-${layout}`} aria-label="ClothCraft linked native Rust 3D and 2D editors" data-native-clothcraft="true" style={{'--cc-embedded-split':`${exoSplit}%`}}>
+  const nativeFabricPanel=inspectorFabricId?
+    s?.template?.panels?.find(p=>p.fabric===inspectorFabricId)||null:selectedPanel
+  return <div ref={workspaceRoot} className={`cc-embedded-root cc-embedded-${layout}`} aria-label="ClothCraft linked native Rust 3D and 2D editors" data-native-clothcraft="true" style={{'--cc-embedded-split':`${exoSplit}%`}}>
+   <ClothCraftContextMenu context={contextMenu} items={contextItems} onChoose={executeContextAction} onClose={()=>setContextMenu(null)}/>
    {(error||notice)&&<div className={error?'cc-error':'cc-notice'} role="status">{error||notice}<button onClick={()=>{setError('');setNotice('')}}>×</button></div>}
+   {exoSection==='Fabric'&&(fabricHost?createPortal(<ClothCraftFabricLibrary snapshot={s} panel={nativeFabricPanel} busy={busy||playing} onEdit={edit}/>,fabricHost):<div className="cc-native-fabric-dock"><ClothCraftFabricLibrary snapshot={s} panel={nativeFabricPanel} busy={busy||playing} onEdit={edit}/></div>)}
    <div className="cc-embedded-main">
-    <section className="cc-view cc-viewport-3d" aria-label="ClothCraft 3D garment viewport"><ClothCraftSceneV2 snapshot={s} active={hovered||selected} selected={selected} mode={mode==='stretch3d'?'stretch3d':playing||busy?'edit':mode} onChangeMode={changeViewportMode} toolsDisabled={busy&&!playing} onPick={pick} onHover={setHovered} onPlace={placeVisiblePanel} showAvatar={showAvatar} showSeams={showSeams} wireframe={wireframe} showBoundingBox={showBoundingBox} showContactDots={showContactDots} onStretchStart={startClothGrab} onStretchCancel={cancelClothGrab} onStretchDrag={pullClothPoint} environmentPreset={environmentPreset}/></section>
-    <section className="cc-view cc-viewport-2d" aria-label="ClothCraft 2D pattern viewport">{s&&<ClothCraftBoardV2 showMeasurements={showMeasurements} showSilhouette={showSilhouette} showAvatar={showAvatar} showSeamDots={showContactDots} s={s} active={hovered||selected} pick={pick} hover={setHovered} edit={edit} mode={mode} onChangeMode={changeViewportMode} busy={busy||playing} onPolygon={points=>{if(mode==='line'){if(!selectedPanel){setError('Select a panel before drawing an internal line.');return}const r=s.panels.find(p=>p.id===selectedPanel.id),a=-(selectedPanel.layout_rotation_degrees||0)*Math.PI/180;const local=points.map(p=>{const u=p[0]-r.layout[0],v=p[1]-r.layout[1];return[u*Math.cos(a)-v*Math.sin(a),u*Math.sin(a)+v*Math.cos(a)]});edit({kind:'InternalLine',panel:selectedPanel.id,points:local,tangents:local.map(()=>[0,0])})}else edit({kind:'Polygon',points,tangents:points.map(()=>[0,0]),fabric:s.template.fabrics[0].id})}}/>}</section>
+    <section className="cc-view cc-viewport-3d" aria-label="ClothCraft 3D garment viewport"><ClothCraftSceneV2 snapshot={s} active={hovered||selected} selected={selected} mode={mode==='stretch3d'?'stretch3d':playing||busy?'edit':mode} onContextMenuRequest={event=>openViewportContext({...event,dimension:'3d'})} onCanvasActivate={()=>{shortcutsFocused.current=true}} onChangeMode={changeViewportMode} toolsDisabled={busy&&!playing} onPick={pick} onHover={setHovered} onPlace={placeVisiblePanel} showAvatar={showAvatar} showSeams={showSeams} wireframe={wireframe} showBoundingBox={showBoundingBox} showContactDots={showContactDots} onStretchStart={startClothGrab} onStretchCancel={cancelClothGrab} onStretchDrag={pullClothPoint} environmentPreset={environmentPreset}/></section>
+    <section className="cc-view cc-viewport-2d" aria-label="ClothCraft 2D pattern viewport">{s&&<ClothCraftBoardV2 showMeasurements={showMeasurements} showSilhouette={showSilhouette} showAvatar={showAvatar} showSeamDots={showContactDots} s={s} selection={selected} active={hovered||selected} pick={pick} hover={setHovered} edit={edit} mode={mode} onChangeMode={changeViewportMode} onContextMenuRequest={openViewportContext} busy={busy||playing} onPolygon={points=>{if(mode==='line'){if(!selectedPanel){setError('Select a panel before drawing an internal line.');return}const r=s.panels.find(p=>p.id===selectedPanel.id),a=-(selectedPanel.layout_rotation_degrees||0)*Math.PI/180;const local=points.map(p=>{const u=p[0]-r.layout[0],v=p[1]-r.layout[1];return[u*Math.cos(a)-v*Math.sin(a),u*Math.sin(a)+v*Math.cos(a)]});edit({kind:'InternalLine',panel:selectedPanel.id,points:local,tangents:local.map(()=>[0,0])})}else edit({kind:'Polygon',points,tangents:points.map(()=>[0,0]),fabric:s.template.fabrics[0].id})}}/>}</section>
    </div>
    <div className="cc-embedded-bottom"><div><button className={mode==='edit'?'active':''} onClick={()=>setMode('edit')}><MousePointer2 size={13}/> Select / edit</button><button className={mode==='sew'?'active':''} onClick={()=>{setMode('sew');setPair([])}}><Scissors size={13}/> Sew edges</button><button className={mode==='pen'?'active':''} onClick={()=>setMode('pen')}><PenTool size={13}/> Draw</button><button className={mode==='line'?'active':''} onClick={()=>setMode('line')}>Internal line</button><button onClick={()=>setMode('move3d')} className={mode==='move3d'?'active':''}>Move 3D</button><button onClick={()=>setMode('rotate3d')} className={mode==='rotate3d'?'active':''}>Rotate 3D</button><button onClick={()=>setMode('stretch3d')} className={mode==='stretch3d'?'active':''} title="Pull a fabric region without resetting other panels">Grab / stretch</button><button onClick={()=>void resetPatternPosition()} title="Reset all simulated cloth to initial spaced-out assembly">Spread panels</button></div><div><button className={showAvatar?'active':''} onClick={()=>setShowAvatar(x=>!x)}>Avatar</button><button className={showSeams?'active':''} onClick={()=>setShowSeams(x=>!x)}>Seams</button><button className={wireframe?'active':''} onClick={()=>setWireframe(x=>!x)}>Wireframe</button><button className={showBoundingBox?'active':''} onClick={()=>setShowBoundingBox(x=>!x)}>Bounds</button><button className={showContactDots?'active':''} onClick={()=>setShowContactDots(x=>!x)}>Seam dots</button><button className={showMeasurements?'active':''} onClick={()=>setShowMeasurements(x=>!x)}>Dimensions</button></div></div>
    <div className="cc-embedded-footer"><strong>{busy?'Computing…':playing?'Running Rust simulation':'Rust session ready'}</strong><span>{s?.positions.length??0} vertices · {s?.time?.toFixed(3)??'—'} s · Seam gap {s?.metrics?.max_seam_gap_m!=null?(s.metrics.max_seam_gap_m*1000).toFixed(2)+' mm':'—'} · P95 stretch {s?.metrics?.extension_p95_percent?.toFixed(2)??'—'}%</span><small>Physical fit not certified</small></div>
   </div>
  }
- return <main className="cc-workspace cc-exo-shell"><header className="cc-header"><div className="cc-brand"><Box size={18}/><strong>EXO <span>SAMPLE 3D</span></strong><small>× CLOTHCRAFT ENGINE</small></div><div className="cc-exo-menus"><button onClick={()=>setLibraryOpen(v=>!v)} aria-label="Toggle asset library"><FolderOpen size={15}/> LIBRARY</button><button onClick={()=>setInspectorOpen(v=>!v)} aria-label="Toggle property editor"><Settings2 size={15}/> PROPERTIES</button><select aria-label="EXO workspace section" value={section} onChange={e=>activateSection(e.target.value)}>{EXO_SECTIONS.map(([name])=><option key={name}>{name}</option>)}</select><select aria-label="Viewport layout" value={layout} onChange={e=>setLayout(e.target.value)}><option value="split">3D + 2D</option><option value="3d">3D focus</option><option value="2d">2D focus</option></select></div><div className="cc-header-actions"><label className="cc-button" title="Open ClothCraft or compatible EXO garment project"><FolderOpen size={14}/> Open project<input type="file" accept=".json" hidden disabled={busy||playing} onChange={importFile}/></label><button onClick={()=>save(false)} disabled={busy||playing||!s} title="Save current Rust garment project"><Save size={15}/> Save</button><button onClick={()=>save(true)} disabled={busy||playing||!s}><Download size={15}/> Save / export</button><a href="?desktop=1" title="Open the full EXO interface">FULL EXO <ChevronRight size={14}/></a></div></header>
+ return <main ref={workspaceRoot} className="cc-workspace cc-exo-shell"><ClothCraftContextMenu context={contextMenu} items={contextItems} onChoose={executeContextAction} onClose={()=>setContextMenu(null)}/><header className="cc-header"><div className="cc-brand"><Box size={18}/><strong>EXO <span>SAMPLE 3D</span></strong><small>× CLOTHCRAFT ENGINE</small></div><div className="cc-exo-menus"><button onClick={()=>setLibraryOpen(v=>!v)} aria-label="Toggle asset library"><FolderOpen size={15}/> LIBRARY</button><button onClick={()=>setInspectorOpen(v=>!v)} aria-label="Toggle property editor"><Settings2 size={15}/> PROPERTIES</button><select aria-label="EXO workspace section" value={section} onChange={e=>activateSection(e.target.value)}>{EXO_SECTIONS.map(([name])=><option key={name}>{name}</option>)}</select><select aria-label="Viewport layout" value={layout} onChange={e=>setLayout(e.target.value)}><option value="split">3D + 2D</option><option value="3d">3D focus</option><option value="2d">2D focus</option></select></div><div className="cc-header-actions"><label className="cc-button" title="Open ClothCraft or compatible EXO garment project"><FolderOpen size={14}/> Open project<input type="file" accept=".json" hidden disabled={busy||playing} onChange={importFile}/></label><button onClick={()=>save(false)} disabled={busy||playing||!s} title="Save current Rust garment project"><Save size={15}/> Save</button><button onClick={()=>save(true)} disabled={busy||playing||!s}><Download size={15}/> Save / export</button><a href="?desktop=1" title="Open the full EXO interface">FULL EXO <ChevronRight size={14}/></a></div></header>
  <div className="cc-project-bar"><div><strong>GARMENT STUDIO</strong><span>{s?.template.name||'Loading ClothCraft project…'}</span><small>REV {s?.revision??'—'} · {s?.template.panels.length??0} PANELS · {s?.template.seams.length??0} SEAMS</small></div><div className="cc-project-fittings"><span className="cc-online-dot"/> RUST VBD + OGC <span className="cc-project-status">{playing?'SIMULATING':busy?'WORKING':'READY'}</span></div></div>
  <nav className="cc-toolbar"><div>{[['edit','Select / edit',MousePointer2],['sew','Sew edges',Scissors],['pen','Draw pattern',PenTool],['line','Internal line',Layers],['move3d','Move 3D',Move3D],['rotate3d','Rotate 3D',Rotate3D]].map(([key,label,Icon])=><button key={key} title={label} aria-pressed={mode===key} className={mode===key?'active':''} onClick={()=>{setMode(key);setPair([]);if(key==='sew')setSection('Sewing');else if(key==='line')setSection('Sewing');else if(key==='pen')setSection('Pattern')}}><Icon size={15}/>{label}</button>)}</div><div><button disabled={busy||playing||!s?.canUndo} onClick={()=>request({op:'undo'})}><Undo2 size={15}/>Undo</button><button disabled={busy||playing||!s?.canRedo} onClick={()=>request({op:'redo'})}><Redo2 size={15}/>Redo</button><button disabled={(!playing&&busy)||!s} className="cc-primary" onClick={play}>{playing?<Pause size={15}/>:<Play size={15}/>} {playing?'Pause':'Simulate'}</button><button disabled={busy||playing||!s} onClick={()=>request({op:'step',steps:1})}>Single step</button><button disabled={busy||playing||!s} onClick={()=>void resetPatternPosition()}><RotateCcw size={15}/>Reset arrangement</button></div></nav>
  {(error||notice)&&<div className={error?'cc-error':'cc-notice'} role="status">{error||notice}<button onClick={()=>{setError('');setNotice('')}}>×</button></div>}
@@ -273,7 +486,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  {libraryTab==='Library'&&<><h3>STARTING BLOCKS</h3>{[['T-shirt','tshirt'],['Dress','dress']].filter(([name])=>filtered(name)).map(([name,preset])=><button key={preset} disabled={busy||playing} onClick={()=>openPreset(preset)}><Shirt size={15}/>{name} fixture</button>)}<h3>NEW PATTERN ELEMENTS</h3><button onClick={()=>{activateSection('Pattern');setShape('rectangle')}}><FilePlus2 size={14}/> Rectangle</button><button onClick={()=>{activateSection('Pattern');setShape('ellipse')}}><FilePlus2 size={14}/> Ellipse</button><button onClick={()=>{activateSection('Pattern');setMode('pen')}}><PenTool size={14}/> Draw custom outline</button></>}
  {libraryTab==='History'&&<><h3>SESSION HISTORY</h3><p>Revision {s?.revision??0}</p><button disabled={!s?.canUndo||busy||playing} onClick={()=>request({op:'undo'})}><Undo2 size={15}/> Undo last edit</button><button disabled={!s?.canRedo||busy||playing} onClick={()=>request({op:'redo'})}><Redo2 size={15}/> Redo last edit</button><p>The Rust editing history supports undo/redo; save a project for persistent revisions.</p></>}
  <footer>EXO asset workspace · ClothCraft physics<br/>Unsupported EXO-specific production features remain in Full EXO</footer></aside>}
- <section className="cc-view cc-viewport-3d"><h2><span><Box size={14}/> 3D GARMENT</span><small>ClothCraft linked viewport · Orbit / select</small></h2><ClothCraftSceneV2 snapshot={s} active={active} selected={selected} mode={mode==='stretch3d'?'stretch3d':playing||busy?'edit':mode} onChangeMode={changeViewportMode} toolsDisabled={busy&&!playing} onPick={pick} onHover={setHovered} onPlace={placeVisiblePanel} showAvatar={showAvatar} showSeams={showSeams} wireframe={wireframe} showBoundingBox={showBoundingBox} showContactDots={showContactDots} onStretchStart={startClothGrab} onStretchCancel={cancelClothGrab} onStretchDrag={pullClothPoint} environmentPreset={environmentPreset}/></section><section className="cc-view cc-viewport-2d"><h2><span><Grid2X2 size={14}/> 2D PATTERN</span><small>True material geometry · metres</small></h2>{s&&<ClothCraftBoardV2 showMeasurements={showMeasurements} showSilhouette={showSilhouette} showAvatar={showAvatar} showSeamDots={showContactDots} s={s} active={active} pick={pick} hover={setHovered} edit={edit} mode={mode} onChangeMode={changeViewportMode} busy={busy||playing} onPolygon={points=>{if(mode==='line'){if(!selectedPanel){setError('Select a panel before drawing an internal line.');return}const r=s.panels.find(p=>p.id===selectedPanel.id),a=-(selectedPanel.layout_rotation_degrees||0)*Math.PI/180;const local=points.map(p=>{const u=p[0]-r.layout[0],v=p[1]-r.layout[1];return[u*Math.cos(a)-v*Math.sin(a),u*Math.sin(a)+v*Math.cos(a)]});edit({kind:'InternalLine',panel:selectedPanel.id,points:local,tangents:local.map(()=>[0,0])})}else edit({kind:'Polygon',points,tangents:points.map(()=>[0,0]),fabric:s.template.fabrics[0].id})}}/>}</section>
+ <section className="cc-view cc-viewport-3d"><h2><span><Box size={14}/> 3D GARMENT</span><small>ClothCraft linked viewport · Orbit / select</small></h2><ClothCraftSceneV2 snapshot={s} active={active} selected={selected} mode={mode==='stretch3d'?'stretch3d':playing||busy?'edit':mode} onContextMenuRequest={event=>openViewportContext({...event,dimension:'3d'})} onCanvasActivate={()=>{shortcutsFocused.current=true}} onChangeMode={changeViewportMode} toolsDisabled={busy&&!playing} onPick={pick} onHover={setHovered} onPlace={placeVisiblePanel} showAvatar={showAvatar} showSeams={showSeams} wireframe={wireframe} showBoundingBox={showBoundingBox} showContactDots={showContactDots} onStretchStart={startClothGrab} onStretchCancel={cancelClothGrab} onStretchDrag={pullClothPoint} environmentPreset={environmentPreset}/></section><section className="cc-view cc-viewport-2d"><h2><span><Grid2X2 size={14}/> 2D PATTERN</span><small>True material geometry · metres</small></h2>{s&&<ClothCraftBoardV2 showMeasurements={showMeasurements} showSilhouette={showSilhouette} showAvatar={showAvatar} showSeamDots={showContactDots} s={s} selection={selected} active={active} pick={pick} hover={setHovered} edit={edit} mode={mode} onChangeMode={changeViewportMode} onContextMenuRequest={openViewportContext} busy={busy||playing} onPolygon={points=>{if(mode==='line'){if(!selectedPanel){setError('Select a panel before drawing an internal line.');return}const r=s.panels.find(p=>p.id===selectedPanel.id),a=-(selectedPanel.layout_rotation_degrees||0)*Math.PI/180;const local=points.map(p=>{const u=p[0]-r.layout[0],v=p[1]-r.layout[1];return[u*Math.cos(a)-v*Math.sin(a),u*Math.sin(a)+v*Math.cos(a)]});edit({kind:'InternalLine',panel:selectedPanel.id,points:local,tangents:local.map(()=>[0,0])})}else edit({kind:'Polygon',points,tangents:points.map(()=>[0,0]),fabric:s.template.fabrics[0].id})}}/>}</section>
  {inspectorOpen&&<aside className="cc-inspector" aria-label="EXO property editor"><div className="cc-inspector-heading"><span>PROPERTY EDITOR</span><strong>{section.toUpperCase()}</strong></div><div className="cc-inspector-context"><small>{selectedPanel?'ACTIVE PATTERN':'NO PATTERN SELECTED'}</small><strong>{selectedPanel?.name||'Project settings'}</strong>{selected?.edge&&<span>Edge: {selected.edge}</span>}</div>
  {section==='Pattern'&&<p className="cc-section-intro">Author material-space patterns with ClothCraft's original 2D and 3D editors.</p>}
  {section==='Sewing'&&<p className="cc-section-intro">Select two boundaries in either viewport, inspect their correspondence, then sew using Rust's native authoring engine.</p>}
@@ -284,7 +497,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  {section==='Render'&&<><fieldset><legend>3D DISPLAY</legend><label>Avatar body<input type="checkbox" checked={showAvatar} onChange={e=>setShowAvatar(e.target.checked)}/></label><label>Seam correspondences<input type="checkbox" checked={showSeams} onChange={e=>setShowSeams(e.target.checked)}/></label><label>Cloth wireframe<input type="checkbox" checked={wireframe} onChange={e=>setWireframe(e.target.checked)}/></label></fieldset><fieldset><legend>VIEWPORT LAYOUT</legend><select aria-label="Render viewport layout" value={layout} onChange={e=>setLayout(e.target.value)}><option value="split">Side by side</option><option value="3d">3D focus</option><option value="2d">2D focus</option></select><p>Studio lighting and material rendering in Full EXO are separate from ClothCraft's physical material controls.</p></fieldset></>}
  {section==='Sewing'&&<fieldset><legend>Sewing correspondence</legend><p>{pair.map(p=>`${p.panel} / ${p.edge}`).join(' → ')||'Pick two edges in either view'}</p><label><input type="checkbox" checked={reverse} onChange={e=>setReverse(e.target.checked)}/> Reverse second edge</label><label><input type="checkbox" checked={ease} onChange={e=>setEase(e.target.checked)}/> Allow easing / unequal lengths</label>{ranges.map((range,i)=><label key={i}>Edge {'AB'[i]} interval{range.map((n,j)=><input key={j} aria-label={`Edge ${'AB'[i]} ${j?'end':'start'}`} type="number" min="0" max="1" step=".05" value={n} onChange={e=>setRanges(v=>v.map((r,k)=>k===i?r.map((n,l)=>l===j?Number(e.target.value):n):r))}/>)}</label>)}<button disabled={busy||pair.length!==2} onClick={async()=>{const r=await edit({kind:'Sew',a:boundary(pair[0],0),b:boundary(pair[1],1),reverse,ease});if(r)setPair([])}}>Create seam</button><button onClick={()=>setPair([])}>Cancel</button></fieldset>}
  {section==='Pattern'&&<fieldset><legend>Add pattern</legend><select value={shape} onChange={e=>setShape(e.target.value)}><option value="rectangle">Rectangle</option><option value="ellipse">Ellipse</option><option value="sector">Arc sector</option></select>{size.map((n,i)=><label key={i}>{i?'Height':'Width'} (mm)<input type="number" value={n} min="5" max="10000" onChange={e=>setSize(v=>v.map((n,k)=>k===i?Number(e.target.value):n))}/></label>)}<button disabled={busy||!s} onClick={()=>edit({kind:'Primitive',shape,size:size.map(n=>n/1000),origin:[0,0],fabric:s.template.fabrics[0].id})}>Create piece</button></fieldset>}
- {selectedPanel&&['Pattern','Fabric'].includes(section)&&<>{section==='Pattern'&&<><fieldset><legend>Pattern operations</legend><button disabled={busy||playing} onClick={()=>edit({kind:'Duplicate',panel:selectedPanel.id})}>Duplicate</button>{['x','y'].map(axis=><button key={axis} disabled={busy||playing} onClick={()=>edit({kind:'Mirror',panel:selectedPanel.id,axis,copy_side:1})}>Mirror {axis.toUpperCase()}</button>)}<button disabled={busy||playing} onClick={()=>{if(confirm('Remove this panel and its sewing relationships?'))edit({kind:'RemovePanel',panel:selectedPanel.id})}}>Remove piece</button></fieldset><fieldset><legend>3D arrangement</legend>{['translation','rotation_degrees'].map(key=><div key={key}><small>{key==='translation'?'Position (m)':'Rotation (°)'}</small>{selectedPanel.placement[key].map((n,i)=><label key={`${selectedPanel.id}-${key}-${i}-${n}`}>{'XYZ'[i]}<input type="number" step={key==='translation'?'.01':'5'} defaultValue={n} disabled={busy||playing} onBlur={e=>edit({kind:'Place',panel:selectedPanel.id,placement:{...selectedPanel.placement,[key]:selectedPanel.placement[key].map((n,j)=>i===j?Number(e.target.value):n)}})}/></label>)}</div>)}</fieldset></>}{section==='Fabric'&&<fieldset><legend>Physical fabric parameters</legend>{(()=>{const f=s.template.fabrics.find(f=>f.id===selectedPanel.fabric);return f&&['density','thickness','warp','weft','shear','bend_warp','bend_weft'].map(key=><label key={`${key}-${f.properties[key]}`}>{key}<input type="number" defaultValue={f.properties[key]} step="any" disabled={busy||playing} onBlur={e=>edit({kind:'Fabric',panel:selectedPanel.id,name:f.name,properties:{...f.properties,[key]:Number(e.target.value)},all_panels:false})}/></label>)})()}</fieldset>}</>}
+ {selectedPanel&&['Pattern','Fabric'].includes(section)&&<>{section==='Pattern'&&<><fieldset><legend>Pattern operations</legend><button disabled={busy||playing} onClick={()=>edit({kind:'Duplicate',panel:selectedPanel.id})}>Duplicate</button>{['x','y'].map(axis=><button key={axis} disabled={busy||playing} onClick={()=>edit({kind:'Mirror',panel:selectedPanel.id,axis,copy_side:1})}>Mirror {axis.toUpperCase()}</button>)}<button disabled={busy||playing} onClick={()=>{if(confirm('Remove this panel and its sewing relationships?'))edit({kind:'RemovePanel',panel:selectedPanel.id})}}>Remove piece</button></fieldset><fieldset><legend>3D arrangement</legend>{['translation','rotation_degrees'].map(key=><div key={key}><small>{key==='translation'?'Position (m)':'Rotation (°)'}</small>{selectedPanel.placement[key].map((n,i)=><label key={`${selectedPanel.id}-${key}-${i}-${n}`}>{'XYZ'[i]}<input type="number" step={key==='translation'?'.01':'5'} defaultValue={n} disabled={busy||playing} onBlur={e=>edit({kind:'Place',panel:selectedPanel.id,placement:{...selectedPanel.placement,[key]:selectedPanel.placement[key].map((n,j)=>i===j?Number(e.target.value):n)}})}/></label>)}</div>)}</fieldset></>}{section==='Fabric'&&<ClothCraftFabricLibrary snapshot={s} panel={selectedPanel} busy={busy||playing} onEdit={edit}/>}</>}
  {section==='Pattern'&&selectedPanel?.polygon&&<fieldset><legend>Points and curves</legend><select aria-label="Pattern point" value={selected?.anchor??0} onChange={e=>setSelected({panel:selectedPanel.id,anchor:Number(e.target.value)})}>{selectedPanel.polygon.points.map((_,i)=><option key={i} value={i}>Point {i+1}</option>)}</select>{selectedPanel.polygon.points[selected?.anchor??0]?.map((n,i)=><label key={`${selectedPanel.id}-${selected?.anchor}-${i}-${n}`}>{i?'Y':'X'} (mm)<input type="number" defaultValue={n*1000} disabled={busy||playing} onBlur={e=>{const anchor=selected?.anchor??0,position=[...selectedPanel.polygon.points[anchor]];position[i]=Number(e.target.value)/1000;edit({kind:'Anchor',panel:selectedPanel.id,anchor,position})}}/></label>)}<button disabled={busy||playing} onClick={()=>edit({kind:'CurvePoint',panel:selectedPanel.id,anchor:selected?.anchor??0,curved:true})}>Curve point</button><button disabled={busy||playing} onClick={()=>edit({kind:'CurvePoint',panel:selectedPanel.id,anchor:selected?.anchor??0,curved:false})}>Straighten point</button><button disabled={busy||playing} onClick={()=>edit({kind:'RemovePoint',panel:selectedPanel.id,point:selected?.anchor??0})}>Remove point</button></fieldset>}
  {section==='Sewing'&&selected?.edge&&<fieldset><legend>Boundary length</legend><label>Length (mm)<input type="number" min="1" value={edgeLength} onChange={e=>setEdgeLength(Number(e.target.value))}/></label><button disabled={busy||playing} onClick={()=>edit({kind:'TargetLength',panel:selected.panel,edge:selected.edge,target_m:edgeLength/1000})}>Set target length</button><button disabled={busy||playing} onClick={()=>edit({kind:'SplitBoundary',panel:selected.panel,edge:selected.edge,at_m:edgeLength/1000})}>Split at distance</button></fieldset>}
  {section==='Pattern'&&selectedPanel&&<fieldset><legend>Combine patterns / cut holes</legend><select aria-label="Boolean tool panel" value={toolPanel} onChange={e=>setToolPanel(e.target.value)}><option value="">Choose second panel</option>{s.template.panels.filter(p=>p.id!==selectedPanel.id).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>{['union','difference','intersection'].map(operation=><button key={operation} disabled={busy||!toolPanel} onClick={()=>edit({kind:'Boolean',a:selectedPanel.id,b:toolPanel,operation,keep_tool:true})}>{operation==='union'?'Join':operation==='difference'?'Subtract / hole':'Intersection'}</button>)}</fieldset>}

@@ -173,15 +173,36 @@ try{
  await toggleDots.click()
  assert.equal(await scene.evaluate(el=>+el.dataset.seamMarkerVisibleCount),marks.count,'Seam dots did not reappear')
  assert.equal(await p.getByRole('group',{name:'2D board view controls'}).count(),1)
- // Three-dot All/Focused menu is in the two-column rail, right in front
- // of Scene, and is no longer duplicated above that rail.
+ // The Object Browser's real BULLET category icon is first in the
+ // HORIZONTAL tab toolbar, directly below Object Browser and before Scene.
  const rail=p.getByRole('navigation',{name:'Right workspace tools'})
- assert.equal(await rail.locator('.clo-tool-palette-label button').count(),0)
- const menu=rail.getByRole('button',{name:'Show focused tools'})
+ const objectTabs=p.getByRole('tablist',{name:'Object Browser types'})
+ const menu=objectTabs.getByRole('tab',{name:'Object Browser category list'})
  assert.equal(await menu.count(),1)
- const adjacency=await rail.evaluate(node=>{const a=node.querySelector('.clo-tools-mode-in-rail');const b=node.querySelector('[aria-label="Scene hierarchy"]');return Boolean(a&&b&&a.nextElementSibling===b&&a.parentElement===b.parentElement)})
- assert(adjacency,'Three-dot menu must sit immediately before Scene in the same tool column')
+ const tabNames=await objectTabs.locator('[role=tab]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('aria-label')))
+ assert.deepEqual(tabNames,['Object Browser category list','Fabric','Graphic','Button','Buttonhole','Topstitch','Puckering','Grading','POM'])
+ const adjacency=await objectTabs.evaluate(row=>{
+  const trigger=row.querySelector('.clo-object-tab-menu'),scene=row.querySelector('[role="tab"][aria-label="Fabric"]')
+  const head=row.parentElement.querySelector('.clo-panel-header')?.getBoundingClientRect()
+  const a=trigger?.getBoundingClientRect(),b=scene?.getBoundingClientRect()
+  return row.firstElementChild===trigger&&trigger?.nextElementSibling===scene&&Math.abs(a.top-b.top)<2&&a.top>=head.bottom-1
+ })
+ assert(adjacency,'Object Browser bullet icon must be the first horizontal item before Fabric')
+ assert.equal(await rail.getByRole('button',{name:'Object Browser category list'}).count(),0)
  await menu.click()
+ const categories=p.getByRole('navigation',{name:'Object Browser categories'})
+ for(const title of ['2D Pattern','Sewing','3D Form','Material','Environment'])
+  assert.equal(await categories.getByRole('button',{name:title,exact:true}).count(),1)
+ await categories.getByRole('button',{name:'Material',exact:true}).click()
+ await categories.getByRole('button',{name:'Fabric Editor'}).click()
+ assert.equal(await p.getByRole('tab',{name:'Fabric',exact:true,selected:true}).count(),1)
+ await menu.click()
+ await categories.getByRole('button',{name:'Environment',exact:true}).click()
+ await categories.getByRole('button',{name:'Studio Lighting'}).click()
+ assert.equal(await p.getByRole('combobox',{name:'Workspace',exact:true}).inputValue(),'Render')
+ const viewMode=rail.getByRole('button',{name:'Show focused tools'})
+ assert.equal(await viewMode.count(),1,'All/focused switch remains separate in vertical rail')
+ await viewMode.click()
  assert.equal(await rail.getByRole('button',{name:'Show all tools'}).count(),1)
  await rail.getByRole('button',{name:'Show all tools'}).click()
  // Live top Rust Step is a real solver action; use the isolated QA backend.
@@ -235,10 +256,37 @@ try{
  for(const panel of before.panels.filter(panel=>panel.id!==rotation.panel))
   assert.deepEqual(after.positions.slice(...panel.vertices),before.positions.slice(...panel.vertices),
     'Rotation changed an unselected simulated panel')
+ // In Hand mode there must be no movable transform widget even while a
+ // garment is selected. A drag on cloth should reach Rust's brush command.
+ await sceneTools.getByRole('button',{name:'Fabric Hand',exact:true}).click()
+ await p.waitForFunction(()=>{
+  const el=document.querySelector('.cc-scene canvas')
+  return el?.dataset.gizmoVisible==='false' && !el.dataset.gizmoRingRadius
+ })
+ const pullBefore=actions.filter(a=>a.op==='pull-panel').length
+ const positions=[[0,0],[0,-24],[0,24],[-30,0],[30,0]]
+ for(const [dx,dy] of positions) {
+  if(actions.filter(a=>a.op==='pull-panel').length>pullBefore)break
+  await p.mouse.move(gx+dx,gy+dy)
+  await p.mouse.down()
+  await p.mouse.move(gx+dx+35,gy+dy+18,{steps:8})
+  await p.mouse.up()
+  await sleep(300)
+ }
+ assert(actions.filter(a=>a.op==='pull-panel').length>pullBefore,'Fabric Hand drag did not submit a Rust pull-panel brush')
+ await sceneTools.getByRole('button',{name:'Rotate Garment',exact:true}).click()
+ await p.waitForFunction(()=>document.querySelector('.cc-scene canvas')?.dataset.gizmoVisible==='true')
+ const blank=await canvas.boundingBox()
+ await p.mouse.click(blank.x+blank.width*.94,blank.y+blank.height*.92)
+ await p.waitForFunction(()=>{
+  const el=document.querySelector('.cc-scene canvas')
+  return el?.dataset.gizmoVisible==='false' && !el.dataset.gizmoRingRadius
+ })
+ assert.equal(await p.locator('.cc-scene canvas').getAttribute('data-gizmo-visible'),'false','Empty-space deselection must remove the move/rotate widget')
  assert.deepEqual(errors,[])
  console.log(JSON.stringify({passed:true,centerAxisDeltaPx:alignment.x-alignment.frontX,
   silhouetteAxisDeltaPx:alignment.x-alignment.bodyX,boardDragMovedPx:r1.x-r0.x,
-  rotatedPanel:rotation.panel,otherPanelsUnchanged:true,qaOutput:output,errors},null,2))
+  rotatedPanel:rotation.panel,otherPanelsUnchanged:true,handPullVerified:true,backgroundClearsGizmo:true,qaOutput:output,errors},null,2))
 }finally{
  await browser?.close().catch(()=>{})
  for(const p of processes)try{process.kill(-p.pid,'SIGTERM')}catch{}

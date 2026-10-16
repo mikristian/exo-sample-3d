@@ -5,7 +5,7 @@
 const OPTICAL_KEYS = new Set([
   'name','surfaceFamily','texture','color','opacity','displacementMm','roughness','metalness','sheen','sheenRoughness',
   'normalStrength','fiberAnisotropy','fiberAngleDeg',
-  'clearcoat','clearcoatRoughness','colorVariation','weaveScaleCm',
+  'clearcoat','clearcoatRoughness','colorVariation','weaveScaleCm','wash',
 ])
 
 export function physicsInputFingerprint(project) {

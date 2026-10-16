@@ -1,4 +1,5 @@
-import React, {useEffect, useRef} from 'react'
+import {createFabricSurface} from '../core/clothcraftFabricSurface.js'
+import React, {useEffect, useRef, useState} from 'react'
 import ClothCraftCornerTools from './ClothCraftCornerTools.jsx'
 import * as THREE from 'three'
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
@@ -22,7 +23,7 @@ const disposeTree = object => {
   object.traverse(child => {
     child.geometry?.dispose()
     const materials = child.material ? (Array.isArray(child.material) ? child.material : [child.material]) : []
-    for (const material of materials) material.dispose()
+    for (const material of materials) {material.userData?.ownedTexture?.dispose(); material.dispose()}
   })
 }
 const replaceChildren = group => {
@@ -43,12 +44,14 @@ const weighted = (entries, points) => {
 const material = (color, options = {}) => new THREE.MeshStandardMaterial({
   color, side: THREE.DoubleSide, roughness: .82, metalness: .025, ...options,
 })
-const buildIndexedMesh = (positions, triangles, color) => {
+const buildIndexedMesh = (positions, triangles, color, uv = null) => {
   const indices = [...new Set(triangles.flat().filter(i => Number.isInteger(i) && finiteVec(positions?.[i])))]
   const remap = new Map(indices.map((value, index) => [value, index]))
   const validTriangles = triangles.filter(tri => tri.length === 3 && tri.every(index => remap.has(index)))
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(indices.flatMap(index => positions[index]), 3))
+  if(uv) geometry.setAttribute('uv', new THREE.Float32BufferAttribute(indices.flatMap(index => uv[index] || [0,0]),2))
+  geometry.userData.nativeVertices=indices
   geometry.setIndex(validTriangles.flatMap(tri => tri.map(index => remap.get(index))))
   if (validTriangles.length) geometry.computeVertexNormals()
   return new THREE.Mesh(geometry, material(color))
@@ -71,12 +74,15 @@ export default function ClothCraftSceneV2({
   showAvatar = true, showSeams = true, wireframe = false,
   showBoundingBox = false, showContactDots = true, spread = 0,
   onStretchDrag, onStretchStart, onStretchCancel, environmentPreset = 'studio', showFloor = true,
+  onContextMenuRequest, onCanvasActivate,
 }) {
   const host = useRef(null)
   const sceneRef = useRef(null)
+  const [grabRefresh, setGrabRefresh] = useState(0)
   const propsRef = useRef({})
   propsRef.current = {snapshot, active, selected, mode, onPick, onHover, onPlace, showAvatar,
-    showSeams, wireframe, showBoundingBox, showContactDots, spread, onStretchDrag, onStretchStart, onStretchCancel, environmentPreset, showFloor}
+    showSeams, wireframe, showBoundingBox, showContactDots, spread, onStretchDrag, onStretchStart, onStretchCancel, environmentPreset, showFloor,
+    onContextMenuRequest, onCanvasActivate}
 
   useEffect(() => {
     const hostNode = host.current
@@ -189,7 +195,8 @@ export default function ClothCraftSceneV2({
       floor, grid, ambient, key, fill, studioBackdrop,
       pivot, transform, ray, pointer, panelMeshes: new Map(), panelOffsets: new Map(),
       down: null, dragging: false, nativeStart: null, handleStart: null, requestId: null,
-      sceneSnapshot: null, rings, ringDrag:null, ringEnabled:false, stretchGrab:null}
+      sceneSnapshot: null, rings, ringDrag:null, ringEnabled:false, stretchGrab:null,
+      stretchCommitPending:false, pendingGrabSnapshot:false}
     sceneRef.current = state
     const transformMode = () => ['move3d','rotate3d','transform'].includes(propsRef.current.mode)
     const hideGizmo = () => {
@@ -306,56 +313,34 @@ export default function ClothCraftSceneV2({
     }
     // Keep the cloth responsive under the pointer while one Rust brush edit is
     // prepared. Solver positions remain authoritative after pointer release.
-    const previewStretch = (grab, point) => {
-      const mesh = state.panelMeshes.get(grab.panel)
-      if (!mesh) return
-      const attribute = mesh.geometry.attributes.position
-      if (grab.mesh !== mesh) {
-        grab.mesh = mesh
-        grab.original = attribute.array.slice()
-      }
-      const delta = point.clone().sub(grab.origin)
-      const radius = .16
-      for (let i=0; i<attribute.count; i++) {
-        const j=i*3
-        const origin=new THREE.Vector3(grab.original[j],grab.original[j+1],grab.original[j+2]).add(mesh.position)
-        const distance=origin.distanceTo(grab.origin)
-        const t=Math.max(0,1-distance/radius)
-        const weight=t*t*(3-2*t)
-        attribute.setXYZ(i,grab.original[j]+delta.x*weight,grab.original[j+1]+delta.y*weight,grab.original[j+2]+delta.z*weight)
-      }
-      attribute.needsUpdate=true
-      mesh.geometry.computeVertexNormals()
-      mesh.geometry.computeBoundingSphere()
-    }
+    // ClothCraft atelier.rs::pick_and_drag: triangle barycentric spring,
+    // ray-normal drag plane, continuous solver updates; release removes force.
     const finishStretch = (event, cancelled) => {
       const grab=state.stretchGrab
-      if (!grab) return
-      const mesh=state.panelMeshes.get(grab.panel)
-      if (cancelled && mesh === grab.mesh && grab.original) {
-        mesh.geometry.attributes.position.array.set(grab.original)
-        mesh.geometry.attributes.position.needsUpdate=true
-        mesh.geometry.computeVertexNormals()
-        mesh.geometry.computeBoundingSphere()
-      }
+      if(!grab)return
       state.stretchGrab=null
-      state.stretchPlane=null
-      state.stretchPoint=null
-      state.stretchLast=null
       controls.enabled=true
       renderer.domElement.style.cursor=''
       if(renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId)
-      if (cancelled) propsRef.current.onStretchCancel?.()
-      else {
-        const movement=grab.last.clone().sub(grab.origin)
-        if (movement.lengthSq()>2e-7) propsRef.current.onStretchDrag?.({
-          panel:grab.panel, origin:grab.origin.toArray(), point:grab.last.toArray(), delta:movement.toArray(),
-        })
-        else propsRef.current.onStretchCancel?.()
-      }
+      propsRef.current.onStretchCancel?.()
+      renderer.domElement.dataset.fabricGrabState='idle'
+    }
+    state.cancelStretch=()=>{if(state.stretchGrab)finishStretch({pointerId:state.stretchGrab.pointerId},true)}
+    const contextMenu = event => {
+      event.preventDefault()
+      event.stopPropagation()
+      const picked = hit(event)
+      // Client coordinates let the workspace's shared portal position the menu
+      // correctly even when this canvas is nested in a resizable split pane.
+      propsRef.current.onContextMenuRequest?.({
+        x: event.clientX, y: event.clientY,
+        hit: picked?.panel ? {panel: picked.panel, edge: picked.edge ?? null} : null,
+      })
     }
     const pointerDown = event => {
+      propsRef.current.onCanvasActivate?.()
       if (event.button !== 0) return
+      if (state.stretchCommitPending) {event.preventDefault();return}
       const axis=transformMode()?ringHit(event):null
       if(axis&&propsRef.current.selected?.panel){
         const pose=startPose(propsRef.current.selected.panel)
@@ -377,7 +362,7 @@ export default function ClothCraftSceneV2({
         const panel = propsRef.current.snapshot?.template?.panels?.find(item => item.id === id)
         if (mesh && surface && panel?.placement) {
           const start = surface.point.clone()
-          state.move = {id, mesh, start, last:start.clone(), origin:mesh.position.clone(),pivotOrigin:pivot.position.clone(),
+          state.move = {pointerId:event.pointerId,id, mesh, start, last:start.clone(), origin:mesh.position.clone(),pivotOrigin:pivot.position.clone(),
             plane:new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),start),
             placement:structuredClone(panel.placement)}
           controls.enabled = false
@@ -387,15 +372,23 @@ export default function ClothCraftSceneV2({
       }
       if (propsRef.current.mode === 'stretch3d' && typeof propsRef.current.onStretchDrag === 'function') {
         const surface=ray.intersectObjects(cloth.children,false)[0]
-        if (surface?.object.userData?.panel) {
+        const occluder=ray.intersectObjects(avatar.children,false)[0]
+        if (surface?.object.userData?.panel && (!occluder||occluder.distance>=surface.distance-1e-5)) {
           const origin=surface.point.clone()
           state.down.hit={panel:surface.object.userData.panel}
-          state.stretchGrab={panel:surface.object.userData.panel,origin,last:origin.clone(),mesh:null,original:null,
-            plane:new THREE.Plane().setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()),origin)}
+          const mesh=surface.object,indices=mesh.geometry.userData.nativeVertices
+          const face=surface.face,local=mesh.worldToLocal(origin.clone()),position=mesh.geometry.attributes.position
+          const a=new THREE.Vector3().fromBufferAttribute(position,face.a),b=new THREE.Vector3().fromBufferAttribute(position,face.b),c=new THREE.Vector3().fromBufferAttribute(position,face.c)
+          const bary=THREE.Triangle.getBarycoord(local,a,b,c,new THREE.Vector3())
+          if(!bary)return
+          const vertices=[face.a,face.b,face.c].map(i=>indices[i]),weights=bary.toArray()
+          state.stretchGrab={pointerId:event.pointerId,panel:mesh.userData.panel,vertices,weights,origin,last:origin.clone(),
+            plane:new THREE.Plane().setFromNormalAndCoplanarPoint(ray.ray.direction.clone(),origin)}
+          renderer.domElement.dataset.fabricGrabState='dragging'
           controls.enabled=false
           renderer.domElement.setPointerCapture(event.pointerId)
           renderer.domElement.style.cursor='grabbing'
-          propsRef.current.onStretchStart?.()
+          propsRef.current.onStretchStart?.({vertices,weights,target:origin.toArray()})
           event.preventDefault()
           event.stopImmediatePropagation()
         }
@@ -464,7 +457,7 @@ export default function ClothCraftSceneV2({
         const point=ray.ray.intersectPlane(state.stretchGrab.plane,new THREE.Vector3())
         if (point) {
           state.stretchGrab.last.copy(point)
-          previewStretch(state.stretchGrab,point)
+          propsRef.current.onStretchDrag?.({vertices:state.stretchGrab.vertices,weights:state.stretchGrab.weights,target:point.toArray()})
         }
         event.preventDefault()
       }
@@ -489,10 +482,10 @@ export default function ClothCraftSceneV2({
       if (state.move) {
         const movement=state.move.last.clone().sub(state.move.start)
         const p=state.move.placement
-        if (movement.lengthSq()>1e-8) {
+        if (event.type!=='pointercancel' && movement.lengthSq()>1e-8) {
           const translation=(p.translation||[0,0,0]).map((n,i)=>n+movement.getComponent(i))
           propsRef.current.onPlace?.({kind:'Place',panel:state.move.id,placement:{...p,translation}})
-        } else state.move.mesh.position.copy(state.move.origin)
+        } else {state.move.mesh.position.copy(state.move.origin);setGrabRefresh(value=>value+1)}
         state.move=null
         controls.enabled=true
         if (renderer.domElement.hasPointerCapture(event.pointerId))renderer.domElement.releasePointerCapture(event.pointerId)
@@ -539,8 +532,12 @@ export default function ClothCraftSceneV2({
     renderer.domElement.addEventListener('pointerdown', pointerDown, true)
     renderer.domElement.removeEventListener('pointerdown', pointerDown)
     renderer.domElement.addEventListener('pointermove', pointerMove)
+    renderer.domElement.addEventListener('contextmenu', contextMenu)
     renderer.domElement.addEventListener('pointerup', pointerUp)
     renderer.domElement.addEventListener('pointercancel', pointerUp)
+    const cancelLostGrab=()=>{state.cancelStretch?.();if(state.move)pointerUp({type:'pointercancel',pointerId:state.move.pointerId,clientX:NaN,clientY:NaN})}
+    renderer.domElement.addEventListener('lostpointercapture',cancelLostGrab)
+    window.addEventListener('blur',cancelLostGrab)
     renderer.domElement.addEventListener('pointerleave', pointerLeave)
     transform.addEventListener('dragging-changed', draggingChanged)
     const transformPreview=()=>previewPose(state.transformPose)
@@ -569,8 +566,11 @@ export default function ClothCraftSceneV2({
       observer.disconnect()
       renderer.domElement.removeEventListener('pointerdown', pointerDown, true)
       renderer.domElement.removeEventListener('pointermove', pointerMove)
+      renderer.domElement.removeEventListener('contextmenu', contextMenu)
       renderer.domElement.removeEventListener('pointerup', pointerUp)
       renderer.domElement.removeEventListener('pointercancel', pointerUp)
+      renderer.domElement.removeEventListener('lostpointercapture',cancelLostGrab)
+      window.removeEventListener('blur',cancelLostGrab)
       renderer.domElement.removeEventListener('pointerleave', pointerLeave)
       transform.removeEventListener('dragging-changed', draggingChanged)
       transform.removeEventListener('mouseUp', transformEnd)
@@ -636,7 +636,9 @@ export default function ClothCraftSceneV2({
     panels.forEach((panel, index) => {
       const piece = templatePanels.find(item => item.id === panel.id)
       const triangleRange = Array.isArray(panel.triangles) ? snapshot.triangles.slice(panel.triangles[0], panel.triangles[1]) : []
-      const panelMesh = buildIndexedMesh(world, triangleRange, COLORS[index % COLORS.length])
+      const panelMesh = buildIndexedMesh(world, triangleRange, COLORS[index % COLORS.length], snapshot.uv)
+      panelMesh.material.dispose()
+      panelMesh.material = createFabricSurface(snapshot.template?.fabrics?.find(f=>f.id===piece?.fabric),piece?.grain_degrees||0)
       const offset = new THREE.Vector3()
       if (offsetMagnitude) {
         const angle = (index / Math.max(1, panels.length)) * 2 * Math.PI
@@ -710,15 +712,21 @@ export default function ClothCraftSceneV2({
     setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, showSeams && showContactDots)
     dotGeometry.dispose()
     if (snapshot.avatar?.positions?.length && snapshot.avatar?.triangles?.length) {
-      avatar.add(buildIndexedMesh(snapshot.avatar.positions, snapshot.avatar.triangles, '#bcbfbe'))
+      const bodyMesh=buildIndexedMesh(snapshot.avatar.positions, snapshot.avatar.triangles, '#555b64')
+      bodyMesh.material.metalness=0;bodyMesh.material.roughness=.95
+      avatar.add(bodyMesh)
+      state.renderer.domElement.dataset.avatarColor='#555b64'
     }
     avatar.visible = showAvatar
     state.renderer.domElement.dataset.avatarVisible = String(showAvatar && avatar.children.length > 0)
     boundaries.visible = showSeams
     seams.visible = showSeams
     dots.visible = showSeams && showContactDots
+    state.renderer.domElement.dataset.fabricPresets=JSON.stringify([...panelMeshes.values()].map(m=>m.material.userData.fabricPreset))
+    state.renderer.domElement.dataset.nativeGrabActive=String(Boolean(snapshot.grabActive))
+    state.renderer.domElement.dataset.simulationTime=String(snapshot.time)
     state.sceneSnapshot = snapshot
-  }, [snapshot, spread])
+  }, [snapshot, spread, grabRefresh])
 
   useEffect(() => {
     const state = sceneRef.current
@@ -733,7 +741,7 @@ export default function ClothCraftSceneV2({
     const currentPanel = selected?.panel
     for (const [id, mesh] of state.panelMeshes) {
       const hover = active?.panel === id
-      mesh.material.color.set(hover ? '#efbe78' : COLORS[(snapshot?.panels || []).findIndex(panel => panel.id === id) % COLORS.length] || COLORS[0])
+      // Preserve the fabric surface during linked selection; emissive supplies the highlight.
       mesh.material.emissive.set(hover ? '#5a3111' : '#000000')
       mesh.material.emissiveIntensity = hover ? .24 : 0
     }
@@ -770,6 +778,8 @@ export default function ClothCraftSceneV2({
     }
   }, [snapshot, active?.panel, active?.edge, selected?.panel, mode, showAvatar,
     showSeams, wireframe, showBoundingBox, showContactDots, spread])
+
+  useEffect(()=>{if(mode!=='stretch3d')sceneRef.current?.cancelStretch?.()},[mode])
 
   const view = position => {
     const state = sceneRef.current

@@ -2,6 +2,10 @@ import React, { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { makeProceduralTextileMaps } from '../core/textileProcedurals.js'
 import { normalizeFabricOptics } from '../core/fabricSurfaceModel.js'
+import { normalizeWashSpec } from '../core/clothWashProcedurals.js'
+import { washTextureImage } from '../core/clothWashImage.js'
+import { tintLicensedFabricScan } from '../core/photographicScanToning.js'
+import { balanceScannedRoughness,shouldBalanceFabricRoughness } from '../core/fabricPbrAppearance.js'
 
 // Independent two-scale PBR preview (finish ball + real-centimeter fibre patch),
 // not a second cloth solver. A full-size sphere alone hides a 0.5–1 mm yarn
@@ -101,8 +105,11 @@ export default function FabricMaterialPreview({fabric = {}}) {
     const view=viewRef.current
     if (!view) return
     const optics=normalizeFabricOptics(fabric)
+    const wash=normalizeWashSpec(fabric.wash)
+    const washed=wash.type!=='raw' && wash.strength>0
+    const licensedPhoto=Boolean(fabric.texture?.scanAssetId)
     const material=view.material
-    material.color.set(fabric.color || '#c4c4c4')
+    material.color.set((washed||licensedPhoto)?'#ffffff':fabric.color || '#c4c4c4')
     material.roughness=optics.roughness
     material.metalness=optics.metalness
     material.normalScale.set(optics.normalStrength,optics.normalStrength)
@@ -122,7 +129,7 @@ export default function FabricMaterialPreview({fabric = {}}) {
     const signature=JSON.stringify([fabric.name,fabric.surfaceFamily,fabric.weaveScaleCm,
       fabric.colorVariation,fabric.thickness,texture.src,texture.normalSrc,
       texture.roughnessSrc,texture.metalnessSrc,texture.opacitySrc,texture.displacementSrc,
-      texture.repeatWidthCm,texture.repeatHeightCm,texture.rotationDeg])
+      texture.repeatWidthCm,texture.repeatHeightCm,texture.rotationDeg,fabric.wash,fabric.color])
     if (signature !== mapKeyRef.current) {
       const generated=makeProceduralTextileMaps(fabric)
       const loader=new THREE.TextureLoader()
@@ -131,7 +138,23 @@ export default function FabricMaterialPreview({fabric = {}}) {
         const src=texture[field]
         if (!src) return fallback
         fallback?.dispose?.()
-        const loaded=loader.load(src,()=>view.render(),undefined,()=>view.render())
+        const loaded=loader.load(src,(value)=>{
+          if((isColor&&(washed||licensedPhoto)) ||
+             (field==='roughnessSrc'&&shouldBalanceFabricRoughness(fabric))){
+            const original=value.image
+            const dimensions={
+              width:Math.min(768,original?.naturalWidth||original?.width||512),
+              height:Math.min(768,original?.naturalHeight||original?.height||512),
+            }
+            const canvas=field==='roughnessSrc'
+              ? balanceScannedRoughness(original,fabric,dimensions)
+              : licensedPhoto
+              ? tintLicensedFabricScan(original,fabric,dimensions)
+              : washTextureImage(original,wash,dimensions)
+            if(canvas){value.image=canvas;value.needsUpdate=true}
+          }
+          view.render()
+        },undefined,()=>view.render())
         loaded.wrapS=THREE.RepeatWrapping
         loaded.wrapT=THREE.RepeatWrapping
         loaded.colorSpace=isColor ? THREE.SRGBColorSpace : THREE.NoColorSpace
@@ -144,7 +167,7 @@ export default function FabricMaterialPreview({fabric = {}}) {
       const normal=load('normalSrc',false,generated?.normalMap||null)
       const roughness=load('roughnessSrc',false,generated?.roughnessMap||null)
       const metalness=load('metalnessSrc',false,null)
-      const opacity=load('opacitySrc',false,null)
+      const opacity=load('opacitySrc',false,generated?.alphaMap||null)
       const displacement=load('displacementSrc',false,null)
       mapsRef.current.forEach(map=>map?.dispose?.())
       mapsRef.current=[albedo,normal,roughness,metalness,opacity,displacement,...owned]
@@ -155,6 +178,7 @@ export default function FabricMaterialPreview({fabric = {}}) {
       material.roughnessMap=roughness
       material.metalnessMap=metalness
       material.alphaMap=opacity
+      material.alphaTest=Boolean(generated?.alphaMap)&&!texture.opacitySrc ? .40 : 0
       material.displacementMap=displacement
       material.needsUpdate=true
       mapKeyRef.current=signature
