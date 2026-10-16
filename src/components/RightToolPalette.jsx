@@ -53,11 +53,11 @@ const FOCUSED_GROUPS = {
   ],
   Sewing: [
     ['SEW & ATTACH', ['sew','seam-links','pin','fastener','buttons','buttonholes','topstitch','trim']],
-    ['PATTERN', ['select-2d','points','measure']],
+    ['PATTERN', ['select-2d','points','measure','scene']],
     ['SIMULATION', ['simulate','reset','camera']],
   ],
   Fabric: [
-    ['MATERIALS', ['fabric','material','graphics','trim']],
+    ['MATERIALS', ['fabric','material','graphics','trim','scene']],
     ['INSPECT', ['select-3d','hand','surface','wireframe','camera']],
     ['SIMULATION', ['simulate','reset']],
   ],
@@ -69,7 +69,7 @@ const FOCUSED_GROUPS = {
   Fit: [
     ['ANALYZE', ['surface','wireframe','seam-links','fit']],
     ['SIMULATION', ['simulate','reset']],
-    ['VIEW', ['select-3d','move-3d','hand','camera']],
+    ['VIEW', ['select-3d','move-3d','hand','camera','scene']],
   ],
   Production: [
     ['PRODUCTION', ['grading','pom','measure','export']],
@@ -158,10 +158,18 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     const item = TOOL_BY_ID.get(id)
     if (!item) return null
     const [itemId, label, action] = item
-    return <button key={itemId} type="button" title={action ? label : `${label} · planned`} aria-label={label} aria-pressed={Boolean(action && active(action))} disabled={!action} className={active(action) ? 'active' : ''} onClick={() => click(action)}><CadToolIcon id={itemId} size={20}/></button>
+    const actionButton=<button key={itemId} type="button" title={action ? label : `${label} · planned`} aria-label={label} aria-pressed={Boolean(action && active(action))} disabled={!action} className={active(action) ? 'active' : ''} onClick={() => click(action)}><CadToolIcon id={itemId} size={20}/></button>
+    // Keep the existing ALL/focused dropdown behavior, but locate its three-
+    // dot icon *inside* the two-column tool rail, immediately before Scene.
+    // It must no longer occupy a separate, third header position.
+    if(id==='scene')return <React.Fragment key="scene-with-tools-menu">
+      <button type="button" className={`clo-tools-mode-in-rail ${showAll ? 'active' : ''}`} aria-label={showAll ? 'Show focused tools' : 'Show all tools'} aria-pressed={showAll} title={showAll ? 'Show focused tools for this workspace' : 'Show all 34 workspace tools'} onClick={() => setShowAll(value => !value)}><MoreHorizontal size={20}/></button>
+      {actionButton}
+    </React.Fragment>
+    return actionButton
   }
   return <nav className={`clo-right-tool-palette ${showAll ? 'all-tools' : 'focused-tools'}`} aria-label="Right workspace tools">
-    <div className="clo-tool-palette-label"><span className="clo-palette-workflow-title" title={showAll ? 'All workspace tools' : activeSection}>{showAll ? 'ALL' : activeSection.toUpperCase()}</span><button type="button" className={showAll ? 'active' : ''} aria-label={showAll ? 'Show focused tools' : 'Show all tools'} aria-pressed={showAll} title={showAll ? 'Show focused tools for this workspace' : 'Show all 34 workspace tools'} onClick={() => setShowAll(value => !value)}><MoreHorizontal size={15}/></button></div>
+    <div className="clo-tool-palette-label"><span className="clo-palette-workflow-title" title={showAll ? 'All workspace tools' : activeSection}>{showAll ? 'ALL' : activeSection.toUpperCase()}</span></div>
     <div className="clo-palette-workflows" aria-label="Quick workflow switching">
       {WORKFLOW_TABS.map(([section, iconId]) => <button key={section} type="button" aria-label={`Switch to ${section} tools`} aria-pressed={activeSection === section} title={`${section} tools`} className={activeSection === section ? 'active' : ''} onClick={() => activateWorkflow(section)}><CadToolIcon id={iconId} size={19}/></button>)}
     </div>

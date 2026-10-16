@@ -56,6 +56,59 @@ try{
  await p.goto(ui+'/?desktop=1&engine=clothcraft',{waitUntil:'domcontentloaded'})
  await p.locator('.cc-board [data-panel]').first().waitFor({timeout:50000})
  const board=p.locator('.cc-board svg'),front=p.locator('.cc-board [data-panel]').first()
+ // Original EXO chrome and Rust controls occupy ONE top bar, not three
+ // duplicate ClothCraft title rows in each viewport.
+ assert.equal(await p.locator('.cc-embedded-top,.cc-embedded-disclosure,.cc-embedded-main h2').count(),0)
+ assert.equal(await p.locator('.exo-v2-rust-engine').count(),1)
+ const step=p.getByRole('button',{name:'Step ClothCraft Rust simulation'})
+ assert.equal(await step.count(),1)
+ assert.equal(await front.getAttribute('fill-opacity'),'1','SVG garment cannot show the silhouette through its cloth')
+ assert.equal(await front.getAttribute('fill'),'#f4f4f3','Use Garment Studio exact selected pattern fabric fill')
+ assert.equal(await p.locator('.clo-mac-menu').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(37, 37, 39)')
+ assert.equal(await p.locator('.cc-board').evaluate(el=>getComputedStyle(el).backgroundColor),'rgb(198, 199, 201)')
+ // The original EXO Render > Lighting preset selector now drives the visible
+ // native ClothCraft stage, rather than a hidden browser-only 3D editor.
+ const canvas=p.locator('.cc-scene canvas')
+ assert.equal(await canvas.getAttribute('data-studio-lighting-preset'),'studio')
+ await p.getByRole('combobox',{name:'Workspace',exact:true}).selectOption('Render')
+ const lighting=p.getByRole('combobox',{name:'Lighting preset'})
+ await lighting.selectOption('dramatic')
+ await p.waitForFunction(()=>document.querySelector('.cc-scene canvas')?.dataset.studioLightingPreset==='dramatic')
+ await lighting.selectOption('studio')
+ await p.waitForFunction(()=>document.querySelector('.cc-scene canvas')?.dataset.studioLightingPreset==='studio')
+ await p.getByRole('combobox',{name:'Workspace',exact:true}).selectOption('Pattern')
+ assert.equal(await p.getByRole('group',{name:'3D viewport orientation widget'}).count(),1)
+ // Colored 3D sewing/contact points are generated from REAL Rust seam guide
+ // endpoints. Check all palette colors and the visible/unlit marker meshes.
+ const scene=canvas
+ await p.waitForFunction(()=>Number(document.querySelector('.cc-scene canvas')?.dataset.seamMarkerCount)>0,{timeout:12000})
+ const marks=await scene.evaluate(el=>({count:+el.dataset.seamMarkerCount,visible:+el.dataset.seamMarkerVisibleCount,colors:JSON.parse(el.dataset.seamMarkerColors),palette:JSON.parse(el.dataset.seamMarkerPalette)}))
+ assert(marks.count>24,`Expected sewn garment dots, found ${marks.count}`)
+ assert.equal(marks.visible,marks.count,'Rust sewing dots should be visible on shirt by default')
+ assert(marks.colors.length>=3,'Different seam sections must retain different mark colors')
+ const toggleDots=p.getByRole('button',{name:'Seam dots',exact:true})
+ await toggleDots.click()
+ assert.equal(await scene.evaluate(el=>+el.dataset.seamMarkerVisibleCount),0,'Seam dots visibility toggle failed')
+ await toggleDots.click()
+ assert.equal(await scene.evaluate(el=>+el.dataset.seamMarkerVisibleCount),marks.count,'Seam dots did not reappear')
+ assert.equal(await p.getByRole('group',{name:'2D board view controls'}).count(),1)
+ // Three-dot All/Focused menu is in the two-column rail, right in front
+ // of Scene, and is no longer duplicated above that rail.
+ const rail=p.getByRole('navigation',{name:'Right workspace tools'})
+ assert.equal(await rail.locator('.clo-tool-palette-label button').count(),0)
+ const menu=rail.getByRole('button',{name:'Show focused tools'})
+ assert.equal(await menu.count(),1)
+ const adjacency=await rail.evaluate(node=>{const a=node.querySelector('.clo-tools-mode-in-rail');const b=node.querySelector('[aria-label="Scene hierarchy"]');return Boolean(a&&b&&a.nextElementSibling===b&&a.parentElement===b.parentElement)})
+ assert(adjacency,'Three-dot menu must sit immediately before Scene in the same tool column')
+ await menu.click()
+ assert.equal(await rail.getByRole('button',{name:'Show all tools'}).count(),1)
+ await rail.getByRole('button',{name:'Show all tools'}).click()
+ // Live top Rust Step is a real solver action; use the isolated QA backend.
+ const firstFrame=await snapshot()
+ await step.click()
+ await sleep(650)
+ const secondFrame=await snapshot()
+ assert(secondFrame.time>firstFrame.time,'Native Step did not advance the Rust solver')
  const alignment=await p.evaluate(()=>{
   const svg=document.querySelector('.cc-board svg'),pieces=[...svg.querySelectorAll('[data-panel]')]
   const garment=pieces[0].getBoundingClientRect(),back=pieces[1].getBoundingClientRect()
@@ -84,7 +137,7 @@ try{
 
  // The actual Garment Studio 360-degree ring must commit a *Rust* rotation.
  await p.getByRole('button',{name:'Rotate 3D',exact:true}).click()
- const canvas=p.locator('.cc-scene canvas')
+
  await p.waitForFunction(()=>{
   const el=document.querySelector('.cc-scene canvas')
   return Number(el?.dataset.gizmoRingRadius)>20
