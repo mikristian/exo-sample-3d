@@ -62,7 +62,10 @@ export function createWorkspace(outputRoot) {
   try{
    start()
    if(!loaded||data.op==='open'){
-    let initial={op:'open',preset:data.preset||'tshirt'}
+    // Load the *actual current collider* on every new garment/session. The
+    // same mesh drives both the Three.js avatar and its 2D SVG silhouette.
+    // Never keep a previous model's outline after an Open/avatar change.
+    let initial={op:'open',preset:data.preset||'tshirt',avatar:true}
     if(data.document)initial.template=nativeExport(data.document,paths().cli).template
     else if(data.project)initial.project=data.project
     else if(data.op!=='open'&&fs.existsSync(saveFile))initial.project=JSON.parse(fs.readFileSync(saveFile,'utf8'))
