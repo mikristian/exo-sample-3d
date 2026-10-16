@@ -4,6 +4,9 @@ import ClothCraftStudioSilhouette from './ClothCraftStudioSilhouette.jsx'
 
 const COLORS = ['#527e91', '#d29465', '#7a9e79', '#a889b2', '#c3ab5d', '#76a5a4']
 const SEAM_COLORS = ['#eb775e', '#55aecd', '#dbb44c', '#8dc575', '#a98cd9', '#dd91b9']
+// Solid CAD control-point fills must contrast with light/white fabric.
+// Vertex, curve and seam correspondence dots have distinct visual roles.
+const POINT_COLORS = {vertex:'#206DAB',selectedVertex:'#E56A26',curve:'#7451BA',outline:'#243746'}
 const INITIAL_VIEW = [-1.1, -.24, 2.2, 2]
 const finite = value => Number.isFinite(value)
 const formatCm = metres => `${(metres * 100).toFixed(1)} cm`
@@ -287,7 +290,9 @@ export default function ClothCraftBoardV2({
           {showMeasurements && <Dimensions points={points} selected={selected}/>}
           {selected && mode === 'edit' && panel.polygon?.points?.map((uv, n) => {
             const p = transform(panel, range, uv)
-            return <circle key={n} cx={p[0]} cy={p[1]} r=".009" fill="white" stroke="#f2693d" strokeWidth=".003" onPointerDown={e => start(e, panel, n)}/>
+            return <circle key={n} data-control-point="vertex" data-panel-id={panel.id} cx={p[0]} cy={p[1]} r=".0105"
+              fill={active?.anchor===n ? POINT_COLORS.selectedVertex : POINT_COLORS.vertex}
+              stroke={POINT_COLORS.outline} strokeWidth=".0025" onPointerDown={e => start(e, panel, n)}/>
           })}
           {selected && mode === 'edit' && Object.entries(panel.polygon?.curves || {}).flatMap(([edge, controls]) => controls.map((uv, index) => {
             const p = transform(panel, range, uv)
@@ -297,7 +302,9 @@ export default function ClothCraftBoardV2({
             const anchor = transform(panel, range, original)
             return <g key={`${edge}-${index}`}>
               <line x1={anchor[0]} y1={anchor[1]} x2={p[0]} y2={p[1]} stroke="#527e91" strokeWidth=".002"/>
-              <circle cx={p[0]} cy={p[1]} r=".008" fill="#527e91" stroke="white" strokeWidth=".002" onPointerDown={e => start(e, panel, `c:${edge}:${index}`)}/>
+              <circle data-control-point="curve" data-panel-id={panel.id} cx={p[0]} cy={p[1]} r=".009"
+                fill={POINT_COLORS.curve} stroke={POINT_COLORS.outline} strokeWidth=".002"
+                onPointerDown={e => start(e, panel, `c:${edge}:${index}`)}/>
             </g>
           }))}
         </g>
@@ -317,8 +324,8 @@ export default function ClothCraftBoardV2({
             <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={emphasized ? '#ef6339' : color}
               strokeWidth={emphasized ? '.003' : '.00125'} strokeDasharray=".01 .012" opacity={emphasized ? 1 : .42}/>
             {showSeamDots && <>
-              <circle cx={a[0]} cy={a[1]} r={emphasized ? '.008' : '.005'} fill={color} stroke="#f4f4f4" strokeWidth=".0015"/>
-              <circle cx={b[0]} cy={b[1]} r={emphasized ? '.008' : '.005'} fill={color} stroke="#f4f4f4" strokeWidth=".0015"/>
+              <circle data-control-point="seam" cx={a[0]} cy={a[1]} r={emphasized ? '.008' : '.006'} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".0015"/>
+              <circle data-control-point="seam" cx={b[0]} cy={b[1]} r={emphasized ? '.008' : '.006'} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".0015"/>
             </>}
           </g>
         })
