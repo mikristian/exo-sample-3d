@@ -13,7 +13,7 @@ const api='http://127.0.0.1:5481',ui='http://127.0.0.1:5482',children=[]
 const launch=(binary,args,env={})=>{const p=spawn(binary,args,{cwd:root,detached:true,stdio:'ignore',env:{...process.env,...env}});children.push(p)}
 async function ready(url){for(let i=0;i<100;i++){try{if((await fetch(url,{signal:AbortSignal.timeout(1000)})).ok)return}catch{}if(children.some(p=>p.exitCode!==null))throw Error('Service exited before ready: '+url);await new Promise(r=>setTimeout(r,200))}throw Error('Service timeout: '+url)}
 const all=['Information','Selected Line','Simulation Properties','Fabric','Bond','Solidify','Arrange','Miscellaneous']
-const fabric=['Information','Simulation Properties','Fabric','Miscellaneous']
+const fabric=['Information','Material','Physical Property','Miscellaneous']
 let browser
 try{
  launch(process.execPath,['integrations/clothcraft/server.mjs'],{EXO_CLOTHCRAFT_PORT:'5481',EXO_CLOTHCRAFT_REPO:path.join(root,'research/oss/clothcraft'),EXO_CLOTHCRAFT_SESSION_BIN:path.join(root,'research/oss/clothcraft/target/debug/exo-session'),EXO_CLOTHCRAFT_OUTPUT_DIR:output,EXO_CLOTHCRAFT_GPU:'0'})
@@ -75,14 +75,14 @@ try{
  assert.equal(await field('name').inputValue(),fabricName+' QA')
  await undo().click()
  await page.waitForFunction(value=>document.querySelector('[data-property-field="name"] input')?.value===value,fabricName)
- const sim=await expand('Simulation Properties')
+ const sim=await expand('Physical Property')
  assert.equal(await sim.locator('[data-property-field="gsm"]').count(),1)
  assert.equal(await sim.locator('[data-property-field="thickness"]').count(),1)
  const gsm=await field('gsm').inputValue()
  await commit('gsm','0')
  assert.equal(await page.locator('[data-property-field="gsm"] [role="alert"]').count(),1)
  await commit('gsm',gsm)
- await expand('Fabric')
+ await expand('Material')
  assert.equal(await field('color').getAttribute('type'),'color')
  // Instance fixtures are conditional; never fabricate project records.
  const hardware={}

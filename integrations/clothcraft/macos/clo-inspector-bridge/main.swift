@@ -13,6 +13,7 @@ struct Node: Codable {
     var role: String
     var name: String
     var value: String?
+    var frame: [String: Double]?
     var children: [Node]
 }
 
@@ -42,12 +43,80 @@ func stringAttribute(_ element: AXUIElement, _ key: CFString) -> String {
     return ""
 }
 
+func rectAttribute(_ element: AXUIElement) -> [String: Double]? {
+    guard let position = attribute(element, kAXPositionAttribute as CFString),
+          let size = attribute(element, kAXSizeAttribute as CFString) else { return nil }
+    let p = position as! AXValue, s = size as! AXValue
+    var origin = CGPoint.zero, dimensions = CGSize.zero
+    guard AXValueGetValue(p, .cgPoint, &origin), AXValueGetValue(s, .cgSize, &dimensions) else { return nil }
+    return ["x":Double(origin.x),"y":Double(origin.y),"width":Double(dimensions.width),"height":Double(dimensions.height)]
+}
+
+// Explicit, one-shot inspection action: select the existing first Fabric row
+// without assigning materials, changing project values, or saving anything.
+// Target is resolved from the live CLO AX label; no guessed screen click.
+func selectExistingFabricForInspection(_ appElement: AXUIElement) -> Bool {
+    var pending = [appElement], count = 0
+    while !pending.isEmpty && count < 500 {
+        let element = pending.removeFirst()
+        count += 1
+        if stringAttribute(element, kAXValueAttribute as CFString) == "FABRIC 1",
+           let frame = rectAttribute(element), frame["width", default: 0] > 20,
+           let x = frame["x"], let y = frame["y"], let w = frame["width"], let h = frame["height"] {
+            let location = CGPoint(x: x + min(30,w/2), y: y+h/2)
+            guard let source = CGEventSource(stateID: .hidSystemState),
+                  let down = CGEvent(mouseEventSource: source, mouseType: .leftMouseDown, mouseCursorPosition: location, mouseButton: .left),
+                  let up = CGEvent(mouseEventSource: source, mouseType: .leftMouseUp, mouseCursorPosition: location, mouseButton: .left)
+            else { return false }
+            down.post(tap: .cghidEventTap); up.post(tap: .cghidEventTap)
+            return true
+        }
+        if let children = attribute(element, kAXChildrenAttribute as CFString) as? [AXUIElement] {
+            pending.append(contentsOf: children.prefix(160))
+        }
+    }
+    return false
+}
+
+// Scroll only inside CLO's right Property Editor at a position derived from
+// its live AX heading. No clicks, project changes, or dialog interactions.
+func scrollLivePropertyEditor(_ appElement: AXUIElement) -> Bool {
+    var pending = [appElement], count = 0
+    var targetWindowFrame: [String:Double]?
+    while !pending.isEmpty && count < 500 {
+        let element = pending.removeFirst()
+        count += 1
+        let value=stringAttribute(element, kAXValueAttribute as CFString)
+        if stringAttribute(element, kAXRoleAttribute as CFString) == "AXWindow",
+           let f = rectAttribute(element), (f["width"] ?? 0)>1100 {
+            targetWindowFrame=f
+        }
+        if (value == "Property Editor" || (value == "Fabric" && (rectAttribute(element)?["x"] ?? 0)>1190)),
+           let frame = rectAttribute(element), let x = frame["x"], let y = frame["y"] {
+            let base=targetWindowFrame
+            let position = CGPoint(x:(base?["x"] ?? x)+(base?["width"] ?? 1512)-105,
+                                   y:(base?["y"] ?? y)+(base?["height"] ?? 900)-160)
+            guard let source=CGEventSource(stateID:.hidSystemState),
+                  let event=CGEvent(scrollWheelEvent2Source:source, units:.line,wheelCount:1,wheel1:-9,wheel2:0,wheel3:0)
+            else { return false }
+            event.location=position
+            event.post(tap:.cghidEventTap)
+            return true
+        }
+        if let children=attribute(element,kAXChildrenAttribute as CFString) as? [AXUIElement]{
+            pending.append(contentsOf:children.prefix(160))
+        }
+    }
+    return false
+}
+
 func scan(_ element: AXUIElement, depth: Int, budget: inout Int) -> Node {
     budget -= 1
     var node = Node(
         role: stringAttribute(element, kAXRoleAttribute as CFString),
         name: stringAttribute(element, kAXTitleAttribute as CFString),
         value: nil,
+        frame: rectAttribute(element),
         children: []
     )
     if let value = attribute(element, kAXValueAttribute as CFString), let text = value as? String {
@@ -56,7 +125,7 @@ func scan(_ element: AXUIElement, depth: Int, budget: inout Int) -> Node {
     if depth >= 7 || budget <= 0 { return node }
     for key in [kAXChildrenAttribute as CFString] {
         if let children = attribute(element, key) as? [AXUIElement] {
-            for child in children.prefix(50) where budget > 0 {
+            for child in children.prefix(160) where budget > 0 {
                 node.children.append(scan(child, depth: depth + 1, budget: &budget))
             }
         }
@@ -122,9 +191,25 @@ struct CLOInspectorBridge {
         report.cloPID = clo?.processIdentifier
         if report.accessibility, let clo {
             let appElement = AXUIElementCreateApplication(clo.processIdentifier)
+            if CommandLine.arguments.contains("--select-fabric") {
+                if clo.activate(options: []),
+                   selectExistingFabricForInspection(appElement) {
+                    try? await Task.sleep(for: .milliseconds(800))
+                } else {
+                    report.warnings.append("CLO FABRIC 1 row was not safely selectable")
+                }
+            }
+            if CommandLine.arguments.contains("--scroll-property") {
+                if clo.activate(options:[]), scrollLivePropertyEditor(appElement) {
+                    try? await Task.sleep(for:.milliseconds(700))
+                } else {
+                    report.warnings.append("CLO Property Editor was not scrollable via AX position")
+                }
+            }
             if let windows = attribute(appElement, kAXWindowsAttribute as CFString) as? [AXUIElement] {
                 report.cloWindowCount = windows.count
-                var budget = 600
+                AXUIElementSetMessagingTimeout(appElement, 2)
+                var budget = 3000
                 for window in windows.prefix(5) where budget > 0 {
                     report.cloWindows.append(scan(window, depth: 0, budget: &budget))
                 }

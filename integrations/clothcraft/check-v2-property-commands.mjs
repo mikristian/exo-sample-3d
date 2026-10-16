@@ -13,6 +13,7 @@ const original=structuredClone(garment)
 for(const change of [
  [front,'grainAngleDeg',37],[front,'seamAllowance',2.4],[front,'fabricId','main'],
  [material,'gsm',430],[material,'thickness',0.0032],[material,'color','#334455'],
+ [material,'itemNo','FAB-014'],[material,'construction','French Terry'],[material,'supplier','Mill Sample'],[material,'owner','Designer'],
  [button,'diameterCm',2.2],[button,'x',8],[button,'holes',2],
  [buttonhole,'lengthCm',2.5],[buttonhole,'orientationDeg',45],
  [topstitch,'stitchLengthMm',2.5],[topstitch,'rows',3],[graphic,'opacity',0.5],[graphic,'widthCm',13],
@@ -24,7 +25,7 @@ for(const change of [
 const saved=structuredClone(garment)
 const negatives=[
  [front,'unknown',5],[front,'grainAngleDeg',Infinity],[front,'seamAllowance',-1],[front,'fabricId','missing'],
- [material,'thickness',0],[material,'color','#nothex'],[material,'gsm',-30],
+ [material,'thickness',0],[material,'color','#nothex'],[material,'gsm',-30],[material,'supplier','x'.repeat(129)],
  [button,'holes',1.5],[buttonhole,'lengthCm',-1],
  [topstitch,'stitchLengthMm',0],[topstitch,'edgeIndex',9999],
  [graphic,'opacity',1.01],[{...button,itemId:'does-not-exist'},'diameterCm',2.1],
