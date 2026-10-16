@@ -7,11 +7,13 @@ import { fileURLToPath } from 'node:url'
 import { nativeExport, paths } from './bridge.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
-const outputs = path.join(root, 'integrations/clothcraft/output')
+// Standalone signed .apps must not write generated garments into Contents/Resources.
+const outputs = path.resolve(process.env.EXO_CLOTHCRAFT_OUTPUT_DIR || path.join(root, 'integrations/clothcraft/output'))
 const host = '127.0.0.1'
 const port = Number(process.env.EXO_CLOTHCRAFT_PORT || 5193)
 const origins = new Set(['http://127.0.0.1:5173', 'http://localhost:5173',
-  'http://127.0.0.1:5174', 'http://localhost:5174'])
+  'http://127.0.0.1:5174', 'http://localhost:5174',
+  'http://127.0.0.1:5284', 'http://localhost:5284'])
 const maxBytes = 8 * 1024 * 1024
 const files = new Map([
   ['template.json', 'application/json'], ['cloth.obj', 'text/plain'],
