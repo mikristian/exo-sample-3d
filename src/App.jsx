@@ -52,6 +52,7 @@ import {
 } from 'lucide-react'
 import PatternEditor from './components/PatternEditor.jsx'
 import GarmentViewport from './components/GarmentViewport.jsx'
+import ClothCraftPreview from './components/ClothCraftPreview.jsx'
 import FabricMaterialPreview from './components/FabricMaterialPreview.jsx'
 import ZozoReferenceDressViewer from './components/ZozoReferenceDressViewer.jsx'
 import WorkspaceCommandPalette from './components/WorkspaceCommandPalette.jsx'
@@ -739,6 +740,8 @@ export default function App() {
   const [stats, setStats] = useState({ vertices: 0, constraints: 0, seams: 0, fasteners: 0, treatments: 0, trims: 0, anchors: 0, manualPins: 0, internal: 0, elapsed: 0, averageStrain: 0, maxStrain: 0, averageEaseCm: 0, averagePressureIndex: 0, maxPressureIndex: 0, contactRatio: 0, tightRatio: 0, looseRatio: 0, backendId: 'browser-pbd', backendFrame: 0, backendElapsedMs: 0, backendError: null })
   const [command, setCommand] = useState('')
   const [commandResult, setCommandResult] = useState('Ready for garment commands')
+  const [clothCraftBusy, setClothCraftBusy] = useState(false)
+  const [clothCraftMeshPreview, setClothCraftMeshPreview] = useState(null)
   const [transformDraft, setTransformDraft] = useState({ scaleX: 100, scaleY: 100, rotateDeg: 0, slashCm: 4 })
   const importInputRef = useRef(null)
   const seamlyMeasureInputRef = useRef(null)
@@ -3575,6 +3578,41 @@ export default function App() {
     URL.revokeObjectURL(url)
   }
 
+  const sendToClothCraft = async (bake = false) => {
+    setClothCraftBusy(true)
+    setCommandResult('Sending current garment to local ClothCraft Rust tools…')
+    try {
+      const operation = bake ? 'bake' : 'validate'
+      const response = await fetch(`http://127.0.0.1:5193/${operation}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document: project }),
+      })
+      const result = await response.json()
+      if (!response.ok || !result.ok) throw new Error(result.error || 'ClothCraft rejected this document')
+      const download = (data, name, type) => {
+        const href = URL.createObjectURL(new Blob([data], { type }))
+        const anchor = document.createElement('a')
+        anchor.href = href
+        anchor.download = name
+        anchor.click()
+        setTimeout(() => URL.revokeObjectURL(href), 1000)
+      }
+      download(JSON.stringify(result.template, null, 2), `${project.name.replace(/[^\w-]+/g, '-').toLowerCase()}-clothcraft-template.json`, 'application/json')
+      if (bake && result.baking?.artifacts?.includes('cloth.obj')) {
+        const meshResponse = await fetch('http://127.0.0.1:5193/artifacts/cloth.obj')
+        if (!meshResponse.ok) throw new Error('ClothCraft baking passed, but the generated OBJ could not be downloaded')
+        const obj = await meshResponse.text()
+        download(obj, 'clothcraft-baked-geometry.obj', 'text/plain')
+        setClothCraftMeshPreview({ obj, garmentName: project.name })
+      }
+      setCommandResult(`ClothCraft Rust ${bake ? 'bake' : 'validation'} passed: ${result.rustValidation?.panels || result.template.panels.length} panels, ${result.rustValidation?.seams || result.template.seams.length} seams. ${result.warnings.length} export warnings. This is flat garment geometry; body fit is unverified.`)
+    } catch (error) {
+      setCommandResult(`ClothCraft integration unavailable or rejected project: ${error.message}. Start the local bridge with npm run clothcraft:serve.`)
+    } finally {
+      setClothCraftBusy(false)
+    }
+  }
+
   const exportGarmentCode = () => {
     const payload = projectToGarmentCode(project)
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
@@ -5236,6 +5274,12 @@ export default function App() {
               <button className="wide-action" onClick={exportTechPack}><FileDown size={15} />EXPORT TECH PACK</button>
               <button className="wide-action" onClick={exportSizeRun}><FileDown size={15} />EXPORT XS–XXL SIZE RUN</button>
               <button className="wide-action" onClick={exportProject}><FileDown size={15} />EXPORT GARMENT DOCUMENT</button>
+              <div className="panel-section">
+                <div className="panel-title"><span>ClothCraft · personal Rust integration</span><strong>EXPERIMENTAL</strong></div>
+                <p className="panel-copy">Send this EXO project to your local ClothCraft Rust toolchain. Pattern, named seams, curves and basic fabrics are transferred. Factory data and physical fit are not certified. Start the separate localhost service with npm run clothcraft:serve.</p>
+              </div>
+              <button className="wide-action" disabled={clothCraftBusy} onClick={() => sendToClothCraft(false)}><FileDown size={15} />{clothCraftBusy ? 'CLOTHCRAFT RUNNING…' : 'VALIDATE IN CLOTHCRAFT RUST'}</button>
+              <button className="wide-action" disabled={clothCraftBusy} onClick={() => sendToClothCraft(true)}><Box size={15} />BAKE CLOTHCRAFT OBJ + TEMPLATE</button>
             </>
           )}
 
@@ -5297,6 +5341,10 @@ export default function App() {
         <div className="engine-badge"><i className={running ? 'active' : ''} /><span>XPBD CLOTH</span><strong>GPU UI / CPU SOLVER</strong></div>
       </footer>
       <WorkspaceCommandPalette open={commandPaletteOpen} commands={STUDIO_COMMANDS} onExecute={executeStudioAction} onClose={() => setCommandPaletteOpen(false)} />
+      {clothCraftMeshPreview && (
+        <ClothCraftPreview obj={clothCraftMeshPreview.obj} garmentName={clothCraftMeshPreview.garmentName}
+          onClose={() => setClothCraftMeshPreview(null)} />
+      )}
     </div>
   )
 }
