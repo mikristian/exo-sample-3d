@@ -1,7 +1,7 @@
 ## Linked issue and roadmap requirement
 
 Closes #
-Garment Studio requirement ID (if applicable): `GS-__-__-__`
+EXO Sample 3D requirement ID (if applicable): `GS-__-__-__`
 
 ## Problem and changes
 

@@ -1,6 +1,6 @@
 # Rust PPF backend
 
-Garment Studio supports an optional external Rust-based PPF Contact Solver
+EXO Sample 3D supports an optional external Rust-based PPF Contact Solver
 backend, alongside the browser simulator and experimental native C++/XPBD
 development modules. The Rust option does not require finishing or replacing
 the C++ migration.
@@ -8,7 +8,7 @@ the C++ migration.
 The upstream project is [st-tech/ppf-contact-solver](https://github.com/st-tech/ppf-contact-solver).
 Its source checkout and local compiled artifacts live under the ignored
 `research/oss/` and `research/ppf-local/` paths. These files are **not**
-bundled into the Garment Studio source repository or represented as
+bundled into the EXO Sample 3D source repository or represented as
 first-party code. Consult the upstream README, build instructions, license,
 and transitive dependency notices before distributing the binary.
 

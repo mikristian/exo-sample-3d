@@ -1,4 +1,4 @@
-# Garment Studio development teams (proposal)
+# EXO Sample 3D development teams (proposal)
 
 These are areas of responsibility, **not** existing GitHub teams. Create real teams under the owner's GitHub organization and replace the placeholders in CODEOWNERS only after inviting actual maintainers.
 
