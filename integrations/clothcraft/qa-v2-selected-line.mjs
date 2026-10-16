@@ -64,7 +64,7 @@ try{
  // restores line readouts and the eight pattern-related sections.
  await page.getByRole('tablist',{name:'Object Browser types'}).getByRole('tab',{name:'Fabric',exact:true}).click()
  await page.locator('.clo-object-list .clo-object-select').first().click()
- assert.deepEqual(await page.locator('.clo-pe-trigger span').allInnerTexts(),['Information','Simulation Properties','Fabric','Miscellaneous'])
+ assert.deepEqual(await page.locator('.clo-pe-trigger span').allInnerTexts(),['Information','Material','Physical Property','Miscellaneous'])
  await edge.dispatchEvent('click')
  await page.waitForFunction(()=>document.querySelectorAll('.clo-pe-trigger').length===8)
  assert.equal(await page.getByRole('region',{name:'Selected Line properties'}).count(),1)

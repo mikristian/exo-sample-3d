@@ -5,7 +5,14 @@ import {CLO_DRAFT_FIELDS,resolveCloDraftTarget} from '../core/cloPropertyCommand
 // The separate native Rust material/physics editor is not emulated here.
 const GROUP_FIELDS={
   pattern:{information:[['name','Name']],simulation:[['layerIndex','Layer'],['visible3d','Show in 3D'],['locked','Lock Pattern']],fabric:[['fabricId','Assigned Fabric']],arrange:[['grainAngleDeg','Grainline Angle','°'],['seamAllowance','Seam Allowance','cm'],['cutQuantity','Cut Quantity']]},
-  fabric:{information:[['name','Fabric Name']],simulation:[['gsm','Weight','g/m²'],['thickness','Thickness','mm',1000],['stretchWarp','Warp Stretch','%',100],['stretchWeft','Weft Stretch','%',100],['bend','Bend Parameter'],['damping','Damping'],['friction','Friction']],fabric:[['color','Base Color'],['roughness','Roughness'],['metalness','Metalness'],['sheen','Sheen']]},
+  fabric:{
+    information:[['name','Name'],['itemNo','Item No.'],['construction','Construction'],['supplier','Supplier'],['owner','Owner']],
+    physical:[['gsm','Weight','g/m²'],['thickness','Thickness','mm',1000],['stretchWarp','Warp Stretch','%',100],['stretchWeft','Weft Stretch','%',100],['bend','Bend Parameter'],['damping','Damping'],['friction','Friction']],
+    material:[['color','Color'],['roughness','Roughness'],['metalness','Metalness'],['sheen','Sheen']],
+    // Backward-compatible data selectors for existing property consumers.
+    simulation:[['gsm','Weight','g/m²'],['thickness','Thickness','mm',1000],['stretchWarp','Warp Stretch','%',100],['stretchWeft','Weft Stretch','%',100],['bend','Bend Parameter'],['damping','Damping'],['friction','Friction']],
+    fabric:[['color','Color'],['roughness','Roughness'],['metalness','Metalness'],['sheen','Sheen']],
+  },
   button:{button:[['diameterCm','Diameter','cm'],['holes','Holes'],['color','Color']],position:[['x','Position X','cm'],['y','Position Y','cm']]},
   buttonhole:{buttonhole:[['lengthCm','Length','cm'],['widthCm','Width','cm'],['orientationDeg','Angle','°'],['color','Thread Color']],position:[['x','Position X','cm'],['y','Position Y','cm']]},
   topstitch:{topstitch:[['stitchLengthMm','Stitch Length','mm'],['offsetCm','Offset','cm'],['rows','Number of Lines'],['rowGapCm','Line Distance','cm'],['color','Thread Color']]},
@@ -50,7 +57,7 @@ export default function CloObjectPropertyFields({group,selection,project,onEdit}
       value={target[field]} selection={selection} project={project} onEdit={onEdit}/>
   })}
   {kind==='topstitch'&&group==='topstitch'&&Number(target.stitchLengthMm)>0&&<div className="clo-pe-readout"><span>Stitches per Inch (derived)</span><strong>{(25.4/target.stitchLengthMm).toFixed(1)} SPI</strong></div>}
-  {kind==='fabric'&&group==='simulation'&&<p className="clo-pe-note">Draft material model: approximated cloth parameters, not CLO fabric lab calibration. Native Rust fabric physical values are edited separately.</p>}
+  {kind==='fabric'&&['simulation','physical'].includes(group)&&<p className="clo-pe-note">Draft material estimates, not CLO fabric lab calibration. Native Rust physical parameters are edited in the separate native Fabric workspace.</p>}
   {kind==='button'&&group==='button'&&<p className="clo-pe-note">Button geometry is a draft hardware annotation. CLO thread-length forces and rigid button collisions are not simulated.</p>}
   {kind==='topstitch'&&group==='topstitch'&&<p className="clo-pe-note">These values update actual annotated stitch rows and appearance. Full CLO stitch-object physics is not implemented.</p>}
  </div>

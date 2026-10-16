@@ -9,7 +9,12 @@ export const CLO_DRAFT_FIELDS = Object.freeze({
     fabricId:{type:'fabric'},
   },
   fabric: {
-    name:{type:'text',maxLength:96},color:{type:'color'},gsm:{type:'number',min:1,max:3000},
+    name:{type:'text',maxLength:96},
+    itemNo:{type:'optionalText',maxLength:96},
+    construction:{type:'optionalText',maxLength:128},
+    supplier:{type:'optionalText',maxLength:128},
+    owner:{type:'optionalText',maxLength:128},
+    color:{type:'color'},gsm:{type:'number',min:1,max:3000},
     thickness:{type:'number',min:0.00001,max:0.03},
     stretchWarp:{type:'number',min:0,max:1},stretchWeft:{type:'number',min:0,max:1},
     bend:{type:'number',min:0,max:1},damping:{type:'number',min:0,max:1},
@@ -65,6 +70,10 @@ export function validateCloDraftProperty(project, selection, field, value) {
     }
   }else if(schema.type==='text'){
     if(typeof value!=='string'||!value.trim()||value.length>schema.maxLength)return {ok:false,error:'Invalid property name'}
+    parsed=value.trim()
+  }else if(schema.type==='optionalText'){
+    if(typeof value!=='string'||value.length>schema.maxLength)
+      return {ok:false,error:`${field} must be at most ${schema.maxLength} characters`}
     parsed=value.trim()
   }else if(schema.type==='boolean'){
     if(typeof value!=='boolean')return {ok:false,error:'Expected true or false'}
