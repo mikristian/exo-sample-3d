@@ -11,10 +11,10 @@ import {
 export { CLO_MENUS } from '../core/cloMenus.js'
 
 export const OBJECT_TABS = [
-  { id: 'Scene', icon: Layers3 }, { id: 'Fabric', icon: Shirt },
+  { id: 'Fabric', icon: Shirt },
   { id: 'Graphic', icon: Image }, { id: 'Button', icon: CircleDot },
   { id: 'Buttonhole', icon: StretchHorizontal }, { id: 'Topstitch', icon: MoreHorizontal },
-  { id: 'Puckering', icon: SlidersHorizontal }, { id: 'Trim', icon: Palette },
+  { id: 'Puckering', icon: SlidersHorizontal },
   { id: 'Grading', icon: Grid2X2 }, { id: 'POM', icon: List },
 ]
 const OBJECT_TAB_ART = {
@@ -72,7 +72,7 @@ export function LibraryChrome({ category, setCategory, search, setSearch, thumbn
   </>
 }
 
-export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSelectedFabricId, onApplyFabric, setActiveSection, selectedPieceId, selectedFabricId, onAddFabric, onAddPattern, onTogglePieceProperty }) {
+export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSelectedFabricId, onApplyFabric, setActiveSection, selectedPieceId, selectedFabricId, onAddFabric, onAddPattern, onTogglePieceProperty, onSelectedObjectChange }) {
   const [objectSearch, setObjectSearch] = useState('')
   const [categoryMenuOpen,setCategoryMenuOpen]=useState(false)
   const [categoryExpanded,setCategoryExpanded]=useState('2D Pattern')
@@ -81,7 +81,7 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
   const sceneItems = [{ id: 'avatar', name: project.avatar?.name || 'Avatar', icon: UserRound, action: () => setActiveSection('Avatar') }, ...allPieces.map(piece => ({ id: piece.id, name: piece.name, icon: Shirt, action: () => { setSelectedPieceId(piece.id); setActiveSection('Pattern') } }))]
   const getRows = () => {
     if (tab === 'Scene') return sceneItems
-    if (tab === 'Fabric') return fabrics.map(([id, item]) => ({ id, name: item.name, color: item.color, icon: Shirt, action: () => { onApplyFabric?.(id); setSelectedFabricId(id); setActiveSection('Fabric') } }))
+    if (tab === 'Fabric') return fabrics.map(([id, item]) => ({ id, name: item.name, color: item.color, icon: Shirt, action: () => { setSelectedFabricId(id); setActiveSection('Fabric') } }))
     if (tab === 'Graphic') return allPieces.flatMap(piece => (piece.graphics || []).map(item => ({ id: item.id, name: `${piece.name} · Graphic`, icon: Image, action: () => { setSelectedPieceId(piece.id); setActiveSection('Fabric') } })))
     if (tab === 'Button' || tab === 'Buttonhole') return allPieces.flatMap(piece => (piece[tab === 'Button' ? 'buttons' : 'buttonholes'] || []).map((item, i) => ({ id: `${piece.id}-${item.id || i}`, name: `${piece.name} · ${tab} ${i + 1}`, icon: CircleDot, action: () => { setSelectedPieceId(piece.id); setActiveSection('Sewing') } })))
     if (tab === 'Topstitch') return allPieces.flatMap(piece => (piece.topstitches || []).map((item, i) => ({ id: `${piece.id}-${item.id || i}`, name: `${piece.name} · Topstitch ${i + 1}`, icon: MoreHorizontal, action: () => { setSelectedPieceId(piece.id); setActiveSection('Sewing') } })))
@@ -100,7 +100,11 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
         aria-label="Object Browser category list" aria-controls="clo-object-hierarchy-menu"
         title="Object Browser categories"
         onClick={()=>setCategoryMenuOpen(value=>!value)}><BulletListIcon/></button>
-      {OBJECT_TABS.map(({id}) => <button key={id} type="button" role="tab" aria-label={id} aria-selected={!categoryMenuOpen && tab === id} title={id} className={!categoryMenuOpen && tab === id ? 'active' : ''} onClick={() => {setTab(id);setCategoryMenuOpen(false)}}><CadToolIcon id={OBJECT_TAB_ART[id]} size={21}/><span>{id}</span></button>)}
+      {OBJECT_TABS.map(({id}) => <button key={id} type="button" role="tab" aria-label={id} aria-selected={!categoryMenuOpen && tab === id} title={id} className={!categoryMenuOpen && tab === id ? 'active' : ''} onClick={() => {
+        setTab(id);setCategoryMenuOpen(false);onSelectedObjectChange?.(null)
+        const workspace={Fabric:'Fabric',Graphic:'Fabric',Button:'Sewing',Buttonhole:'Sewing',Topstitch:'Sewing',Puckering:'Sewing',Grading:'Production',POM:'Production'}[id]
+        if(workspace)setActiveSection(workspace)
+      }}><CadToolIcon id={OBJECT_TAB_ART[id]} size={21}/><span>{id}</span></button>)}
     </div>
     {categoryMenuOpen ? <>
       <div className="clo-object-actions"><span>OBJECT CATEGORIES · SELECT A GROUP</span></div>
@@ -111,7 +115,7 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
       </div>)}
       </nav>
     </> : <>
-    <div className="clo-object-actions"><span>{tab === 'Fabric' ? 'CLICK SWATCH TO APPLY TO SELECTED PATTERN' : tab === 'Scene' ? '3D / 2D Scene' : tab} · {rows.length} {rows.length === 1 ? 'item' : 'items'}</span>{['Fabric','Scene'].includes(tab) && <button onClick={() => tab === 'Fabric' ? onAddFabric() : onAddPattern()}>+ Add {tab === 'Fabric' ? 'fabric' : 'pattern'}</button>}</div>
+    <div className="clo-object-actions"><span>{tab === 'Fabric' ? 'SELECT A SWATCH TO INSPECT · APPLY IN FABRIC EDITOR' : tab === 'Scene' ? '3D / 2D Scene' : tab} · {rows.length} {rows.length === 1 ? 'item' : 'items'}</span>{['Fabric','Scene'].includes(tab) && <button onClick={() => tab === 'Fabric' ? onAddFabric() : onAddPattern()}>+ Add {tab === 'Fabric' ? 'fabric' : 'pattern'}</button>}</div>
     {tab === 'Fabric' && fabrics.length > 0 && (() => {
       const item = project.fabrics?.[selectedFabricId] || fabrics[0][1]
       return <div className="clo-fabric-preview" aria-label="Selected fabric preview">
@@ -125,7 +129,7 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
         const piece = tab === 'Scene' ? allPieces.find(item => item.id === id) : null
         return <div key={id} role="listitem" className={`clo-object-row ${id === selectedPieceId || id === selectedFabricId ? 'selected' : ''}`}>
           {piece ? <button type="button" className="clo-object-mini-action" aria-label={`${piece.visible3d === false ? 'Show' : 'Hide'} ${name} in 3D`} title="Toggle 3D visibility" onClick={() => onTogglePieceProperty?.(id, 'visible3d')} >{piece.visible3d === false ? <EyeOff size={13}/> : <Eye size={13}/>}</button> : <span className="clo-row-visible" aria-hidden="true">✓</span>}
-          <button type="button" className="clo-object-select" aria-current={id === selectedPieceId || id === selectedFabricId ? 'true' : undefined} onClick={action}>{color ? <span className="clo-material-swatch" style={{background:color}}/> : <Icon size={16}/>}<span className="clo-object-row-name">{name}</span></button>
+          <button type="button" className="clo-object-select" aria-current={id === selectedPieceId || id === selectedFabricId ? 'true' : undefined} onClick={()=>{onSelectedObjectChange?.({type:tab,id,name});action?.()}}>{color ? <span className="clo-material-swatch" style={{background:color}}/> : <Icon size={16}/>}<span className="clo-object-row-name">{name}</span></button>
           {piece ? <button type="button" className="clo-object-mini-action" aria-label={`${piece.locked ? 'Unlock' : 'Lock'} ${name}`} title="Toggle pattern editing lock" onClick={() => onTogglePieceProperty?.(id, 'locked')}>{piece.locked ? <Lock size={13}/> : <Unlock size={13}/>}</button> : <MoreHorizontal size={13}/>}
         </div>
       }) : <div className="clo-object-empty">{objectSearch ? 'No matching objects.' : `No ${tab.toLowerCase()} objects in the project yet.`}</div>}

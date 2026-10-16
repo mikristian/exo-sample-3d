@@ -4,6 +4,7 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
 import {TransformControls} from 'three/addons/controls/TransformControls.js'
 import ClothCraftSceneV2 from './ClothCraftSceneV2.jsx'
 import ClothCraftBoardV2 from './ClothCraftBoardV2.jsx'
+import {measureNativeSelection} from '../core/clothcraftSelectionMetrics.js'
 import {Scissors,Shirt,Layers,UserRound,Activity,Factory,Sun,FolderOpen,Save,Download,Undo2,Redo2,Play,Pause,RotateCcw,MousePointer2,PenTool,Move3D,Rotate3D,Search,Settings2,Eye,EyeOff,Grid2X2,Box,ChevronRight,FilePlus2,BookOpen} from 'lucide-react'
 import './ClothCraftWorkspace.css'
 import './ClothCraftExoShell.css'
@@ -79,7 +80,18 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const request=useCallback(async(data)=>{if(lock.current)return null;lock.current=true;setBusy(true);setError('');try{const res=await fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:state.current?.revision,...data})});const result=await res.json();if(!res.ok||!result.ok)throw Error(result.error||'ClothCraft request failed');if(result.data?.template)setS(prev=>({...result.data,avatar:result.data.avatar||(data.op==='open'?null:prev?.avatar)}));return result.data}catch(e){setError(e.message);running.current=false;setPlaying(false);return null}finally{lock.current=false;setBusy(false)}},[])
  useEffect(()=>{request({op:'snapshot',avatar:true});const pause=()=>{running.current=false;fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'pause'}),keepalive:true}).catch(()=>{})};window.addEventListener('pagehide',pause);return()=>{running.current=false;window.removeEventListener('pagehide',pause)}},[request])
  const edit=async c=>{if(running.current){running.current=false;setPlaying(false);while(lock.current)await new Promise(r=>setTimeout(r,20));await request({op:'pause'})}return request({op:'edit',command:c})}
- const pick=value=>{if(!value){setSelected(null);setHovered(null);setPair([]);return}setSelected(value);if(mode==='sew'&&value.edge)setPair(p=>p.length===1?[p[0],value]:[value])}
+ const pick=value=>{if(!value){setSelected(null);setHovered(null);setPair([]);return}setSelected(value);if(embedded&&value?.panel)window.dispatchEvent(new CustomEvent('exo-clothcraft-native-pick',{detail:value}));if(mode==='sew'&&value.edge)setPair(p=>p.length===1?[p[0],value]:[value])}
+ useEffect(()=>{
+  const onPropertyCommand=event=>{
+   const detail=event.detail
+   if(detail?.type!=='target-length'||!state.current?.template||running.current)return
+   const panel=state.current.template.panels.find(p=>p.id===detail.panel)
+   if(!panel?.polygon?.edges?.includes(detail.edge)||!Number.isFinite(detail.cm)||detail.cm<=0||detail.cm>1000)return
+   void request({op:'line-spec',panel:detail.panel,edge:detail.edge,target_m:detail.cm/100})
+  }
+  window.addEventListener('exo-clothcraft-property-command',onPropertyCommand)
+  return()=>window.removeEventListener('exo-clothcraft-property-command',onPropertyCommand)
+ },[])
  const save=async(download=false)=>{const data=await request({op:'save'});if(!data)return;setNotice('Workspace saved with editable patterns, seams and drape.');if(download){const blob=new Blob([JSON.stringify(data.project,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='exo-clothcraft-fitting-project.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}}
  const play=async()=>{
   if(running.current){running.current=false;setPlaying(false);while(lock.current)await new Promise(r=>setTimeout(r,20));await request({op:'pause'});return}
@@ -221,8 +233,9 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
    panels:s.template?.panels?.length||0,seams:s.template?.seams?.length||0,
    vertices:s.positions?.length||0, time:s.time||0,running:playing,busy,
    canUndo:Boolean(s.canUndo),canRedo:Boolean(s.canRedo),
+   selection:measureNativeSelection(s,selected),
   }}))
- },[embedded,playing,busy,s?.revision,s?.template?.name,s?.template?.panels?.length,s?.template?.seams?.length,s?.canUndo,s?.canRedo,Math.floor(s?.time||0)])
+ },[embedded,playing,busy,selected?.panel,selected?.edge,s?.revision,s?.positions,s?.template?.name,s?.template?.panels?.length,s?.template?.seams?.length,s?.canUndo,s?.canRedo,Math.floor(s?.time||0)])
  if(embedded){
   const layout=exoLayout==='3d'?'3d':exoLayout==='2d'?'2d':exoLayout==='stack'?'stack':'split'
   return <div className={`cc-embedded-root cc-embedded-${layout}`} aria-label="ClothCraft linked native Rust 3D and 2D editors" data-native-clothcraft="true" style={{'--cc-embedded-split':`${exoSplit}%`}}>

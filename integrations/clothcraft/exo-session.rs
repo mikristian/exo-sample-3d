@@ -68,6 +68,21 @@ impl Session {
   let op=v["op"].as_str().unwrap_or("snapshot");
   if !["snapshot","save"].contains(&op) && v["revision"].as_u64()!=Some(self.revision){return Err("Stale document revision; reload current snapshot".into())}
   match op {
+   // Annotate a selected contour's target dimension without invoking
+   // authoring::TargetLength, which actually reshapes the contour and can
+   // invalidate existing sewn lengths. This is explicitly a non-physical
+   // drafting specification: mesh, seam constraints and solver stay untouched.
+   "line-spec"=>{
+     let panel=field::<String>(v,"panel")?;
+     let edge=field::<String>(v,"edge")?;
+     let length=field::<f64>(v,"target_m")?;
+     if !length.is_finite() || !(0.0001..=10.0).contains(&length){return Err("Invalid target line length".into())}
+     let p=self.project.template.panels.iter_mut().find(|p|p.id==panel).ok_or("Panel not found")?;
+     let polygon=p.polygon.as_mut().ok_or("Panel has no editable named edges")?;
+     if !polygon.edges.iter().any(|id|id==&edge){return Err("Named boundary not found".into())}
+     polygon.target_lengths.insert(edge,length);
+     self.revision+=1;
+   },
    "edit"=>{let edit=authoring::apply(&self.project.template,command(&v["command"])?)?;self.history.record(self.project.template.clone());self.apply_edit(edit);},
    "undo"|"redo"=>{let edit=self.history.restore(&self.project.template,op=="redo")?;self.apply_edit(edit);},
    "reset"=>{self.scene.state=self.scene.garment.initial_state.clone();self.solver=None;self.metrics=Value::Null;self.revision+=1;},

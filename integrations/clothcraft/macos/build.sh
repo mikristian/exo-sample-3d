@@ -50,7 +50,7 @@ NODE_BIN="${EXO_NODE_BIN:-$(command -v node)}"
 test -x "$NODE_BIN"
 cp "$NODE_BIN" "$RES/bin/node"
 chmod 755 "$RES/bin/node"
-for file in bridge.mjs server.mjs contact_run.mjs workspace.mjs static.mjs; do
+for file in bridge.mjs server.mjs contact_run.mjs workspace.mjs static.mjs agent-api.mjs; do
   cp "integrations/clothcraft/$file" "$RES/integrations/clothcraft/$file"
 done
 cp native_cpp/build-cmake/garment_cad_cli "$RES/native_cpp/build-cmake/garment_cad_cli"
