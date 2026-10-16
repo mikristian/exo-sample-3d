@@ -5,12 +5,14 @@ const browser=await chromium.launch({headless:true,executablePath:'/Applications
 try{
  const page=await browser.newPage({viewport:{width:1512,height:982}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept())
  await page.route('http://127.0.0.1:5193/workspace',async route=>{const r=await route.fetch({url:'http://127.0.0.1:5194/workspace'});await route.fulfill({response:r})})
- await page.goto('http://127.0.0.1:5174/?desktop=1&engine=clothcraft')
+ await page.goto('http://127.0.0.1:5174/?desktop=1&engine=clothcraft-lab')
  await page.locator('[data-piece]').first().waitFor({timeout:60000})
  // Always start from a fresh, reproducible fixture. Workspace state persists
  // between runs, so relying on an old project's time made repeated QA fail.
- await page.getByRole('button',{name:'T-shirt',exact:true}).click()
+ await page.locator('.cc-library-tabs').getByRole('button',{name:'Library',exact:true}).click()
+ await page.getByRole('button',{name:'T-shirt fixture',exact:true}).click()
  await page.waitForFunction(()=>document.querySelector('.cc-status')?.textContent.includes('0.000 s'),{timeout:60000})
+ await page.getByRole('button',{name:'Pieces',exact:true}).click()
  assert.equal(await page.locator('.cc-error').count(),0)
  await page.locator('[data-piece]').first().hover()
  await page.screenshot({path:'screenshots/clothcraft-workspace-linked-20261016.png'})
