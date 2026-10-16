@@ -53,6 +53,30 @@ export function createWorkspace(outputRoot) {
    if(!running){lastPoll=Date.now();running=true;runError=null;pump=advance()}
    return{ok:true,data:{...current,avatar:null,running:true}}
   }
+  // Explicit recovery when an invalid saved drape prevents the Rust garment
+  // from opening. The user's original saved project (including its complete
+  // pose) is backed up BEFORE constructing the same authored template with a
+  // fresh, off-body solver state. Never recover silently during startup.
+  if(data.op==='recover-off-body'){
+   if(busy||running)throw new Error('Pause pending ClothCraft operations before recovery')
+   busy=true
+   try{
+    if(!fs.existsSync(saveFile))throw new Error('No saved garment project is available for recovery')
+    const project=JSON.parse(fs.readFileSync(saveFile,'utf8'))
+    if(!project?.template?.panels?.length)throw new Error('Saved garment contains no recoverable pattern panels')
+    const stamp=new Date().toISOString().replace(/[:.]/g,'-')
+    const backup=saveFile+`.before-off-body-reset-${stamp}.bak`
+    fs.copyFileSync(saveFile,backup)
+    const originalNative=saveFile+'.native'
+    if(fs.existsSync(originalNative))fs.copyFileSync(originalNative,backup+'.native')
+    start()
+    const restored=remember(await rpc({op:'open',project:{...project,state:null,mesh_signature:null},avatar:true}))
+    if(!restored.ok)return restored
+    loaded=true;runError=null;stepsSinceSave=0
+    await save()
+    return{ok:true,data:{...restored.data,recoveryBackup:path.basename(backup)}}
+   }finally{busy=false}
+  }
   if(running)throw new Error('Pause simulation before editing or saving')
   if(pump){await pump;pump=null}
 

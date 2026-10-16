@@ -123,7 +123,14 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  // running: stop automatic stepping, finish any pending operation, then ask
  // Rust to restore the editable garment's original off-body initial_state.
  const resetPatternPosition=async()=>{
-  if(!state.current?.template)return
+  if(!state.current?.template){
+   const recovered=await request({op:'recover-off-body'})
+   if(recovered){
+    setSelected(null);setHovered(null);setPair([]);setMode('edit')
+    setNotice('Recovered off-body panels from the saved garment. The original project and drape were backed up before recovery. Press SIM to try again.')
+   }
+   return
+  }
   running.current=false
   resumeAfterGrab.current=false
   setPlaying(false)
