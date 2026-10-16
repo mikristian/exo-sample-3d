@@ -9,6 +9,7 @@
     "clothcraft:dev": "vite --host 127.0.0.1 --port 5174 --strictPort",
     "clothcraft:start": "node integrations/clothcraft/start.mjs",
     "clothcraft:build-app": "bash integrations/clothcraft/macos/build.sh",
+    "clothcraft:build-native-app": "bash integrations/clothcraft/macos/build-clothcraft-native.sh",
     "clothcraft:check-avatars": "node integrations/clothcraft/check-avatar-switch.mjs",
     "clothcraft:check-ogc": "node integrations/clothcraft/check-ogc-run.mjs",
     "clothcraft:export": "node integrations/clothcraft/bridge.mjs export",
