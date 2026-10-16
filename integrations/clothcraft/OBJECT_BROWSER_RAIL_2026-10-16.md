@@ -1,0 +1,7 @@
+# V2 Object Browser category menu in right tool rail
+
+The three-bullet menu previously located in the Object Browser title row is now a right-hand tool rail icon directly before the Scene hierarchy tool. Its original categories — 2D Pattern, Sewing, 3D Form, Material, and Environment — open as inline icon buttons in the same scrollable two-column tool strip, followed by the selected category's original subtools. Buttons retain their original section and Object Browser tab behavior; choosing Fabric Editor opens the Fabric tab, while Studio Lighting enters Render. The Object Browser title no longer opens an overlay dropdown.
+
+The separate All/Focused tools mode is preserved as a text-labelled header toggle, not a duplicate icon above the rail. This intentionally avoids conflating the original Object Browser *category list* with the other three-dot All/Focused mode toggle. No Rust garment geometry, sewing, collision or drafting data is changed.
+
+Validation: `node integrations/clothcraft/qa-v2-object-menu.mjs` starts isolated disposable services and verifies the actual bullet button sits immediately before Scene, all five icon categories and nested actions are available, navigation to Fabric and Render works, the floating Object Browser header menu is absent, and All/Focused switching remains. Installed `EXO ClothCraft Studio V2.app` was rebuilt and smoke-tested on its own ports 5385/5386. V1 remains untouched. This is a local checkpoint only until explicitly pushed to GitHub.
