@@ -18,6 +18,12 @@ It opens a native AppKit window with an embedded WebKit interface rather than a 
 
 Rebuild/reinstall after changes with `npm run clothcraft:build-app` (requires Xcode Swift compiler, locally built EXO C++ CLI and ClothCraft Rust binaries). This is a **personal arm64 macOS build** with an ad-hoc local signature, not a notarized or publicly distributed app. Full ClothCraft solver convergence, on-avatar fit and independent industrial file approvals are still unverified.
 
+### Avatar loading and model-switch regression
+
+The personal app builder takes the already-existing user-owned Thomas export from `../garment-studio/public/avatars/clo-thomas.glb` (or `EXO_PERSONAL_AVATAR_ROOT`) and locally created CC0 Theo/Nora GLBs and installs them **only inside this personal `.app`**. These models are not copied into this Git checkout, never staged into a public repository, and must not be redistributed without reviewing applicable rights. `EXO_INCLUDE_PERSONAL_AVATARS=0 npm run clothcraft:build-app` intentionally omits them. Missing optional avatars are visibly disabled rather than silently replaced by a large analytic proxy; MakeHuman remains the available neutral base. Selecting Thomas no longer leaves the wrong oversized/duplicate visual model when the asynchronous GLB loader finishes. All detailed models are normalized to the current project height and previous loads are discarded on rapid switching.
+
+Run `npm run clothcraft:check-avatars` while the installed app is open to check MakeHuman → Thomas → MakeHuman → Theo → Nora and a rapid-switch race. The test verifies that each selected model has exactly one displayed avatar root, correct 1.8 m height at default measurements and no browser page errors. It does not prove that the selected mesh is a physically certified collision body or substitute for live user-visible WebKit QA.
+
 Clone ClothCraft into `research/oss/clothcraft` (ignored) or set `EXO_CLOTHCRAFT_REPO` to an existing checkout. Install an appropriate Rust toolchain; ClothCraft's README lists Windows as the only locally validated desktop. The EXO CAD exporter needs to be built once:
 
 ```sh

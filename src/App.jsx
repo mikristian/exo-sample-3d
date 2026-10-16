@@ -104,6 +104,11 @@ const AVAILABLE_AVATARS = PUBLIC_DISTRIBUTION ? [{ name: 'MakeHuman', model: 'ma
   { name: 'Nora', model: 'nora' },
   { name: 'MakeHuman', model: 'makehuman-base' },
 ]
+const OPTIONAL_AVATAR_URLS = {
+  'clo-thomas': '/avatars/clo-thomas.glb',
+  theo: '/avatars/opensew/theo.glb',
+  nora: '/avatars/opensew/nora.glb',
+}
 const STORAGE_KEY = TEE_TEST_SESSION ? 'garment-studio-tee-first-fit-project-v2' : 'garment-studio-project-v1'
 const DESKTOP_THOMAS_BOOTSTRAP_KEY = TEE_TEST_SESSION ? 'garment-studio-tee-test-thomas-bootstrap-v1' : 'garment-studio-desktop-thomas-bootstrap-v1'
 const MAX_HISTORY = 60
@@ -740,8 +745,33 @@ export default function App() {
   const [stats, setStats] = useState({ vertices: 0, constraints: 0, seams: 0, fasteners: 0, treatments: 0, trims: 0, anchors: 0, manualPins: 0, internal: 0, elapsed: 0, averageStrain: 0, maxStrain: 0, averageEaseCm: 0, averagePressureIndex: 0, maxPressureIndex: 0, contactRatio: 0, tightRatio: 0, looseRatio: 0, backendId: 'browser-pbd', backendFrame: 0, backendElapsedMs: 0, backendError: null })
   const [command, setCommand] = useState('')
   const [commandResult, setCommandResult] = useState('Ready for garment commands')
+  const [avatarAvailability, setAvatarAvailability] = useState({ 'makehuman-base': true })
   const [clothCraftBusy, setClothCraftBusy] = useState(false)
   const [clothCraftMeshPreview, setClothCraftMeshPreview] = useState(null)
+  useEffect(() => {
+    let active = true
+    // A private desktop build can have different installed avatar assets than
+    // the source checkout. Do not offer nonexistent CLO/rigged meshes as usable.
+    void Promise.all(Object.entries(OPTIONAL_AVATAR_URLS).map(async ([model, url]) => {
+      try {
+        const response = await fetch(url, { method: 'HEAD', cache: 'no-store' })
+        return [model, response.ok]
+      } catch { return [model, false] }
+    })).then(entries => {
+      if (!active) return
+      setAvatarAvailability(current => ({ ...current, ...Object.fromEntries(entries) }))
+    })
+    return () => { active = false }
+  }, [])
+  useEffect(() => {
+    const selected = project.avatar?.model
+    if (avatarAvailability[selected] !== false) return
+    mutateProject(next => {
+      next.avatar.model = 'makehuman-base'
+      next.avatar.name = 'MakeHuman Base'
+    })
+    setCommandResult(`${selected} model is not installed in this build. Restored MakeHuman without changing the garment or measurements.`)
+  }, [avatarAvailability, project.avatar?.model])
   const [transformDraft, setTransformDraft] = useState({ scaleX: 100, scaleY: 100, rotateDeg: 0, slashCm: 4 })
   const importInputRef = useRef(null)
   const seamlyMeasureInputRef = useRef(null)
@@ -3249,6 +3279,10 @@ export default function App() {
   }
 
   const setAvatarModel = (model) => {
+    if (avatarAvailability[model] === false) {
+      setCommandResult(`${model} model is not installed. Select an available avatar or import an OBJ / GLB file.`)
+      return
+    }
     mutateProject((next) => {
       next.avatar.model = model
       if (model === 'clo-thomas') {
@@ -4123,7 +4157,7 @@ export default function App() {
                 <button className="asset-template garment-tile" key={`preset-${id}`} onClick={() => addAndApplyFabricPreset(id)} title={`Create ${item.name} and apply to selected pattern`}><span className="asset-template-icon fabric-library-thumbnail" style={{background:item.color || '#737989'}}><span/></span><span className="asset-template-label">+ {item.name}</span></button>
               ))}
             </> : assetCategory === 'Avatar' ? AVAILABLE_AVATARS.filter(({ name }) => libraryItemMatches(name)).map(({ name, model }) => (
-              <button className="asset-template garment-tile" key={name} onClick={() => { setActiveSection('Avatar'); setAvatarModel(model) }}><span className="asset-template-icon avatar-library-thumbnail">♙</span><span className="asset-template-label">{name}</span></button>
+              <button className="asset-template garment-tile" key={name} disabled={avatarAvailability[model] !== true} onClick={() => { setActiveSection('Avatar'); setAvatarModel(model) }}><span className="asset-template-icon avatar-library-thumbnail">♙</span><span className="asset-template-label">{name}{avatarAvailability[model] === false ? ' · Not installed' : ''}</span></button>
             )) : assetCategory === 'Hardware and Trims' ? (
               <>
                 <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addButtonRow(selectedPiece.id, 5); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="buttons" size={48}/></span><span className="asset-template-label">Five-button row</span></button>
@@ -5019,7 +5053,7 @@ export default function App() {
               <div className="panel-section">
                 <div className="panel-title"><span>Avatar</span><strong>{project.avatar.name}</strong></div>
                 <div className="avatar-card"><div className="avatar-silhouette"><i /><i /><i /></div><div><span>BODY PROFILE</span><strong>{project.avatar.heightCm} cm</strong><em>{project.avatar.model === 'theo' || project.avatar.model === 'nora' ? 'Rigged CC0 fitting body' : 'CC0 MakeHuman fitting body'}</em></div></div>
-                <label className="select-field"><span>Fitting avatar</span><select value={project.avatar.model || 'makehuman-base'} onChange={(event) => setAvatarModel(event.target.value)}>{AVAILABLE_AVATARS.map(({ name, model }) => <option key={model} value={model}>{name}{model === 'makehuman-base' ? ' · Neutral base' : model === 'clo-thomas' ? ' · CLO3D Export' : ' · Rigged fitting'}</option>)}{project.avatar.model === 'custom-export' && <option value="custom-export">Imported OBJ / GLB mesh</option>}</select></label><button className="wide-action" onClick={() => avatarMeshInputRef.current?.click()}><Upload size={14}/>IMPORT AVATAR OBJ / GLB</button><p className="panel-copy">Imported meshes are visual until mesh-to-body collision fitting is implemented. Use assets you have permission to import.</p>
+                <label className="select-field"><span>Fitting avatar</span><select value={project.avatar.model || 'makehuman-base'} onChange={(event) => setAvatarModel(event.target.value)}>{AVAILABLE_AVATARS.map(({ name, model }) => <option key={model} value={model} disabled={avatarAvailability[model] !== true}>{name}{model === 'makehuman-base' ? ' · Neutral base' : model === 'clo-thomas' ? ' · CLO3D Export' : ' · Rigged fitting'}{avatarAvailability[model] === false ? ' · Not installed' : ''}</option>)}{project.avatar.model === 'custom-export' && <option value="custom-export">Imported OBJ / GLB mesh</option>}</select></label><button className="wide-action" onClick={() => avatarMeshInputRef.current?.click()}><Upload size={14}/>IMPORT AVATAR OBJ / GLB</button><p className="panel-copy">Imported meshes are visual until mesh-to-body collision fitting is implemented. Use assets you have permission to import.</p>
                 {(project.avatar.model === 'theo' || project.avatar.model === 'nora') && <p className="panel-copy">Rigged OpenSew/MPFB fitting body · CC0. Selecting it also moves the analytic collision arms to the matching 60° apparel fitting pose.</p>}
               </div>
               <div className="panel-section measure-list">
