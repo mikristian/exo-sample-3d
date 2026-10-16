@@ -15,6 +15,10 @@ const host = '127.0.0.1'
 const port = Number(process.env.EXO_CLOTHCRAFT_PORT || 5193)
 const origins = new Set(['http://127.0.0.1:5173', 'http://localhost:5173',
   'http://127.0.0.1:5174', 'http://localhost:5174',
+  'http://127.0.0.1:5188', 'http://localhost:5188',
+  'http://127.0.0.1:5189', 'http://localhost:5189',
+  'http://127.0.0.1:5416', 'http://localhost:5416',
+  'http://127.0.0.1:5386', 'http://localhost:5386',
   'http://127.0.0.1:5284', 'http://localhost:5284',
   'http://127.0.0.1:5286', 'http://localhost:5286'])
 const maxBytes = 8 * 1024 * 1024

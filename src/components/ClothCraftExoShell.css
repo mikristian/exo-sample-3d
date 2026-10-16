@@ -122,3 +122,26 @@
 .cc-exo-inspector-warning strong{color:#bcd9e4;font-size:9px;letter-spacing:.07em}
 .cc-exo-inspector-warning span{color:#c4cdd2}
 .cc-exo-inspector-warning a{color:#e3eff7;align-self:flex-start;text-decoration:underline}
+
+/* V2: gradient metal studio chrome, neutral-gray property surfaces, retained
+   measurable 50mm board grid and a dedicated per-viewport orientation widget. */
+.exo-v2-shell .clo-mac-menu{background:linear-gradient(115deg,#1e2831 0%,#2f3946 45%,#252930 100%);border-bottom:1px solid #73818e}
+.exo-v2-shell .project-strip{background:linear-gradient(110deg,#27333d,#404854 60%,#343a42);border-bottom:1px solid #76808a}
+.exo-v2-shell .asset-browser,.exo-v2-shell .tool-rail{background:linear-gradient(160deg,#343d49,#292d34 68%,#343942)}
+.exo-v2-shell .inspector,.exo-v2-shell .clo-inspector{background:linear-gradient(135deg,#565b64,#454b53 58%,#51545c);color:#ecf0f1}
+.exo-v2-shell .clo-inspector-content,.exo-v2-shell .clo-property-panel,.exo-v2-shell .clo-property-panel .panel-section{background-color:rgba(65,70,78,.48)}
+.exo-v2-shell .clo-inspector-topline,.exo-v2-shell .inspector-head{background:linear-gradient(90deg,#4c5761,#626a74)}
+.exo-v2-shell .simulation-bar{background:linear-gradient(90deg,#29323a 0%,#394551 52%,#29313b 100%)}
+.exo-v2-shell .cc-rust-embedded .cc-embedded-top{background:linear-gradient(95deg,#3b4e59,#536979 50%,#3c4e5b);border-color:#7c929a}
+.exo-v2-shell .cc-rust-embedded .cc-embedded-disclosure{background:linear-gradient(90deg,#d3dce0,#e4e9eb);border-color:#bec8cd;color:#586975}
+.exo-v2-shell .cc-rust-embedded .cc-embedded-main .cc-view h2{background:linear-gradient(90deg,#cfd8dd,#e2e7e8);border-bottom:1px solid #abb8bf}
+.exo-v2-shell .cc-rust-embedded .cc-embedded-footer{background:linear-gradient(90deg,#334756,#495d6b,#364854)}
+.exo-v2-shell .cc-rust-embedded .cc-board{background:#cfd3d5}
+.exo-v2-shell .cc-rust-embedded .cc-board svg{background:linear-gradient(135deg,#dde1e2,#c7cdd0)}
+.exo-v2-shell .cc-rust-embedded .cc-embedded-bottom{background:linear-gradient(90deg,#cad2d6,#e4eaec)}
+.cc-v2-orientation{position:absolute;top:11px;left:12px;z-index:4;display:flex;gap:3px;align-items:center;padding:4px;background:rgba(231,238,242,.91);border:1px solid #a1b1bb;border-radius:8px;box-shadow:0 3px 16px #172e4240;backdrop-filter:blur(8px)}
+.cc-v2-orientation strong{padding:0 7px;font-size:10px;letter-spacing:.06em;color:#34515f}
+.cc-v2-orientation button{padding:5px 7px!important;font-size:9px!important;letter-spacing:.03em;font-weight:650;border:1px solid transparent!important;background:transparent!important;color:#3d5869!important}
+.cc-v2-orientation button:hover{background:#9bb7c6!important;color:white!important}
+.cc-v2-orientation button:focus-visible{outline:2px solid #47768b}
+.cc-rust-embedded .cc-embedded-bottom button[title*="Spread"]{background:#afc4ce;border-color:#7c9ead;font-weight:650}

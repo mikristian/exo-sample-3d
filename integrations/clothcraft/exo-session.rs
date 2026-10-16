@@ -2,6 +2,7 @@
 use marvelous_cloth::{authoring::{self,Command,History}, fitting::{FittingProject,FittingScene}, garment::{presets::GarmentKind, shapes::{Primitive,MirrorAxis,BooleanOp}, meshing::MeshingSettings}, vbd::{VbdSolver,VbdSettings}};
 use serde::{de::DeserializeOwned};
 use serde_json::{Value,json};
+use glam::{DVec3,DQuat,EulerRot};
 use std::{io::{self,BufRead,Write},path::PathBuf,sync::Arc};
 fn field<T:DeserializeOwned>(v:&Value,k:&str)->Result<T,String>{serde_json::from_value(v.get(k).cloned().ok_or(format!("Missing {k}"))?).map_err(|e|e.to_string())}
 fn command(v:&Value)->Result<Command,String>{
@@ -70,6 +71,58 @@ impl Session {
    "edit"=>{let edit=authoring::apply(&self.project.template,command(&v["command"])?)?;self.history.record(self.project.template.clone());self.apply_edit(edit);},
    "undo"|"redo"=>{let edit=self.history.restore(&self.project.template,op=="redo")?;self.apply_edit(edit);},
    "reset"=>{self.scene.state=self.scene.garment.initial_state.clone();self.solver=None;self.metrics=Value::Null;self.revision+=1;},
+   // CLO-style *post-simulation* rigid reposition of one draped garment panel.
+   // Unlike authored Place, this preserves its draped fold geometry and the
+   // EXACT coordinates of every other sewn panel while moving the chosen one.
+   // Seam constraints stay connected and are resolved on subsequent steps.
+   "pose-panel"=>{
+     let id=field::<String>(v,"panel")?;
+     let delta=field::<[f64;3]>(v,"translation_delta")?;
+     let rotate=field::<[f64;3]>(v,"rotation_delta_degrees")?;
+     if !delta.iter().all(|n|n.is_finite())||!rotate.iter().all(|n|n.is_finite())
+       || DVec3::from_array(delta).length()>1.75 || rotate.iter().any(|n|n.abs()>360.)
+       {return Err("Invalid or excessive rigid drape motion".into())}
+     let range=self.scene.garment.panels.iter().find(|p|p.id==id).ok_or("Panel not found")?.vertices.clone();
+     if range.is_empty(){return Err("Panel has no physics vertices".into())}
+     let origin=self.scene.state.x[range.clone()].iter().copied().sum::<DVec3>()/(range.len() as f64);
+     let rot=DQuat::from_euler(EulerRot::XYZ,rotate[0].to_radians(),rotate[1].to_radians(),rotate[2].to_radians());
+     let move_by=DVec3::from_array(delta);
+     for i in range {
+       let p=self.scene.state.x[i];
+       self.scene.state.x[i]=origin + rot*(p-origin) + move_by;
+       self.scene.state.v[i]=DVec3::ZERO;
+     }
+     self.solver=None;self.metrics=Value::Null;self.revision+=1;
+   },
+   // Experimental CLO-style direct grab of simulated cloth. Modify only the
+   // specified panel's current positions; keep all OTHER simulated panels
+   // numerically untouched. The next physics step rebuilds its contact cache.
+   // Never claim the resulting stretched geometry is penetration-free.
+   "pull-panel"=>{
+    let panel=field::<String>(v,"panel")?;
+    let vertex=field::<usize>(v,"vertex")?;
+    let target=field::<[f64;3]>(v,"target")?;
+    let radius=v["radius_m"].as_f64().unwrap_or(0.16);
+    if !target.iter().all(|n|n.is_finite()&&n.abs()<20.0)||!radius.is_finite()||!(0.015..=0.5).contains(&radius){return Err("Invalid grab target or brush radius".into())}
+    let range=self.scene.garment.panels.iter().find(|p|p.id==panel).ok_or("Panel not found")?.vertices.clone();
+    if !range.contains(&vertex){return Err("Grab vertex must belong to the selected panel".into())}
+    let anchor=self.scene.state.x[vertex];
+    let desired=DVec3::from_array(target);
+    let delta=desired-anchor;
+    if delta.length()>2.0{return Err("Grab displacement exceeds safe 2 m limit".into())}
+    let original=self.scene.state.x[range.clone()].to_vec();
+    let mut count=0;
+    for (local,index) in range.enumerate(){
+      let distance=original[local].distance(anchor);
+      let weight=(-0.5*(distance/radius).powi(2)).exp();
+      if weight<1e-4{continue}
+      self.scene.state.x[index]+=delta*weight;
+      self.scene.state.v[index]=DVec3::ZERO;
+      count+=1;
+    }
+    if count==0{return Err("No cloth vertices in grab radius".into())}
+    self.solver=None;self.metrics=Value::Null;self.revision+=1;
+   },
    "step"=>{
     let count=v["steps"].as_u64().unwrap_or(1);if !(1..=4).contains(&count){return Err("Step batch must be 1–4".into())}
     if self.solver.is_none(){self.solver=Some(VbdSolver::new(self.scene.garment.clone(),Some(&self.scene.collider.surface),&self.scene.state)?)}

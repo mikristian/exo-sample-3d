@@ -150,3 +150,7 @@ native_app/qa/*.jpg
 # Regenerate using scripts/prepare-zozo-reference-dress.mjs from locally
 # installed original GitHub reference assets and the independently audited run.
 public/references/zozo-dress/
+
+# V2 local ignored dependency symlinks
+node_modules
+native_cpp/build-cmake
