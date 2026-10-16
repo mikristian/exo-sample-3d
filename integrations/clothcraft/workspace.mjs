@@ -73,7 +73,7 @@ export function createWorkspace(outputRoot) {
    if(data.op==='save')return await save()
    const result=remember(await rpc(data))
    if(result.ok){stepsSinceSave+=data.op==='step'?Number(data.steps||1):0
-    if(['edit','undo','redo','reset'].includes(data.op)||stepsSinceSave>=30)await save()
+    if(['edit','undo','redo','reset','pull-panel','pose-panel'].includes(data.op)||stepsSinceSave>=30)await save()
    }
    if(runError&&data.op==='snapshot')return{ok:false,error:runError,data:{...current,avatar:data.avatar?current.avatar:null,running:false}}
    return result
