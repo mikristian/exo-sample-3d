@@ -10,6 +10,7 @@
     "clothcraft:start": "node integrations/clothcraft/start.mjs",
     "clothcraft:build-app": "bash integrations/clothcraft/macos/build.sh",
     "clothcraft:check-avatars": "node integrations/clothcraft/check-avatar-switch.mjs",
+    "clothcraft:check-ogc": "node integrations/clothcraft/check-ogc-run.mjs",
     "clothcraft:export": "node integrations/clothcraft/bridge.mjs export",
     "clothcraft:validate": "node integrations/clothcraft/bridge.mjs validate",
     "clothcraft:bake": "node integrations/clothcraft/bridge.mjs bake",

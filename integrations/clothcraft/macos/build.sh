@@ -6,7 +6,7 @@ APP="${EXO_DESKTOP_DEST:-$HOME/Applications/EXO Sample 3D ClothCraft.app}"
 RES="$APP/Contents/Resources"
 mkdir -p "$RES/bin" "$RES/integrations/clothcraft" "$RES/native_cpp/build-cmake" \
   "$RES/research/oss/clothcraft/target/debug" "$RES/research/oss/clothcraft/assets/makehuman" \
-  "$APP/Contents/MacOS"
+  "$RES/collision-avatars" "$APP/Contents/MacOS"
 
 # Use the exact tested production assets, not a Vite development-server page.
 VITE_CLOTHCRAFT_BRIDGE_URL=http://127.0.0.1:5283 npm run build
@@ -17,6 +17,7 @@ rsync -a --delete dist/ "$RES/web/"
 # or the public release. Missing files stay unavailable in the UI.
 if [[ "${EXO_INCLUDE_PERSONAL_AVATARS:-1}" == "1" ]]; then
   AVATAR_ROOT="${EXO_PERSONAL_AVATAR_ROOT:-$ROOT/../garment-studio/public/avatars}"
+  THOMAS_OBJ="${EXO_PERSONAL_THOMAS_OBJ:-$ROOT/../garment-studio/native_app/assets/clo-thomas.obj}"
   if [[ -s "$AVATAR_ROOT/clo-thomas.glb" ]]; then
     cp "$AVATAR_ROOT/clo-thomas.glb" "$RES/web/avatars/clo-thomas.glb"
     echo "Included local user-owned Thomas avatar in personal .app only"
@@ -32,13 +33,24 @@ if [[ "${EXO_INCLUDE_PERSONAL_AVATARS:-1}" == "1" ]]; then
   if [[ -f "$AVATAR_ROOT/opensew/README.md" ]]; then
     cp "$AVATAR_ROOT/opensew/README.md" "$RES/web/avatars/opensew/README.md"
   fi
+  if [[ -s "$THOMAS_OBJ" ]]; then
+    python3 integrations/clothcraft/prepare_avatar_collider.py "$THOMAS_OBJ" "$RES/collision-avatars/thomas-body.obj"
+    echo "Prepared local body-only CLO Thomas collider without committing the source"
+  else
+    rm -f "$RES/collision-avatars/thomas-body.obj"
+  fi
+else
+  rm -f "$RES/collision-avatars/thomas-body.obj" "$RES/web/avatars/clo-thomas.glb" \
+    "$RES/web/avatars/opensew/theo.glb" "$RES/web/avatars/opensew/nora.glb"
 fi
+python3 integrations/clothcraft/prepare_avatar_collider.py public/avatars/makehuman-base.obj \
+  "$RES/collision-avatars/makehuman-body.obj" --body-name body
 
 NODE_BIN="${EXO_NODE_BIN:-$(command -v node)}"
 test -x "$NODE_BIN"
 cp "$NODE_BIN" "$RES/bin/node"
 chmod 755 "$RES/bin/node"
-for file in bridge.mjs server.mjs static.mjs; do
+for file in bridge.mjs server.mjs contact_run.mjs static.mjs; do
   cp "integrations/clothcraft/$file" "$RES/integrations/clothcraft/$file"
 done
 cp native_cpp/build-cmake/garment_cad_cli "$RES/native_cpp/build-cmake/garment_cad_cli"
@@ -46,6 +58,7 @@ for binary in cloth-template cloth-fit; do
   cp "research/oss/clothcraft/target/debug/$binary" "$RES/research/oss/clothcraft/target/debug/$binary"
 done
 cp research/oss/clothcraft/Cargo.toml "$RES/research/oss/clothcraft/Cargo.toml"
+cp research/oss/clothcraft/LICENSE "$RES/research/oss/clothcraft/LICENSE"
 cp research/oss/clothcraft/assets/makehuman/mannequin.obj "$RES/research/oss/clothcraft/assets/makehuman/mannequin.obj"
 cp research/oss/clothcraft/assets/makehuman/LICENSE.ASSETS.md "$RES/research/oss/clothcraft/assets/makehuman/LICENSE.ASSETS.md"
 

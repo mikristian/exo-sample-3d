@@ -5,6 +5,7 @@ import path from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { nativeExport, paths } from './bridge.mjs'
+import { runContact } from './contact_run.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 // Standalone signed .apps must not write generated garments into Contents/Resources.
@@ -20,6 +21,7 @@ const files = new Map([
   ['patterns.svg', 'image/svg+xml'], ['fibers.json', 'application/json'],
   ['grain-guides.obj', 'text/plain'],
 ])
+let activeContactRun = false
 
 function send(res, code, payload, origin = '') {
   const content = JSON.stringify(payload)
@@ -78,7 +80,20 @@ const server = http.createServer(async (req, res) => {
     const config = paths()
     return send(res, 200, { ok: true, backend: 'clothcraft-exo-local',
       nativeReady: fs.existsSync(config.cli), rustCheckoutReady: Boolean(config.upstream),
-      fitCertified: false }, origin)
+      ogcBackend: Boolean(config.rustFit && fs.existsSync(config.rustFit)),
+      contactBusy: activeContactRun, fitCertified: false }, origin)
+  }
+  if (req.method === 'GET' && req.url?.startsWith('/runs/')) {
+    const match = /^\/runs\/([0-9a-f-]{36})\/(cloth|avatar)\.obj$/.exec(req.url)
+    if (!match) return send(res, 404, { error: 'Unrecognized OGC artifact' }, origin)
+    const filename = match[2] === 'cloth'
+      ? path.join(outputs, 'runs', match[1], 'solution', 'cloth.obj')
+      : path.join(outputs, 'runs', match[1], 'avatar.obj')
+    if (!fs.existsSync(filename)) return send(res, 404, { error: 'Missing solver artifact' }, origin)
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      ...(origins.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) })
+    return fs.createReadStream(filename).pipe(res)
   }
   if (req.method === 'GET' && req.url?.startsWith('/artifacts/')) {
     const filename = decodeURIComponent(req.url.slice('/artifacts/'.length))
@@ -90,13 +105,23 @@ const server = http.createServer(async (req, res) => {
       ...(origins.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}) })
     return fs.createReadStream(path.join(outputs, 'bake', filename)).pipe(res)
   }
-  if (req.method !== 'POST' || !['/export', '/validate', '/bake'].includes(req.url)) {
+  if (req.method !== 'POST' || !['/export', '/validate', '/bake', '/contact-simulate'].includes(req.url)) {
     return send(res, 404, { error: 'Unknown integration operation' }, origin)
+  }
+  if (req.url === '/contact-simulate' && activeContactRun) {
+    return send(res, 409, { error: 'A ClothCraft OGC simulation is already running; wait for it to finish' }, origin)
   }
   try {
     const data = await readBody(req)
     if (!data?.document || typeof data.document !== 'object' || Array.isArray(data.document)) {
       return send(res, 400, { error: 'Expected a garment document object' }, origin)
+    }
+    if (req.url === '/contact-simulate') {
+      activeContactRun = true
+      try {
+        const result = await runContact(data, outputs)
+        return send(res, result.ok ? 200 : 422, result, origin)
+      } finally { activeContactRun = false }
     }
     const config = paths()
     const converted = nativeExport(data.document, config.cli)

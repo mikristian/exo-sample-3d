@@ -111,6 +111,8 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
             environment["EXO_CLOTHCRAFT_FIT_BIN"] = fitting.path
             environment["EXO_NATIVE_CLI"] = native.path
             environment["EXO_CLOTHCRAFT_OUTPUT_DIR"] = outputsDir.path
+            environment["EXO_CLOTHCRAFT_AVATAR_THOMAS_OBJ"] = resources.appendingPathComponent("collision-avatars/thomas-body.obj").path
+            environment["EXO_CLOTHCRAFT_AVATAR_MAKEHUMAN_OBJ"] = resources.appendingPathComponent("collision-avatars/makehuman-body.obj").path
             extra.forEach { environment[$0.key] = $0.value }
             p.environment = environment
             p.standardOutput = logs

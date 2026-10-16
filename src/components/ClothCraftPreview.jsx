@@ -4,7 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js'
 
 // Isolated read-only inspection. A baked rest OBJ is not a solved garment or a fit.
-export default function ClothCraftPreview({ obj, onClose, garmentName }) {
+export default function ClothCraftPreview({ obj, avatarObj = null, diagnostics = null, onClose, garmentName }) {
   const canvasMount = useRef(null)
 
   useEffect(() => {
@@ -27,7 +27,21 @@ export default function ClothCraftPreview({ obj, onClose, garmentName }) {
       if (child.isMesh) child.material = clothMaterial
     })
     scene.add(meshGroup)
+    let bodyGroup = null
+    let bodyMaterial = null
+    if (avatarObj) {
+      bodyGroup = new OBJLoader().parse(avatarObj)
+      bodyMaterial = new THREE.MeshStandardMaterial({
+        color: '#a7adb9', roughness: 0.85, metalness: 0,
+        opacity: 0.47, transparent: true, depthWrite: false, side: THREE.DoubleSide,
+      })
+      bodyGroup.traverse(child => {
+        if (child.isMesh) child.material = bodyMaterial
+      })
+      scene.add(bodyGroup)
+    }
     const bounds = new THREE.Box3().setFromObject(meshGroup)
+    if (bodyGroup) bounds.union(new THREE.Box3().setFromObject(bodyGroup))
     const center = bounds.getCenter(new THREE.Vector3())
     const size = bounds.getSize(new THREE.Vector3())
     const extent = Math.max(size.x, size.y, size.z, 0.5)
@@ -67,6 +81,8 @@ export default function ClothCraftPreview({ obj, onClose, garmentName }) {
       controls.dispose()
       clothMaterial.dispose()
       meshGroup.traverse(child => { if (child.isMesh) child.geometry.dispose() })
+      if (bodyMaterial) bodyMaterial.dispose()
+      bodyGroup?.traverse(child => { if (child.isMesh) child.geometry.dispose() })
       grid.geometry.dispose()
       grid.material.dispose()
       renderer.dispose()
@@ -82,17 +98,23 @@ export default function ClothCraftPreview({ obj, onClose, garmentName }) {
       <header style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center',
         justifyContent: 'space-between', padding: '12px 18px', background: '#1c2736', color: '#fff' }}>
         <div>
-          <strong>ClothCraft Rust baked geometry</strong>
-          <div style={{ fontSize: 12, opacity: 0.8 }}>{garmentName} · Static OBJ from template · not simulated fit</div>
+          <strong>{diagnostics ? 'ClothCraft Rust VBD + OGC contact trial' : 'ClothCraft Rust baked geometry'}</strong>
+          <div style={{ fontSize: 12, opacity: 0.8 }}>{garmentName} · {diagnostics ? `${diagnostics.avatarModel} · ${diagnostics.completedSteps} physical step(s)` : 'Static OBJ from template'} · not certified fit</div>
         </div>
         <button type="button" aria-label="Close ClothCraft preview" onClick={onClose}
           style={{ border: '1px solid #91a2b7', borderRadius: 7, padding: '8px 13px',
             background: '#334258', color: '#fff', cursor: 'pointer' }}>Close preview</button>
       </header>
+      {diagnostics && <div role="status" style={{ padding: '10px 16px', background: '#fff0ed', color: '#722f23', fontSize: 13 }}>
+        <strong>FIT NOT ACCEPTED</strong> · Seam gap {Number(diagnostics.maxSeamGapMm).toFixed(1)} mm ·
+        {' '}p95 extension {Number(diagnostics.p95ExtensionPercent).toFixed(1)}% ·
+        {' '}active contacts {diagnostics.activeContacts}. {diagnostics.reason}
+      </div>}
       <div ref={canvasMount} style={{ flex: 1, minHeight: 0 }} />
       <footer style={{ padding: '9px 16px', background: '#f3f5f8', color: '#37445c', fontSize: 12 }}>
-        Drag to orbit, scroll to zoom. The mesh was baked by ClothCraft's Rust geometry compiler.
-        Seam convergence and avatar collision have not been accepted.
+        Drag to orbit, scroll to zoom. Blue: {diagnostics ? 'Rust-simulated cloth' : 'baked static cloth'}.
+        {avatarObj ? ' Translucent gray: selected body-only collision mesh.' : ''}
+        {' '}This view is for research comparison; seam convergence and collision safety are not certified.
       </footer>
     </section>
   )
