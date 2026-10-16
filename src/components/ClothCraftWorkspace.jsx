@@ -80,7 +80,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const request=useCallback(async(data)=>{if(lock.current)return null;lock.current=true;setBusy(true);setError('');try{const res=await fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:state.current?.revision,...data})});const result=await res.json();if(!res.ok||!result.ok)throw Error(result.error||'ClothCraft request failed');if(result.data?.template)setS(prev=>({...result.data,avatar:result.data.avatar||(data.op==='open'?null:prev?.avatar)}));return result.data}catch(e){setError(e.message);running.current=false;setPlaying(false);return null}finally{lock.current=false;setBusy(false)}},[])
  useEffect(()=>{request({op:'snapshot',avatar:true});const pause=()=>{running.current=false;fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'pause'}),keepalive:true}).catch(()=>{})};window.addEventListener('pagehide',pause);return()=>{running.current=false;window.removeEventListener('pagehide',pause)}},[request])
  const edit=async c=>{if(running.current){running.current=false;setPlaying(false);while(lock.current)await new Promise(r=>setTimeout(r,20));await request({op:'pause'})}return request({op:'edit',command:c})}
- const pick=value=>{if(!value){setSelected(null);setHovered(null);setPair([]);return}setSelected(value);if(embedded&&value?.panel)window.dispatchEvent(new CustomEvent('exo-clothcraft-native-pick',{detail:value}));if(mode==='sew'&&value.edge)setPair(p=>p.length===1?[p[0],value]:[value])}
+ const pick=value=>{if(embedded)window.dispatchEvent(new CustomEvent('exo-clothcraft-native-pick',{detail:value||null}));if(!value){setSelected(null);setHovered(null);setPair([]);return}setSelected(value);if(mode==='sew'&&value.edge)setPair(p=>p.length===1?[p[0],value]:[value])}
  useEffect(()=>{
   const onPropertyCommand=event=>{
    const detail=event.detail
@@ -91,6 +91,18 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   }
   window.addEventListener('exo-clothcraft-property-command',onPropertyCommand)
   return()=>window.removeEventListener('exo-clothcraft-property-command',onPropertyCommand)
+ },[])
+ useEffect(()=>{
+  const onSelectSeam=event=>{
+   const id=event.detail?.seamId
+   if(!id){pick(null);return}
+   const spec=state.current?.template?.seams?.find(s=>s.id===id)
+   if(!spec)return
+   setSelected({panel:spec.a.panel,edge:spec.a.edge||spec.a.side,kind:'sewing',seamId:id})
+   setHovered(null)
+  }
+  window.addEventListener('exo-clothcraft-select-seam',onSelectSeam)
+  return()=>window.removeEventListener('exo-clothcraft-select-seam',onSelectSeam)
  },[])
  const save=async(download=false)=>{const data=await request({op:'save'});if(!data)return;setNotice('Workspace saved with editable patterns, seams and drape.');if(download){const blob=new Blob([JSON.stringify(data.project,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='exo-clothcraft-fitting-project.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),5000)}}
  const play=async()=>{
@@ -231,11 +243,12 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   window.dispatchEvent(new CustomEvent('exo-clothcraft-status',{detail:{
    name:s.template?.name||'ClothCraft garment',revision:s.revision||0,
    panels:s.template?.panels?.length||0,seams:s.template?.seams?.length||0,
+   seamRefs:s.template?.seams?.map(seam=>({id:seam.id,first:seam.a?.panel,second:seam.b?.panel}))||[],
    vertices:s.positions?.length||0, time:s.time||0,running:playing,busy,
    canUndo:Boolean(s.canUndo),canRedo:Boolean(s.canRedo),
    selection:measureNativeSelection(s,selected),
   }}))
- },[embedded,playing,busy,selected?.panel,selected?.edge,s?.revision,s?.positions,s?.template?.name,s?.template?.panels?.length,s?.template?.seams?.length,s?.canUndo,s?.canRedo,Math.floor(s?.time||0)])
+ },[embedded,playing,busy,selected?.panel,selected?.edge,selected?.seamId,s?.revision,s?.positions,s?.template?.name,s?.template?.panels?.length,s?.template?.seams?.length,s?.canUndo,s?.canRedo,Math.floor(s?.time||0)])
  if(embedded){
   const layout=exoLayout==='3d'?'3d':exoLayout==='2d'?'2d':exoLayout==='stack'?'stack':'split'
   return <div className={`cc-embedded-root cc-embedded-${layout}`} aria-label="ClothCraft linked native Rust 3D and 2D editors" data-native-clothcraft="true" style={{'--cc-embedded-split':`${exoSplit}%`}}>
@@ -256,7 +269,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  <nav className="cc-exo-rail" aria-label="EXO tool categories">{EXO_SECTIONS.map(([name,Icon])=><button key={name} className={section===name?'active':''} aria-pressed={section===name} title={name} onClick={()=>activateSection(name)}><Icon size={19}/><span>{name}</span></button>)}</nav>
  {libraryOpen&&<aside className="cc-pieces" aria-label="EXO asset browser"><div className="cc-side-title"><span>ASSET BROWSER</span><FolderOpen size={15}/></div><div className="cc-library-tabs">{['Pieces','Seams','Library','History'].map(tab=><button key={tab} className={tab===libraryTab?'active':''} onClick={()=>setLibraryTab(tab)}>{tab}</button>)}</div><label className="cc-search"><Search size={14}/><input aria-label="Search library items" value={filter} onChange={e=>setFilter(e.target.value)} placeholder={`Find ${libraryTab.toLowerCase()}…`}/></label>
  {libraryTab==='Pieces'&&<><h3>GARMENT · {s?.template.panels.length??0} PANELS</h3><p>{s?.template.name||'Connecting…'}</p>{s?.template.panels.filter(p=>filtered(p.name)).map((p,i)=><button data-piece={p.id} key={p.id} className={active?.panel===p.id?'active':''} onMouseEnter={()=>setHovered({panel:p.id})} onMouseLeave={()=>setHovered(null)} onClick={()=>showPiece(p.id)}><i style={{background:COLORS[i%COLORS.length]}}/>{p.name}<ChevronRight size={13}/></button>)}</>}
- {libraryTab==='Seams'&&<><h3>SEWING RELATIONSHIPS · {s?.template.seams.length??0}</h3>{s?.template.seams.filter(item=>filtered(item.id)).map(seam=><div className="cc-seam-row" key={seam.id} onMouseEnter={()=>setHovered({panel:seam.a.panel,edge:seam.a.edge})} onMouseLeave={()=>setHovered(null)}><button onClick={()=>{setSelected({panel:seam.a.panel,edge:seam.a.edge});activateSection('Sewing')}}>{seam.id}</button><button aria-label={`Delete seam ${seam.id}`} disabled={busy||playing} onClick={()=>edit({kind:'RemoveSeam',seam:seam.id})}>×</button></div>)}</>}
+ {libraryTab==='Seams'&&<><h3>SEWING RELATIONSHIPS · {s?.template.seams.length??0}</h3>{s?.template.seams.filter(item=>filtered(item.id)).map(seam=><div className="cc-seam-row" key={seam.id} onMouseEnter={()=>setHovered({panel:seam.a.panel,edge:seam.a.edge})} onMouseLeave={()=>setHovered(null)}><button onClick={()=>{setSelected({panel:seam.a.panel,edge:seam.a.edge,kind:'sewing',seamId:seam.id});activateSection('Sewing')}}>{seam.id}</button><button aria-label={`Delete seam ${seam.id}`} disabled={busy||playing} onClick={()=>edit({kind:'RemoveSeam',seam:seam.id})}>×</button></div>)}</>}
  {libraryTab==='Library'&&<><h3>STARTING BLOCKS</h3>{[['T-shirt','tshirt'],['Dress','dress']].filter(([name])=>filtered(name)).map(([name,preset])=><button key={preset} disabled={busy||playing} onClick={()=>openPreset(preset)}><Shirt size={15}/>{name} fixture</button>)}<h3>NEW PATTERN ELEMENTS</h3><button onClick={()=>{activateSection('Pattern');setShape('rectangle')}}><FilePlus2 size={14}/> Rectangle</button><button onClick={()=>{activateSection('Pattern');setShape('ellipse')}}><FilePlus2 size={14}/> Ellipse</button><button onClick={()=>{activateSection('Pattern');setMode('pen')}}><PenTool size={14}/> Draw custom outline</button></>}
  {libraryTab==='History'&&<><h3>SESSION HISTORY</h3><p>Revision {s?.revision??0}</p><button disabled={!s?.canUndo||busy||playing} onClick={()=>request({op:'undo'})}><Undo2 size={15}/> Undo last edit</button><button disabled={!s?.canRedo||busy||playing} onClick={()=>request({op:'redo'})}><Redo2 size={15}/> Redo last edit</button><p>The Rust editing history supports undo/redo; save a project for persistent revisions.</p></>}
  <footer>EXO asset workspace · ClothCraft physics<br/>Unsupported EXO-specific production features remain in Full EXO</footer></aside>}

@@ -71,6 +71,13 @@ try{
  assert.equal(metrics['2D Line Length'],`${actual.length2DCm.toFixed(2)} cm`)
  assert.equal(metrics['3D Line Length'],`${actual.length3DCm.toFixed(2)} cm`)
  assert.equal(metrics['3D Stretch'],`${actual.elongationPercent>=0?'+':''}${actual.elongationPercent.toFixed(2)}%`)
+ const unitSelect=page.getByRole('combobox',{name:'Property Editor length unit'})
+ await unitSelect.selectOption('mm')
+ assert.equal(await region.locator('.clo-pe-readout').filter({hasText:'2D Line Length'}).locator('strong').innerText(),`${(actual.length2DCm*10).toFixed(1)} mm`)
+ await unitSelect.selectOption('in')
+ assert.equal(await region.locator('.clo-pe-readout').filter({hasText:'3D Line Length'}).locator('strong').innerText(),`${(actual.length3DCm/2.54).toFixed(3)} in`)
+ assert.equal((await snapshotRequest()).revision,initial.revision,'Changing measurement display units must not edit Rust geometry')
+ await unitSelect.selectOption('cm')
  assert.equal(await region.getByRole('checkbox',{name:'Elastic physical simulation not yet implemented'}).isDisabled(),true)
  assert.equal(await region.getByRole('checkbox',{name:'Seam taping physical simulation not yet implemented'}).isDisabled(),true)
  const input=region.getByRole('spinbutton',{name:'Target 2D length (cm)'})
@@ -118,10 +125,34 @@ try{
  assert(Math.abs(measureNativeSelection(agentAfter,selection).targetLengthCm-agentTarget)<.005)
  assert.deepEqual(agentAfter.positions,after.positions,'Agent drafting specification must not change live garment geometry')
  await page.screenshot({path:path.join(output,'native-selected-line-properties.png')})
+ // A native sewing pair is its own Property Editor context; show measured
+ // lengths for BOTH named boundaries and the current 3D gap. This path is
+ // part of the actual V2 right-side inspector, not the old standalone sidebar.
+ const workspaceSelect=page.getByRole('combobox',{name:'Workspace',exact:true})
+ await workspaceSelect.selectOption('Sewing')
+ const nativeSeamPicker=page.getByRole('combobox',{name:'Select native sewing relationship'})
+ await nativeSeamPicker.waitFor({timeout:20000})
+ const seamId=initial.template.seams[0].id
+ await nativeSeamPicker.selectOption(seamId)
+ const seamExpected=measureNativeSelection(agentAfter,{seamId})
+ assert.equal(seamExpected?.kind,'sewing')
+ assert(seamExpected.first?.length2DCm>0&&seamExpected.second?.length2DCm>0)
+ const sewingAccordion=page.locator('.clo-pe-list').getByRole('button',{name:'Sewing',exact:true})
+ await sewingAccordion.waitFor({timeout:10000})
+ if(await sewingAccordion.getAttribute('aria-expanded')!=='true')await sewingAccordion.click()
+ const sewingInfo=page.getByRole('region',{name:'Sewing properties'})
+ await sewingInfo.waitFor()
+ const sewingMetrics=await sewingInfo.locator('.clo-pe-readout').evaluateAll(nodes=>Object.fromEntries(nodes.map(n=>[n.querySelector('span')?.textContent,n.querySelector('strong')?.textContent])))
+ assert.equal(sewingMetrics['Sewing Relationship'],seamId)
+ assert.equal(sewingMetrics['First 2D Line Length'],`${seamExpected.first.length2DCm.toFixed(2)} cm`)
+ assert.equal(sewingMetrics['Second 2D Line Length'],`${seamExpected.second.length2DCm.toFixed(2)} cm`)
+ assert.equal(sewingMetrics['Ease Allowed'],seamExpected.allowEase?'Yes':'No')
+ assert.equal(sewingMetrics['Reverse Orientation'],seamExpected.reversed?'Yes':'No')
+ await page.screenshot({path:path.join(output,'native-selected-sewing-properties.png')})
  assert.deepEqual(errors,[])
  console.log(JSON.stringify({passed:true,selected:selection,real2DCm:actual.length2DCm,
   real3DCm:actual.length3DCm,extensionPercent:actual.elongationPercent,
-  targetSavedCm:updated.targetLengthCm,agentTargetSavedCm:agentTarget,agentCapabilities:capabilities.capabilities.length,staleCommandRejected:true,elasticAndTapePhysicalUnsupported:true,
+  targetSavedCm:updated.targetLengthCm,agentTargetSavedCm:agentTarget,agentCapabilities:capabilities.capabilities.length,nativeSeamId:seamId,nativeSeam2DCm:[seamExpected.first.length2DCm,seamExpected.second.length2DCm],staleCommandRejected:true,elasticAndTapePhysicalUnsupported:true,
   noUnrelatedGarmentEdits:true,errors,output},null,2))
 }finally{
  await browser?.close().catch(()=>{})

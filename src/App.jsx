@@ -61,6 +61,7 @@ import { loadZozoDressReference } from './core/zozoReferenceDress.js'
 import { CLO_MENUS, GarmentSilhouette, LibraryChrome, ObjectBrowser } from './components/CloUI.jsx'
 import RightToolPalette from './components/RightToolPalette.jsx'
 import CloPropertyEditorAccordion from './components/CloPropertyEditorAccordion.jsx'
+import {applyCloDraftProperty,validateCloDraftProperty} from './core/cloPropertyCommands.js'
 import PatternLibraryThumbnail from './components/PatternLibraryThumbnail.jsx'
 import CadToolIcon from './components/CadToolIcon.jsx'
 import MarkerPreview from './components/MarkerPreview.jsx'
@@ -1057,6 +1058,18 @@ export default function App() {
     if (record) pushUndo(before)
     setProject(next)
     setSaveState('modified')
+  }
+
+  // The right Property Editor and future agents share a typed property
+  // allowlist. Unknown fields, wrong object IDs and out-of-range inputs
+  // are rejected *before* the undoable garment transaction is created.
+  const editCloObjectProperty=(selection,field,value)=>{
+    if(clothcraftHybrid)return{ok:false,error:'Native garment properties use the separate Rust API'}
+    const result=validateCloDraftProperty(project,selection,field,value)
+    if(!result.ok){setCommandResult(result.error);return result}
+    mutateProject(next=>applyCloDraftProperty(next,selection,field,result.value))
+    setCommandResult(`${selection.name||selection.type} · ${field} updated. Undo is available.`)
+    return result
   }
 
   const beginGesture = () => {
@@ -4452,7 +4465,7 @@ export default function App() {
           <RightToolPalette activeSection={activeSection} viewportTool={viewportTool} tool={tool} setViewportTool={setViewportTool} setTool={setTool} setActiveSection={setActiveSection} setObjectTab={setObjectTab} onRevealBrowser={() => setShowObjectBrowser(true)} showSewingGuides={showSewingGuides} setShowSewingGuides={setShowSewingGuides} wireframe={wireframe} setWireframe={setWireframe} analysisMode={analysisMode} setAnalysisMode={setAnalysisMode} toggleSimulation={simForVisibleEngine} resetSimulation={resetForVisibleEngine} exportProject={exportForVisibleEngine} onFitCamera={() => setFitCameraSignal(value => value + 1)} onMirrorSelected={() => duplicateSelectedPiece(true)} running={visibleRunning}/>
           <div className="clo-inspector-content">
           <div className="clo-inspector-topline"><button title={showObjectBrowser ? 'Hide Object Browser' : 'Show Object Browser'} onClick={() => setShowObjectBrowser(value => !value)}><PanelRight size={15}/></button><span>OBJECTS & PROPERTIES</span><button title="Choose Fabric" onClick={() => { setObjectTab('Fabric'); setActiveSection('Fabric') }}><Shirt size={15}/></button></div>
-          {showObjectBrowser && <ObjectBrowser tab={objectTab} setTab={setObjectTab} project={project} setSelectedPieceId={selectIn3D} setSelectedFabricId={setSelectedFabricId} onSelectedObjectChange={setSelectedObjectForProperties} onApplyFabric={assignFabric} setActiveSection={setActiveSection} selectedPieceId={selectedPieceId} selectedFabricId={selectedFabricId} onAddFabric={addFabricSwatch} onAddPattern={addPiece} onTogglePieceProperty={(pieceId, field) => mutateProject(next => { const piece = next.pieces.find(item => item.id === pieceId); if (piece && (field === 'visible3d' || field === 'locked')) piece[field] = field === 'visible3d' ? piece.visible3d === false : !piece.locked })}/>}
+          {showObjectBrowser && <ObjectBrowser tab={objectTab} setTab={setObjectTab} project={project} setSelectedPieceId={selectIn3D} setSelectedFabricId={setSelectedFabricId} onSelectedObjectChange={value=>{setSelectedObjectForProperties(value);if(value)setSelectedDraftEdge(null)}} onApplyFabric={assignFabric} setActiveSection={setActiveSection} selectedPieceId={selectedPieceId} selectedFabricId={selectedFabricId} onAddFabric={addFabricSwatch} onAddPattern={addPiece} onTogglePieceProperty={(pieceId, field) => mutateProject(next => { const piece = next.pieces.find(item => item.id === pieceId); if (piece && (field === 'visible3d' || field === 'locked')) piece[field] = field === 'visible3d' ? piece.visible3d === false : !piece.locked })}/>}
           {showObjectBrowser && <div className="clo-browser-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize Object Browser height" title="Drag to resize Object Browser and Property Editor" onPointerDown={(event) => beginPanelResize('objects', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setObjectBrowserHeight(390)}><span/></div>}
           <div className="clo-property-panel">
             <CloPropertyEditorAccordion activeSection={activeSection} selectedPiece={selectedPiece}
@@ -4462,6 +4475,8 @@ export default function App() {
               objectSelection={selectedObjectForProperties}
               onSwitchSection={setActiveSection}
               onShowFabric={()=>{setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true)}}
+              onPropertyEdit={editCloObjectProperty}
+              onSelectNativeSeam={seamId=>window.dispatchEvent(new CustomEvent('exo-clothcraft-select-seam',{detail:{seamId}}))}
               objectTab={objectTab}
               onSetLineTarget={(panel,edge,cm)=>window.dispatchEvent(new CustomEvent('exo-clothcraft-property-command',{detail:{type:'target-length',panel,edge,cm}}))}
               onSimulate={simForVisibleEngine} onReset={resetForVisibleEngine}>
