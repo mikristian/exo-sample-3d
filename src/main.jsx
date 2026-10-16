@@ -25,11 +25,11 @@ if (new URLSearchParams(window.location.search).get('engine') === 'clothcraft') 
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    {new URLSearchParams(window.location.search).get('engine') === 'clothcraft'
+    {new URLSearchParams(window.location.search).get('engine') === 'clothcraft-lab'
       ? <ClothCraftWorkspace />
       : <>
           <App />
-          {window.location.port === '5286' && (
+          {window.location.port === '5286' && new URLSearchParams(window.location.search).get('engine') !== 'clothcraft' && (
             <a className="clothcraft-workspace-launch" style={{position:'fixed',bottom:40,right:20,zIndex:1000,padding:'10px 16px',background:'#345867',color:'white',borderRadius:6}} href="?desktop=1&engine=clothcraft">ClothCraft workspace →</a>
           )}
         </>}

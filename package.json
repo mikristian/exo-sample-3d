@@ -97,7 +97,9 @@
     "capture:gallery": "node scripts/capture-exo-public-gallery.mjs",
     "clothcraft:build-workspace": "bash integrations/clothcraft/macos/build-workspace-app.sh",
     "clothcraft:check-workspace": "node integrations/clothcraft/check-workspace.mjs",
-    "clothcraft:qa-workspace": "node integrations/clothcraft/qa-workspace.mjs"
+    "clothcraft:qa-workspace": "node integrations/clothcraft/qa-workspace.mjs",
+    "clothcraft:qa-exo-shell": "node integrations/clothcraft/qa-exo-shell.mjs",
+    "clothcraft:qa-full-exo-ui": "node integrations/clothcraft/qa-full-exo-ui.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "^5.11.2",

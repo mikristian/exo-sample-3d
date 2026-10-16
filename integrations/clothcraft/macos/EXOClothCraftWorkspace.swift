@@ -13,7 +13,23 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
     private var startupLabel: NSTextField!
     private var logs: FileHandle?
 
+    private func traceStartup(_ message: String) {
+        let directory = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/EXO-ClothCraft-Studio", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("startup-trace.log")
+        if !FileManager.default.fileExists(atPath: file.path) {
+            FileManager.default.createFile(atPath: file.path, contents: Data())
+        }
+        if let handle = try? FileHandle(forWritingTo: file) {
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: Data("\(Date()) \(message)\n".utf8))
+            try? handle.close()
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        traceStartup("applicationDidFinishLaunching")
         NSApp.setActivationPolicy(.regular)
         installMenu()
         window = NSWindow(contentRect: NSRect(x: 70, y: 60, width: 1510, height: 965),
@@ -57,10 +73,13 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
 
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        traceStartup("window prepared; starting services")
         do {
             try startServices()
+            traceStartup("services spawned; awaiting web page")
             awaitPage()
         } catch {
+            traceStartup("startup error: \(error.localizedDescription)")
             startupLabel.stringValue = "Could not start local ClothCraft services: \(error.localizedDescription)"
             NSLog("EXO startup error: %@", error.localizedDescription)
         }
@@ -71,7 +90,26 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
             throw NSError(domain: "EXO", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "App resources are missing"])
         }
-        let node = resources.appendingPathComponent("bin/node")
+        let bundledNode = resources.appendingPathComponent("bin/node")
+        // Some macOS installations terminate a signed Node executable when it
+        // lives inside this app's Resources directory (SIGKILL/137), even though
+        // that same official Node binary and signature run correctly elsewhere.
+        // Clone our bundled runtime to user Application Support once, retaining
+        // the Node Foundation signature and keeping the app fully offline.
+        let runtimeFolder = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/EXO-ClothCraft-Studio/Runtime", isDirectory: true)
+        try FileManager.default.createDirectory(at: runtimeFolder, withIntermediateDirectories: true)
+        let node = runtimeFolder.appendingPathComponent("node")
+        let sourceInfo = try FileManager.default.attributesOfItem(atPath: bundledNode.path)
+        let cachedInfo = try? FileManager.default.attributesOfItem(atPath: node.path)
+        let sizeMatches = (cachedInfo?[.size] as? NSNumber) == (sourceInfo[.size] as? NSNumber)
+        let timeMatches = (cachedInfo?[.modificationDate] as? Date) == (sourceInfo[.modificationDate] as? Date)
+        if !sizeMatches || !timeMatches {
+            if FileManager.default.fileExists(atPath: node.path) {
+                try FileManager.default.removeItem(at: node)
+            }
+            try FileManager.default.copyItem(at: bundledNode, to: node)
+        }
         let scripts = resources.appendingPathComponent("integrations/clothcraft")
         let clothCraft = resources.appendingPathComponent("research/oss/clothcraft")
         let template = clothCraft.appendingPathComponent("target/debug/cloth-template")
@@ -210,6 +248,9 @@ enum EXOClothCraftEntry {
         let app = NSApplication.shared
         let delegate = EXOClothCraftApp()
         app.delegate = delegate
-        app.run()
+        // NSApplication.delegate is weak. Keep our delegate strongly alive
+        // for the entire event loop, including optimized (-O) release builds.
+        // Otherwise the window can restore without startup services running.
+        withExtendedLifetime(delegate) { app.run() }
     }
 }

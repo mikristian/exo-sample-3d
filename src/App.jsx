@@ -52,6 +52,7 @@ import {
 } from 'lucide-react'
 import PatternEditor from './components/PatternEditor.jsx'
 import GarmentViewport from './components/GarmentViewport.jsx'
+import ClothCraftWorkspace from './components/ClothCraftWorkspace.jsx'
 import ClothCraftPreview from './components/ClothCraftPreview.jsx'
 import FabricMaterialPreview from './components/FabricMaterialPreview.jsx'
 import ZozoReferenceDressViewer from './components/ZozoReferenceDressViewer.jsx'
@@ -648,6 +649,10 @@ function imageFileToDataUrl(file, maxDimension = 1024) {
 }
 
 export default function App() {
+  // The hybrid reuses the *entire* real EXO chrome, including original menus,
+  // asset library, both tool rails, object browser and property editor. Only
+  // the dual 3D/2D center is replaced with the native ClothCraft workspace.
+  const clothcraftHybrid = new URLSearchParams(window.location.search).get('engine') === 'clothcraft'
   const [project, setProject] = useState(loadProject)
   const sewingConstructionAudit = useMemo(() => auditSewingConstruction(project), [project])
   const [selectedPieceId, setSelectedPieceId] = useState('front')
@@ -701,6 +706,7 @@ export default function App() {
   })
   const [fitCameraSignal, setFitCameraSignal] = useState(0)
   const [running, setRunning] = useState(false)
+  const [clothcraftLive, setClothcraftLive] = useState(null)
   const [hasSimulated, setHasSimulated] = useState(false)
   const [wireframe, setWireframe] = useState(false)
   const [analysisMode, setAnalysisMode] = useState('surface')
@@ -1722,6 +1728,10 @@ export default function App() {
   }
 
   const deleteSelectedPiece = () => {
+    if (clothcraftHybrid) {
+      window.dispatchEvent(new CustomEvent('exo-clothcraft-command',{detail:'delete-selected'}))
+      return
+    }
     if (!selectedPiece) return
     mutateProject((next) => {
       const ids = new Set([selectedPiece.id])
@@ -2839,6 +2849,10 @@ export default function App() {
   }
 
   const duplicateSelectedPiece = (mirrored = false, linked = false) => {
+    if (clothcraftHybrid) {
+      window.dispatchEvent(new CustomEvent('exo-clothcraft-command',{detail:mirrored?'mirror-selected':'duplicate-selected'}))
+      return
+    }
     if (!selectedPiece) return
     const source = cloneProject(selectedPiece)
     const xs = source.points.map((point) => point.x)
@@ -4071,6 +4085,42 @@ export default function App() {
   }, [])
 
   const libraryItemMatches = (name) => name.toLowerCase().includes(librarySearch.trim().toLowerCase())
+  const rustCommand = (command) => window.dispatchEvent(new CustomEvent('exo-clothcraft-command', {detail: command}))
+  const simForVisibleEngine = () => clothcraftHybrid ? rustCommand('toggle-sim') : toggleSimulation()
+  const resetForVisibleEngine = () => clothcraftHybrid ? rustCommand('reset') : resetSimulation()
+  const saveForVisibleEngine = () => clothcraftHybrid ? rustCommand('save') : saveProject()
+  const exportForVisibleEngine = () => clothcraftHybrid ? rustCommand('export') : exportProject()
+  const undoForVisibleEngine = () => clothcraftHybrid ? rustCommand('undo') : undo()
+  const redoForVisibleEngine = () => clothcraftHybrid ? rustCommand('redo') : redo()
+  const visibleRunning = clothcraftHybrid ? Boolean(clothcraftLive?.running) : running
+  useEffect(() => {
+    if (!clothcraftHybrid) return undefined
+    const onStatus = event => setClothcraftLive(event.detail)
+    window.addEventListener('exo-clothcraft-status', onStatus)
+    return () => window.removeEventListener('exo-clothcraft-status', onStatus)
+  }, [clothcraftHybrid])
+  useEffect(() => {
+    if (!clothcraftHybrid) return
+    rustCommand(`set-wireframe:${wireframe}`)
+  }, [clothcraftHybrid,wireframe])
+  useEffect(() => {
+    if (!clothcraftHybrid) return
+    rustCommand(`set-seams:${showSewingGuides}`)
+  }, [clothcraftHybrid,showSewingGuides])
+  useEffect(() => {
+    if (!clothcraftHybrid) return
+    const modes={select:'edit',point:'edit',curve:'edit',sew:'sew',internal:'line'}
+    if (modes[tool]) rustCommand(`mode:${modes[tool]}`)
+  }, [clothcraftHybrid,tool])
+  useEffect(() => {
+    if (!clothcraftHybrid) return
+    const modes={move:'move3d',rotate:'rotate3d'}
+    if (modes[viewportTool]) rustCommand(`mode:${modes[viewportTool]}`)
+  }, [clothcraftHybrid,viewportTool])
+  useEffect(() => {
+    if (!clothcraftHybrid||!selectedPieceId) return
+    rustCommand(`select:${selectedPieceId}`)
+  }, [clothcraftHybrid,selectedPieceId,clothcraftLive?.name])
 
   return (
     <div className={`app-shell ${showTopWorkspaceTabs ? '' : 'workspace-tabs-hidden'}`}>
@@ -4102,7 +4152,7 @@ export default function App() {
           <button type="button" className="clo-command-launch clo-panel-toggle" aria-label="Toggle asset browser panel" aria-pressed={libraryVisible} title="Show / hide Library" onClick={() => setLibraryVisible(value => !value)}><PanelLeft size={15}/></button>
           <button type="button" className="clo-command-launch clo-panel-toggle" aria-label="Show or hide Property Editor" aria-pressed={inspectorVisible} title="Show / hide Property Editor" onClick={() => setInspectorVisible(value => !value)}><PanelRight size={15}/></button>
           <div className="clo-simulate-control">
-            <button className={`clo-simulate-main ${running ? 'running' : ''}`} onClick={toggleSimulation} title="Simulate or pause garment · Space"><ArrowDownToLine size={16}/><span>{running ? 'PAUSE' : 'SIM'}</span></button>
+            <button className={`clo-simulate-main ${visibleRunning ? 'running' : ''}`} onClick={simForVisibleEngine} title="Simulate or pause visible garment · Space"><ArrowDownToLine size={16}/><span>{visibleRunning ? 'PAUSE' : 'SIM'}</span></button>
             <button className="clo-simulate-arrow" title="Simulation modes" aria-expanded={simulationMenuOpen} onClick={() => { setLeftSimulationMenuOpen(false); setOpenMenu(null); setSimulationMenuOpen(value => !value) }}><ChevronDown size={13}/></button>
             {simulationMenuOpen && <div className="clo-simulation-popover">
               <strong>Simulation mode</strong>
@@ -4113,12 +4163,12 @@ export default function App() {
               <button onClick={requestNativeSolve} disabled={nativeServiceStatus !== 'ready'} title={nativeServiceStatus === 'ready' ? 'Solve using connected native XPBD service' : 'Native solver service is offline'}><Box size={14}/> Native XPBD solve {nativeServiceStatus !== 'ready' ? <small>OFFLINE</small> : null}</button>
             </div>}
           </div>
-          <button className="icon-button" title="Undo" disabled={!undoStack.length} onClick={undo}><Undo2 size={17} /></button>
-          <button className="icon-button" title="Redo" disabled={!redoStack.length} onClick={redo}><Redo2 size={17} /></button>
+          <button className="icon-button" title="Undo" disabled={clothcraftHybrid ? clothcraftLive?.busy||!clothcraftLive?.canUndo : !undoStack.length} onClick={undoForVisibleEngine}><Undo2 size={17} /></button>
+          <button className="icon-button" title="Redo" disabled={clothcraftHybrid ? clothcraftLive?.busy||!clothcraftLive?.canRedo : !redoStack.length} onClick={redoForVisibleEngine}><Redo2 size={17} /></button>
           <span className="toolbar-divider" />
           <button className="icon-button" title="Import garment" onClick={() => importInputRef.current?.click()}><Upload size={17} /></button>
-          <button className="icon-button" title="Export garment" onClick={exportProject}><Download size={17} /></button>
-          <button className={`save-button ${saveState}`} onClick={saveProject}><Save size={15} />{saveState === 'saved' ? 'SAVED' : 'SAVE'}</button>
+          <button className="icon-button" title="Export visible garment" disabled={clothcraftHybrid&&clothcraftLive?.busy} onClick={exportForVisibleEngine}><Download size={17} /></button>
+          <button className={`save-button ${saveState}`} disabled={clothcraftHybrid&&clothcraftLive?.busy} onClick={saveForVisibleEngine}><Save size={15} />{clothcraftHybrid ? 'SAVE RUST' : saveState === 'saved' ? 'SAVED' : 'SAVE'}</button>
           <input ref={importInputRef} hidden type="file" accept=".json,.garment,.dxf" onChange={importProject} />
           <input ref={seamlyMeasureInputRef} hidden type="file" accept=".smis,.smms" onChange={importSeamlyMeasurements} />
           <input ref={seamlyPatternInputRef} hidden type="file" accept=".sm2d" onChange={importSeamlyConstructionGraph} />
@@ -4138,19 +4188,16 @@ export default function App() {
       <div className="project-strip">
         <div className="project-name">
           <span>PROJECT</span>
-          <input
-            value={project.name}
-            onChange={(event) => mutateProject((next) => { next.name = event.target.value }, { record: false })}
-          />
+          {clothcraftHybrid ? <input aria-label="Visible ClothCraft project name" title="Rust project name is managed by the native garment session" value={clothcraftLive?.name || 'ClothCraft native garment'} readOnly/> : <input value={project.name} onChange={(event) => mutateProject((next) => { next.name = event.target.value }, { record: false })}/>}
           <select className="template-select" value={project.templateId || 'custom'} onChange={(event) => event.target.value !== 'custom' && applyGarmentTemplate(event.target.value)}>
             <option value="custom">Custom</option>
             {GARMENT_TEMPLATES.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
           </select>
         </div>
-        <div className="project-meta"><span>REV {project.revision}</span><span>{project.pieces.length} PATTERNS</span><span>{project.seams.length} SEAMS</span></div>
+        <div className="project-meta"><span>REV {clothcraftHybrid ? clothcraftLive?.revision ?? '—' : project.revision}</span><span>{clothcraftHybrid ? clothcraftLive?.panels ?? '—' : project.pieces.length} PATTERNS</span><span>{clothcraftHybrid ? clothcraftLive?.seams ?? '—' : project.seams.length} SEAMS</span></div>
         <form className="command-bar" onSubmit={runCommand}>
           <Sparkles size={15} />
-          <input value={command} onChange={(event) => setCommand(event.target.value)} placeholder="Tell the garment what to change…" />
+          <input value={command} onChange={(event) => setCommand(event.target.value)} placeholder={clothcraftHybrid ? 'EXO draft commands (separate from the ClothCraft garment)…' : 'Tell the garment what to change…'} />
           <button type="submit">RUN</button>
         </form>
       </div>
@@ -4165,8 +4212,8 @@ export default function App() {
             <header>History</header>
             <p>Recorded garment snapshots · current session</p>
             <div className="clo-history-actions">
-              <button type="button" onClick={undo} disabled={!undoStack.length}><Undo2 size={15}/> Undo <span>{undoStack.length}</span></button>
-              <button type="button" onClick={redo} disabled={!redoStack.length}><Redo2 size={15}/> Redo <span>{redoStack.length}</span></button>
+              <button type="button" onClick={undoForVisibleEngine} disabled={clothcraftHybrid ? !clothcraftLive?.canUndo : !undoStack.length}><Undo2 size={15}/> Undo <span>{clothcraftHybrid ? clothcraftLive?.canUndo ? '1+' : '0' : undoStack.length}</span></button>
+              <button type="button" onClick={redoForVisibleEngine} disabled={clothcraftHybrid ? !clothcraftLive?.canRedo : !redoStack.length}><Redo2 size={15}/> Redo <span>{clothcraftHybrid ? clothcraftLive?.canRedo ? '1+' : '0' : redoStack.length}</span></button>
             </div>
             <div className="clo-history-timeline" role="list" aria-label="Recent garment history">
               <div className="clo-history-current" role="listitem"><strong>Current · revision {project.revision ?? '—'}</strong><span>{project.pieces.length} patterns · {project.seams.length} seams</span></div>
@@ -4220,7 +4267,7 @@ export default function App() {
           <div className="clo-rail-section"><strong>3D TOOLS</strong><span>⌄</span></div>
           <div className="clo-left-3d-double-bars" aria-label="3D dual-column CLO toolbar">
             <div className="clo-left-3d-column" aria-label="3D editing column A">
-              <button className={running ? 'active' : ''} onClick={toggleSimulation} title="Simulate / pause · Space"><CadToolIcon id="simulate" size={20}/></button>
+              <button className={visibleRunning ? 'active' : ''} onClick={simForVisibleEngine} title="Simulate / pause · Space"><CadToolIcon id="simulate" size={20}/></button>
               <button className={viewportTool === 'transform' ? 'active' : ''} onClick={() => setViewportTool('transform')} title="Select / Move · garment-centered 3D gizmo (T)"><CadToolIcon id="select-3d" size={20}/></button>
               <button className={viewportTool === 'mesh-select' ? 'active' : ''} title="Select Mesh (Box / Lasso / Brush)" aria-label="Select Mesh (Box / Lasso / Brush)" onClick={() => { setViewportTool('mesh-select'); setWireframe(true) }}><CadToolIcon id="wireframe" size={20}/></button>
               <button title="Edit Styleline · planned" aria-label="Edit Styleline · planned" disabled><CadToolIcon id="curve" size={20}/></button>
@@ -4287,7 +4334,8 @@ export default function App() {
           <button onClick={() => { setAnalysisMode('pressure'); setActiveSection('Fit') }} title="Inspect garment pressure distribution"><CadToolIcon id="pressure" size={20}/></button>
         </aside>
 
-        <section className={`workspaces workspace-layout-${viewportLayout}`} aria-label="3D and 2D windows" data-viewport-layout={viewportLayout} style={{ '--viewport-left-percent': `${viewportSplit}%` }}>
+        <section className={`workspaces workspace-layout-${viewportLayout} ${clothcraftHybrid ? 'cc-rust-embedded' : ''}`} aria-label="3D and 2D windows" data-viewport-layout={viewportLayout} style={{ '--viewport-left-percent': `${viewportSplit}%` }}>
+          {clothcraftHybrid ? <ClothCraftWorkspace embedded exoSection={activeSection} exoLayout={viewportLayout} exoSplit={viewportSplit} /> : <>
           {zozoReference ? <div className="viewport-shell zozo-reference-shell" data-testid="zozo-reference-workspace">
             <div className="workspace-head viewport-head">
               <div><strong>ZOZO GITHUB DRESS · RUST/METAL REFERENCE</strong><span>14 original panels · 851 sewing constraints · read-only cached simulation</span></div>
@@ -4370,12 +4418,14 @@ export default function App() {
             if (event.key === 'Home') { event.preventDefault(); setViewportSplit(20) }
             if (event.key === 'End') { event.preventDefault(); setViewportSplit(80) }
           }}><span/></div>}
+          </>}
         </section>
 
         <aside className="inspector clo-inspector" hidden={!inspectorVisible}>
           <div className="clo-panel-resizer clo-right-resizer" role="separator" aria-orientation="vertical" aria-label="Resize Inspector width" title="Drag to resize Object Browser and Property Editor" onPointerDown={(event) => beginPanelResize('inspector', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setInspectorWidth(392)}/>
-          <RightToolPalette activeSection={activeSection} viewportTool={viewportTool} tool={tool} setViewportTool={setViewportTool} setTool={setTool} setActiveSection={setActiveSection} setObjectTab={setObjectTab} onRevealBrowser={() => setShowObjectBrowser(true)} showSewingGuides={showSewingGuides} setShowSewingGuides={setShowSewingGuides} wireframe={wireframe} setWireframe={setWireframe} analysisMode={analysisMode} setAnalysisMode={setAnalysisMode} toggleSimulation={toggleSimulation} resetSimulation={resetSimulation} exportProject={exportProject} onFitCamera={() => setFitCameraSignal(value => value + 1)} onMirrorSelected={() => duplicateSelectedPiece(true)} running={running}/>
+          <RightToolPalette activeSection={activeSection} viewportTool={viewportTool} tool={tool} setViewportTool={setViewportTool} setTool={setTool} setActiveSection={setActiveSection} setObjectTab={setObjectTab} onRevealBrowser={() => setShowObjectBrowser(true)} showSewingGuides={showSewingGuides} setShowSewingGuides={setShowSewingGuides} wireframe={wireframe} setWireframe={setWireframe} analysisMode={analysisMode} setAnalysisMode={setAnalysisMode} toggleSimulation={simForVisibleEngine} resetSimulation={resetForVisibleEngine} exportProject={exportForVisibleEngine} onFitCamera={() => setFitCameraSignal(value => value + 1)} onMirrorSelected={() => duplicateSelectedPiece(true)} running={visibleRunning}/>
           <div className="clo-inspector-content">
+          {clothcraftHybrid && <div className="cc-exo-inspector-warning" role="note"><strong>FULL EXO PROPERTY EDITOR</strong><span>These EXO-specific manufacturing and design panels are preserved. Rust physics, simulation and native pattern edits run in the center. Other EXO tools edit the separate EXO project until their data adapters are implemented.</span><a href="?desktop=1">Open EXO canvas</a></div>}
           <div className="clo-inspector-topline"><button title={showObjectBrowser ? 'Hide Object Browser' : 'Show Object Browser'} onClick={() => setShowObjectBrowser(value => !value)}><PanelRight size={15}/></button><span>OBJECTS & PROPERTIES</span><button title="Choose Fabric" onClick={() => { setObjectTab('Fabric'); setActiveSection('Fabric') }}><Shirt size={15}/></button></div>
           {showObjectBrowser && <ObjectBrowser tab={objectTab} setTab={setObjectTab} project={project} setSelectedPieceId={selectIn3D} setSelectedFabricId={setSelectedFabricId} onApplyFabric={assignFabric} setActiveSection={setActiveSection} selectedPieceId={selectedPieceId} selectedFabricId={selectedFabricId} onAddFabric={addFabricSwatch} onAddPattern={addPiece} onTogglePieceProperty={(pieceId, field) => mutateProject(next => { const piece = next.pieces.find(item => item.id === pieceId); if (piece && (field === 'visible3d' || field === 'locked')) piece[field] = field === 'visible3d' ? piece.visible3d === false : !piece.locked })}/>}
           {showObjectBrowser && <div className="clo-browser-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize Object Browser height" title="Drag to resize Object Browser and Property Editor" onPointerDown={(event) => beginPanelResize('objects', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setObjectBrowserHeight(390)}><span/></div>}
@@ -5413,12 +5463,12 @@ export default function App() {
 
       <footer className="simulation-bar">
         <div className="sim-left">
-          <button className={`sim-play ${running ? 'active' : ''}`} onClick={toggleSimulation}>{running ? <Pause size={16} /> : <Play size={16} />}{running ? 'PAUSE' : 'SIMULATE'}</button>
-          <button className="sim-reset" onClick={resetSimulation}><RotateCcw size={15} />RESET</button>
-          <span className="sim-copy">{!hasSimulated ? 'ARRANGE → SEW → SIMULATE' : running ? 'Draping on avatar…' : 'Paused · Press SIMULATE to resume'}</span>
+          <button className={`sim-play ${visibleRunning ? 'active' : ''}`} onClick={simForVisibleEngine}>{visibleRunning ? <Pause size={16} /> : <Play size={16} />}{visibleRunning ? 'PAUSE' : 'SIMULATE'}</button>
+          <button className="sim-reset" onClick={resetForVisibleEngine}><RotateCcw size={15} />RESET</button>
+          <span className="sim-copy">{clothcraftHybrid ? 'CLOTHCRAFT RUST VBD + OGC · NOT CERTIFIED FIT' : !hasSimulated ? 'ARRANGE → SEW → SIMULATE' : running ? 'Draping on avatar…' : 'Paused · Press SIMULATE to resume'}</span>
         </div>
-        <div className="sim-stats"><span><Activity size={13} />{stats.vertices.toLocaleString()} vertices</span><span>{stats.constraints.toLocaleString()} constraints</span><span>{stats.seams.toLocaleString()} seam links</span><span>{stats.anchors.toLocaleString()} fit tacks</span></div>
-        <div className="engine-badge"><i className={running ? 'active' : ''} /><span>XPBD CLOTH</span><strong>GPU UI / CPU SOLVER</strong></div>
+        <div className="sim-stats"><span><Activity size={13} />{clothcraftHybrid ? (clothcraftLive?.vertices ?? 0).toLocaleString() : stats.vertices.toLocaleString()} vertices</span><span>{clothcraftHybrid ? 'RUST SIMULATION' : `${stats.constraints.toLocaleString()} constraints`}</span><span>{clothcraftHybrid ? (clothcraftLive?.seams ?? 0).toLocaleString() : stats.seams.toLocaleString()} seam links</span><span>{clothcraftHybrid ? `${(clothcraftLive?.time ?? 0).toFixed(2)} s` : `${stats.anchors.toLocaleString()} fit tacks`}</span></div>
+        <div className="engine-badge"><i className={visibleRunning ? 'active' : ''} /><span>{clothcraftHybrid ? 'RUST VBD + OGC' : 'XPBD CLOTH'}</span><strong>{clothcraftHybrid ? 'GPU VBD / CPU CONTACT' : 'GPU UI / CPU SOLVER'}</strong></div>
       </footer>
       <WorkspaceCommandPalette open={commandPaletteOpen} commands={STUDIO_COMMANDS} onExecute={executeStudioAction} onClose={() => setCommandPaletteOpen(false)} />
       {clothCraftMeshPreview && (
