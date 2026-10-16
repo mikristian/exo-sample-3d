@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { nativeExport, paths } from './bridge.mjs'
 import { runContact } from './contact_run.mjs'
 import { createWorkspace } from './workspace.mjs'
+import { createAgentApi } from './agent-api.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 // Standalone signed .apps must not write generated garments into Contents/Resources.
@@ -29,6 +30,7 @@ const files = new Map([
 ])
 let activeContactRun = false
 const workspace = createWorkspace(outputs)
+const agentApi = createAgentApi(workspace, {audit: entry => console.info('[agent-api]', JSON.stringify(entry))})
 process.on("exit", () => workspace.close())
 process.on("SIGTERM", () => { workspace.close(); server.close(); process.exit(0) })
 
@@ -85,6 +87,7 @@ const server = http.createServer(async (req, res) => {
       'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '600' })
     return res.end()
   }
+  if (await agentApi.handle(req, res)) return
   if (req.method === 'POST' && req.url === '/workspace') {
     try { const result = await workspace.request(await readBody(req)); return send(res, result.ok ? 200 : 422, result, origin) }
     catch (error) { return send(res, 422, {ok:false,error:error.message}, origin) }

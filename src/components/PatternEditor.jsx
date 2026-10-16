@@ -94,6 +94,7 @@ export default function PatternEditor({
   tool,
   onChangeTool,
   onSelectPiece,
+  onSelectedEdgeChange,
   onMovePiece,
   onMovePoint,
   onSetPoint,
@@ -165,6 +166,9 @@ export default function PatternEditor({
   const selectedEdgePiece = project.pieces.find(piece => piece.id === selectedEdge?.pieceId)
   const activeEdge = selectedEdgePiece && Number.isInteger(selectedEdge?.edgeIndex) && selectedEdge.edgeIndex >= 0 && selectedEdge.edgeIndex < selectedEdgePiece.points.length
     ? selectedEdge : null
+  useEffect(()=>{
+    onSelectedEdgeChange?.(activeEdge ? {pieceId:activeEdge.pieceId,edgeIndex:activeEdge.edgeIndex}:null)
+  },[activeEdge?.pieceId,activeEdge?.edgeIndex,onSelectedEdgeChange])
   const activeEdgeStart = activeEdge ? selectedEdgePiece.points[activeEdge.edgeIndex] : null
   const activeEdgeEnd = activeEdge ? selectedEdgePiece.points[(activeEdge.edgeIndex + 1) % selectedEdgePiece.points.length] : null
   const activeEdgeAllowance = activeEdge ? getEdgeSeamAllowance(selectedEdgePiece, activeEdge.edgeIndex) : 0

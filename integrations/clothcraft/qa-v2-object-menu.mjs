@@ -40,11 +40,13 @@ try{
  await page.getByRole('tablist',{name:'Object Browser types'}).waitFor({timeout:40000})
  const toolbar=page.getByRole('tablist',{name:'Object Browser types'})
  const bullet=toolbar.getByRole('tab',{name:'Object Browser category list'})
- const scene=toolbar.getByRole('tab',{name:'Scene',exact:true})
+ const actualTabs=await toolbar.locator('[role="tab"]').evaluateAll(nodes=>nodes.map(node=>node.getAttribute('aria-label')))
+ assert.deepEqual(actualTabs,['Object Browser category list','Fabric','Graphic','Button','Buttonhole','Topstitch','Puckering','Grading','POM'],'Exactly nine Object Browser tools, in user-specified order')
+ const scene=toolbar.getByRole('tab',{name:'Fabric',exact:true})
  assert.equal(await bullet.count(),1,'Exactly one Object Browser bullet button should exist')
  const layout=await toolbar.evaluate(row=>{
   const trigger=row.querySelector('.clo-object-tab-menu')
-  const scene=row.querySelector('[role="tab"][aria-label="Scene"]')
+  const scene=row.querySelector('[role="tab"][aria-label="Fabric"]')
   const header=row.parentElement.querySelector('.clo-panel-header')?.getBoundingClientRect()
   const a=trigger?.getBoundingClientRect(),b=scene?.getBoundingClientRect()
   const rail=document.querySelector('.clo-right-tool-palette')
@@ -91,8 +93,8 @@ try{
  assert.equal(await page.getByRole('combobox',{name:'Workspace',exact:true}).inputValue(),'Render')
  await bullet.click()
  assert.equal(await categories.count(),1)
- await toolbar.getByRole('tab',{name:'Scene',exact:true}).click()
- assert.equal(await categories.count(),0,'Clicking Scene must replace categories with Scene objects')
+ await toolbar.getByRole('tab',{name:'Fabric',exact:true}).click()
+ assert.equal(await categories.count(),0,'Clicking Fabric must replace categories with Fabric objects')
  assert.equal(await page.locator('.clo-object-list').count(),1)
  await bullet.click()
  await page.screenshot({path:path.join(output,'object-menu-first-horizontal-icon.png')})
@@ -105,7 +107,7 @@ try{
  assert.equal(await toolbar.getByRole('tab',{name:'Object Browser category list'}).count(),1)
  await rightRail.getByRole('button',{name:'Show all tools'}).click()
  assert.deepEqual(errors,[])
- console.log(JSON.stringify({passed:true,firstIconUnderObjectBrowser:true,horizontalWithScene:true,
+ console.log(JSON.stringify({passed:true,firstIconUnderObjectBrowser:true,horizontalWithFabric:true,nineTools:true,
   inlineObjectBrowserView:true,categoryRows:titles,childCategoryNavigation:true,allFocusedAvailable:true,
   output,errors},null,2))
 } finally {

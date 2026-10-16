@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   Hand,
@@ -707,10 +707,16 @@ export default function App() {
   const [fitCameraSignal, setFitCameraSignal] = useState(0)
   const [running, setRunning] = useState(false)
   const [clothcraftLive, setClothcraftLive] = useState(null)
+  const [selectedDraftEdge, setSelectedDraftEdge] = useState(null)
   const [hasSimulated, setHasSimulated] = useState(false)
   const [wireframe, setWireframe] = useState(false)
   const [analysisMode, setAnalysisMode] = useState('surface')
   const [selectedFabricId, setSelectedFabricId] = useState('main')
+  const [selectedObjectForProperties, setSelectedObjectForProperties] = useState(null)
+  const onDraftEdgeSelection=useCallback(value=>{
+    setSelectedDraftEdge(previous=>previous?.pieceId===value?.pieceId&&previous?.edgeIndex===value?.edgeIndex?previous:value)
+    if(value)setSelectedObjectForProperties(null)
+  },[])
   const [markerFabricId, setMarkerFabricId] = useState('main')
   const [seamWalkId, setSeamWalkId] = useState(null)
   const [seamWalkProgress, setSeamWalkProgress] = useState(0.5)
@@ -985,6 +991,12 @@ export default function App() {
   const gestureStartRef = useRef(null)
 
   const selectedPiece = project.pieces.find((piece) => piece.id === selectedPieceId) || null
+  const draftLine = selectedDraftEdge&&project.pieces.find(piece=>piece.id===selectedDraftEdge.pieceId)
+  const draftLineSelection = draftLine&&selectedDraftEdge.edgeIndex<draftLine.points.length
+    ? {kind:'line',source:'exo',panelId:draftLine.id,panelName:draftLine.name,
+       edgeId:`Edge ${selectedDraftEdge.edgeIndex+1}`,length2DCm:edgeLength(draftLine,selectedDraftEdge.edgeIndex),
+       length3DCm:null,elongationPercent:null,seamIds:project.seams.filter(seam=>
+         [seam.a,seam.b].some(side=>side?.pieceId===draftLine.id&&side.edgeIndex===selectedDraftEdge.edgeIndex)).map(seam=>seam.name||seam.id)} : null
   const fabric = project.fabrics?.[selectedFabricId] || project.fabrics?.main || FABRIC_PRESETS.fleece
   const totalArea = useMemo(() => projectArea(project), [project])
   const selectedArea = selectedPiece ? pieceArea(selectedPiece) : 0
@@ -4099,6 +4111,14 @@ export default function App() {
     window.addEventListener('exo-clothcraft-status', onStatus)
     return () => window.removeEventListener('exo-clothcraft-status', onStatus)
   }, [clothcraftHybrid])
+  useEffect(()=>{
+    if(!clothcraftHybrid)return undefined
+    // Viewport selection supersedes any older Fabric/Trim/Object Browser
+    // context, even when the user reselects the same physical edge.
+    const onNativePick=()=>{setSelectedObjectForProperties(null);setObjectTab('Scene');setActiveSection('Pattern')}
+    window.addEventListener('exo-clothcraft-native-pick',onNativePick)
+    return()=>window.removeEventListener('exo-clothcraft-native-pick',onNativePick)
+  },[clothcraftHybrid])
   useEffect(() => {
     if (!clothcraftHybrid) return
     rustCommand(`set-wireframe:${wireframe}`)
@@ -4395,6 +4415,7 @@ export default function App() {
             selectedPieceId={selectedPieceId}
             tool={activeSection === 'Production' && gradePreviewSize !== project.grading?.baseSize ? 'inspect' : tool}
             onSelectPiece={selectIn3D}
+            onSelectedEdgeChange={onDraftEdgeSelection}
             onMovePiece={movePiece}
             onChangeTool={setTool}
             onMovePoint={movePoint}
@@ -4431,14 +4452,18 @@ export default function App() {
           <RightToolPalette activeSection={activeSection} viewportTool={viewportTool} tool={tool} setViewportTool={setViewportTool} setTool={setTool} setActiveSection={setActiveSection} setObjectTab={setObjectTab} onRevealBrowser={() => setShowObjectBrowser(true)} showSewingGuides={showSewingGuides} setShowSewingGuides={setShowSewingGuides} wireframe={wireframe} setWireframe={setWireframe} analysisMode={analysisMode} setAnalysisMode={setAnalysisMode} toggleSimulation={simForVisibleEngine} resetSimulation={resetForVisibleEngine} exportProject={exportForVisibleEngine} onFitCamera={() => setFitCameraSignal(value => value + 1)} onMirrorSelected={() => duplicateSelectedPiece(true)} running={visibleRunning}/>
           <div className="clo-inspector-content">
           <div className="clo-inspector-topline"><button title={showObjectBrowser ? 'Hide Object Browser' : 'Show Object Browser'} onClick={() => setShowObjectBrowser(value => !value)}><PanelRight size={15}/></button><span>OBJECTS & PROPERTIES</span><button title="Choose Fabric" onClick={() => { setObjectTab('Fabric'); setActiveSection('Fabric') }}><Shirt size={15}/></button></div>
-          {showObjectBrowser && <ObjectBrowser tab={objectTab} setTab={setObjectTab} project={project} setSelectedPieceId={selectIn3D} setSelectedFabricId={setSelectedFabricId} onApplyFabric={assignFabric} setActiveSection={setActiveSection} selectedPieceId={selectedPieceId} selectedFabricId={selectedFabricId} onAddFabric={addFabricSwatch} onAddPattern={addPiece} onTogglePieceProperty={(pieceId, field) => mutateProject(next => { const piece = next.pieces.find(item => item.id === pieceId); if (piece && (field === 'visible3d' || field === 'locked')) piece[field] = field === 'visible3d' ? piece.visible3d === false : !piece.locked })}/>}
+          {showObjectBrowser && <ObjectBrowser tab={objectTab} setTab={setObjectTab} project={project} setSelectedPieceId={selectIn3D} setSelectedFabricId={setSelectedFabricId} onSelectedObjectChange={setSelectedObjectForProperties} onApplyFabric={assignFabric} setActiveSection={setActiveSection} selectedPieceId={selectedPieceId} selectedFabricId={selectedFabricId} onAddFabric={addFabricSwatch} onAddPattern={addPiece} onTogglePieceProperty={(pieceId, field) => mutateProject(next => { const piece = next.pieces.find(item => item.id === pieceId); if (piece && (field === 'visible3d' || field === 'locked')) piece[field] = field === 'visible3d' ? piece.visible3d === false : !piece.locked })}/>}
           {showObjectBrowser && <div className="clo-browser-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize Object Browser height" title="Drag to resize Object Browser and Property Editor" onPointerDown={(event) => beginPanelResize('objects', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setObjectBrowserHeight(390)}><span/></div>}
           <div className="clo-property-panel">
             <CloPropertyEditorAccordion activeSection={activeSection} selectedPiece={selectedPiece}
               project={project} fabric={fabric} selectedArea={selectedArea}
               clothcraftHybrid={clothcraftHybrid} clothcraftLive={clothcraftLive}
+              draftLineSelection={draftLineSelection}
+              objectSelection={selectedObjectForProperties}
               onSwitchSection={setActiveSection}
               onShowFabric={()=>{setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true)}}
+              objectTab={objectTab}
+              onSetLineTarget={(panel,edge,cm)=>window.dispatchEvent(new CustomEvent('exo-clothcraft-property-command',{detail:{type:'target-length',panel,edge,cm}}))}
               onSimulate={simForVisibleEngine} onReset={resetForVisibleEngine}>
           {selectedPiece && activeSection === 'Pattern' && <section className="clo-selected-summary" aria-label="Selected pattern properties">
             <div className="clo-selected-summary-title"><strong>{selectedPiece.name}</strong><span>{selectedPiece.id}</span></div>

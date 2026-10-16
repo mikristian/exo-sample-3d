@@ -86,11 +86,20 @@ try{
   const button=categories.getByRole('button',{name:title,exact:true})
   assert.equal(await button.locator('.cad-tool-icon').count(),1,`Missing icon: ${title}`)
  }
+ // A fabric asset in the Object Browser is a different selection *type*
+ // from the active 2D/3D pattern. Its property groups must change, and
+ // clicking an asset must NOT quietly apply it to the selected garment.
+ await page.getByRole('tablist',{name:'Object Browser types'}).getByRole('tab',{name:'Fabric',exact:true}).click()
+ await page.locator('.clo-object-list .clo-object-select').first().click()
+ const fabricHeadings=await list.locator('.clo-pe-trigger span').allInnerTexts()
+ assert.deepEqual(fabricHeadings,['Information','Simulation Properties','Fabric','Miscellaneous'])
+ assert(await page.locator('.clo-property-panel .clo-pe-header strong').innerText())
+ assert.equal(await page.getByRole('tab',{name:'Fabric',selected:true}).count(),1)
  await page.screenshot({path:path.join(output,'right-property-editor-eight-dropdowns.png')})
  assert.deepEqual(errors,[])
  console.log(JSON.stringify({passed:true,propertyHeadings:labels,oldCategoriesRemoved:true,
   independentDropdowns:true,originalFunctionalEditorPreserved:true,
-  objectCategoryIcons:5,letterColor:headerColor,output,errors},null,2))
+  objectCategoryIcons:5,fabricContextGroups:fabricHeadings,letterColor:headerColor,output,errors},null,2))
 }finally{
  await browser?.close().catch(()=>{})
  for(const p of children)try{process.kill(-p.pid,'SIGTERM')}catch{}
