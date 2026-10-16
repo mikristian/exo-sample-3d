@@ -58,6 +58,7 @@ function pieceExtension(piece) {
 }
 
 export function projectToGarmentCode(project) {
+  const preserved = project?.interchange?.garmentCode || {}
   const usedNames = new Set()
   const pieceToPanel = new Map()
   const panels = {}
@@ -72,10 +73,10 @@ export function projectToGarmentCode(project) {
         Number(piece.arrangement3d?.y || 0) * 100,
         Number(piece.arrangement3d?.z || 0) * 100,
       ],
-      rotation: [0, 0, 0],
+      rotation: cloneProject(piece.garmentCode?.rotation || [0, 0, 0]),
       vertices: piece.points.map((point) => [Number(point.x), Number(point.y)]),
       edges: piece.points.map((_, edgeIndex) => garmentCodeEdge(piece, edgeIndex)),
-      label: piece.generatedRole || undefined,
+      label: piece.garmentCode?.label || piece.generatedRole || undefined,
     }
   }
 
@@ -108,13 +109,14 @@ export function projectToGarmentCode(project) {
       stitches,
       panel_order: Object.keys(panels),
     },
-    parameters: {},
-    parameter_order: [],
+    parameters: cloneProject(preserved.parameters || {}),
+    parameter_order: cloneProject(preserved.parameterOrder || preserved.parameter_order || []),
     properties: {
+      ...cloneProject(preserved.properties || {}),
       curvature_coords: 'relative',
       normalize_panel_translation: false,
       normalized_edge_loops: true,
-      units_in_meter: 100,
+      units_in_meter: Number(preserved.properties?.units_in_meter ?? 100),
     },
     garment_studio: {
       format: 'garment-studio-extension',
@@ -233,6 +235,16 @@ export function garmentCodeToProject(spec, baseProject = {}) {
     simulation: cloneProject(projectMeta.simulation || baseProject.simulation || {}),
     grading: cloneProject(projectMeta.grading || baseProject.grading || {}),
     markerSettings: cloneProject(projectMeta.markerSettings || baseProject.markerSettings || {}),
+    interchange: {
+      ...cloneProject(baseProject.interchange || {}),
+      garmentCode: {
+        source: extension ? 'garment-studio' : 'external',
+        parameters: cloneProject(spec?.parameters || {}),
+        parameterOrder: cloneProject(spec?.parameter_order || []),
+        properties: cloneProject(spec?.properties || {}),
+        panelOrder: cloneProject(spec?.pattern?.panel_order || []),
+      },
+    },
   }
 
   const panelToPiece = new Map()
@@ -260,6 +272,11 @@ export function garmentCodeToProject(spec, baseProject = {}) {
       seamAllowance: Number(meta.seamAllowance ?? 1),
       fabricId: meta.fabricId || 'main',
       locked: Boolean(meta.locked),
+      garmentCode: {
+        ...cloneProject(meta.garmentCode || {}),
+        label: panel.label ?? meta.garmentCode?.label ?? null,
+        rotation: cloneProject(panel.rotation || meta.garmentCode?.rotation || [0, 0, 0]),
+      },
       ...meta,
     }
     project.pieces.push(piece)

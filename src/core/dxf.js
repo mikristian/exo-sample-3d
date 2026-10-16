@@ -196,6 +196,10 @@ export function projectToDxf(project, size = project.previewSize || project.grad
     '1', 'AC1009',
     '9', '$MEASUREMENT',
     '70', '1',
+    // This export emits geometry in millimetres. Many CAD importers prioritize
+    // $INSUNITS over $MEASUREMENT, so state the units explicitly.
+    '9', '$INSUNITS',
+    '70', '4',
     '0', 'ENDSEC',
     '999', `GARMENT_STUDIO_PROJECT ${project.id || 'untitled'}`,
     '999', `GARMENT_STUDIO_SIZE ${size}`,
@@ -431,10 +435,14 @@ export function parseDxfPatterns(text, options = {}) {
       rowHeight = 0
     }
     const name = titleFromLayer(entity.layer, index)
+    // Keep a stable source token for matching associated NOTCH/GRAIN/etc.
+    // Layers contain the original pattern token, not the human-readable name.
+    const sourceToken = String(entity.layer || '').replace(/^CUT_/i, '').replace(/_[A-Za-z0-9]+$/, '')
     pieces.push({
       id: `imported-${index + 1}`,
       name,
       sourceLayer: entity.layer,
+      sourceToken,
       points,
       curves: {},
       internalLines: [],
@@ -454,7 +462,7 @@ export function parseDxfPatterns(text, options = {}) {
 
   const findPieceForLayer = (prefix, layer) => {
     const wanted = token(String(layer || '').replace(new RegExp(`^${prefix}`, 'i'), ''))
-    return pieces.find((piece) => token(piece.name) === wanted || token(piece.sourceLayer).includes(wanted) || wanted.includes(token(piece.name)))
+    return pieces.find((piece) => token(piece.sourceToken) === wanted || token(piece.name) === wanted || token(piece.sourceLayer).includes(wanted) || wanted.includes(token(piece.name)))
   }
 
   for (const entity of entities.filter((item) => item.type === 'LINE')) {
@@ -509,6 +517,6 @@ export function parseDxfPatterns(text, options = {}) {
     }
   }
 
-  for (const piece of pieces) delete piece._import
+  for (const piece of pieces) { delete piece._import; delete piece.sourceToken }
   return { pieces, scaleToCm: scale, entityCount: entities.length }
 }

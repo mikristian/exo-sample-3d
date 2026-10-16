@@ -1,3 +1,5 @@
+import { quadraticArcLength, quadraticAtLengthFraction } from './draftingPrecision.js'
+
 export function cloneProject(project) {
   return typeof structuredClone === 'function'
     ? structuredClone(project)
@@ -150,13 +152,13 @@ export function projectArea(project) {
 }
 
 export function edgeLength(piece, edgeIndex) {
-  const path = sampleEdge(piece, edgeIndex, 16)
-  if (path.length < 2) return 0
-  let length = 0
-  for (let index = 0; index < path.length - 1; index += 1) {
-    length += Math.hypot(path[index + 1].x - path[index].x, path[index + 1].y - path[index].y)
-  }
-  return length
+  const a = piece?.points?.[edgeIndex]
+  const b = piece?.points?.[(edgeIndex + 1) % piece?.points?.length]
+  if (!a || !b) return 0
+  const curve = piece.curves?.[edgeIndex]
+  return curve
+    ? quadraticArcLength(a, { x: curve.cx, y: curve.cy }, b)
+    : Math.hypot(b.x - a.x, b.y - a.y)
 }
 
 export function edgeRangeLength(piece, edgeIndex, startT = 0, endT = 1) {
@@ -172,36 +174,17 @@ function seamEndpointRange(endpoint) {
 }
 
 export function edgePointAt(piece, edgeIndex, fraction = 0.5, segments = 32) {
-  const path = sampleEdge(piece, edgeIndex, Math.max(8, segments))
-  if (path.length < 2) return null
-  const lengths = []
-  let total = 0
-  for (let index = 0; index < path.length - 1; index += 1) {
-    const length = Math.hypot(path[index + 1].x - path[index].x, path[index + 1].y - path[index].y)
-    lengths.push(length)
-    total += length
-  }
-  const target = Math.max(0, Math.min(1, fraction)) * total
-  let walked = 0
-  for (let index = 0; index < lengths.length; index += 1) {
-    const segmentLength = lengths[index]
-    if (walked + segmentLength >= target || index === lengths.length - 1) {
-      const local = segmentLength > 0 ? Math.max(0, Math.min(1, (target - walked) / segmentLength)) : 0
-      const a = path[index]
-      const b = path[index + 1]
-      const tx = b.x - a.x
-      const ty = b.y - a.y
-      const tangentLength = Math.hypot(tx, ty) || 1
-      return {
-        point: { x: a.x + tx * local, y: a.y + ty * local },
-        tangent: { x: tx / tangentLength, y: ty / tangentLength },
-        normal: { x: -ty / tangentLength, y: tx / tangentLength },
-        fraction: Math.max(0, Math.min(1, fraction)),
-      }
-    }
-    walked += segmentLength
-  }
-  return null
+  const a = piece?.points?.[edgeIndex]
+  const b = piece?.points?.[(edgeIndex + 1) % piece?.points?.length]
+  if (!a || !b) return null
+  const curve = piece.curves?.[edgeIndex]
+  if (curve) return quadraticAtLengthFraction(a, { x: curve.cx, y: curve.cy }, b, fraction)
+  const length = Math.hypot(b.x - a.x, b.y - a.y) || 1
+  const t = Math.max(0, Math.min(1, fraction))
+  return { point: { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t },
+    tangent: { x: (b.x - a.x) / length, y: (b.y - a.y) / length },
+    normal: { x: -(b.y - a.y) / length, y: (b.x - a.x) / length },
+    fraction: t }
 }
 
 export function facingGeometryForEdge(piece, edgeIndex, widthCm = 5) {

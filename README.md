@@ -73,14 +73,31 @@ npm run check:blender
 
 The native XPBD check builds the upstream MIT PositionBasedDynamics core from a local research clone under `research/oss/PositionBasedDynamics`. Research clones are deliberately ignored by Git.
 
+## Rust PPF solver option
+
+The project retains its existing Rust-based PPF Contact Solver integration.
+The runtime is an optional external dependency, not a prerequisite to
+completing a C++ conversion. You can run the browser application without
+the local Rust service; if you have installed and configured the PPF solver,
+run `npm run ppf:serve` and verify with `npm run ppf:health`.
+
+See [Rust backend setup and licensing](docs/RUST_BACKEND.md). The C++/Qt
+research and native XPBD sources remain in the repository but are optional.
+
+## GitHub source repository
+
+The source tree includes frontend code, CAD tooling, solver bridges, tests,
+optional native desktop source and GitHub Actions workflows. Large SDKs,
+local builds, recordings, user avatars and upstream third-party source
+checkouts are deliberately excluded from Git. See
+[GitHub publishing and setup](docs/GITHUB_SETUP.md).
+
 ## Contributing
 
 Start with `CONTRIBUTING.md`. Major solver or document-format changes require an RFC/architecture discussion because the project is designed for multiple independent backends.
 
 High-value contribution areas include cloth physics, collision, pattern CAD, Blender integration, avatars, rendering, industrial DXF, marker optimization, fabric calibration and benchmark garments.
 
-## Licensing status
+## License and release status
 
-The project is being prepared for public open-source development, but the final license for original Garment Studio code has **not yet been selected**. Do not assume that third-party research code, checkpoints, body models or datasets can be redistributed merely because their repositories are public.
-
-See `docs/LICENSING.md` before adding dependencies.
+Garment Studio original source is intended to be distributed under **GNU GPL-3.0-only**; see [`LICENSE`](LICENSE). Third-party components and assets retain their own licenses. The current local working tree is **not yet a cleared public distribution**: proprietary avatars, third-party dependency notices, contributor rights and Git history must be audited before publishing.

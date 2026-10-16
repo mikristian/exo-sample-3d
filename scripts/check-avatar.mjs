@@ -25,7 +25,10 @@ for (const heightCm of [160, 200]) {
   const averageSeamGap = seamDistances.reduce((sum, value) => sum + value, 0) / Math.max(1, seamDistances.length)
   if (averageSeamGap > 0.04) throw new Error(`${heightCm}: average seam gap ${(averageSeamGap * 100).toFixed(2)} cm`)
   if (simulation.strain.average > 0.45) throw new Error(`${heightCm}: average strain ${(simulation.strain.average * 100).toFixed(1)}%`)
-  if (simulation.strain.max > 10) throw new Error(`${heightCm}: local strain ${(simulation.strain.max * 100).toFixed(1)}%`)
+  // A much tighter guard than the previous 1000% tolerance. This should catch
+  // the stiff neckline-tack / body-collider conflict before it regresses.
+  // Passing this threshold still does NOT imply physically calibrated fabric.
+  if (simulation.strain.max > 2.5) throw new Error(`${heightCm}: local strain ${(simulation.strain.max * 100).toFixed(1)}% exceeds 250% regression guard`)
   console.log(JSON.stringify({
     heightCm,
     scale: Number(actualScale.toFixed(3)),

@@ -1,4 +1,47 @@
 import { buildSimulation } from '../physics.js'
+import { inspectNativeAssemblyPose } from './nativeAssemblyPreflight.js'
+import { assembleNativeSeams } from './seamAssembly.js'
+
+export const NATIVE_QUALITY_PROFILES = Object.freeze({
+  draft: Object.freeze({
+    id: 'draft',
+    label: 'Draft · Distance XPBD',
+    clothModel: 'distance',
+    bendingModel: 'distance',
+  }),
+  balanced: Object.freeze({
+    id: 'balanced',
+    label: 'Balanced · Isometric bend',
+    clothModel: 'distance',
+    bendingModel: 'isometric-xpbd',
+  }),
+  quality: Object.freeze({
+    id: 'quality',
+    label: 'Quality · Grain strain + isometric',
+    clothModel: 'strain-triangle',
+    bendingModel: 'isometric-xpbd',
+  }),
+})
+
+export function resolveNativeQuality(options = {}) {
+  let inferredQuality = options.quality
+  if (!inferredQuality && (options.clothModel || options.bendingModel)) {
+    if (options.clothModel === 'strain-triangle' && options.bendingModel === 'isometric-xpbd') inferredQuality = 'quality'
+    else if ((options.clothModel || 'distance') === 'distance' && options.bendingModel === 'isometric-xpbd') inferredQuality = 'balanced'
+    else inferredQuality = 'draft'
+  }
+  const profile = NATIVE_QUALITY_PROFILES[inferredQuality] || NATIVE_QUALITY_PROFILES.draft
+  const clothModel = options.clothModel || profile.clothModel
+  const bendingModel = options.bendingModel || profile.bendingModel
+  if (clothModel === 'strain-triangle' && bendingModel !== 'isometric-xpbd' && options.allowUnsafeCombination !== true) {
+    throw new Error('Native strain-triangle cloth requires isometric-xpbd bending. The strain-only combination is intentionally blocked because hooded garments diverge in regression tests.')
+  }
+  return {
+    quality: inferredQuality || profile.id,
+    clothModel,
+    bendingModel,
+  }
+}
 
 function nativeSpringStiffness(stiffness = 0.9) {
   const normalized = Math.max(0.001, Math.min(0.9999, Number(stiffness ?? 0.9)))
@@ -9,7 +52,12 @@ function nativeSpringStiffness(stiffness = 0.9) {
 }
 
 export function buildNativeSimulationPayload(project, options = {}) {
-  const simulation = buildSimulation(project)
+  const nativeMode = resolveNativeQuality(options)
+  // Edge flips preserve boundaries but current full-garment tests show worse
+  // strain for tee/hoodie. Keep topology optimization opt-in for research;
+  // default native production-development meshes retain their original faces.
+  const optimizeMesh = options.experimentalOptimizeMesh === true || project.simulation?.experimentalNativeMeshOptimization === true
+  const simulation = buildSimulation(project, {optimizeMesh})
   const particles = []
   const particleIndex = new Map()
   const simIndexToNative = new Map()
@@ -41,7 +89,9 @@ export function buildNativeSimulationPayload(project, options = {}) {
     }
     pieces.push({
       id: pieceId,
+      meshQuality: piece.meshQuality,
       name: piece.piece?.name || pieceId,
+      wrapMode: piece.piece?.arrangement3d?.wrap || '',
       fabricId: piece.piece?.fabricId || 'main',
       grainAngleDeg: Number(piece.piece?.grainAngleDeg || 0),
       fabric: {
@@ -56,7 +106,20 @@ export function buildNativeSimulationPayload(project, options = {}) {
     })
   }
 
-  const nativeConstraintTypes = new Set(['structural', 'bend', 'seam', 'edge-treatment', 'topstitch', 'zipper-tape', 'fuse'])
+  const nativeConstraintTypes = new Set([
+    'structural',
+    'bend',
+    'seam',
+    'surface-stitch',
+    'fastener',
+    'edge-treatment',
+    'topstitch',
+    'zipper-tape',
+    'fuse',
+    'fold',
+    'dart',
+    'pleat',
+  ])
   const constraints = simulation.constraints
     .filter((constraint) => nativeConstraintTypes.has(constraint.type) && constraint.a && constraint.b && Number.isFinite(constraint.rest))
     .map((constraint) => {
@@ -73,6 +136,26 @@ export function buildNativeSimulationPayload(project, options = {}) {
     })
     .filter((constraint) => Number.isInteger(constraint.a) && Number.isInteger(constraint.b))
 
+  // A CLO seam endpoint can lie between every available simulation vertex.
+  // Preserve both virtual cutline anchors and their barycentric weights on
+  // native handoff rather than silently downgrading to their nearest node.
+  const virtualSeams = (simulation.seamConstraints || [])
+    .filter((constraint) => constraint.type === 'seam-virtual')
+    .map((constraint) => ({
+      seamId: constraint.seamId,
+      sourceIndices: constraint.sourceParticles.map((particle) => particleIndex.get(particle)),
+      sourceWeights: [...constraint.sourceWeights],
+      targetIndices: constraint.targetParticles.map((particle) => particleIndex.get(particle)),
+      targetWeights: [...constraint.targetWeights],
+      rest: Number(constraint.rest),
+      stiffness: Number(constraint.stiffness),
+      progress: Number(constraint.progress),
+    }))
+  if (virtualSeams.some((seam) =>
+    [...seam.sourceIndices, ...seam.targetIndices].some((index) => !Number.isInteger(index)))) {
+    throw new Error('Virtual sewing references an unmapped simulation particle')
+  }
+
   const anchors = (simulation.anchorConstraints || []).map((anchor) => ({
     particle: particleIndex.get(anchor.particle),
     target: [anchor.target.x, anchor.target.y, anchor.target.z],
@@ -81,7 +164,7 @@ export function buildNativeSimulationPayload(project, options = {}) {
     type: anchor.type || 'anchor',
   })).filter((anchor) => Number.isInteger(anchor.particle))
 
-  return {
+  const payload = {
     protocol: 'garment-studio.native-xpbd',
     version: 1,
     project: { id: project.id, name: project.name, templateId: project.templateId || 'custom' },
@@ -98,12 +181,30 @@ export function buildNativeSimulationPayload(project, options = {}) {
       selfCollisionMargin: Number(project.simulation?.selfCollisionMargin ?? 0.002),
       maxThickness: Number(simulation.maxThickness ?? 0.002),
       structuralStiffness: Number(project.simulation?.stiffness ?? 0.92),
-      clothModel: options.clothModel || 'distance',
-      bendingModel: options.bendingModel || 'distance',
+      lowerBodySeamRecovery: Number(options.lowerBodySeamRecovery ?? 0.90),
+      lowerBodyJunctionRecovery: Number(options.lowerBodyJunctionRecovery ?? 0.90),
+      quality: nativeMode.quality,
+      clothModel: nativeMode.clothModel,
+      bendingModel: nativeMode.bendingModel,
+      // Anisotropic strain uses the inverse of each flat triangle rest matrix.
+      // Ear-clipped T-shirt meshes contain 32:1 sleeve slivers and even
+      // thinner bodice elements that made the native solver diverge at frame
+      // zero. Reject ill-conditioned strain elements while retaining their
+      // original distance edges. This is a NUMERICAL safety gate, not a fit
+      // acceptance gate; open seams/penetration are still unvalidated.
+      strainMeshMaxAspect: nativeMode.clothModel === 'strain-triangle'
+        ? Number(options.strainMeshMaxAspect ?? project.simulation?.nativeStrainMeshMaxAspect ?? 25)
+        : 1e12,
+      strainMeshMinAltitudeM: nativeMode.clothModel === 'strain-triangle'
+        ? Number(options.strainMeshMinAltitudeM ?? project.simulation?.nativeStrainMeshMinAltitudeM ?? 0.002)
+        : 0,
+      strainProjectionCapM: 0, // 2–20 mm clamps masked divergence but left pathological strain.
+      captureFitTrajectory: nativeMode.quality === 'quality',
     },
     particles,
     pieces,
     constraints,
+    virtualSeams,
     anchors,
     collisionExclusions: [...(simulation.collisionExclusions || [])].map((entry) => {
       const [left, right] = String(entry).split(':').map(Number)
@@ -111,6 +212,11 @@ export function buildNativeSimulationPayload(project, options = {}) {
     }).filter(([left, right]) => Number.isInteger(left) && Number.isInteger(right)),
     fusedPiecePairs: [...(simulation.fusedPiecePairs || [])],
   }
+  payload.initialAssembly = inspectNativeAssemblyPose(payload)
+  // Research-only sew-first staging: never silently replace normal draping.
+  // Even an excellent initial seam gap does not prove collision-safe fitting.
+  const sewFirst = options.experimentalSewFirst === true || project.simulation?.experimentalNativeSewFirst === true
+  return sewFirst ? assembleNativeSeams(payload,{iterations:300,seamStiffness:.7,restStiffness:.7}) : payload
 }
 
 export function nativePayloadSummary(payload) {
@@ -119,8 +225,24 @@ export function nativePayloadSummary(payload) {
     pieces: payload.pieces?.length || 0,
     particles: payload.particles?.length || 0,
     constraints: payload.constraints?.length || 0,
+    virtualSeams: payload.virtualSeams?.length || 0,
     anchors: payload.anchors?.length || 0,
     clothModel: payload.settings?.clothModel || 'distance',
     bendingModel: payload.settings?.bendingModel || 'distance',
+    quality: payload.settings?.quality || 'draft',
+    initialAssembly:payload.initialAssembly?.status || 'NOT_MEASURED',
+    initialSeamGapMaximumMm:payload.initialAssembly?.initialSeamGapMaximumMm ?? null,
+    initialSeamGapAverageMm:payload.initialAssembly?.initialSeamGapAverageMm ?? null,
+    initialMeshPeakEdgeStrainPercent:payload.initialAssembly?.initialMeshPeakEdgeStrainPercent ?? null,
+    worstInitialSeam:payload.initialAssembly?.worstSewingGroups?.[0]?.seamId ?? null,
+    sewFirstResearch:payload.assemblyExperiment ? {
+      originalMaximumSeamGapMm:payload.assemblyExperiment.input.initialSeamGapMaximumMm,
+      assembledMaximumSeamGapMm:payload.assemblyExperiment.output.initialSeamGapMaximumMm,
+      originalPeakEdgeStrainPercent:payload.assemblyExperiment.input.initialMeshPeakEdgeStrainPercent,
+      assembledPeakEdgeStrainPercent:payload.assemblyExperiment.output.initialMeshPeakEdgeStrainPercent,
+      sampledPenetratingPoints:payload.assemblyExperiment.collision.penetrating,
+      sampledMaximumIntrusionMm:payload.assemblyExperiment.collision.maximumIntrusionMm,
+      safeToAutoApply:false,
+    } : null,
   }
 }

@@ -17,6 +17,12 @@ export const FABRIC_PRESETS = {
     sheen: 0.28,
     sheenRoughness: 0.82,
     normalStrength: 1,
+    fiberAnisotropy: 0.2,
+    fiberAngleDeg: 0,
+    clearcoat: 0,
+    clearcoatRoughness: 0.48,
+    colorVariation: 0.25,
+    weaveScaleCm: 3,
   },
   fleece: {
     id: 'fleece',
@@ -36,6 +42,12 @@ export const FABRIC_PRESETS = {
     sheen: 0.16,
     sheenRoughness: 0.94,
     normalStrength: 1,
+    fiberAnisotropy: 0.1,
+    fiberAngleDeg: 0,
+    clearcoat: 0,
+    clearcoatRoughness: 0.56,
+    colorVariation: 0.26,
+    weaveScaleCm: 4,
   },
   denim: {
     id: 'denim',
@@ -55,6 +67,12 @@ export const FABRIC_PRESETS = {
     sheen: 0.08,
     sheenRoughness: 0.86,
     normalStrength: 1.15,
+    fiberAnisotropy: 0.44,
+    fiberAngleDeg: 32,
+    clearcoat: 0,
+    clearcoatRoughness: 0.52,
+    colorVariation: 0.32,
+    weaveScaleCm: 3,
   },
   silk: {
     id: 'silk',
@@ -74,6 +92,12 @@ export const FABRIC_PRESETS = {
     sheen: 0.72,
     sheenRoughness: 0.38,
     normalStrength: 0.7,
+    fiberAnisotropy: 0.72,
+    fiberAngleDeg: 25,
+    clearcoat: 0,
+    clearcoatRoughness: 0.4,
+    colorVariation: 0.12,
+    weaveScaleCm: 1.8,
   },
   interfacing: {
     id: 'interfacing',
@@ -93,8 +117,106 @@ export const FABRIC_PRESETS = {
     sheen: 0.08,
     sheenRoughness: 0.95,
     normalStrength: 0.6,
+    fiberAnisotropy: 0.08,
+    fiberAngleDeg: 0,
+    clearcoat: 0,
+    clearcoatRoughness: 0.62,
+    colorVariation: 0.15,
+    weaveScaleCm: 3,
   },
 }
+
+// Expanded garment materials. The families below are informed by the locally
+// installed PPF Contact Solver materials.toml (Silk, Flag, Cotton, Wool, Denim,
+// Leather). The values here are separate Garment Studio approximations: PPF
+// normalized Young's modulus and bend cannot be copied into this solver.
+// These are useful authoring starting points, NOT laboratory calibration.
+const materialVariant = (id, name, base, overrides) => ({
+  ...base, ...overrides, id, name,
+  presetSource: 'PPF material-family inspired · approximate Garment Studio settings',
+})
+Object.assign(FABRIC_PRESETS, {
+  cottonPoplin: materialVariant('cottonPoplin','Cotton Poplin',FABRIC_PRESETS.jersey,{
+    color:'#eee7d8',gsm:135,stretchWarp:.014,stretchWeft:.025,bend:.77,
+    friction:.36,thickness:.0011,roughness:.84,sheen:.11,
+  }),
+  cottonCanvas: materialVariant('cottonCanvas','Cotton Canvas',FABRIC_PRESETS.denim,{
+    color:'#b7ac91',gsm:320,stretchWarp:.008,stretchWeft:.014,bend:.94,
+    friction:.48,thickness:.0027,roughness:.91,sheen:.06,
+  }),
+  woolSuiting: materialVariant('woolSuiting','Wool Suiting',FABRIC_PRESETS.silk,{
+    color:'#515866',gsm:250,stretchWarp:.035,stretchWeft:.04,bend:.69,
+    damping:.987,friction:.43,thickness:.0021,roughness:.88,sheen:.14,
+  }),
+  woolMelton: materialVariant('woolMelton','Wool Melton',FABRIC_PRESETS.fleece,{
+    color:'#3d3e46',gsm:580,stretchWarp:.015,stretchWeft:.018,bend:.94,
+    friction:.56,thickness:.005,roughness:.96,sheen:.05,
+  }),
+  softLeather: materialVariant('softLeather','Soft Garment Leather',FABRIC_PRESETS.denim,{
+    color:'#3c302c',gsm:650,stretchWarp:.02,stretchWeft:.035,bend:.89,
+    friction:.51,thickness:.0018,roughness:.66,sheen:.23,
+    fiberAnisotropy:.15,clearcoat:.35,clearcoatRoughness:.32,colorVariation:.13,
+  }),
+  suede: materialVariant('suede','Suede / Napped Leather',FABRIC_PRESETS.denim,{
+    color:'#8e735d',gsm:580,stretchWarp:.018,stretchWeft:.024,bend:.86,
+    friction:.64,thickness:.0022,roughness:.98,sheen:.05,
+  }),
+  lightNylon: materialVariant('lightNylon','Lightweight Nylon',FABRIC_PRESETS.silk,{
+    color:'#757d8a',gsm:80,stretchWarp:.012,stretchWeft:.016,bend:.3,
+    friction:.29,thickness:.0007,roughness:.48,sheen:.42,
+    fiberAnisotropy:.62,clearcoat:.2,clearcoatRoughness:.23,colorVariation:.11,
+  }),
+  nylonRipstop: materialVariant('nylonRipstop','Nylon Ripstop',FABRIC_PRESETS.silk,{
+    color:'#536658',gsm:110,stretchWarp:.011,stretchWeft:.018,bend:.47,
+    friction:.3,thickness:.0009,roughness:.56,sheen:.32,
+  }),
+  linen: materialVariant('linen','Plain Linen',FABRIC_PRESETS.jersey,{
+    color:'#cfc7b4',gsm:180,stretchWarp:.013,stretchWeft:.017,bend:.8,
+    friction:.39,thickness:.0016,roughness:.89,sheen:.12,
+  }),
+  silkSatin: materialVariant('silkSatin','Silk Satin',FABRIC_PRESETS.silk,{
+    color:'#b5a7bf',gsm:85,stretchWarp:.035,stretchWeft:.045,bend:.32,
+    friction:.19,thickness:.0009,roughness:.3,sheen:.85,
+  }),
+  ribKnit: materialVariant('ribKnit','Stretch Rib Knit',FABRIC_PRESETS.jersey,{
+    color:'#484c54',gsm:320,stretchWarp:.22,stretchWeft:.45,bend:.59,
+    friction:.45,thickness:.0026,roughness:.86,sheen:.17,
+  }),
+  stretchDenim: materialVariant('stretchDenim','Stretch Denim',FABRIC_PRESETS.denim,{
+    color:'#2f4b67',gsm:345,stretchWarp:.025,stretchWeft:.14,bend:.79,
+    friction:.42,thickness:.0029,roughness:.77,sheen:.1,
+  }),
+  velvet: materialVariant('velvet','Cotton Velvet',FABRIC_PRESETS.fleece,{
+    color:'#3a293e',gsm:310,stretchWarp:.025,stretchWeft:.04,bend:.66,
+    friction:.55,thickness:.002,roughness:.92,sheen:.52,
+    fiberAnisotropy:.43,clearcoat:0,surfaceFamily:'velvet',normalStrength:.78,
+  }),
+  silkChiffon: materialVariant('silkChiffon','Silk Chiffon',FABRIC_PRESETS.silk,{
+    color:'#e4dadb',gsm:52,stretchWarp:.02,stretchWeft:.035,bend:.20,
+    friction:.22,thickness:.0005,roughness:.65,sheen:.27,
+    surfaceFamily:'sheer-weave',normalStrength:.38,opacity:.72,
+  }),
+  silkOrganza: materialVariant('silkOrganza','Silk Organza',FABRIC_PRESETS.silk,{
+    color:'#eee6dd',gsm:38,stretchWarp:.008,stretchWeft:.012,bend:.50,
+    friction:.21,thickness:.00038,roughness:.58,sheen:.30,
+    surfaceFamily:'sheer-weave',normalStrength:.3,opacity:.57,
+  }),
+  cottonCorduroy: materialVariant('cottonCorduroy','Cotton Corduroy',FABRIC_PRESETS.denim,{
+    color:'#836b56',gsm:370,stretchWarp:.015,stretchWeft:.028,bend:.84,
+    friction:.51,thickness:.003,roughness:.93,sheen:.1,
+    surfaceFamily:'corduroy',normalStrength:1.4,
+  }),
+  scubaKnit: materialVariant('scubaKnit','Scuba Double Knit',FABRIC_PRESETS.jersey,{
+    color:'#555965',gsm:360,stretchWarp:.22,stretchWeft:.31,bend:.74,
+    friction:.31,thickness:.0035,roughness:.55,sheen:.25,
+    surfaceFamily:'jersey-knit',normalStrength:.48,
+  }),
+  technicalSoftshell: materialVariant('technicalSoftshell','Technical Softshell',FABRIC_PRESETS.lightNylon || FABRIC_PRESETS.silk,{
+    color:'#303a43',gsm:290,stretchWarp:.045,stretchWeft:.095,bend:.76,
+    friction:.28,thickness:.0026,roughness:.46,sheen:.34,
+    surfaceFamily:'synthetic',clearcoat:.28,clearcoatRoughness:.38,
+  }),
+})
 
 const frontPoints = [
   { x: -9, y: 71 },
@@ -297,6 +419,7 @@ export function createDefaultProject() {
     },
     avatar: {
       name: 'Base Mens 180',
+      model: 'makehuman-base',
       heightCm: 180,
       chestCm: 96,
       waistCm: 78,
@@ -319,17 +442,27 @@ export function createDefaultProject() {
     },
     simulation: {
       backendId: 'browser-pbd',
+      nativeQuality: 'balanced',
       nativeClothModel: 'distance',
-      nativeBendingModel: 'distance',
+      nativeBendingModel: 'isometric-xpbd',
       gravity: 9.81,
       stiffness: 0.92,
       seamStiffness: 0.96,
       autoFitTacks: true,
+      // Auto-seat staged panels against the sized avatar before physics.
+      // Manual raw-stage starts remain available as an opt-out.
+      autoFitPlacement: true,
       iterations: 7,
       substeps: 2,
       resolution: 1,
       curveSegments: 2,
       collisionMargin: 0.012,
+      // Separate PPF FEM settings: these are NOT the browser collision skin.
+      ppfContactGap: 0.001,
+      ppfContactOffset: 0,
+      ppfAvatarContactGap: 0.001,
+      ppfAvatarContactOffset: 0,
+      ppfStrainLimitPercent: 5,
       collisions: true,
       selfCollision: true,
       selfCollisionMargin: 0.002,

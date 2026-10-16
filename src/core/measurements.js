@@ -66,8 +66,11 @@ export function measureProject(project) {
     const sleeveHeight = sleeveBounds.maxY - sleeveBounds.minY
     measurements.push(
       value('sleeve-length', 'Sleeve length', sleeveHeight, 0.7),
-      value('bicep-half', '1/2 bicep', horizontalSpan(leftSleeve, sleeveBounds.maxY - sleeveHeight * 0.18), 0.5),
-      value('cuff-half', '1/2 cuff', horizontalSpan(leftSleeve, sleeveBounds.minY + 0.3), 0.4),
+      // A sleeve is ONE unfolded piece with one underarm seam. Its flat cut
+      // width is the finished sleeve circumference (minus sewing turnback),
+      // not a half-circumference like the separate front/back body pieces.
+      value('bicep-half', 'Bicep circumference (sleeve flat)', horizontalSpan(leftSleeve, sleeveBounds.maxY - sleeveHeight * 0.18), 0.5),
+      value('cuff-half', 'Cuff circumference (sleeve flat)', horizontalSpan(leftSleeve, sleeveBounds.minY + 0.3), 0.4),
     )
   }
   for (const measurement of project.customMeasurements || []) {
@@ -144,6 +147,7 @@ export function buildTechPack(project) {
       revision: project.revision,
       units: project.units,
     },
+    productionSpec: project.productionSpec ? structuredClone(project.productionSpec) : null,
     grading: project.grading,
     avatar: {
       ...(project.avatar || {}),
@@ -164,14 +168,26 @@ export function buildTechPack(project) {
       friction: fabric.friction,
       damping: fabric.damping,
       roughness: fabric.roughness ?? 0.82,
+      opacity: fabric.opacity ?? 1,
+      displacementMm: fabric.displacementMm ?? 0,
       metalness: fabric.metalness ?? 0,
       sheen: fabric.sheen ?? 0.22,
       sheenRoughness: fabric.sheenRoughness ?? 0.84,
       normalStrength: fabric.normalStrength ?? 1,
+      fiberAnisotropy: fabric.fiberAnisotropy ?? .16,
+      fiberAngleDeg: fabric.fiberAngleDeg ?? 0,
+      clearcoat: fabric.clearcoat ?? 0,
+      clearcoatRoughness: fabric.clearcoatRoughness ?? .45,
+      colorVariation: fabric.colorVariation ?? .25,
+      weaveScaleCm: fabric.weaveScaleCm ?? 3,
+      surfaceFamily: fabric.surfaceFamily || 'auto',
       texture: fabric.texture ? {
         colorMap: fabric.texture.name || null,
         normalMap: fabric.texture.normalName || null,
         roughnessMap: fabric.texture.roughnessName || null,
+        metalnessMap: fabric.texture.metalnessName || null,
+        opacityMap: fabric.texture.opacityName || null,
+        displacementMap: fabric.texture.displacementName || null,
         repeatWidthCm: fabric.texture.repeatWidthCm ?? 20,
         repeatHeightCm: fabric.texture.repeatHeightCm ?? 20,
         rotationDeg: fabric.texture.rotationDeg ?? 0,

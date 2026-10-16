@@ -1,5 +1,6 @@
 import { createDefaultProject, FABRIC_PRESETS } from './defaultProject.js'
 import { edgeLength } from '../core/project.js'
+import { create501JeansTemplate } from './jeans501.js'
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -58,10 +59,145 @@ function makePiece({
 
 export function createTeeTemplate() {
   const project = createDefaultProject()
+  // Controlled lateral shoulder contact reduces upward launch of the torso
+  // panels on the reference-sized avatar. The solver automatically falls back
+  // to the established contact model on other sizes until their stress and
+  // penetration checks pass; never rescale the drafted pattern to compensate.
+  project.avatar.shoulderContactMode = 'adaptive-limited-lateral'
+  project.avatar.shoulderMaxLateralCorrectionM = 0.006
   project.id = 'project-foundation-tee'
-  project.name = 'Foundation Tee'
+  project.name = 'Foundation Tee · First Fit Test'
   project.templateId = 'tee'
-  project.fabrics.main = { ...FABRIC_PRESETS.jersey, id: 'main', name: 'Cotton Jersey' }
+  project.fabrics.main = { ...FABRIC_PRESETS.jersey, id: 'main', name: 'Cotton Jersey', color: '#d9dde1' }
+  // Pattern seamlines for a regular-fit size M jersey T-shirt on the 180 cm,
+  // 96 cm chest sample body. This is a sampling/production-development block:
+  // factory release still needs physical fit, shrinkage and wash tests.
+  // The legacy shell uses an outward armhole spike (31 cm from center), which
+  // looks like a sleeve extension even though sleeves are separate. Draw a
+  // conventional curved armscye *inside* the underarm width instead.
+  // CLO-like first test: flat front/back panels in front of and behind the
+  // torso, and genuinely short sleeves on either side of the shoulders.
+  // Changes stay in the T-shirt template: denim, hoodies, user projects and
+  // their original saved pattern geometry are left alone.
+  for (const piece of project.pieces) {
+    if (piece.id === 'front' || piece.id === 'back') {
+      // Move the outer biceps-level armhole control point from +/-31 to +/-23.
+      // Shoulders remain +/-21, true underarm width remains +/-27. Both front
+      // and back share the same sewable armscye; neck depths stay distinct.
+      piece.points[2].x = -23
+      piece.points[7].x = 23
+      piece.curves = {
+        ...piece.curves,
+        1: { cx: -21.7, cy: 63.4 },
+        2: { cx: -22.5, cy: 53.8 },
+        6: { cx: 22.5, cy: 53.8 },
+        7: { cx: 21.7, cy: 63.4 },
+      }
+      // 1 cm construction seam allowance, 2.5 cm turnback at the body hem,
+      // and 0.7 cm along the neckline finish. The cut DXF exports these as
+      // real per-edge offsets rather than graphical placeholder lines.
+      piece.edgeSeamAllowances = { 4: 2.5, 9: 0.7, 10: 0.7, 11: 0.7 }
+      // Preserve the existing functional neck binding; supply complete
+      // shoulder-to-center-front/back neckline finish specifications.
+      piece.bindings = [9, 10, 11].map(edgeIndex => ({
+        id: `${piece.id}-neck-binding-${edgeIndex}`,
+        edgeIndex, ratio: 0.96, stiffness: 0.78, widthCm: 1.8, color: '#d9dde1',
+      }))
+      piece.arrangement3d = {
+        ...piece.arrangement3d,
+        y: 0.89,
+        stagingOffsetZ: piece.id === 'front' ? -0.10 : 0.10,
+      }
+    } else if (piece.id === 'sleeve-left' || piece.id === 'sleeve-right') {
+      const left = piece.id === 'sleeve-left'
+      // Seven points retain all existing cap/side/hem sewing edge indices.
+      // Reduced cap width matches the corrected scooped armscye; cuff width
+      // 32 cm allows a light taper from the upper-bicep seam (34.5 cm).
+      piece.points = [
+        { x: 0, y: 25 },
+        { x: -11, y: 23 },
+        { x: -17.25, y: 17 },
+        { x: -16, y: 0 },
+        { x: 16, y: 0 },
+        { x: 17.25, y: 17 },
+        { x: 11, y: 23 },
+      ]
+      piece.curves = {
+        // Match sewn sleeve-cap arc length to the corrected armscye, while
+        // retaining a rounded apex and true sleeve cap (not part of torso).
+        0: { cx: -6.05, cy: 23.5 },
+        1: { cx: -16.5, cy: 22 },
+        5: { cx: 16.5, cy: 22 },
+        6: { cx: 6.05, cy: 23.5 },
+      }
+      piece.edgeSeamAllowances = { 3: 2.5 }
+      piece.arrangement3d = {
+        ...piece.arrangement3d,
+        y: 1.35,
+        stagingOffsetX: left ? 0.11 : -0.11,
+        stagingRotationY: left ? 78 : -78,
+      }
+    }
+  }
+  // Physical matching notch pairs are production metadata: the single notch
+  // denotes the front armscye, double denotes the back. Preserve the original
+  // positions and explicitly associate both fabric edges for DXF/tech packs.
+  for (const [bodyId, sleeveId, bodyEdge, sleeveEdge, seamId] of [
+    ['front', 'sleeve-left', 2, 1, 'seam-sleeve-l-front-lower'],
+    ['back', 'sleeve-left', 2, 5, 'seam-sleeve-l-back-lower'],
+    ['front', 'sleeve-right', 6, 1, 'seam-sleeve-r-front-lower'],
+    ['back', 'sleeve-right', 6, 5, 'seam-sleeve-r-back-lower'],
+  ]) {
+    const group = `tee-notches-${seamId}`
+    for (const [pieceId, edge] of [[bodyId, bodyEdge], [sleeveId, sleeveEdge]]) {
+      const piece = project.pieces.find(item => item.id === pieceId)
+      const notch = piece?.notches?.find(item => item.edgeIndex === edge)
+      if (notch) { notch.matchGroupId = group; notch.matchedSeamId = seamId }
+    }
+  }
+  const necklineLengthCm = ['front', 'back'].reduce((sum, id) => {
+    const piece = project.pieces.find(item => item.id === id)
+    return sum + [9, 10, 11].reduce((total, edge) => total + edgeLength(piece, edge), 0)
+  }, 0)
+  project.productionSpec = {
+    format: 'garment-studio.tee-production-development.v1',
+    approvalStatus: 'FIT_SAMPLE_AND_FACTORY_VALIDATION_REQUIRED',
+    baseSize: 'M', units: 'cm', block: 'regular-fit short-sleeve jersey crew neck',
+    gradingModel: 'seam-locked-affine-v1',
+    referenceHalfChestCm: 54,
+    referenceBodyLengthCm: 71,
+    sewingLines: 'drafted geometry represents stitch lines; cut outlines include edgeSeamAllowances',
+    cutQuantities: { front: 1, back: 1, 'sleeve-left': 1, 'sleeve-right': 1 },
+    construction: {
+      sideAndShoulder: '1.0 cm overlock seam',
+      bodyHem: '2.5 cm double-needle coverstitch turnback',
+      sleeveHem: '2.5 cm double-needle coverstitch turnback',
+      neckline: 'rib finish must be physically sampled and added to production marker',
+    },
+    neckband: {
+      measuredNecklineCm: Number(necklineLengthCm.toFixed(2)),
+      proposedRibSewingRatio: 0.87,
+      proposedCutLengthCm: Number((necklineLengthCm * .87 + 2).toFixed(2)),
+      proposedCutWidthCm: 4.6,
+      joinSeamAllowanceCm: 1,
+      requiresSeparateNeckbandCutPattern: true,
+    },
+    qualityGates: ['physical body-fit sample', 'graded nest and sewability', 'wash/shrink calibration', 'factory seam and neckband approval'],
+  }
+  project.simulation = {
+    ...project.simulation,
+    substeps: 3,
+    iterations: 9,
+    stiffness: 0.92,
+    seamStiffness: 0.97,
+    collisions: true,
+    selfCollision: true,
+    selfCollisionMargin: 0.0025,
+    // Triangle-centroid body contact reduces measured peak strain on both
+    // reference T-shirt avatar sizes; leave other garment templates unchanged.
+    bodyTriangleContactAssist: true,
+    wind: { ...project.simulation.wind, enabled: false },
+  }
   project.updatedAt = new Date().toISOString()
   return project
 }
@@ -126,10 +262,22 @@ function addTemplateHood(project) {
   const build = (id, name, attachments, wrap, layoutX) => {
     const lengths = attachments.map(({ endpoint }) => edgeLength(project.pieces.find((piece) => piece.id === endpoint.pieceId), endpoint.edgeIndex))
     const bottom = [{ x: 0, y: 0 }]
+    const necklineYProfile = []
     let cursor = 0
-    for (const length of lengths) {
+    const targetBaseY = (piece, point) => Number(piece.arrangement3d?.y || 0) + Number(point?.y || 0) * 0.01
+    for (let index = 0; index < lengths.length; index += 1) {
+      const { endpoint, reverseB } = attachments[index]
+      const targetPiece = project.pieces.find((piece) => piece.id === endpoint.pieceId)
+      const targetStart = targetPiece.points[endpoint.edgeIndex]
+      const targetEnd = targetPiece.points[(endpoint.edgeIndex + 1) % targetPiece.points.length]
+      const sourceStartTarget = reverseB ? targetEnd : targetStart
+      const sourceEndTarget = reverseB ? targetStart : targetEnd
+      if (!necklineYProfile.length) necklineYProfile.push({ x: cursor, y: targetBaseY(targetPiece, sourceStartTarget) })
+      else necklineYProfile[necklineYProfile.length - 1].y = (necklineYProfile[necklineYProfile.length - 1].y + targetBaseY(targetPiece, sourceStartTarget)) * 0.5
+      const length = lengths[index]
       cursor += length
       bottom.push({ x: cursor, y: 0 })
+      necklineYProfile.push({ x: cursor, y: targetBaseY(targetPiece, sourceEndTarget) })
     }
     const total = Math.max(24, cursor)
     return makePiece({
@@ -143,7 +291,7 @@ function addTemplateHood(project) {
         7: { cx: -2.5, cy: 21 },
       },
       layout2d: { x: layoutX, y: 52 },
-      arrangement3d: { x: 0, y: 1.59, z: 0, wrap },
+      arrangement3d: { x: 0, y: 1.59, z: 0, wrap, necklineYProfile },
       simulationResolution: 1,
       topstitches: [{ id: `${id}-opening`, edgeIndex: 7, offsetCm: 2.1, rows: 2, rowGapCm: 0.5, stitchLengthMm: 3, color: '#777777' }],
       notches: [{ id: `${id}-neck-notch`, edgeIndex: 1, t: 0.5, type: 'single', depthCm: 0.45 }],
@@ -610,6 +758,66 @@ export function createPantsTemplate() {
   return project
 }
 
+// A simulation-first classic straight jean foundation. Preserve the tested
+// four-panel topological layout / seams of the pants baseline while setting
+// independent size-32 approximate finished-leg measurements. The full
+// 24-piece construction study is registered separately as jeans-501.
+export function create501BodyFitTemplate() {
+  const p = createPantsTemplate()
+  p.id = 'project-501-on-body-fit-w32-l32'
+  p.name = '501-Style Straight Denim / Avatar Fit W32 L32'
+  p.templateId = 'jeans-501-fit'
+  p.description = '501-inspired rigid-denim four-panel drape prototype, on-body fit; yokes, five pockets and fly are recorded as construction details but not simulated as independently sewn layers here.'
+  p.fabrics.main = { ...FABRIC_PRESETS.denim, id: 'main',
+    name: 'Rigid Indigo Denim / 13.5 oz', color: '#283f5f',
+    gsm: 458, stretchWarp: 0.012, stretchWeft: 0.016,
+    thickness: 0.0029, friction: 0.45, bend: 0.85 }
+
+  const f = [
+    { x: -20.0, y: 107.0 },    // outer waist
+    { x: -23.0, y: 80.0 },     // full thigh outer
+    { x: -20.2, y: 0 },        // hem outer
+    { x: -0.2, y: 0 },         // hem inseam
+    { x: 0.8, y: 70.0 },       // straight leg/inner thigh
+    { x: 5.4, y: 80.0 },       // center rise junction
+    { x: 0.0, y: 107.0 },     // waist-front center
+  ]
+  const b = [
+    { x: -21.0, y: 107.0 },
+    { x: -24.3, y: 80.0 },
+    { x: -20.5, y: 0 },
+    { x: 0.0, y: 0 },
+    { x: 1.3, y: 70.0 },
+    { x: 5.9, y: 80.0 },
+    { x: 0.0, y: 107.0 },
+  ]
+  for (const piece of p.pieces) {
+    const front = piece.id.includes('front')
+    piece.points = (front ? f : b).map(point => ({ ...point }))
+    piece.simulationResolution = 1.9
+    piece.seamAllowance = 1.2
+    piece.name = piece.name.replace('Leg', front ? 'Straight Denim Front Leg' : 'Straight Denim Back Leg')
+    piece.internalLines = front ? [
+      { id: `${piece.id}-pocket-mouth-reference`, type: 'construction',
+        a: { x: -19.1, y: 103 }, b: { x: -6.4, y: 97 } },
+      { id: `${piece.id}-watch-pocket-outline`, type: 'construction',
+        a: { x: -11, y: 102 }, b: { x: -7, y: 95 } },
+    ] : [
+      { id: `${piece.id}-yoke-seam-reference`, type: 'construction',
+        a: { x: -20, y: 94.5 }, b: { x: 0, y: 95.5 } },
+      { id: `${piece.id}-back-pocket-diagonal-reference`, type: 'construction',
+        a: { x: -18.1, y: 90 }, b: { x: -4.4, y: 87 } },
+    ]
+  }
+  p.referenceMeasurements = {
+    size: 'W32 L32', intendedWaistCm: 82,
+    hemTargetCm: 40.64, kneeTargetCm: 44.45,
+    inseamTargetCm: 81.28, frontRiseTargetCm: 28.575,
+    disclaimer: 'On-body 501-style engineering prototype; not Levi factory pattern.',
+  }
+  return p
+}
+
 export function createBlankTemplate() {
   const project = baseFromDefault('Blank Draft', 'blank')
   project.pieces = [
@@ -640,6 +848,8 @@ export const GARMENT_TEMPLATES = [
   { id: 'zip-hoodie', name: 'Zip Hoodie', description: 'Split front shell with a live openable center zipper', create: createZipHoodieTemplate },
   { id: 'skirt', name: 'A-Line Skirt', description: 'Two-panel lower-body woven foundation', create: createSkirtTemplate },
   { id: 'pants', name: 'Straight Pants', description: 'Front/back trouser block with crotch and inseams', create: createPantsTemplate },
+  { id: 'jeans-501-fit', name: '501-Style / Avatar Fit', description: 'Four-panel fitted straight indigo jeans for XPBD on-avatar cloth simulation', create: create501BodyFitTemplate },
+  { id: 'jeans-501', name: '501-Style Jeans', description: 'Five-pocket straight rigid denim with rear yokes, button fly, pockets and waistband', create: create501JeansTemplate },
   { id: 'blank', name: 'Blank Draft', description: 'Single editable rectangular pattern', create: createBlankTemplate },
 ]
 

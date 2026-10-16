@@ -8,6 +8,9 @@ from pathlib import Path
 import bpy
 from mathutils import Vector
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ppf_shell import build_welded_shell
+
 
 def parse_args():
     raw = sys.argv
@@ -17,7 +20,10 @@ def parse_args():
     parser.add_argument('--output', required=True)
     parser.add_argument('--render')
     parser.add_argument('--simulation-result')
+    parser.add_argument('--simulation-payload')
     parser.add_argument('--no-avatar', action='store_true')
+    parser.add_argument('--avatar-proxy', action='store_true', help='Use a neutral measurement-driven full-body avatar proxy for fit visualization.')
+    parser.add_argument('--render-welded-shell', action='store_true', help='Render the on-body welded XPBD shell when all sewing relationships can be welded.')
     return parser.parse_args(args)
 
 
@@ -201,6 +207,90 @@ def create_avatar_proxy(avatar, collection):
     return head
 
 
+def create_detailed_avatar(avatar, collection, source_path, visual_id='makehuman-base'):
+    source_path = Path(source_path)
+    if not source_path.exists():
+        return None
+
+    before = set(bpy.data.objects)
+    try:
+        if source_path.suffix.lower() in {'.glb', '.gltf'}:
+            bpy.ops.import_scene.gltf(filepath=str(source_path))
+        else:
+            bpy.ops.wm.obj_import(filepath=str(source_path))
+    except Exception as exc:
+        print(f'WARN detailed avatar import failed: {exc}', file=sys.stderr)
+        return None
+
+    imported = [obj for obj in bpy.data.objects if obj not in before]
+    meshes = [obj for obj in imported if obj.type == 'MESH']
+    if not meshes:
+        for obj in imported:
+            bpy.data.objects.remove(obj, do_unlink=True)
+        return None
+
+    root = bpy.data.objects.new('Avatar_Detailed', None)
+    collection.objects.link(root)
+    for obj in imported:
+        link_only(obj, collection)
+    imported_set = set(imported)
+    for obj in imported:
+        # Preserve GLB skinning hierarchy (body -> armature). Only parent the
+        # imported roots to our Garment Studio transform root.
+        if obj.parent not in imported_set:
+            obj.parent = root
+
+    mat = bpy.data.materials.new('Avatar_Detailed_Material')
+    mat.diffuse_color = (0.38, 0.39, 0.41, 1.0)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes.get('Principled BSDF')
+    if bsdf:
+        bsdf.inputs['Base Color'].default_value = mat.diffuse_color
+        bsdf.inputs['Roughness'].default_value = 0.7
+        bsdf.inputs['Metallic'].default_value = 0.0
+
+    for obj in meshes:
+        obj.data.materials.clear()
+        obj.data.materials.append(mat)
+        for polygon in obj.data.polygons:
+            polygon.use_smooth = True
+        obj['garment_avatar_visual'] = visual_id
+        obj['garment_avatar_collision'] = 'analytic-parametric'
+
+    def world_bounds():
+        bpy.context.view_layer.update()
+        corners = [
+            obj.matrix_world @ Vector(corner)
+            for obj in meshes
+            for corner in obj.bound_box
+        ]
+        mins = Vector((
+            min(point.x for point in corners),
+            min(point.y for point in corners),
+            min(point.z for point in corners),
+        ))
+        maxs = Vector((
+            max(point.x for point in corners),
+            max(point.y for point in corners),
+            max(point.z for point in corners),
+        ))
+        return mins, maxs
+
+    mins, maxs = world_bounds()
+    source_height = max(0.001, maxs.z - mins.z)
+    target_height = max(1.4, min(2.2, float(avatar.get('heightCm', 180) or 180) / 100.0))
+    root.scale = (target_height / source_height,) * 3
+    mins, maxs = world_bounds()
+    center = (mins + maxs) * 0.5
+    root.location.x -= center.x
+    root.location.y -= center.y
+    root.location.z -= mins.z
+    root['garment_avatar_visual'] = visual_id
+    root['garment_avatar_collision'] = 'analytic-parametric'
+    root['garment_avatar_source'] = str(source_path)
+    return root
+
+
 def look_at(obj, target):
     direction = Vector(target) - obj.location
     obj.rotation_euler = direction.to_track_quat('-Z', 'Y').to_euler()
@@ -233,11 +323,15 @@ def main():
     render_path = Path(args.render).resolve() if args.render else None
     project = json.loads(input_path.read_text())
     simulation_result = None
+    simulation_payload = None
     if args.simulation_result:
         simulation_path = Path(args.simulation_result).resolve()
         simulation_result = json.loads(simulation_path.read_text())
         if simulation_result.get('protocol') != 'garment-studio.native-xpbd-result':
             raise ValueError(f'Unsupported simulation result protocol: {simulation_result.get("protocol")}')
+    if args.simulation_payload:
+        simulation_payload_path = Path(args.simulation_payload).resolve()
+        simulation_payload = json.loads(simulation_payload_path.read_text())
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     setup_scene(project, render_path)
@@ -246,6 +340,7 @@ def main():
     patterns = ensure_collection('Patterns_2D', root)
     garment = ensure_collection('Garment_3D', root)
     simulation_collection = ensure_collection('Simulation_Result', root) if simulation_result else None
+    ppf_collection = ensure_collection('PPF_Final_Shell', root) if simulation_result and simulation_payload else None
     seams_collection = ensure_collection('Sewing_Relationships', root)
     avatar_collection = ensure_collection('Avatar', root)
 
@@ -309,6 +404,42 @@ def main():
             if isinstance(value, (str, int, float, bool)):
                 bpy.context.scene[f'garment_sim_{key}'] = value
 
+    if simulation_result and simulation_payload and ppf_collection:
+        shell = build_welded_shell(project, simulation_payload, simulation_result)
+        if args.render_welded_shell and not shell['ready']:
+            raise RuntimeError(f'Cannot render welded shell: {shell["reason"]} / {shell["errors"]}')
+        shell_material = None
+        if len(shell['fabrics']) == 1:
+            shell_material = materials.get(shell['fabrics'][0]) or materials.get('main')
+        shell_obj = make_simulation_object(
+            'PPF_Final_Shell',
+            shell['vertices'],
+            shell['faces'],
+            ppf_collection,
+            shell_material,
+        )
+        shell_obj['garment_ppf_ready'] = bool(shell['ready'])
+        shell_obj['garment_ppf_source_backend'] = simulation_result.get('backendId', '')
+        shell_obj['garment_ppf_weld_constraint_count'] = int(shell['weldConstraintCount'])
+        shell_obj['garment_ppf_weldable_seams'] = json.dumps(shell['weldableSeamIds'])
+        shell_obj['garment_ppf_unsupported_seams'] = json.dumps(shell['unsupportedSeamIds'])
+        shell_obj['garment_ppf_fabrics'] = json.dumps(shell['fabrics'])
+        shell_obj['garment_ppf_errors'] = json.dumps(shell['errors'])
+        shell_obj['garment_ppf_note'] = shell['reason']
+        shell_obj.hide_render = not (args.render_welded_shell and shell['ready'])
+        if args.render_welded_shell and shell['ready']:
+            for sim_object in simulated_object_by_id.values():
+                sim_object.hide_render = True
+            for polygon in shell_obj.data.polygons:
+                polygon.use_smooth = True
+            denim_thickness = float((fabrics.get('main') or {}).get('thickness', 0.0029))
+            surface_modifier = shell_obj.modifiers.new('Denim Thickness', 'SOLIDIFY')
+            surface_modifier.thickness = max(0.0005, min(0.008, denim_thickness))
+        bpy.context.scene['garment_ppf_ready'] = bool(shell['ready'])
+        bpy.context.scene['garment_ppf_shell_vertices'] = len(shell['vertices'])
+        bpy.context.scene['garment_ppf_shell_faces'] = len(shell['faces'])
+        bpy.context.scene['garment_ppf_weld_constraints'] = int(shell['weldConstraintCount'])
+
     # Build seam relationship lines after transforms are established.
     bpy.context.view_layer.update()
     for seam in project.get('seams') or []:
@@ -331,7 +462,23 @@ def main():
         seam_obj['garment_reverse_b'] = bool(seam.get('reverseB', False))
 
     if not args.no_avatar:
-        create_avatar_proxy(project.get('avatar') or {}, avatar_collection)
+        avatar = project.get('avatar') or {}
+        avatar_model = str(avatar.get('model') or 'makehuman-base')
+        asset_root = Path(__file__).resolve().parents[1] / 'public' / 'avatars'
+        if avatar_model in {'theo', 'nora'}:
+            detailed_avatar_path = asset_root / 'opensew' / f'{avatar_model}.glb'
+        else:
+            avatar_model = 'makehuman-base'
+            detailed_avatar_path = asset_root / 'makehuman-base.obj'
+        detailed_avatar = None if args.avatar_proxy else create_detailed_avatar(
+            avatar, avatar_collection, detailed_avatar_path, visual_id=avatar_model,
+        )
+        if detailed_avatar is None:
+            create_avatar_proxy(avatar, avatar_collection)
+            bpy.context.scene['garment_avatar_visual'] = 'analytic-proxy'
+        else:
+            bpy.context.scene['garment_avatar_visual'] = avatar_model
+        bpy.context.scene['garment_avatar_collision'] = 'analytic-parametric'
 
     # Floor
     bpy.ops.mesh.primitive_plane_add(size=8, location=(0, 0, -0.02))

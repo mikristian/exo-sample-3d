@@ -700,6 +700,7 @@
   },
   "avatar": {
     "name": "Base Mens 180",
+    "model": "makehuman-base",
     "heightCm": 180,
     "chestCm": 96,
     "waistCm": 78,
