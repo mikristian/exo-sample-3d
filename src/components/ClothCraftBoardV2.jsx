@@ -1,4 +1,5 @@
 import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
+import ClothCraftCornerTools from './ClothCraftCornerTools.jsx'
 import ClothCraftStudioSilhouette from './ClothCraftStudioSilhouette.jsx'
 
 const COLORS = ['#527e91', '#d29465', '#7a9e79', '#a889b2', '#c3ab5d', '#76a5a4']
@@ -62,6 +63,7 @@ function Dimensions({points, selected}) {
 export default function ClothCraftBoardV2({
   s, active, pick = () => {}, hover = () => {}, edit = () => {},
   mode = 'edit', busy = false, onPolygon = () => {},
+  onChangeMode = () => {},
   showMeasurements = true, showSilhouette = true, showSeamDots = true, showAvatar = true,
 }) {
   const svg = useRef(null), drag = useRef(null), [view, setView] = useState(INITIAL_VIEW), [draft, setDraft] = useState([])
@@ -215,11 +217,12 @@ export default function ClothCraftBoardV2({
   }
   const isDrawing = mode === 'pen' || mode === 'line'
   return <div className="cc-board" style={{position: 'relative', background: '#c6c7c9'}}>
-    <div role="group" aria-label="2D board view controls" style={{position:'absolute',top:8,left:10,zIndex:3,display:'flex',gap:3,alignItems:'center',border:'1px solid #c2ccce',borderRadius:7,padding:3,background:'rgba(241,244,244,.94)',boxShadow:'0 2px 6px #00000012'}}>
+    <ClothCraftCornerTools dimension="2d" mode={mode} onChangeMode={onChangeMode} disabled={busy}/>
+    <div role="group" aria-label="2D board view controls" style={{position:'absolute',top:8,right:10,zIndex:3,display:'flex',gap:3,alignItems:'center',border:'1px solid #c2ccce',borderRadius:7,padding:3,background:'rgba(241,244,244,.94)',boxShadow:'0 2px 6px #00000012'}}>
       <span style={{fontSize:10,fontWeight:700,color:'#61757b',padding:'0 7px'}}>2D</span>
       {['FRONT','GRID'].map(preset=><button key={preset} type="button" aria-pressed={viewPreset===preset} onClick={()=>setViewPreset(preset)} style={{fontSize:10,letterSpacing:'.06em',fontWeight:700,border:'none',borderRadius:4,padding:'5px 9px',cursor:'pointer',color:viewPreset===preset?'#fff':'#566970',background:viewPreset===preset?'#50656d':'transparent'}}>{preset}</button>)}
     </div>
-    <div className="cc-canvas-tools" style={{top:44}}>
+    <div className="cc-canvas-tools" style={{top:44,left:'auto',right:10}}>
       <button type="button" onClick={() => focus()}>Frame all</button>
       <button type="button" onClick={() => focus(true)}>Focus selected</button>
       <button type="button" onClick={() => setView(v=>[-v[2]/2,avatarAnchorY-v[3]/2,v[2],v[3]])}>Center axis</button>

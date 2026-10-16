@@ -36,7 +36,8 @@ const ICONS = {
   move: 'move-3d', rotate: 'rotate-3d', hand: 'hand',
 }
 
-export default function ViewportQuickTools({ dimension, activeTool, onChangeTool }) {
+export default function ViewportQuickTools({ dimension, activeTool, onChangeTool, availableTools, disabled = false }) {
+  const usable = name => !disabled && (!availableTools || availableTools.includes(name))
   return (
     <div className={`canvas-tool-flyouts clo-corner-toolkit clo-corner-toolkit-${dimension}`} aria-label={`${dimension.toUpperCase()} viewport quick tools`} role="toolbar">
       {(TOOLS[dimension] || []).map((group) => (
@@ -47,14 +48,15 @@ export default function ViewportQuickTools({ dimension, activeTool, onChangeTool
             title={group.label}
             aria-pressed={activeTool === group.name}
             className={activeTool === group.name ? 'active' : ''}
-            onClick={() => onChangeTool?.(group.name)}
+            disabled={!usable(group.name)}
+            onClick={() => usable(group.name) && onChangeTool?.(group.name)}
           >
             <CadToolIcon id={group.icon} size={21}/>
             <span className="clo-corner-flyout-caret" aria-hidden="true" />
           </button>
           <div className="canvas-tool-options clo-corner-tool-options" role="group" aria-label={`${group.label} alternatives`}>
             {group.options.map((name) => (
-              <button key={name} type="button" className={activeTool === name ? 'active' : ''} aria-label={LABELS[name]} title={LABELS[name]} onClick={() => onChangeTool?.(name)}>
+              <button key={name} type="button" disabled={!usable(name)} className={activeTool === name ? 'active' : ''} aria-label={LABELS[name]} title={usable(name) ? LABELS[name] : `${LABELS[name]} (available in full Garment Studio)`} onClick={() => usable(name) && onChangeTool?.(name)}>
                 <CadToolIcon id={ICONS[name]} size={19}/><span>{LABELS[name]}</span>
               </button>
             ))}
