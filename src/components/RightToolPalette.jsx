@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import CadToolIcon from './CadToolIcon.jsx'
-import ObjectBrowserCategoryRail from './ObjectBrowserCategoryRail.jsx'
 
 // A 34-slot, original-icon workspace palette. This inventory is not a claim
 // that the proprietary CLO toolbar contains exactly these controls, nor that
@@ -159,16 +158,6 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     if (!item) return null
     const [itemId, label, action] = item
     const actionButton=<button key={itemId} type="button" title={action ? label : `${label} · planned`} aria-label={label} aria-pressed={Boolean(action && active(action))} disabled={!action} className={active(action) ? 'active' : ''} onClick={() => click(action)}><CadToolIcon id={itemId} size={20}/></button>
-    // The real Object Browser's three-BULLET category selector lives directly
-    // before Scene. Expanded categories and their subtools occupy the same
-    // right-hand tool rail, never an overlay above the browser.
-    if(id==='scene')return <React.Fragment key="scene-with-tools-menu">
-      <ObjectBrowserCategoryRail sceneButton={actionButton} onChoose={(section,objectTab)=>{
-        setActiveSection(section)
-        setObjectTab(objectTab)
-        onRevealBrowser?.()
-      }}/>
-    </React.Fragment>
     return actionButton
   }
   return <nav className={`clo-right-tool-palette ${showAll ? 'all-tools' : 'focused-tools'}`} aria-label="Right workspace tools">

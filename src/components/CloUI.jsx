@@ -67,6 +67,8 @@ export function LibraryChrome({ category, setCategory, search, setSearch, thumbn
 
 export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSelectedFabricId, onApplyFabric, setActiveSection, selectedPieceId, selectedFabricId, onAddFabric, onAddPattern, onTogglePieceProperty }) {
   const [objectSearch, setObjectSearch] = useState('')
+  const [categoryMenuOpen,setCategoryMenuOpen]=useState(false)
+  const [categoryExpanded,setCategoryExpanded]=useState('2D Pattern')
   const fabrics = Object.entries(project.fabrics || {})
   const allPieces = project.pieces || []
   const sceneItems = [{ id: 'avatar', name: project.avatar?.name || 'Avatar', icon: UserRound, action: () => setActiveSection('Avatar') }, ...allPieces.map(piece => ({ id: piece.id, name: piece.name, icon: Shirt, action: () => { setSelectedPieceId(piece.id); setActiveSection('Pattern') } }))]
@@ -84,10 +86,24 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
   const rows = getRows()
   const filteredRows = rows.filter(row => row.name.toLowerCase().includes(objectSearch.trim().toLowerCase()))
   return <section className="clo-object-browser" aria-label="Object Browser">
-    <div className="clo-panel-header"><strong>Object Browser</strong><span>{rows.length} ITEMS</span></div>
+    <div className="clo-panel-header"><strong>Object Browser</strong><span>{categoryMenuOpen ? `${OBJECT_HIERARCHY.length} GROUPS` : `${rows.length} ITEMS`}</span></div>
     <div className="clo-object-tabs" role="tablist" aria-label="Object Browser types">
-      {OBJECT_TABS.map(({id}) => <button key={id} type="button" role="tab" aria-label={id} aria-selected={tab === id} title={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><CadToolIcon id={OBJECT_TAB_ART[id]} size={21}/><span>{id}</span></button>)}
+      <button className={`clo-object-bullet-menu-trigger clo-object-tab-menu ${categoryMenuOpen ? 'active' : ''}`}
+        type="button" role="tab" aria-selected={categoryMenuOpen}
+        aria-label="Object Browser category list" aria-controls="clo-object-hierarchy-menu"
+        title="Object Browser categories"
+        onClick={()=>setCategoryMenuOpen(value=>!value)}><BulletListIcon/></button>
+      {OBJECT_TABS.map(({id}) => <button key={id} type="button" role="tab" aria-label={id} aria-selected={!categoryMenuOpen && tab === id} title={id} className={!categoryMenuOpen && tab === id ? 'active' : ''} onClick={() => {setTab(id);setCategoryMenuOpen(false)}}><CadToolIcon id={OBJECT_TAB_ART[id]} size={21}/><span>{id}</span></button>)}
     </div>
+    {categoryMenuOpen ? <>
+      <div className="clo-object-actions"><span>OBJECT CATEGORIES · SELECT A GROUP</span></div>
+      <nav id="clo-object-hierarchy-menu" className="clo-object-hierarchy-menu" aria-label="Object Browser categories">
+      {OBJECT_HIERARCHY.map(item=><div className="clo-object-hierarchy-group" key={item.title}>
+        <button type="button" className={categoryExpanded===item.title?'expanded':''} aria-expanded={categoryExpanded===item.title} onClick={()=>setCategoryExpanded(categoryExpanded===item.title?'':item.title)}><ChevronRight size={13}/><strong>{item.title}</strong></button>
+        {categoryExpanded===item.title && <div className="clo-object-hierarchy-children">{item.children.map(([label,section,objectTab])=><button type="button" key={label} onClick={()=>{setActiveSection(section);setTab(objectTab);setCategoryMenuOpen(false)}}>{label}</button>)}</div>}
+      </div>)}
+      </nav>
+    </> : <>
     <div className="clo-object-actions"><span>{tab === 'Fabric' ? 'CLICK SWATCH TO APPLY TO SELECTED PATTERN' : tab === 'Scene' ? '3D / 2D Scene' : tab} · {rows.length} {rows.length === 1 ? 'item' : 'items'}</span>{['Fabric','Scene'].includes(tab) && <button onClick={() => tab === 'Fabric' ? onAddFabric() : onAddPattern()}>+ Add {tab === 'Fabric' ? 'fabric' : 'pattern'}</button>}</div>
     {tab === 'Fabric' && fabrics.length > 0 && (() => {
       const item = project.fabrics?.[selectedFabricId] || fabrics[0][1]
@@ -107,5 +123,6 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
         </div>
       }) : <div className="clo-object-empty">{objectSearch ? 'No matching objects.' : `No ${tab.toLowerCase()} objects in the project yet.`}</div>}
     </div>
+    </>}
   </section>
 }

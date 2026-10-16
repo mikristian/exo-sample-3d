@@ -37,47 +37,76 @@ try{
  const page=await browser.newPage({viewport:{width:1660,height:1010}}),errors=[]
  page.on('pageerror',e=>errors.push(e.message))
  await page.goto(ui+'/?desktop=1&engine=clothcraft',{waitUntil:'domcontentloaded'})
- await page.getByRole('navigation',{name:'Right workspace tools'}).waitFor({timeout:40000})
- const rail=page.getByRole('navigation',{name:'Right workspace tools'})
- const category=rail.getByRole('button',{name:'Object Browser category list'})
- assert.equal(await category.count(),1,'Exactly one actual bullet-list button should exist')
- assert.equal(await page.locator('.clo-object-bullet-menu-trigger').count(),0,'Old header menu must be removed')
- const placement=await rail.evaluate(node=>{
-  const trigger=node.querySelector('.clo-object-category-trigger')
-  const scene=node.querySelector('[aria-label="Scene hierarchy"]')
-  const browser=document.querySelector('.clo-object-browser')
-  return {
-   besideScene:trigger?.nextElementSibling===scene && trigger?.parentElement===scene?.parentElement,
-   inRail:node.contains(trigger),oldMenu:browser?.querySelector('.clo-object-hierarchy-menu')!==null,
-   sameSize:Math.abs(trigger?.getBoundingClientRect().width-scene?.getBoundingClientRect().width)<2,
+ await page.getByRole('tablist',{name:'Object Browser types'}).waitFor({timeout:40000})
+ const toolbar=page.getByRole('tablist',{name:'Object Browser types'})
+ const bullet=toolbar.getByRole('tab',{name:'Object Browser category list'})
+ const scene=toolbar.getByRole('tab',{name:'Scene',exact:true})
+ assert.equal(await bullet.count(),1,'Exactly one Object Browser bullet button should exist')
+ const layout=await toolbar.evaluate(row=>{
+  const trigger=row.querySelector('.clo-object-tab-menu')
+  const scene=row.querySelector('[role="tab"][aria-label="Scene"]')
+  const header=row.parentElement.querySelector('.clo-panel-header')?.getBoundingClientRect()
+  const a=trigger?.getBoundingClientRect(),b=scene?.getBoundingClientRect()
+  const rail=document.querySelector('.clo-right-tool-palette')
+  return {firstChild:row.firstElementChild===trigger,
+   directlyBeforeScene:trigger?.nextElementSibling===scene,
+   sameHorizontalRow:Math.abs((a?.top||0)-(b?.top||0))<2,
+   underTitle:(a?.top||0)>=(header?.bottom||0),
+   equalCellWidth:Math.abs((a?.width||0)-(b?.width||0))<2,
+   notInVerticalTools:!rail?.querySelector('.clo-object-category-trigger'),
   }
  })
- assert.deepEqual(placement,{besideScene:true,inRail:true,oldMenu:false,sameSize:true})
- assert.equal(await category.getAttribute('aria-expanded'),'false')
- await category.click()
- assert.equal(await category.getAttribute('aria-expanded'),'true')
- const categories=['2D Pattern','Sewing','3D Form','Material','Environment']
- for(const name of categories) assert.equal(await rail.getByRole('button',{name,exact:true}).count(),1,name)
- assert.equal(await rail.getByRole('button',{name:'Pattern Pieces'}).count(),1)
- await rail.getByRole('button',{name:'Sewing',exact:true}).click()
- assert.equal(await rail.getByRole('button',{name:'Sewing Relationships'}).count(),1)
- await rail.getByRole('button',{name:'Material',exact:true}).click()
- await rail.getByRole('button',{name:'Fabric Editor'}).click()
+ assert.deepEqual(layout,{firstChild:true,directlyBeforeScene:true,sameHorizontalRow:true,underTitle:true,equalCellWidth:true,notInVerticalTools:true})
+ assert.equal(await bullet.getAttribute('aria-selected'),'false')
+ await bullet.click()
+ assert.equal(await bullet.getAttribute('aria-selected'),'true')
+ const categories=page.getByRole('navigation',{name:'Object Browser categories'})
+ await categories.waitFor()
+ const titles=['2D Pattern','Sewing','3D Form','Material','Environment']
+ for(const name of titles) assert.equal(await categories.getByRole('button',{name,exact:true}).count(),1,name)
+ assert.equal(await categories.getByRole('button',{name:'Pattern Pieces'}).count(),1)
+ const placement=await categories.evaluate(node=>{
+  const browser=node.closest('.clo-object-browser')
+  const tabs=browser.querySelector('.clo-object-tabs').getBoundingClientRect()
+  const area=node.getBoundingClientRect(),browserRect=browser.getBoundingClientRect()
+  const styles=getComputedStyle(node)
+  return {belowTabRow:area.top>=tabs.bottom+15,
+    withinPanel:area.left>=browserRect.left-1&&area.right<=browserRect.right+1&&area.bottom<=browserRect.bottom+1,
+    normalFlow:styles.position==='relative'&&styles.boxShadow==='none',
+    fullWidth:area.width/browserRect.width>.95,
+    replacesObjects:!browser.querySelector('.clo-object-list,.clo-object-search,.clo-fabric-preview'),
+  }
+ })
+ assert.deepEqual(placement,{belowTabRow:true,withinPanel:true,normalFlow:true,fullWidth:true,replacesObjects:true},
+  'Object categories must occupy the Object Browser panel just like other tabs, not a floating menu')
+ await categories.getByRole('button',{name:'Sewing',exact:true}).click()
+ assert.equal(await categories.getByRole('button',{name:'Sewing Relationships'}).count(),1)
+ await categories.getByRole('button',{name:'Material',exact:true}).click()
+ await categories.getByRole('button',{name:'Fabric Editor'}).click()
+ assert.equal(await categories.count(),0,'Selecting a nested category returns to normal Object Browser view')
  assert.equal(await page.getByRole('tab',{name:'Fabric',selected:true}).count(),1)
- await rail.getByRole('button',{name:'Environment',exact:true}).click()
- await rail.getByRole('button',{name:'Studio Lighting'}).click()
+ await bullet.click()
+ await categories.getByRole('button',{name:'Environment',exact:true}).click()
+ await categories.getByRole('button',{name:'Studio Lighting'}).click()
  assert.equal(await page.getByRole('combobox',{name:'Workspace',exact:true}).inputValue(),'Render')
- await page.screenshot({path:path.join(output,'object-menu-in-tool-rail.png')})
- const all=rail.getByRole('button',{name:'Show focused tools'})
- assert.equal(await all.count(),1,'All/focused toggle must remain available as distinct header text')
+ await bullet.click()
+ assert.equal(await categories.count(),1)
+ await toolbar.getByRole('tab',{name:'Scene',exact:true}).click()
+ assert.equal(await categories.count(),0,'Clicking Scene must replace categories with Scene objects')
+ assert.equal(await page.locator('.clo-object-list').count(),1)
+ await bullet.click()
+ await page.screenshot({path:path.join(output,'object-menu-first-horizontal-icon.png')})
+ const rightRail=page.getByRole('navigation',{name:'Right workspace tools'})
+ assert.equal(await rightRail.getByRole('button',{name:'Object Browser category list'}).count(),0)
+ const all=rightRail.getByRole('button',{name:'Show focused tools'})
+ assert.equal(await all.count(),1,'All/focused toggle should remain independent in its original tools header')
  await all.click()
- assert.equal(await rail.getByRole('button',{name:'Show all tools'}).count(),1)
- assert.equal(await rail.getByRole('button',{name:'Object Browser category list'}).count(),1)
- await rail.getByRole('button',{name:'Show all tools'}).click()
- assert.equal(await rail.getByRole('button',{name:'Object Browser category list'}).count(),1)
+ assert.equal(await rightRail.getByRole('button',{name:'Show all tools'}).count(),1)
+ assert.equal(await toolbar.getByRole('tab',{name:'Object Browser category list'}).count(),1)
+ await rightRail.getByRole('button',{name:'Show all tools'}).click()
  assert.deepEqual(errors,[])
- console.log(JSON.stringify({passed:true,bulletMenuBeforeScene:true,removedFromHeader:true,
-  inlineSideCategories:categories,childCategoryNavigation:true,allFocusedAvailable:true,
+ console.log(JSON.stringify({passed:true,firstIconUnderObjectBrowser:true,horizontalWithScene:true,
+  inlineObjectBrowserView:true,categoryRows:titles,childCategoryNavigation:true,allFocusedAvailable:true,
   output,errors},null,2))
 } finally {
  await browser?.close().catch(()=>{})
