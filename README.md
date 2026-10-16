@@ -4,6 +4,34 @@ Garment Studio is an open garment-CAD, cloth-simulation and apparel-production p
 
 The goal is not to copy proprietary software or assets. The goal is an interoperable, extensible open platform for computational fashion.
 
+## V16 showcase film
+
+[![Watch the V16 Garment Studio promotional film](screenshots/v16-promo-preview.jpg)](media/garment-studio-v16-promo.mp4)
+
+**[Watch / download the complete V16 promotional film (MP4)](media/garment-studio-v16-promo.mp4)** — 2 minutes 57 seconds, 1080p, mastered stereo audio. The original high-bitrate master is retained locally; the repository contains a GitHub-friendly H.264 encode with the same full sequence and soundtrack.
+
+The film shows the application's evolving UI and experimental simulation functionality. It is a development showcase, not a certification of physical fit, collision-free drape, manufacturing readiness, or equivalence to commercial software.
+
+## Garment Studio interface
+
+Actual application screenshots from the development workspace:
+
+| 2D + 3D pattern workspace | Free sewing and seam tools |
+| --- | --- |
+| ![Pattern editor, garment workspace and object browser](screenshots/01-pattern-workspace.png) | ![Free sewing and editable pattern panels](screenshots/02-sewing-tools.png) |
+
+| Construction and seam layout | Fabric appearance and UV textures |
+| --- | --- |
+| ![Editable construction seams and pattern drafting tools](screenshots/03-seam-and-pattern-drafting.png) | ![Fabric texture linked to 2D pattern and 3D garment](screenshots/04-fabric-and-3d-preview.png) |
+
+| Experimental native fit analysis | Multi-size production and marker layout |
+| --- | --- |
+| ![Development fit-quality diagnostics in the native simulation workspace](screenshots/05-fit-analysis-experimental.png) | ![Size grading, point-of-measure and marker production tools](screenshots/06-production-grading.png) |
+
+![Multiple fabric groups and marker layouts for garment production](screenshots/07-multi-fabric-marker.png)
+
+These are progress snapshots of actual UI states. Some 3D previews show unresolved cloth or fit artifacts; production validation remains in progress.
+
 ## Current capabilities
 
 - editable 2D pattern pieces with quadratic curves, internal lines and seam allowances
