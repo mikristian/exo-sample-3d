@@ -23,7 +23,7 @@ const OBJECT_TAB_ART = {
   Trim:'trim', Grading:'grading', POM:'pom',
 }
 
-const OBJECT_HIERARCHY = [
+export const OBJECT_HIERARCHY = [
   {title:'2D Pattern', children:[['Pattern Pieces','Pattern','Scene'],['Internal Lines','Pattern','Scene'],['Grading & Measurements','Production','POM']]},
   {title:'Sewing', children:[['Sewing Relationships','Sewing','Scene'],['Buttons','Sewing','Button'],['Buttonholes','Sewing','Buttonhole'],['Topstitch','Sewing','Topstitch']]},
   {title:'3D Form', children:[['Arrangement','Pattern','Scene'],['Avatar','Avatar','Scene'],['Simulation & Fit','Fit','Scene']]},
@@ -31,7 +31,7 @@ const OBJECT_HIERARCHY = [
   {title:'Environment', children:[['Studio Lighting','Render','Scene'],['Render Settings','Render','Scene']]},
 ]
 
-function BulletListIcon(){return <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round"><circle cx="3.5" cy="4.3" r="1.25" fill="currentColor" stroke="none"/><circle cx="3.5" cy="10" r="1.25" fill="currentColor" stroke="none"/><circle cx="3.5" cy="15.7" r="1.25" fill="currentColor" stroke="none"/><path d="M7.5 4.3h10M7.5 10h10M7.5 15.7h10"/></svg>}
+export function BulletListIcon(){return <svg viewBox="0 0 20 20" width="17" height="17" fill="none" aria-hidden="true" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round"><circle cx="3.5" cy="4.3" r="1.25" fill="currentColor" stroke="none"/><circle cx="3.5" cy="10" r="1.25" fill="currentColor" stroke="none"/><circle cx="3.5" cy="15.7" r="1.25" fill="currentColor" stroke="none"/><path d="M7.5 4.3h10M7.5 10h10M7.5 15.7h10"/></svg>}
 
 const libraryCategories = ['Garment', 'Avatar', 'Hanger', 'Fabric', 'Hardware and Trims', 'Material', 'Stage', 'Patterns']
 
@@ -67,8 +67,6 @@ export function LibraryChrome({ category, setCategory, search, setSearch, thumbn
 
 export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSelectedFabricId, onApplyFabric, setActiveSection, selectedPieceId, selectedFabricId, onAddFabric, onAddPattern, onTogglePieceProperty }) {
   const [objectSearch, setObjectSearch] = useState('')
-  const [categoryMenuOpen,setCategoryMenuOpen]=useState(false)
-  const [categoryExpanded,setCategoryExpanded]=useState('2D Pattern')
   const fabrics = Object.entries(project.fabrics || {})
   const allPieces = project.pieces || []
   const sceneItems = [{ id: 'avatar', name: project.avatar?.name || 'Avatar', icon: UserRound, action: () => setActiveSection('Avatar') }, ...allPieces.map(piece => ({ id: piece.id, name: piece.name, icon: Shirt, action: () => { setSelectedPieceId(piece.id); setActiveSection('Pattern') } }))]
@@ -86,14 +84,7 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
   const rows = getRows()
   const filteredRows = rows.filter(row => row.name.toLowerCase().includes(objectSearch.trim().toLowerCase()))
   return <section className="clo-object-browser" aria-label="Object Browser">
-    <div className="clo-panel-header"><button className="clo-object-bullet-menu-trigger" type="button" aria-label="Object Browser category list" title="2D Pattern · Sewing · 3D Form · Material · Environment" aria-expanded={categoryMenuOpen} aria-controls="clo-object-hierarchy-menu" onClick={()=>setCategoryMenuOpen(value=>!value)}><BulletListIcon/></button><strong>Object Browser</strong><span>{rows.length} ITEMS</span></div>
-    {categoryMenuOpen && <nav id="clo-object-hierarchy-menu" className="clo-object-hierarchy-menu" aria-label="Object Browser categories">
-      <div className="clo-object-hierarchy-top">OBJECT CATEGORIES <button type="button" aria-label="Close Object Browser categories" onClick={()=>setCategoryMenuOpen(false)}>×</button></div>
-      {OBJECT_HIERARCHY.map(item=><div className="clo-object-hierarchy-group" key={item.title}>
-        <button type="button" className={categoryExpanded===item.title?'expanded':''} aria-expanded={categoryExpanded===item.title} onClick={()=>setCategoryExpanded(categoryExpanded===item.title?'':item.title)}><ChevronRight size={13}/><strong>{item.title}</strong></button>
-        {categoryExpanded===item.title && <div className="clo-object-hierarchy-children">{item.children.map(([label,section,objectTab])=><button type="button" key={label} onClick={()=>{setActiveSection(section);setTab(objectTab);setCategoryMenuOpen(false)}}>{label}</button>)}</div>}
-      </div>)}
-    </nav>}
+    <div className="clo-panel-header"><strong>Object Browser</strong><span>{rows.length} ITEMS</span></div>
     <div className="clo-object-tabs" role="tablist" aria-label="Object Browser types">
       {OBJECT_TABS.map(({id}) => <button key={id} type="button" role="tab" aria-label={id} aria-selected={tab === id} title={id} className={tab === id ? 'active' : ''} onClick={() => setTab(id)}><CadToolIcon id={OBJECT_TAB_ART[id]} size={21}/><span>{id}</span></button>)}
     </div>

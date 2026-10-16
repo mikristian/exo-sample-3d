@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import CadToolIcon from './CadToolIcon.jsx'
-import { MoreHorizontal } from 'lucide-react'
+import ObjectBrowserCategoryRail from './ObjectBrowserCategoryRail.jsx'
 
 // A 34-slot, original-icon workspace palette. This inventory is not a claim
 // that the proprietary CLO toolbar contains exactly these controls, nor that
@@ -159,17 +159,20 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     if (!item) return null
     const [itemId, label, action] = item
     const actionButton=<button key={itemId} type="button" title={action ? label : `${label} · planned`} aria-label={label} aria-pressed={Boolean(action && active(action))} disabled={!action} className={active(action) ? 'active' : ''} onClick={() => click(action)}><CadToolIcon id={itemId} size={20}/></button>
-    // Keep the existing ALL/focused dropdown behavior, but locate its three-
-    // dot icon *inside* the two-column tool rail, immediately before Scene.
-    // It must no longer occupy a separate, third header position.
+    // The real Object Browser's three-BULLET category selector lives directly
+    // before Scene. Expanded categories and their subtools occupy the same
+    // right-hand tool rail, never an overlay above the browser.
     if(id==='scene')return <React.Fragment key="scene-with-tools-menu">
-      <button type="button" className={`clo-tools-mode-in-rail ${showAll ? 'active' : ''}`} aria-label={showAll ? 'Show focused tools' : 'Show all tools'} aria-pressed={showAll} title={showAll ? 'Show focused tools for this workspace' : 'Show all 34 workspace tools'} onClick={() => setShowAll(value => !value)}><MoreHorizontal size={20}/></button>
-      {actionButton}
+      <ObjectBrowserCategoryRail sceneButton={actionButton} onChoose={(section,objectTab)=>{
+        setActiveSection(section)
+        setObjectTab(objectTab)
+        onRevealBrowser?.()
+      }}/>
     </React.Fragment>
     return actionButton
   }
   return <nav className={`clo-right-tool-palette ${showAll ? 'all-tools' : 'focused-tools'}`} aria-label="Right workspace tools">
-    <div className="clo-tool-palette-label"><span className="clo-palette-workflow-title" title={showAll ? 'All workspace tools' : activeSection}>{showAll ? 'ALL' : activeSection.toUpperCase()}</span></div>
+    <div className="clo-tool-palette-label"><button type="button" className="clo-palette-mode-text" aria-label={showAll ? 'Show focused tools' : 'Show all tools'} aria-pressed={showAll} title={showAll ? 'Show focused tools for this workspace' : 'Show all 34 workspace tools'} onClick={()=>setShowAll(value=>!value)}>{showAll ? 'ALL' : activeSection.toUpperCase()}</button></div>
     <div className="clo-palette-workflows" aria-label="Quick workflow switching">
       {WORKFLOW_TABS.map(([section, iconId]) => <button key={section} type="button" aria-label={`Switch to ${section} tools`} aria-pressed={activeSection === section} title={`${section} tools`} className={activeSection === section ? 'active' : ''} onClick={() => activateWorkflow(section)}><CadToolIcon id={iconId} size={19}/></button>)}
     </div>
