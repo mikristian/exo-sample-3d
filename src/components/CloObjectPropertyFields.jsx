@@ -4,7 +4,7 @@ import {CLO_DRAFT_FIELDS,resolveCloDraftTarget} from '../core/cloPropertyCommand
 // All editable values in this component resolve to existing EXO draft keys.
 // The separate native Rust material/physics editor is not emulated here.
 const GROUP_FIELDS={
-  pattern:{information:[['name','Name']],simulation:[['layerIndex','Layer'],['visible3d','Show in 3D'],['locked','Lock Pattern']],fabric:[['fabricId','Assigned Fabric']],arrange:[['grainAngleDeg','Grainline Angle','°'],['seamAllowance','Seam Allowance','cm'],['cutQuantity','Cut Quantity']]},
+  pattern:{information:[['name','Name'],['itemNo','Item No.']],simulation:[['layerIndex','Layer'],['visible3d','Show in 3D'],['locked','Lock Pattern']],fabric:[['fabricId','Assigned Fabric']],arrange:[['grainAngleDeg','Grainline Angle','°'],['seamAllowance','Seam Allowance','cm'],['cutQuantity','Cut Quantity']]},
   fabric:{
     information:[['name','Name'],['itemNo','Item No.'],['construction','Construction'],['supplier','Supplier'],['owner','Owner']],
     physical:[['gsm','Weight','g/m²'],['thickness','Thickness','mm',1000],['stretchWarp','Warp Stretch','%',100],['stretchWeft','Weft Stretch','%',100],['bend','Bend Parameter'],['damping','Damping'],['friction','Friction']],
@@ -44,13 +44,13 @@ function EditorInput({field,label,unit='',factor=1,schema,value,selection,projec
  </div>
 }
 
-export default function CloObjectPropertyFields({group,selection,project,onEdit}){
+export default function CloObjectPropertyFields({group,selection,project,onEdit,omitFields=[],includeFields=null}){
  const kind=String(selection?.type||'').toLowerCase()
  const target=resolveCloDraftTarget(project,selection)
  const fields=GROUP_FIELDS[kind]?.[group]||[]
  if(!target||!fields.length)return null
  return <div className="clo-pe-typed-fields" aria-label={`${kind} ${group} editable properties`}>
-  {fields.map(([field,label,unit,factor=1])=>{
+  {fields.filter(([field])=>!omitFields.includes(field)&&(!includeFields||includeFields.includes(field))).map(([field,label,unit,factor=1])=>{
    const schema=CLO_DRAFT_FIELDS[kind]?.[field]
    if(!schema)return null
    return <EditorInput key={`${selection.id}:${field}`} field={field} label={label} unit={unit} factor={factor} schema={schema}

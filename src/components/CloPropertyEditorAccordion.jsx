@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react'
 import {ChevronDown, ChevronRight} from 'lucide-react'
 import CloObjectPropertyFields from './CloObjectPropertyFields.jsx'
+import CloEditableIdentity from './CloEditableIdentity.jsx'
 import {resolveCloDraftTarget} from '../core/cloPropertyCommands.js'
 import {CLO_LENGTH_UNITS,fromCentimetres,toCentimetresValue,formatPropertyLength} from '../core/cloPropertyUnits.js'
 import './CloPropertyEditorAccordion.css'
@@ -51,27 +52,59 @@ function Readout({label,value}) {
 
 export default function CloPropertyEditorAccordion({
   activeSection,selectedPiece,project,fabric,clothcraftHybrid,clothcraftLive,
-  selectedArea,onSwitchSection,onShowFabric,onSimulate,onReset,onSetLineTarget,objectTab='Scene',draftLineSelection,objectSelection,onPropertyEdit,onSelectNativeSeam,
+  selectedArea,onSwitchSection,onShowFabric,onSimulate,onReset,onSetLineTarget,objectTab='Scene',draftLineSelection,objectSelection,onPropertyEdit,onNativePropertyEdit,onSelectNativeSeam,
   children,
 }) {
   const selection=clothcraftHybrid?clothcraftLive?.selection:null
   const nativeLine=clothcraftHybrid?(selection?.kind==='line'?selection:null):draftLineSelection
   const nativeSewing=selection?.kind==='sewing'?selection:null
   const nativePattern=selection?.kind==='pattern'?selection:null
-  const propertySubject=objectSelection?.name||(clothcraftHybrid?(selection?.panelName||'Native garment'):(selectedPiece?.name||project?.name||'Project'))
-  const selectedObjectKind=objectSelection?.type?.toLowerCase()
-    || (objectTab==='Fabric'&&activeSection==='Fabric'?'fabric'
-    : ['Button','Buttonhole','Topstitch','Puckering','Graphic','Grading','POM'].includes(objectTab)?objectTab.toLowerCase()
-    : nativeLine?'line':nativeSewing?'sewing':selection?.kind==='pattern'||selectedPiece?'pattern':'project')
-  const visibleGroups=CONTEXT_GROUPS[selectedObjectKind] || (selectedObjectKind==='pattern'||selectedObjectKind==='line'||selectedObjectKind==='project'
+  const referencedNativePanel=clothcraftLive?.panelRefs?.find(p=>p.id===nativePattern?.panelId)
+  const nativeObject=clothcraftHybrid&&objectSelection?.source==='native'
+    ? (objectSelection.type==='fabric'
+      ?clothcraftLive?.fabricRefs?.find(f=>f.id===objectSelection.id)||objectSelection
+      :clothcraftLive?.panelRefs?.find(p=>p.id===objectSelection.id)||objectSelection)
+    :null
+  const selectedObjectKind=clothcraftHybrid
+    ? nativeObject?.type?.toLowerCase() || (objectTab==='Fabric'&&activeSection==='Fabric'?'none'
+      : nativeLine?'line':nativeSewing?'sewing':nativePattern?'pattern':'none')
+    : (objectSelection?.type==='Scene'&&objectSelection?.pieceId?'pattern':objectSelection?.type?.toLowerCase())
+      ||(selectedPiece&&objectTab==='Scene'?'pattern':'none')
+  const visibleGroups=selectedObjectKind==='none'?[]:CONTEXT_GROUPS[selectedObjectKind] || (selectedObjectKind==='pattern'||selectedObjectKind==='line'||selectedObjectKind==='project'
       ? CLO_PROPERTY_GROUPS
       : CLO_PROPERTY_GROUPS.filter(([id])=>['information','miscellaneous'].includes(id)))
   const draftSelection=!clothcraftHybrid?(objectSelection?.type==='Scene'&&objectSelection.pieceId
     ? {...objectSelection,type:'pattern'}
     : objectSelection|| (selectedPiece ? {type:'pattern',id:selectedPiece.id,pieceId:selectedPiece.id,name:selectedPiece.name}:null)):null
   const draftObject=resolveCloDraftTarget(project,draftSelection)
-  const contextGroup=EDITOR_GROUP_FOR_SECTION[activeSection]||'miscellaneous'
+  const propertySubject=nativeObject?.name||
+    (clothcraftHybrid?(selection?.panelName||'Select a pattern or fabric')
+      :(draftObject?.name||objectSelection?.name||selectedPiece?.name||'Select an object'))
+  const identityKind=selectedObjectKind==='fabric'?'Fabric':selectedObjectKind==='pattern'?'Pattern Piece':
+    selectedObjectKind==='line'?'Pattern Line':selectedObjectKind==='sewing'?'Sewing':
+    selectedObjectKind==='none'?'':selectedObjectKind[0].toUpperCase()+selectedObjectKind.slice(1)
+  const identityId=nativeObject?.id||nativePattern?.panelId||selection?.panelId||draftSelection?.id||selectedPiece?.id||null
+  const identityName=nativeObject?.name||nativePattern?.panelName||selection?.panelName||draftObject?.name||objectSelection?.name||null
+  const identityItemNo=nativeObject?.itemNo??referencedNativePanel?.itemNo??nativePattern?.itemNo??draftObject?.itemNo??''
+  const commitIdentity=(field,value)=>{
+    if(clothcraftHybrid){
+      if(!identityId||!['pattern','fabric'].includes(selectedObjectKind))return {ok:false,error:'Select a native pattern or fabric'}
+      return onNativePropertyEdit?.({kind:selectedObjectKind,id:identityId,field,value,revision:clothcraftLive?.revision})
+        ||{ok:false,error:'Native editor unavailable'}
+    }
+    if(!draftSelection||!['pattern','fabric'].includes(selectedObjectKind))return {ok:false,error:'Select a pattern or fabric'}
+    return onPropertyEdit?.(draftSelection,field,value)||{ok:false,error:'Editor unavailable'}
+  }
+  // A selected Fabric asset has CLO-style Material and Physical Property
+  // accordions, not the generic Pattern "Fabric" accordion. Attach EXO's
+  // existing live fabric controls to that visible Physical Property region.
+  // Otherwise they were silently portaled into hidden Miscellaneous when
+  // switching from the 400-fabric catalog, making the inspector look empty.
+  const contextGroup=selectedObjectKind==='fabric'
+    ?'physical':EDITOR_GROUP_FOR_SECTION[activeSection]||'miscellaneous'
   const [open,setOpen]=useState(()=>['information'])
+  const [materialDetails,setMaterialDetails]=useState({basic:true,reflection:true})
+  const toggleMaterialDetail=key=>setMaterialDetails(previous=>({...previous,[key]:!previous[key]}))
   const [lengthUnit,setLengthUnit]=useState('cm')
   const length=cm=>formatPropertyLength(cm,lengthUnit)
   const previousSection=useRef(activeSection)
@@ -83,7 +116,21 @@ export default function CloPropertyEditorAccordion({
     previousSection.current=activeSection
     setOpen(previous=>previous.includes(contextGroup)?previous:[...previous,contextGroup])
   },[activeSection,contextGroup])
+  useEffect(()=>{
+    if(activeSection!=='Fabric'||selectedObjectKind!=='fabric')return
+    setOpen(previous=>previous.includes('physical')?previous:[...previous,'physical'])
+  },[activeSection,selectedObjectKind,fabric?.id])
   const toggle=id=>setOpen(previous=>previous.includes(id)?previous.filter(item=>item!==id):[...previous,id])
+  useEffect(()=>{
+    // CLO changes its Property Editor schema with the selection, not merely
+    // with the top-level workspace tab. Never reuse stale expanded pattern
+    // controls for a newly selected Fabric (or vice versa).
+    if(selectedObjectKind==='fabric')setOpen(['information','material','physical'])
+    else if(selectedObjectKind==='pattern')setOpen(['information'])
+    else if(selectedObjectKind==='line')setOpen(['information','selected-line'])
+    else if(selectedObjectKind==='none')setOpen(['information'])
+    else setOpen(['information'])
+  },[selectedObjectKind,identityId])
   useEffect(()=>{
     if(nativeLine)setOpen(previous=>previous.includes('selected-line')?previous:[...previous,'selected-line'])
   },[nativeLine?.panelId,nativeLine?.edgeId])
@@ -103,16 +150,33 @@ export default function CloPropertyEditorAccordion({
     switch(id){
       case 'information':
         return <>
-          {!(selectedObjectKind==='fabric'&&draftObject)&&<>
+          {['pattern','fabric'].includes(selectedObjectKind)&&<>
+            <CloEditableIdentity field="name" label="Name" value={identityName||''}
+              kind={selectedObjectKind} objectId={identityId||'none'}
+              editable={Boolean(identityId)} onCommit={commitIdentity}/>
+            <CloEditableIdentity field="itemNo" label="Item No." value={identityItemNo}
+              kind={selectedObjectKind} objectId={identityId||'none'}
+              editable={Boolean(identityId)} onCommit={commitIdentity}/>
+            <CloEditableIdentity field="type" label="Type" value={identityKind}
+              kind={selectedObjectKind} objectId={identityId||'none'} editable={false}/>
+          </>}
+          {!['pattern','fabric'].includes(selectedObjectKind)&&<>
             <Readout label="Name" value={propertySubject}/>
             <Readout label="Type" value={selectedObjectKind==='line'?'Pattern Line':selectedObjectKind==='pattern'?'Pattern Piece':selectedObjectKind==='project'?'Garment Project':selectedObjectKind[0].toUpperCase()+selectedObjectKind.slice(1)}/>
             <Readout label="Item No." value={objectSelection?.id||(clothcraftHybrid?(selection?.edgeId||selection?.panelId||'—'):(selectedPiece?.id||'—'))}/>
             <Readout label="Pattern Pieces" value={clothcraftHybrid?(clothcraftLive?.panels??'Loading'):(project?.pieces?.length??0)}/>
             {!clothcraftHybrid&&selectedPiece&&<Readout label="Area" value={`${selectedArea.toFixed(1)} cm²`}/>}
           </>}
-          {nativePattern&&<><Readout label="2D Perimeter" value={length(nativePattern.length2DCm)}/><Readout label="3D Perimeter" value={length(nativePattern.length3DCm)}/><Readout label="Boundary Count" value={nativePattern.edgeCount}/></>}
-          {draftObject&&<CloObjectPropertyFields group="information" selection={draftSelection} project={project} onEdit={onPropertyEdit}/>}
-          {clothcraftHybrid&&<p className="clo-pe-note">The native ClothCraft garment and EXO draft have separate property records. Native simulation is controlled by Rust.</p>}
+          {nativePattern&&selectedObjectKind==='pattern'&&<><Readout label="2D Perimeter" value={length(nativePattern.length2DCm)}/><Readout label="3D Perimeter" value={length(nativePattern.length3DCm)}/><Readout label="Boundary Count" value={nativePattern.edgeCount}/></>}
+          {draftObject&&<CloObjectPropertyFields group="information" selection={draftSelection} project={project}
+            onEdit={onPropertyEdit} omitFields={['name','itemNo']}/>}
+          {selectedObjectKind==='fabric'&&clothcraftHybrid&&['construction','supplier','owner'].map(field=>
+            <CloEditableIdentity key={field} field={field}
+              label={field==='construction'?'Construction':field==='supplier'?'Supplier':'Owner'}
+              value={nativeObject?.[field]||''}
+              kind="fabric" objectId={identityId||'none'} editable={Boolean(identityId)}
+              onCommit={commitIdentity}/>)}
+          {clothcraftHybrid&&<p className="clo-pe-note">Native records are edited in ClothCraft; EXO draft values are not substituted. Object Type is structural and cannot be changed with a text edit.</p>}
         </>
       case 'selected-line':
         return <>
@@ -166,7 +230,7 @@ export default function CloPropertyEditorAccordion({
       case 'simulation':
         return <>
           {draftObject&&<CloObjectPropertyFields group="simulation" selection={draftSelection} project={project} onEdit={onPropertyEdit}/>}
-          {nativePattern&&<>
+          {nativePattern&&selectedObjectKind==='pattern'&&<>
             <Readout label="Actual Rust vertices" value={nativePattern.meshVertexCount}/>
             <Readout label="Actual Rust triangles" value={nativePattern.meshTriangleCount}/>
             <Readout label="Mesh edge target" value={nativePattern.meshTargetEdgeMm!=null?`${nativePattern.meshTargetEdgeMm.toFixed(2)} mm`:'Mesh preset · not specified'}/>
@@ -193,21 +257,32 @@ export default function CloPropertyEditorAccordion({
         </>
       case 'material':
         return <>
-          <Readout label="Material Type" value="Fabric_Matte · EXO appearance approximation"/>
+          <Readout label="Material" value="PBR · EXO physically based shading"/>
           <div className="clo-pe-material-faces" role="tablist" aria-label="Material faces">
             <button type="button" role="tab" aria-selected="true">Front</button>
             <button type="button" role="tab" aria-selected="false" disabled title="Independent back-side material not yet supported">Back</button>
             <button type="button" role="tab" aria-selected="false" disabled title="Independent side material not yet supported">Side</button>
           </div>
-          <Readout label="Texture Mapping" value="Project UV mapping"/>
-          <div className="clo-pe-line-subheading">BASIC PARAMETERS</div>
-          <Readout label="Texture" value="Project fabric texture; see Fabric workspace"/>
-          <Readout label="Normal Map" value="Material preview; see Fabric workspace"/>
-          <Readout label="Displacement Map" value="Not independently assigned"/>
-          {draftObject&&<CloObjectPropertyFields group="material" selection={draftSelection} project={project} onEdit={onPropertyEdit}/>}
-          <Readout label="Opacity" value="100% · renderer-controlled"/>
-          <Readout label="Opacity Map" value="Not assigned"/>
-          <div className="clo-pe-line-subheading">REFLECTION</div>
+          <Readout label="Texture Mapping" value="Repeat · project UV"/>
+          <Readout label="Type" value="Fabric_Matte · EXO appearance approximation"/>
+          <button type="button" className="clo-pe-subtrigger" aria-expanded={materialDetails.basic} aria-controls="clo-pe-material-basic" onClick={()=>toggleMaterialDetail('basic')}>
+            {materialDetails.basic?<ChevronDown size={12}/>:<ChevronRight size={12}/>} BASIC PARAMETERS
+          </button>
+          <div id="clo-pe-material-basic" role="region" aria-label="Basic Parameters" hidden={!materialDetails.basic}>
+            <Readout label="Texture" value="Project fabric texture; see Fabric workspace"/>
+            <Readout label="Normal Map" value="Material preview; see Fabric workspace"/>
+            <Readout label="Displacement Map" value="Not independently assigned"/>
+            {draftObject&&<CloObjectPropertyFields group="material" selection={draftSelection} project={project} onEdit={onPropertyEdit} includeFields={['color']}/>}
+            <Readout label="Opacity" value="100% · renderer-controlled"/>
+            <Readout label="Opacity Map" value="Not assigned"/>
+          </div>
+          <button type="button" className="clo-pe-subtrigger" aria-expanded={materialDetails.reflection} aria-controls="clo-pe-material-reflection" onClick={()=>toggleMaterialDetail('reflection')}>
+            {materialDetails.reflection?<ChevronDown size={12}/>:<ChevronRight size={12}/>} REFLECTION
+          </button>
+          <div id="clo-pe-material-reflection" role="region" aria-label="Reflection" hidden={!materialDetails.reflection}>
+            {draftObject&&<CloObjectPropertyFields group="material" selection={draftSelection} project={project} onEdit={onPropertyEdit} includeFields={['roughness','metalness','sheen']}/>}
+            {clothcraftHybrid&&selectedObjectKind==='fabric'&&<p className="clo-pe-note">This Rust material stores physical cloth parameters; independent optical reflection properties are not yet available for this native fabric. No simulated property is changed here.</p>}
+          </div>
           <p className="clo-pe-note">Color, roughness, metalness and sheen edit real EXO appearance values. CLO's per-face texture maps, displacement and opacity require additional renderer support; those controls are not falsely enabled.</p>
         </>
       case 'physical':
@@ -228,8 +303,8 @@ export default function CloPropertyEditorAccordion({
       case 'arrange':
         return <>
           {draftObject&&<CloObjectPropertyFields group="arrange" selection={draftSelection} project={project} onEdit={onPropertyEdit}/>}
-          {nativePattern?.grainAngleDeg!=null&&<Readout label="Native Grain Direction" value={`${nativePattern.grainAngleDeg.toFixed(2)}°`}/>}
-          {nativePattern?.rotationDeg?.map((deg,index)=><Readout key={`rot-${index}`} label={`3D Rotation ${'XYZ'[index]}`} value={`${deg.toFixed(2)}°`}/>)}
+          {selectedObjectKind==='pattern'&&nativePattern?.grainAngleDeg!=null&&<Readout label="Native Grain Direction" value={`${nativePattern.grainAngleDeg.toFixed(2)}°`}/>}
+          {selectedObjectKind==='pattern'&&nativePattern?.rotationDeg?.map((deg,index)=><Readout key={`rot-${index}`} label={`3D Rotation ${'XYZ'[index]}`} value={`${deg.toFixed(2)}°`}/>)}
           <Readout label="Pattern" value={clothcraftHybrid?(selection?.panelName||'No pattern selected'):(selectedPiece?.name||'No pattern selected')}/>
           {clothcraftHybrid&&selection?.positionCm?.map((cm,index)=><Readout key={index} label={`Position ${'XYZ'[index]}`} value={`${cm.toFixed(1)} cm`}/>)}
           {!clothcraftHybrid&&selectedPiece&&['X','Y','Z'].map(axis=><Readout key={axis} label={`Position ${axis}`}
@@ -277,6 +352,9 @@ export default function CloPropertyEditorAccordion({
         </select>
       </label>}
     <div className="clo-pe-list" aria-label="Property Editor sections">
+      {selectedObjectKind==='none'&&<div className="clo-pe-empty" role="status">
+        Select a pattern in the 2D or 3D viewport, or select a fabric in Object Browser, to edit its properties.
+      </div>}
       {visibleGroups.map(([id,title])=>{
         const expanded=open.includes(id)
         return <section key={id} className={`clo-pe-section ${expanded?'expanded':''}`}>

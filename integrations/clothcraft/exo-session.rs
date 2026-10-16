@@ -1,5 +1,5 @@
 //! EXO adapter: one persistent upstream document, authoring history and VBD/OGC solver.
-use marvelous_cloth::{authoring::{self,Command,History}, fitting::{FittingProject,FittingScene}, garment::{presets::GarmentKind, shapes::{Primitive,MirrorAxis,BooleanOp}, meshing::MeshingSettings}, vbd::{VbdSolver,VbdSettings}};
+use marvelous_cloth::{authoring::{self,Command,History}, fitting::{FittingProject,FittingScene}, garment::{presets::GarmentKind, shapes::{Primitive,MirrorAxis,BooleanOp}, meshing::MeshingSettings}, vbd::{Grab,VbdSolver,VbdSettings}};
 use serde::{de::DeserializeOwned};
 use serde_json::{Value,json};
 use glam::{DVec3,DQuat,EulerRot};
@@ -34,7 +34,7 @@ fn command(v:&Value)->Result<Command,String>{
  _=>return Err(format!("Unsupported authoring command {op}")),
  })
 }
-struct Session {project:FittingProject,scene:FittingScene,solver:Option<VbdSolver>,history:History,revision:u64,metrics:Value, #[cfg(feature="desktop")] gpu:Option<marvelous_cloth::gpu_vbd::GpuVbd>}
+struct Session {project:FittingProject,scene:FittingScene,solver:Option<VbdSolver>,grab:Option<Grab>,live_grab:bool,history:History,revision:u64,metrics:Value, #[cfg(feature="desktop")] gpu:Option<marvelous_cloth::gpu_vbd::GpuVbd>}
 impl Session {
  fn new(project:FittingProject)->Result<Self,String>{
  let scene=project.compile()?;
@@ -49,12 +49,27 @@ impl Session {
  }else{None};
  #[cfg(not(feature="desktop"))]
  if std::env::args().any(|a|a=="--gpu"){return Err("Build with desktop for GPU simulation".into())}
- Ok(Self{project,scene,solver:None,history:History::default(),revision:0,metrics:Value::Null,#[cfg(feature="desktop")]gpu})
+ Ok(Self{project,scene,solver:None,grab:None,live_grab:false,history:History::default(),revision:0,metrics:Value::Null,#[cfg(feature="desktop")]gpu})
+ }
+ // Same barycentric spring as upstream atelier.rs::pick_and_drag (150 N/m).
+ // Control updates never teleport particles or change material rest geometry.
+ fn set_live_grab(&mut self,value:&Value)->Result<(),String>{
+  if value.is_null(){self.grab=None;self.live_grab=false;return Ok(())}
+  let vertices=field::<[usize;3]>(value,"vertices")?;
+  let weights=field::<[f64;3]>(value,"weights")?;
+  let target=field::<[f64;3]>(value,"target")?;
+  if !weights.iter().all(|w|w.is_finite()&&*w>=-1e-6&&*w<=1.000001)
+   || (weights.iter().sum::<f64>()-1.).abs()>1e-5
+   || !target.iter().all(|n|n.is_finite()&&n.abs()<20.)
+   || !self.scene.garment.mesh.triangles.iter().any(|t|t.vertices==vertices){return Err("Invalid surface grab".into())}
+  self.grab=Some(Grab{vertices,weights,target:DVec3::from_array(target),stiffness:150.});
+  self.live_grab=true;Ok(())
  }
  fn apply_edit(&mut self,edit:authoring::Edit){
+  self.grab=None;self.live_grab=false;
   if edit.reset_simulation {
    self.scene.state=edit.state_after(&self.scene.garment,&self.scene.state);
-   self.scene.garment=Arc::new(edit.garment);self.solver=None;self.metrics=Value::Null;
+   self.scene.garment=Arc::new(edit.garment);self.solver=None;self.grab=None;self.live_grab=false;self.metrics=Value::Null;
   }
   self.project.template=edit.template;self.revision+=1;
  }
@@ -62,12 +77,30 @@ impl Session {
   let g=&self.scene.garment;
   let panels:Vec<_>=g.panels.iter().enumerate().map(|(i,p)|json!({"id":p.id,"vertices":[p.vertices.start,p.vertices.end],"triangles":[p.triangles.start,p.triangles.end],"boundaries":p.boundaries,"layout":authoring::layout(&self.project.template,i)})).collect();
   let seams:Vec<_>=g.seams.iter().map(|s|json!({"id":s.id,"guides":s.guides,"gap_m":s.max_gap(&self.scene.state.x)})).collect();
-  json!({"revision":self.revision,"template":self.project.template,"positions":self.scene.state.x,"uv":g.mesh.uv,"triangles":g.mesh.triangles.iter().map(|t|t.vertices).collect::<Vec<_>>(),"panels":panels,"seams":seams,"time":self.scene.state.time,"metrics":self.metrics,"canUndo":self.history.can_undo(),"canRedo":self.history.can_redo(),"avatar":if avatar {json!({"positions":self.scene.collider.surface.vertices,"triangles":self.scene.collider.surface.triangles})}else{Value::Null},"backend":if std::env::args().any(|a|a=="--gpu"){"ClothCraft GPU VBD + CPU OGC"}else{"ClothCraft CPU VBD + OGC"},"fitCertified":false})
+  json!({"revision":self.revision,"template":self.project.template,"positions":self.scene.state.x,"uv":g.mesh.uv,"triangles":g.mesh.triangles.iter().map(|t|t.vertices).collect::<Vec<_>>(),"panels":panels,"seams":seams,"time":self.scene.state.time,"metrics":self.metrics,"canUndo":self.history.can_undo(),"canRedo":self.history.can_redo(),"avatar":if avatar {json!({"positions":self.scene.collider.surface.vertices,"triangles":self.scene.collider.surface.triangles})}else{Value::Null},"grabActive":self.grab.is_some(),"grabStiffness":self.grab.as_ref().map(|g|g.stiffness),"backend":if std::env::args().any(|a|a=="--gpu"){"ClothCraft GPU VBD + CPU OGC"}else{"ClothCraft CPU VBD + OGC"},"fitCertified":false})
  }
  fn request(&mut self,v:&Value)->Result<Value,String>{
   let op=v["op"].as_str().unwrap_or("snapshot");
   if !["snapshot","save"].contains(&op) && v["revision"].as_u64()!=Some(self.revision){return Err("Stale document revision; reload current snapshot".into())}
   match op {
+   // CLO information field backed by the real upstream template. IDs remain
+   // stable for sewing, history and selection; renaming never remeshes cloth.
+   "set-property"=>{
+     let target=field::<String>(v,"target")?;
+     let id=field::<String>(v,"id")?;
+     let key=field::<String>(v,"field")?;
+     let value=field::<String>(v,"value")?;
+     if key!="name" {return Err("Only native name is supported; itemNo is workspace metadata".into())}
+     if value.trim().is_empty() || value.chars().count()>120 || value.chars().any(|c|c.is_control()) {
+       return Err("Name must contain 1–120 printable characters".into())
+     }
+     match target.as_str(){
+       "panel"=>self.project.template.panels.iter_mut().find(|p|p.id==id).ok_or("Panel not found")?.name=value,
+       "fabric"=>self.project.template.fabrics.iter_mut().find(|f|f.id==id).ok_or("Fabric not found")?.name=value,
+       _=>return Err("Property target must be panel or fabric".into())
+     };
+     self.revision+=1;
+   },
    // Annotate a selected contour's target dimension without invoking
    // authoring::TargetLength, which actually reshapes the contour and can
    // invalidate existing sewn lengths. This is explicitly a non-physical
@@ -85,7 +118,7 @@ impl Session {
    },
    "edit"=>{let edit=authoring::apply(&self.project.template,command(&v["command"])?)?;self.history.record(self.project.template.clone());self.apply_edit(edit);},
    "undo"|"redo"=>{let edit=self.history.restore(&self.project.template,op=="redo")?;self.apply_edit(edit);},
-   "reset"=>{self.scene.state=self.scene.garment.initial_state.clone();self.solver=None;self.metrics=Value::Null;self.revision+=1;},
+   "reset"=>{self.scene.state=self.scene.garment.initial_state.clone();self.solver=None;self.grab=None;self.live_grab=false;self.metrics=Value::Null;self.revision+=1;},
    // CLO-style *post-simulation* rigid reposition of one draped garment panel.
    // Unlike authored Place, this preserves its draped fold geometry and the
    // EXACT coordinates of every other sewn panel while moving the chosen one.
@@ -107,7 +140,7 @@ impl Session {
        self.scene.state.x[i]=origin + rot*(p-origin) + move_by;
        self.scene.state.v[i]=DVec3::ZERO;
      }
-     self.solver=None;self.metrics=Value::Null;self.revision+=1;
+     self.solver=None;self.grab=None;self.live_grab=false;self.metrics=Value::Null;self.revision+=1;
    },
    // Experimental CLO-style direct grab of simulated cloth. Modify only the
    // specified panel's current positions; keep all OTHER simulated panels
@@ -125,28 +158,54 @@ impl Session {
     let desired=DVec3::from_array(target);
     let delta=desired-anchor;
     if delta.length()>2.0{return Err("Grab displacement exceeds safe 2 m limit".into())}
+    if self.scene.garment.mesh.pins[vertex].is_some(){return Err("Cannot grab a fixed cloth pin".into())}
     let original=self.scene.state.x[range.clone()].to_vec();
     let mut count=0;
     for (local,index) in range.enumerate(){
       let distance=original[local].distance(anchor);
-      let weight=(-0.5*(distance/radius).powi(2)).exp();
-      if weight<1e-4{continue}
+      // Compact C2 brush: motion ends exactly at the requested radius.
+      // This avoids dragging remote vertices on the same panel on every move.
+      if distance>=radius || self.scene.garment.mesh.pins[index].is_some(){continue}
+      let t=distance/radius;
+      let weight=1.0-10.0*t.powi(3)+15.0*t.powi(4)-6.0*t.powi(5);
       self.scene.state.x[index]+=delta*weight;
-      self.scene.state.v[index]=DVec3::ZERO;
+      self.scene.state.v[index]*=1.0-weight;
       count+=1;
     }
     if count==0{return Err("No cloth vertices in grab radius".into())}
+    // Hold the picked vertex through one native VBD solve so membrane,
+    // bending, seams and OGC contacts react to the pull. Release after that
+    // step to avoid leaving an invisible permanent pin in the simulation.
+    self.live_grab=false;self.grab=Some(Grab{vertices:[vertex;3],weights:[1.0,0.0,0.0],target:desired,stiffness:1.0e4});
     self.solver=None;self.metrics=Value::Null;self.revision+=1;
    },
+   "grab"=>{self.set_live_grab(&v["grab"])?;},
    "step"=>{
+    if let Some(value)=v.get("grab"){self.set_live_grab(value)?;}
     let count=v["steps"].as_u64().unwrap_or(1);if !(1..=4).contains(&count){return Err("Step batch must be 1–4".into())}
     if self.solver.is_none(){self.solver=Some(VbdSolver::new(self.scene.garment.clone(),Some(&self.scene.collider.surface),&self.scene.state)?)}
     let settings=VbdSettings{dt:1.0/60.0,iterations:16,..Default::default()};
     for _ in 0..count {
+ // A failed contact solve must never persist partially written cloth
+ // particles. Recover the last valid state and recreate solver caches for
+ // the next user action (Move/Reset/SIM), rather than saving a broken drape.
+ let before_step=self.scene.state.clone();
  #[cfg(feature="desktop")]
- let metric=if let Some(gpu)=&self.gpu{gpu.step(self.solver.as_mut().unwrap(),&mut self.scene.state,&settings,None)?}else{self.solver.as_mut().unwrap().step(&mut self.scene.state,&settings,None)?};
+ let outcome=if let Some(gpu)=&self.gpu{gpu.step(self.solver.as_mut().unwrap(),&mut self.scene.state,&settings,self.grab.as_ref())}else{self.solver.as_mut().unwrap().step(&mut self.scene.state,&settings,self.grab.as_ref())};
  #[cfg(not(feature="desktop"))]
- let metric=self.solver.as_mut().unwrap().step(&mut self.scene.state,&settings,None)?;
+ let outcome=self.solver.as_mut().unwrap().step(&mut self.scene.state,&settings,self.grab.as_ref());
+ let metric=match outcome {
+  Ok(metric)=>metric,
+  Err(error)=>{
+   self.scene.state=before_step;
+   self.solver=None;
+   self.grab=None;
+   self.live_grab=false;
+   self.metrics=Value::Null;
+   return Err(error.into());
+  }
+ };
+ if !self.live_grab {self.grab=None;}
  self.metrics=serde_json::to_value(metric).map_err(|e|e.to_string())?;self.revision+=1;
  }
    },

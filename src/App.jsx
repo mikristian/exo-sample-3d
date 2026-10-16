@@ -60,14 +60,25 @@ import WorkspaceCommandPalette from './components/WorkspaceCommandPalette.jsx'
 import { loadZozoDressReference } from './core/zozoReferenceDress.js'
 import { CLO_MENUS, GarmentSilhouette, LibraryChrome, ObjectBrowser } from './components/CloUI.jsx'
 import RightToolPalette from './components/RightToolPalette.jsx'
+import CloToolActionPanel from './components/CloToolActionPanel.jsx'
+import {getClo7NativeCapability} from './core/clo7NativeToolCapabilities.js'
 import CloPropertyEditorAccordion from './components/CloPropertyEditorAccordion.jsx'
 import {applyCloDraftProperty,validateCloDraftProperty} from './core/cloPropertyCommands.js'
 import PatternLibraryThumbnail from './components/PatternLibraryThumbnail.jsx'
 import CadToolIcon from './components/CadToolIcon.jsx'
 import MarkerPreview from './components/MarkerPreview.jsx'
 import SeamWalkPreview from './components/SeamWalkPreview.jsx'
-import { createDefaultProject, FABRIC_PRESETS } from './data/defaultProject.js'
+import { createDefaultProject, FABRIC_PRESETS, FABRIC_SCAN_COVERAGE } from './data/defaultProject.js'
+import { WASH_EFFECTS, normalizeWashSpec } from './core/clothWashProcedurals.js'
+import { digitalWashSuitability } from './core/fabricWashSuitability.js'
+import { clo7FabricReadout } from './core/clo7FabricReadout.js'
+import { calibrateFabricEvidence } from './core/fabricEvidenceCalibration.js'
+import { fabricSwatchStyle } from './core/fabricSwatchStyle.js'
+import { groupApparelPresets } from './data/apparelMaterialExpansion.js'
+import { listHardwarePresets, getHardwarePreset, hardwareToPatternAnnotation } from './data/hardwarePresets.js'
+import { CLOTHCRAFT_FABRICS } from './core/clothcraftFabrics.js'
 import { createTemplateProject, GARMENT_TEMPLATES } from './data/templates.js'
+import {CLO7_3D_A,CLO7_3D_B} from './data/clo7ToolbarOrder.js'
 import { cloneProject, closestEdgeFraction, edgeLength, getEdgeSeamAllowance, makeRectanglePiece, pieceArea, projectArea, samplePieceBoundary, seamLengthReport, seamWalkReport, touchProject, uniqueId } from './core/project.js'
 import { auditSewingConstruction, validateNewSeam } from './core/sewingConstruction.js'
 import { draftingSplitFractions, splitParameterAtArcFraction } from './core/draftingSplit.js'
@@ -100,6 +111,7 @@ import { classifyFabricPbrFilename } from './core/fabricPbrFileNaming.js'
 const TEE_TEST_SESSION = new URLSearchParams(window.location.search).get('testSession') === 'tee'
 // Public builds must not advertise optional private or unbundled avatar assets.
 const PUBLIC_DISTRIBUTION = import.meta.env.VITE_PUBLIC_DISTRIBUTION === '1'
+const FABRIC_PRESET_GROUPS = groupApparelPresets(FABRIC_PRESETS)
 const AVAILABLE_AVATARS = PUBLIC_DISTRIBUTION ? [{ name: 'MakeHuman', model: 'makehuman-base' }] : [
   { name: 'CLO Thomas', model: 'clo-thomas' },
   { name: 'Theo', model: 'theo' },
@@ -678,6 +690,12 @@ export default function App() {
   const [show2DSeams, setShow2DSeams] = useState(false)
   const [layout2DSignal, setLayout2DSignal] = useState(0)
   const [compactTools, setCompactTools] = useState(false)
+  // Default to actions that actually work. The complete 70-slot CLO
+  // reference remains opt-in as an audit map, not the daily editing toolbar.
+  // The verified CLO7 A/B physical order is always visible by default.
+  // Unsupported actions are disabled, not hidden or attached to wrong tools.
+  const [show3DToolMap, setShow3DToolMap] = useState(true)
+  const [selectedCloTool, setSelectedCloTool] = useState(null)
   const [showObjectBrowser, setShowObjectBrowser] = useState(true)
   const [libraryVisible, setLibraryVisible] = useState(true)
   const [inspectorVisible, setInspectorVisible] = useState(true)
@@ -722,6 +740,9 @@ export default function App() {
   const [seamWalkId, setSeamWalkId] = useState(null)
   const [seamWalkProgress, setSeamWalkProgress] = useState(0.5)
   const [trimEdgeIndex, setTrimEdgeIndex] = useState(0)
+  const [hardwareChoice, setHardwareChoice] = useState({
+    button:'four-hole-shirt-button', buttonhole:'horizontal-buttonhole', zipper:'coil-zipper-5',
+  })
   const [gradePreviewSize, setGradePreviewSize] = useState('M')
   const [showGradeNest, setShowGradeNest] = useState(false)
   const [exportSelectedPatternOnly, setExportSelectedPatternOnly] = useState(false)
@@ -793,6 +814,7 @@ export default function App() {
   const seamlyPatternInputRef = useRef(null)
   const graphicInputRef = useRef(null)
   const fabricTextureInputRef = useRef(null)
+  const fabricEvidenceInputRef = useRef(null)
   const fabricNormalInputRef = useRef(null)
   const fabricRoughnessInputRef = useRef(null)
   const fabricMetalnessInputRef = useRef(null)
@@ -1070,6 +1092,28 @@ export default function App() {
     mutateProject(next=>applyCloDraftProperty(next,selection,field,result.value))
     setCommandResult(`${selection.name||selection.type} · ${field} updated. Undo is available.`)
     return result
+  }
+  const editNativeProperty=({kind,id,field,value,revision})=>{
+    if(!clothcraftHybrid||!['pattern','fabric'].includes(kind)||!id)
+      return Promise.resolve({ok:false,error:'Select a native pattern or fabric'})
+    return new Promise(resolve=>{
+      const requestId='exo-property-'+Date.now()+'-'+Math.random().toString(36).slice(2)
+      let timer
+      const finish=detail=>{
+        window.removeEventListener('exo-clothcraft-property-result',receive)
+        window.clearTimeout(timer)
+        resolve({ok:Boolean(detail.ok),error:detail.error})
+      }
+      const receive=event=>{
+        if(event.detail?.requestId!==requestId)return
+        finish(event.detail)
+      }
+      window.addEventListener('exo-clothcraft-property-result',receive)
+      timer=window.setTimeout(()=>finish({ok:false,error:'Native property update timed out; changes were not confirmed'}),15000)
+      window.dispatchEvent(new CustomEvent('exo-clothcraft-edit-property',{
+        detail:{requestId,kind,id,field,value,revision}
+      }))
+    })
   }
 
   const beginGesture = () => {
@@ -2084,6 +2128,7 @@ export default function App() {
   }
 
   const addZipper = (pieceId, edgeIndex) => {
+    const preset = getHardwarePreset(hardwareChoice.zipper)
     mutateProject((next) => {
       const piece = next.pieces.find((item) => item.id === pieceId)
       if (!piece) return
@@ -2091,16 +2136,18 @@ export default function App() {
       piece.zippers.push({
         id: uniqueId('zipper'),
         edgeIndex,
-        widthCm: 1.2,
+        widthCm: (preset?.dimensionsMm.tapeWidthEachSide ?? 12) / 10,
         offsetCm: 0,
-        type: 'coil',
-        color: '#777777',
+        type: preset?.zipperType || 'coil',
+        color: preset?.pbr.baseColor || '#777777',
+        hardwarePresetId: preset?.id,
       })
     })
-    setCommandResult('Zipper tape added and reinforced in the cloth solver')
+    setCommandResult(`${preset?.name || 'Zipper'} annotation added; fastener mechanics require separate validation`)
   }
 
   const addButtonRow = (pieceId, count = 5) => {
+    const preset = getHardwarePreset(hardwareChoice.button)
     mutateProject((next) => {
       const piece = next.pieces.find((item) => item.id === pieceId)
       if (!piece?.points?.length) return
@@ -2113,20 +2160,22 @@ export default function App() {
       const bottom = minY + (maxY - minY) * 0.22
       for (let index = 0; index < count; index += 1) {
         const t = count === 1 ? 0.5 : index / (count - 1)
+        const id = uniqueId('button')
         piece.buttons.push({
-          id: uniqueId('button'),
-          x: center.x,
-          y: top + (bottom - top) * t,
-          diameterCm: 1.8,
-          holes: 4,
-          color: '#222222',
+          id, x:center.x, y:top+(bottom-top)*t,
+          diameterCm:1.8, color:'#222222',
+          ...(preset ? hardwareToPatternAnnotation(preset.id,{
+            x:center.x,y:top+(bottom-top)*t,annotationId:id,
+          }) : {}),
+          holes:preset?.holes ?? 4,
         })
       }
     })
-    setCommandResult(`${count}-button center row added to ${selectedPiece?.name || 'pattern'}`)
+    setCommandResult(`${count} × ${preset?.name || 'buttons'} added to ${selectedPiece?.name || 'pattern'}`)
   }
 
   const addButtonholeRow = (pieceId, count = 5) => {
+    const preset = getHardwarePreset(hardwareChoice.buttonhole)
     mutateProject((next) => {
       const piece = next.pieces.find((item) => item.id === pieceId)
       if (!piece?.points?.length) return
@@ -2150,11 +2199,14 @@ export default function App() {
           orientationDeg: 0,
           color: '#575757',
           pairedButtonId: pairedButton?.id || null,
+          ...(preset ? hardwareToPatternAnnotation(preset.id,{
+            x:center.x,y:top+(bottom-top)*t,annotationId:buttonholeId,
+          }) : {}),
         })
         if (pairedButton) pairedButton.pairedButtonholeId = buttonholeId
       }
     })
-    setCommandResult(`${count}-buttonhole center row added to ${selectedPiece?.name || 'pattern'}`)
+    setCommandResult(`${count} × ${preset?.name || 'buttonholes'} added to ${selectedPiece?.name || 'pattern'}`)
   }
 
   const updateButtonhole = (pieceId, buttonholeId, field, value) => {
@@ -3066,6 +3118,48 @@ export default function App() {
       if (target) target[field] = value
     })
   }
+  const importFabricLabMeasurements = async (event) => {
+    const file=event.target.files?.[0]
+    event.target.value=''
+    if(!file)return
+    try{
+      if(file.size>4*1024*1024)throw new Error('Measurement JSON exceeds the 4 MB safety limit')
+      const record=JSON.parse(await file.text())
+      const presetId=fabric.catalogPresetId||
+        Object.keys(FABRIC_PRESETS).find(key=>FABRIC_PRESETS[key].name===fabric.name)
+      if(!presetId)throw new Error('Choose a fabric catalog preset before importing a lab specimen')
+      if(record.fabricId!==presetId)throw new Error(`Lab record is for ${record.fabricId}; selected preset is ${presetId}`)
+      const checked=calibrateFabricEvidence(record,FABRIC_PRESETS)
+      mutateProject(next=>{
+        const target=next.fabrics?.[selectedFabricId]||next.fabrics?.main
+        if(!target)return
+        // Only units that map *directly* to this cloth solver are applied.
+        // Tensile, bending, and shear observations remain recorded pending
+        // an independently validated constitutive model fitting process.
+        if(checked.physical.arealMassKgM2)target.gsm=checked.physical.arealMassKgM2.value*1000
+        if(checked.physical.thicknessM)target.thickness=checked.physical.thicknessM.value
+        target.calibration={
+          status:'imported-unverified',grade:checked.grade,
+          specimenId:record.provenance.sampleId,
+          evidenceUri:record.provenance.evidenceUri,
+          source:record.provenance.sourceReference,
+          note:'User-supplied measurement document; instrument traceability has not been independently verified.',
+        }
+        target.calibrationEvidence=record
+        target.calibrationSuggestions=checked.solverSuggestions
+      })
+      setCommandResult(`Imported ${checked.grade}-coverage specimen evidence for ${presetId}; directly measured areal mass and thickness updated where provided. Solver stretch/shear/bend calibration requires separate validation.`)
+    }catch(error){
+      setCommandResult(`Laboratory evidence import rejected: ${error.message}`)
+    }
+  }
+  const updateFabricWash = (updates) => {
+    mutateProject((next) => {
+      const target = next.fabrics?.[selectedFabricId] || next.fabrics?.main
+      if (!target) return
+      target.wash = normalizeWashSpec({ ...target.wash, ...updates })
+    })
+  }
 
   const applyFabricPreset = (presetId) => {
     const preset = FABRIC_PRESETS[presetId]
@@ -3073,8 +3167,12 @@ export default function App() {
     mutateProject((next) => {
       const current = next.fabrics?.[selectedFabricId] || next.fabrics?.main
       const targetId = current?.id || selectedFabricId || 'main'
-      const texture = current?.texture ? cloneProject(current.texture) : null
-      next.fabrics[targetId] = { ...preset, id: targetId, name: preset.name, ...(current?.pricePerMeter != null ? { pricePerMeter: current.pricePerMeter } : {}), ...(texture ? { texture } : {}) }
+      // A newly chosen scan-backed preset must install its OWN CC0 source;
+      // otherwise the editor silently retained the previous fabric's photo.
+      // Manually uploaded textures remain deliberate user overrides.
+      const texture = current?.texture?.src && !current.texture.scanAssetId
+        ? cloneProject(current.texture) : null
+      next.fabrics[targetId] = { ...preset, id: targetId, catalogPresetId:presetId, name: preset.name, ...(current?.pricePerMeter != null ? { pricePerMeter: current.pricePerMeter } : {}), ...(texture ? { texture } : {}) }
     })
   }
 
@@ -3087,6 +3185,7 @@ export default function App() {
       mutateProject((next) => {
         const target = next.fabrics?.[selectedFabricId] || next.fabrics?.main
         if (!target) return
+        const usedScan=Boolean(target.texture?.scanAssetId)
         target.texture = {
           ...(target.texture || {}),
           src: image.src,
@@ -3094,6 +3193,13 @@ export default function App() {
           repeatWidthCm: target.texture?.repeatWidthCm ?? 20,
           repeatHeightCm: target.texture?.repeatHeightCm ?? 20,
           rotationDeg: target.texture?.rotationDeg ?? 0,
+        }
+        if (usedScan) {
+          // Do not associate hand-uploaded color with the previous stock scan
+          // or its unmatched normal/roughness maps.
+          for(const field of ['scanAssetId','scanSource','license','originalSourceUrl','scanMatch','originalPhotoColor','photoReferenceIsShared','normalSrc','roughnessSrc'])
+            delete target.texture[field]
+          target.photoReference={status:'user-uploaded-texture',license:'user-responsibility',sourceFile:file.name}
         }
         // Photo-derived maps belong to the previous image; authored imported
         // PBR maps are kept intact when a user changes the color texture.
@@ -3269,7 +3375,7 @@ export default function App() {
     const id = uniqueId('fabric')
     mutateProject((next) => {
       next.fabrics = next.fabrics || {}
-      next.fabrics[id] = { ...cloneProject(preset), id }
+      next.fabrics[id] = { ...cloneProject(preset), id, catalogPresetId:presetId }
       if (selectedPieceId) {
         const piece = next.pieces.find(item => item.id === selectedPieceId)
         if (piece) piece.fabricId = id
@@ -4118,9 +4224,94 @@ export default function App() {
   const undoForVisibleEngine = () => clothcraftHybrid ? rustCommand('undo') : undo()
   const redoForVisibleEngine = () => clothcraftHybrid ? rustCommand('redo') : redo()
   const visibleRunning = clothcraftHybrid ? Boolean(clothcraftLive?.running) : running
+  const clo7ThreeDHandlers={
+    simulate:simForVisibleEngine,
+    transform:()=>setViewportTool('transform'),
+    'mesh-select':()=>{setViewportTool('mesh-select');setWireframe(true)},
+    pin:()=>setTool('pin'),
+    seams:()=>setShowSewingGuides(value=>!value),
+    'avatar-panel':()=>setActiveSection('Avatar'),
+    'fabric-panel':()=>{setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true)},
+    'material-panel':()=>{setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true)},
+    'buttons-panel':()=>{setActiveSection('Sewing');setObjectTab('Button');setShowObjectBrowser(true)},
+    'trim-panel':()=>{setActiveSection('Sewing');setObjectTab('Trim');setShowObjectBrowser(true)},
+    fastener:()=>setTool('fastener'),
+  }
+  const enabledClo3D = slot => Boolean(slot.action && clo7ThreeDHandlers[slot.action] &&
+    (!clothcraftHybrid || !['mesh-select','pin','fastener'].includes(slot.action)))
+  const activateCloTool = (slot,dimension,runOnly=false) => {
+    const capability=getClo7NativeCapability(dimension,slot.id)
+    // Native tools should immediately hand control to the drawing viewport:
+    // an explanatory overlay would obscure Save/Close Pattern and edit nodes.
+    // For missing or inspection-only tools retain the explicit help panel.
+    if(!runOnly)setSelectedCloTool(capability?.mode==='native'?null:
+      {slot,dimension,status:capability?.mode||'unavailable',reason:capability?.reason})
+    if(!clothcraftHybrid){
+      if(dimension==='3d'&&enabledClo3D(slot))clo7ThreeDHandlers[slot.action]?.()
+      else if(dimension==='2d'){
+        const action={select:'select',point:'point',internal:'internal',sew:'sew'}[slot.action]
+        if(action){setTool(action);setActiveSection(action==='sew'?'Sewing':'Pattern')}
+        else if(slot.action==='create-polygon')addPolygonPiece()
+      }
+      return
+    }
+    // Trigger real native V2 actions only; a CLO reference slot is never
+    // silently redirected to a cosmetically similar unrelated tool.
+    switch(capability?.nativeAction){
+      case 'simulation.toggle':simForVisibleEngine();break
+      case 'viewport3d.selectMove':
+        setViewportTool('transform');rustCommand('mode:move3d');setActiveSection('Pattern');break
+      case 'arrangement.reset3d':
+        resetForVisibleEngine();break
+      case 'pattern2d.selectTransform':
+        setTool('select');setActiveSection('Pattern');rustCommand('mode:edit');
+        window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',{detail:{tool:'select'}}));break
+      case 'pattern2d.editPoints':
+        setTool('point');setActiveSection('Pattern');rustCommand('mode:edit');
+        window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',{detail:{tool:'point'}}));break
+      case 'pattern2d.drawPolygon':
+        setTool('polygon');setActiveSection('Pattern');rustCommand('mode:pen');break
+      case 'pattern2d.drawInternalLine':
+        setTool('internal');setActiveSection('Sewing');rustCommand('mode:line');
+        window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',{detail:{tool:'internal'}}));break
+      case 'sewing.freeSew':
+        setTool('sew');setActiveSection('Sewing');rustCommand('mode:sew');
+        window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',{detail:{tool:'sew'}}));break
+      default:
+        // A read-only inspector remains useful without claiming that the
+        // original CLO authoring command or solver has been implemented.
+        if(capability?.inspectionAction==='sewing.inspectSeams')setActiveSection('Sewing')
+        if(capability?.inspectionAction==='fabric.inspectProperties'){
+          setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true)
+        }
+        if(capability?.inspectionAction==='dimensions.show')setActiveSection('Production')
+        if(capability?.inspectionAction==='dimensions.measureTemporary'){
+          setActiveSection('Production');rustCommand('mode:edit');
+          window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',{detail:{tool:'measure'}}))
+        }
+    }
+  }
+  const renderClo7ThreeDSlot = slot => {
+    const capability=getClo7NativeCapability('3d',slot.id)
+    const handler=clothcraftHybrid?capability?.mode==='native':enabledClo3D(slot)
+    const pressed=slot.action==='simulate'?visibleRunning
+      :slot.action==='transform'?viewportTool==='transform'
+      :slot.action==='mesh-select'?viewportTool==='mesh-select'
+      :slot.action==='pin'?tool==='pin'
+      :slot.action==='fastener'?tool==='fastener'
+      :slot.action==='seams'?showSewingGuides:false
+    return <button key={slot.id} type="button" data-clo-slot={`3d:${slot.id}`}
+      title={`${slot.label} · ${handler?'Run native EXO action':'Click for tool details and implementation status'}`}
+      aria-label={slot.label} aria-pressed={Boolean(pressed||selectedCloTool?.dimension==='3d'&&selectedCloTool?.slot?.id===slot.id)}
+      data-clo-implementation={capability?.mode||'unavailable'}
+      className={`${pressed?'active':''} ${handler?'clo-supported-tool':'clo-tool-inquire'}`}
+      disabled={false}
+      style={slot.after?{marginBottom:9}:undefined}
+      onClick={()=>activateCloTool(slot,'3d')}><CadToolIcon id={slot.icon} size={20}/></button>
+  }
   useEffect(() => {
     if (!clothcraftHybrid) return undefined
-    const onStatus = event => setClothcraftLive(event.detail)
+    const onStatus = event => {setClothcraftLive(event.detail);const mode={edit:'orbit',move3d:'move',rotate3d:'rotate',stretch3d:'hand'}[event.detail?.mode];if(mode)setViewportTool(mode)}
     window.addEventListener('exo-clothcraft-status', onStatus)
     return () => window.removeEventListener('exo-clothcraft-status', onStatus)
   }, [clothcraftHybrid])
@@ -4147,7 +4338,7 @@ export default function App() {
   }, [clothcraftHybrid,tool])
   useEffect(() => {
     if (!clothcraftHybrid) return
-    const modes={move:'move3d',rotate:'rotate3d'}
+    const modes={orbit:'edit',transform:'move3d',move:'move3d',rotate:'rotate3d',hand:'stretch3d'}
     if (modes[viewportTool]) rustCommand(`mode:${modes[viewportTool]}`)
   }, [clothcraftHybrid,viewportTool])
   useEffect(() => {
@@ -4212,6 +4403,7 @@ export default function App() {
           <input ref={seamlyPatternInputRef} hidden type="file" accept=".sm2d" onChange={importSeamlyConstructionGraph} />
           <input ref={graphicInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={importGraphic} />
           <input ref={fabricTextureInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={importFabricTexture} />
+          <input ref={fabricEvidenceInputRef} hidden type="file" accept="application/json,.json" onChange={importFabricLabMeasurements} />
           <input ref={fabricNormalInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => importFabricPbrMap(event, 'normal')} />
           <input ref={fabricRoughnessInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => importFabricPbrMap(event, 'roughness')} />
           <input ref={fabricMetalnessInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => importFabricPbrMap(event, 'metalness')} />
@@ -4263,19 +4455,25 @@ export default function App() {
             <div className="clo-history-note">Select a revision to restore it. Skipped edits remain accessible through Redo. Session history is not a replacement for saving your project.</div>
           </section> : <>
           <LibraryChrome category={assetCategory} setCategory={setAssetCategory} search={librarySearch} setSearch={setLibrarySearch} thumbnails={libraryThumbnails} setThumbnails={setLibraryThumbnails}>
-            {(assetCategory === 'Garment' || assetCategory === 'Patterns') ? GARMENT_TEMPLATES.filter(template => libraryItemMatches(template.name)).map((template) => (
+            {clothcraftHybrid && (assetCategory === 'Fabric' || assetCategory === 'Material') ? <div className="asset-placeholder"><Shirt size={26}/><strong>Native fabric library</strong><span>{CLOTHCRAFT_FABRICS.length} selectable textile examples, including uncalibrated apparel starting points.</span><button onClick={() => setActiveSection('Fabric')}>Open fabric library</button></div> : (assetCategory === 'Garment' || assetCategory === 'Patterns') ? GARMENT_TEMPLATES.filter(template => libraryItemMatches(template.name)).map((template) => (
               <button className="asset-template garment-tile" key={template.id} onClick={() => applyGarmentTemplate(template.id)} title={`${template.name} · ${template.description}`}>
                 <span className="asset-template-icon">{assetCategory === 'Patterns' ? <PatternLibraryThumbnail templateId={template.id} name={template.name}/> : <GarmentSilhouette type={template.name}/>}</span><span className="asset-template-label">{template.name}</span>
               </button>
             )) : assetCategory === 'Fabric' || assetCategory === 'Material' ? <>
               <div className="clo-fabric-library-divider">PROJECT SWATCHES · CLICK TO APPLY TO SELECTED PATTERN</div>
               {Object.entries(project.fabrics || {}).filter(([,item]) => libraryItemMatches(item.name)).map(([id, item]) => (
-                <button className="asset-template garment-tile" key={id} onClick={() => assignFabric(id)} title={`Apply ${item.name} to selected garment pattern`}><span className="asset-template-icon fabric-library-thumbnail" style={{background:item.color || '#737989'}}><span/></span><span className="asset-template-label">{item.name}</span></button>
+                <button className="asset-template garment-tile" key={id} onClick={() => assignFabric(id)} title={`Apply ${item.name} to selected garment pattern`}><span className="asset-template-icon fabric-library-thumbnail" style={fabricSwatchStyle(item)}><span/></span><span className="asset-template-label">{item.name}</span></button>
               ))}
-              <div className="clo-fabric-library-divider">TEXTILES · ADD & APPLY</div>
-              {Object.entries(FABRIC_PRESETS).filter(([,item]) => libraryItemMatches(item.name)).map(([id,item]) => (
-                <button className="asset-template garment-tile" key={`preset-${id}`} onClick={() => addAndApplyFabricPreset(id)} title={`Create ${item.name} and apply to selected pattern`}><span className="asset-template-icon fabric-library-thumbnail" style={{background:item.color || '#737989'}}><span/></span><span className="asset-template-label">+ {item.name}</span></button>
-              ))}
+              <div className="clo-fabric-library-divider">TEXTILES · {FABRIC_SCAN_COVERAGE.total} PRESETS · ADD & APPLY</div>
+              <p className="panel-copy">{FABRIC_SCAN_COVERAGE.photographicReferences} presets inherit one of {FABRIC_SCAN_COVERAGE.uniqueLicensedScans} genuine CC0 photo scans. {FABRIC_SCAN_COVERAGE.proceduralFallbacks} use purpose-built procedural yarn appearances. Shared references are not 400 unique measured textiles. All mechanics require specimen calibration.</p>
+              {FABRIC_PRESET_GROUPS.map(([group,entries])=>{
+                const matching=entries.filter(([,item])=>libraryItemMatches(item.name))
+                if(!matching.length)return null
+                return <React.Fragment key={group}>
+                  <div className="clo-fabric-library-divider">{group.toUpperCase()} · {matching.length}</div>
+                  {matching.map(([id,item])=><button className="asset-template garment-tile" key={`preset-${id}`} onClick={() => addAndApplyFabricPreset(id)} title={`Create ${item.name} and apply to selected pattern · estimated physical values`}><span className="asset-template-icon fabric-library-thumbnail" style={fabricSwatchStyle(item)}><span/></span><span className="asset-template-label">+ {item.name}</span></button>)}
+                </React.Fragment>
+              })}
             </> : assetCategory === 'Avatar' ? AVAILABLE_AVATARS.filter(({ name }) => libraryItemMatches(name)).map(({ name, model }) => (
               <button className="asset-template garment-tile" key={name} disabled={avatarAvailability[model] !== true} onClick={() => { setActiveSection('Avatar'); setAvatarModel(model) }}><span className="asset-template-icon avatar-library-thumbnail">♙</span><span className="asset-template-label">{name}{avatarAvailability[model] === false ? ' · Not installed' : ''}</span></button>
             )) : assetCategory === 'Hardware and Trims' ? (
@@ -4285,6 +4483,24 @@ export default function App() {
                 <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addZipper(selectedPiece.id, trimEdgeIndex); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="trim" size={48}/></span><span className="asset-template-label">Edge zipper</span></button>
                 <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addTopstitch(selectedPiece.id, trimEdgeIndex); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="topstitch" size={48}/></span><span className="asset-template-label">Topstitch seam</span></button>
                 <button className="asset-template garment-tile" disabled={!selectedPiece} onClick={() => { addBinding(selectedPiece.id, trimEdgeIndex); setActiveSection('Sewing') }}><span className="asset-template-icon clo-hardware-preview"><CadToolIcon id="seam-weld" size={48}/></span><span className="asset-template-label">Edge binding</span></button>
+                <div className="clo-fabric-library-divider">HARDWARE REFERENCE PRESETS · {listHardwarePresets().length}</div>
+                {listHardwarePresets().filter(preset=>libraryItemMatches(`${preset.name} ${preset.kind} ${preset.material}`)).map(preset=>(
+                  <button className="asset-template garment-tile" key={preset.id}
+                    title={`${preset.material} · ${preset.finish}. ${preset.construction}`}
+                    onClick={()=>{
+                      if(['button','buttonhole','zipper'].includes(preset.kind))
+                        setHardwareChoice(current=>({...current,[preset.kind]:preset.id}))
+                      setActiveSection('Sewing')
+                      setCommandResult(['button','buttonhole','zipper'].includes(preset.kind)
+                        ? `${preset.name} selected. Add it to the garment using Edge construction.`
+                        : `${preset.name} is cataloged with dimensions and finish; placement and rigid contact are in development.`)
+                    }}>
+                    <span className="asset-template-icon clo-hardware-preview" style={{background:preset.pbr.baseColor}}>
+                      <CadToolIcon id={preset.kind==='button'?'buttons':preset.kind==='buttonhole'?'buttonholes':'trim'} size={36}/>
+                    </span>
+                    <span className="asset-template-label">{preset.name}</span>
+                  </button>
+                ))}
               </>
             ) : assetCategory === 'Stage' ? (
               <>
@@ -4302,27 +4518,36 @@ export default function App() {
           <div className="clo-panel-resizer clo-left-resizer" role="separator" aria-orientation="vertical" aria-label="Resize Library width" title="Drag to resize Library" onPointerDown={(event) => beginPanelResize('library', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setLibraryWidth(232)}/>
         </aside>
         <aside className={`tool-rail ${compactTools ? 'compact' : ''}`} aria-label="3D and sewing toolbar">
-          <div className="clo-rail-section"><strong>3D TOOLS</strong><span>⌄</span></div>
-          <div className="clo-left-3d-double-bars" aria-label="3D dual-column CLO toolbar">
+          <div className="clo-rail-section"><strong>3D TOOLS</strong></div>
+          <button type="button" className="clo-reference-mode-toggle"
+            aria-label={show3DToolMap?'Hide unavailable CLO 3D reference positions':'Show complete CLO 3D reference map'}
+            aria-pressed={show3DToolMap}
+            title={show3DToolMap?'Show working 3D tools only':'Show all CLO reference positions, including tools EXO does not support yet'}
+            onClick={()=>setShow3DToolMap(value=>!value)}>
+            {show3DToolMap?'HIDE MAP':'FULL MAP'}
+          </button>
+          <div className="clo-left-3d-double-bars" aria-label="CLO 7 reference 3D two-column toolbar">
             <div className="clo-left-3d-column" aria-label="3D editing column A">
-              <button className={visibleRunning ? 'active' : ''} onClick={simForVisibleEngine} title="Simulate / pause · Space"><CadToolIcon id="simulate" size={20}/></button>
-              <button className={viewportTool === 'transform' ? 'active' : ''} onClick={() => setViewportTool('transform')} title="Select / Move · garment-centered 3D gizmo (T)"><CadToolIcon id="select-3d" size={20}/></button>
-              <button className={viewportTool === 'mesh-select' ? 'active' : ''} title="Select Mesh (Box / Lasso / Brush)" aria-label="Select Mesh (Box / Lasso / Brush)" onClick={() => { setViewportTool('mesh-select'); setWireframe(true) }}><CadToolIcon id="wireframe" size={20}/></button>
-              <button title="Edit Styleline · planned" aria-label="Edit Styleline · planned" disabled><CadToolIcon id="curve" size={20}/></button>
-              <button className={showSewingGuides ? 'active subtle-active' : ''} title="Edit Sewing · show sewing correspondence" onClick={() => setShowSewingGuides(value => !value)}><CadToolIcon id="seam-links" size={20}/></button>
-              <button className={tool === 'sew' ? 'active' : ''} onClick={() => setTool('sew')} title="Free Sewing · sew edges"><CadToolIcon id="sew" size={20}/></button>
-              <button className={tool === 'pin' ? 'active' : ''} onClick={() => setTool('pin')} title="Pin (Box / Lasso) · manual pin"><CadToolIcon id="pin" size={20}/></button>
+              {(show3DToolMap?CLO7_3D_A:CLO7_3D_A.filter(enabledClo3D)).map(renderClo7ThreeDSlot)}
             </div>
             <div className="clo-left-3d-column" aria-label="3D garment column B">
-              <button className={leftSimulationMenuOpen ? 'active' : ''} onClick={() => { setSimulationMenuOpen(false); setLeftSimulationMenuOpen(value => !value) }} title="Simulation modes · auxiliary" aria-expanded={leftSimulationMenuOpen}><CadToolIcon id="simulation-modes" size={20}/></button>
-              <button className={viewportTool === 'hand' ? 'active' : ''} onClick={() => setViewportTool('hand')} title="3D fabric hand tool"><CadToolIcon id="hand" size={20}/></button>
-              <button className={viewportTool === 'move' ? 'active' : ''} onClick={() => setViewportTool('move')} title="3D move garment"><CadToolIcon id="move-3d" size={20}/></button>
-              <button className={viewportTool === 'rotate' ? 'active' : ''} onClick={() => setViewportTool('rotate')} title="3D rotate selected fabric"><CadToolIcon id="rotate-3d" size={20}/></button>
-              <button className={wireframe ? 'active' : ''} title="Toggle garment mesh wireframe" onClick={() => setWireframe(value => !value)}><CadToolIcon id="wireframe" size={20}/></button>
-              <button className={analysisMode === 'strain' ? 'active' : ''} title="Strain map" onClick={() => setAnalysisMode(analysisMode === 'strain' ? 'surface' : 'strain')}><CadToolIcon id="surface" size={20}/></button>
+              {(show3DToolMap?CLO7_3D_B:CLO7_3D_B.filter(enabledClo3D)).map(renderClo7ThreeDSlot)}
             </div>
           </div>
-          {leftSimulationMenuOpen && <div className="clo-simulation-popover clo-simulation-left-popover">
+          <div className="clo-rail-section"><strong>EXO · 3D EXTRAS</strong></div>
+          <div className="clo-left-3d-double-bars" aria-label="EXO additional 3D controls not present in photographed reference positions">
+            <div className="clo-left-3d-column" aria-label="Additional 3D actions column A">
+              {!clothcraftHybrid && <button className={leftSimulationMenuOpen ? 'active' : ''} onClick={() => { setSimulationMenuOpen(false); setLeftSimulationMenuOpen(value => !value) }} title="EXO simulation quality modes" aria-expanded={leftSimulationMenuOpen}><CadToolIcon id="simulation-modes" size={20}/></button>}
+              <button className={viewportTool === 'hand' ? 'active' : ''} onClick={() => setViewportTool('hand')} title="EXO 3D fabric hand tool"><CadToolIcon id="hand" size={20}/></button>
+              <button className={viewportTool === 'move' ? 'active' : ''} onClick={() => setViewportTool('move')} title="EXO 3D move garment"><CadToolIcon id="move-3d" size={20}/></button>
+            </div>
+            <div className="clo-left-3d-column" aria-label="Additional 3D actions column B">
+              <button className={viewportTool === 'rotate' ? 'active' : ''} onClick={() => setViewportTool('rotate')} title="EXO 3D rotate selected fabric"><CadToolIcon id="rotate-3d" size={20}/></button>
+              <button className={wireframe ? 'active' : ''} title="EXO toggle garment mesh wireframe" onClick={() => setWireframe(value => !value)}><CadToolIcon id="wireframe" size={20}/></button>
+              {!clothcraftHybrid && <button className={analysisMode === 'strain' ? 'active' : ''} title="EXO strain map" onClick={() => setAnalysisMode(analysisMode === 'strain' ? 'surface' : 'strain')}><CadToolIcon id="surface" size={20}/></button>}
+            </div>
+          </div>
+          {leftSimulationMenuOpen && !clothcraftHybrid && <div className="clo-simulation-popover clo-simulation-left-popover">
             <strong>SIMULATION · SOLVER MODES</strong>
             <button onClick={() => { applySimulationQuality('draft'); setLeftSimulationMenuOpen(false) }}><Activity size={14}/> Fast · Draft</button>
             <button onClick={() => { applySimulationQuality('balanced'); setLeftSimulationMenuOpen(false) }}><Check size={14}/> Normal · Balanced</button>
@@ -4330,6 +4555,7 @@ export default function App() {
             <button onClick={() => { requestNativeSolve(); setLeftSimulationMenuOpen(false) }} disabled={nativeServiceStatus !== 'ready'}><Cpu size={14}/> Native XPBD {nativeServiceStatus !== 'ready' ? '· OFFLINE' : ''}</button>
             <button onClick={() => { resetSimulation(); setLeftSimulationMenuOpen(false) }}><RotateCcw size={14}/> Reset to flat pieces</button>
           </div>}
+          {!clothcraftHybrid && <>
           <span className="rail-divider" /><div className="clo-rail-section"><strong>2D PATTERN</strong></div>
           <div className="clo-left-3d-double-bars clo-left-secondary-bars" aria-label="Pattern shortcuts in two columns">
             <div className="clo-left-3d-column">
@@ -4370,6 +4596,7 @@ export default function App() {
           <button onClick={() => { setObjectTab('Grading'); setActiveSection('Production') }} title="Open size grading browser"><CadToolIcon id="grading" size={20}/></button>
           <button onClick={() => { setObjectTab('POM'); setActiveSection('Production') }} title="Open points-of-measure browser"><CadToolIcon id="pom" size={20}/></button>
           <button onClick={() => { setAnalysisMode('pressure'); setActiveSection('Fit') }} title="Inspect garment pressure distribution"><CadToolIcon id="pressure" size={20}/></button>
+          </>}
         </aside>
 
         <section className={`workspaces workspace-layout-${viewportLayout} ${clothcraftHybrid ? 'cc-rust-embedded' : ''}`} aria-label="3D and 2D windows" data-viewport-layout={viewportLayout} style={{ '--viewport-left-percent': `${viewportSplit}%` }}>
@@ -4460,12 +4687,22 @@ export default function App() {
           </>}
         </section>
 
+        <CloToolActionPanel selected={selectedCloTool}
+          onClose={()=>setSelectedCloTool(null)}
+          onRun={()=>selectedCloTool&&activateCloTool(selectedCloTool.slot,selectedCloTool.dimension,true)}
+          onNavigate={section=>{setActiveSection(section);setShowObjectBrowser(true);setSelectedCloTool(null)}}/>
         <aside className="inspector clo-inspector" hidden={!inspectorVisible}>
           <div className="clo-panel-resizer clo-right-resizer" role="separator" aria-orientation="vertical" aria-label="Resize Inspector width" title="Drag to resize Object Browser and Property Editor" onPointerDown={(event) => beginPanelResize('inspector', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setInspectorWidth(392)}/>
-          <RightToolPalette activeSection={activeSection} viewportTool={viewportTool} tool={tool} setViewportTool={setViewportTool} setTool={setTool} setActiveSection={setActiveSection} setObjectTab={setObjectTab} onRevealBrowser={() => setShowObjectBrowser(true)} showSewingGuides={showSewingGuides} setShowSewingGuides={setShowSewingGuides} wireframe={wireframe} setWireframe={setWireframe} analysisMode={analysisMode} setAnalysisMode={setAnalysisMode} toggleSimulation={simForVisibleEngine} resetSimulation={resetForVisibleEngine} exportProject={exportForVisibleEngine} onFitCamera={() => setFitCameraSignal(value => value + 1)} onMirrorSelected={() => duplicateSelectedPiece(true)} running={visibleRunning}/>
+          <RightToolPalette activeSection={activeSection} viewportTool={viewportTool} tool={tool} setViewportTool={value=>{setViewportTool(value);if(clothcraftHybrid){const modes={orbit:'edit',transform:'move3d',move:'move3d',rotate:'rotate3d',hand:'stretch3d'};if(modes[value])rustCommand(`mode:${modes[value]}`)}}} setTool={setTool} setActiveSection={setActiveSection} setObjectTab={setObjectTab} onRevealBrowser={() => setShowObjectBrowser(true)} showSewingGuides={showSewingGuides} setShowSewingGuides={setShowSewingGuides} wireframe={wireframe} setWireframe={setWireframe} analysisMode={analysisMode} setAnalysisMode={setAnalysisMode} toggleSimulation={simForVisibleEngine} resetSimulation={resetForVisibleEngine} exportProject={exportForVisibleEngine} onFitCamera={() => setFitCameraSignal(value => value + 1)} onMirrorSelected={() => duplicateSelectedPiece(true)} onCreatePolygon={addPolygonPiece} onCloTool={activateCloTool} nativeClothcraft={clothcraftHybrid} running={visibleRunning}/>
           <div className="clo-inspector-content">
-          <div className="clo-inspector-topline"><button title={showObjectBrowser ? 'Hide Object Browser' : 'Show Object Browser'} onClick={() => setShowObjectBrowser(value => !value)}><PanelRight size={15}/></button><span>OBJECTS & PROPERTIES</span><button title="Choose Fabric" onClick={() => { setObjectTab('Fabric'); setActiveSection('Fabric') }}><Shirt size={15}/></button></div>
-          {showObjectBrowser && <ObjectBrowser tab={objectTab} setTab={setObjectTab} project={project} setSelectedPieceId={selectIn3D} setSelectedFabricId={setSelectedFabricId} onSelectedObjectChange={value=>{setSelectedObjectForProperties(value);if(value)setSelectedDraftEdge(null)}} onApplyFabric={assignFabric} setActiveSection={setActiveSection} selectedPieceId={selectedPieceId} selectedFabricId={selectedFabricId} onAddFabric={addFabricSwatch} onAddPattern={addPiece} onTogglePieceProperty={(pieceId, field) => mutateProject(next => { const piece = next.pieces.find(item => item.id === pieceId); if (piece && (field === 'visible3d' || field === 'locked')) piece[field] = field === 'visible3d' ? piece.visible3d === false : !piece.locked })}/>}
+          <div className="clo-inspector-topline"><button title={showObjectBrowser ? 'Hide Object Browser' : 'Show Object Browser'} onClick={() => setShowObjectBrowser(value => !value)}><PanelRight size={15}/></button><span>OBJECTS & PROPERTIES</span><button title="Choose Fabric" onClick={() => { setObjectTab('Fabric'); setActiveSection('Fabric');setSelectedObjectForProperties(null) }}><Shirt size={15}/></button></div>
+          {showObjectBrowser && <ObjectBrowser tab={objectTab} setTab={setObjectTab} project={project} setSelectedPieceId={selectIn3D} setSelectedFabricId={setSelectedFabricId}
+            nativeMode={clothcraftHybrid} nativePanelRefs={clothcraftLive?.panelRefs||[]} nativeFabricRefs={clothcraftLive?.fabricRefs||[]}
+            nativeSelectedObject={selectedObjectForProperties||((clothcraftHybrid&&clothcraftLive?.selection?.kind==='pattern')?{id:clothcraftLive.selection.panelId}:null)}
+            onNativePanelSelect={id=>rustCommand('select:'+id)}
+            onNativeFabricSelect={id=>window.dispatchEvent(new CustomEvent('exo-clothcraft-select-fabric',{detail:{id}}))}
+            onSelectedObjectChange={value=>{setSelectedObjectForProperties(value);if(value)setSelectedDraftEdge(null)}}
+            onApplyFabric={assignFabric} setActiveSection={setActiveSection} selectedPieceId={selectedPieceId} selectedFabricId={selectedFabricId} onAddFabric={addFabricSwatch} onAddPattern={addPiece} onTogglePieceProperty={(pieceId, field) => mutateProject(next => { const piece = next.pieces.find(item => item.id === pieceId); if (piece && (field === 'visible3d' || field === 'locked')) piece[field] = field === 'visible3d' ? piece.visible3d === false : !piece.locked })}/>}
           {showObjectBrowser && <div className="clo-browser-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize Object Browser height" title="Drag to resize Object Browser and Property Editor" onPointerDown={(event) => beginPanelResize('objects', event)} onPointerMove={movePanelResize} onPointerUp={endPanelResize} onLostPointerCapture={endPanelResize} onDoubleClick={() => setObjectBrowserHeight(390)}><span/></div>}
           <div className="clo-property-panel">
             <CloPropertyEditorAccordion activeSection={activeSection} selectedPiece={selectedPiece}
@@ -4474,8 +4711,17 @@ export default function App() {
               draftLineSelection={draftLineSelection}
               objectSelection={selectedObjectForProperties}
               onSwitchSection={setActiveSection}
-              onShowFabric={()=>{setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true)}}
+              onShowFabric={()=>{
+                setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true)
+                if(clothcraftHybrid){
+                  const id=clothcraftLive?.selection?.fabricId
+                  const found=clothcraftLive?.fabricRefs?.find(f=>f.id===id)
+                  setSelectedObjectForProperties(found?{...found,source:'native',type:'fabric'}:null)
+                  if(id)window.dispatchEvent(new CustomEvent('exo-clothcraft-select-fabric',{detail:{id}}))
+                }
+              }}
               onPropertyEdit={editCloObjectProperty}
+              onNativePropertyEdit={editNativeProperty}
               onSelectNativeSeam={seamId=>window.dispatchEvent(new CustomEvent('exo-clothcraft-select-seam',{detail:{seamId}}))}
               objectTab={objectTab}
               onSetLineTarget={(panel,edge,cm)=>window.dispatchEvent(new CustomEvent('exo-clothcraft-property-command',{detail:{type:'target-length',panel,edge,cm}}))}
@@ -4972,6 +5218,13 @@ export default function App() {
                 <div className="panel-section trim-editor">
                   <div className="panel-title"><span>Edge construction · {selectedPiece.name}</span><strong>{stats.trims} LIVE</strong></div>
                   <label className="select-field"><span>Target edge</span><select value={trimEdgeIndex} onChange={(event) => setTrimEdgeIndex(Number(event.target.value))}>{selectedPiece.points.map((_, edgeIndex) => <option key={edgeIndex} value={edgeIndex}>Edge {edgeIndex + 1} · {edgeLength(selectedPiece, edgeIndex).toFixed(1)} cm</option>)}</select></label>
+                  {['button','buttonhole','zipper'].map(kind => <label className="select-field" key={kind}>
+                    <span>{kind.charAt(0).toUpperCase()+kind.slice(1)} hardware</span>
+                    <select aria-label={`Select ${kind} hardware preset`} value={hardwareChoice[kind]} onChange={event=>setHardwareChoice(current=>({...current,[kind]:event.target.value}))}>
+                      {listHardwarePresets(kind).map(preset=><option key={preset.id} value={preset.id}>{preset.name}</option>)}
+                    </select>
+                  </label>)}
+                  <p className="panel-copy">Hardware presets supply illustrative sizes, finishes and component references. Visual placement is approximate; supplier part specifications and rigid fastener physics require validation.</p>
                   <div className="trim-add-grid">
                     <button onClick={() => addTopstitch(selectedPiece.id, trimEdgeIndex)}>+ TOPSTITCH</button>
                     <button onClick={() => addBinding(selectedPiece.id, trimEdgeIndex)}>+ BINDING</button>
@@ -4999,7 +5252,7 @@ export default function App() {
                     ))}
                     {(selectedPiece.zippers || []).map((zipper) => (
                       <div key={zipper.id} className="trim-editor-item">
-                        <div><strong>Zipper · E{zipper.edgeIndex + 1}</strong><small>{zipper.type || 'coil'} tape</small></div>
+                        <div><strong>{getHardwarePreset(zipper.hardwarePresetId)?.name || 'Zipper'} · E{zipper.edgeIndex + 1}</strong><small>{zipper.type || 'coil'} tape</small></div>
                         <NumberField value={zipper.widthCm ?? 1.2} min={0.5} max={5} step={0.1} suffix="cm" onChange={(value) => updatePieceTrim(selectedPiece.id, 'zippers', zipper.id, 'widthCm', clamp(value, 0.5, 5))} />
                         <span />
                         <button onClick={() => removePieceTrim(selectedPiece.id, 'zippers', zipper.id)}><Trash2 size={12} /></button>
@@ -5007,7 +5260,7 @@ export default function App() {
                     ))}
                     {(selectedPiece.buttonholes || []).map((buttonhole, index) => (
                       <div key={buttonhole.id} className="trim-editor-item buttonhole-editor-item">
-                        <div><strong>Buttonhole {index + 1}</strong><small>{buttonhole.lengthCm ?? 2.4} cm · {Math.round(buttonhole.orientationDeg || 0)}°</small></div>
+                        <div><strong>{getHardwarePreset(buttonhole.hardwarePresetId)?.name || 'Buttonhole'} {index + 1}</strong><small>{buttonhole.lengthCm ?? 2.4} cm · {Math.round(buttonhole.orientationDeg || 0)}°</small></div>
                         <NumberField value={buttonhole.lengthCm ?? 2.4} min={0.8} max={6} step={0.1} suffix="cm" onChange={(value) => updateButtonhole(selectedPiece.id, buttonhole.id, 'lengthCm', clamp(value, 0.8, 6))} />
                         <NumberField value={buttonhole.orientationDeg ?? 0} min={-180} max={180} step={5} suffix="°" onChange={(value) => updateButtonhole(selectedPiece.id, buttonhole.id, 'orientationDeg', clamp(value, -180, 180))} />
                         <button onClick={() => removeButtonhole(selectedPiece.id, buttonhole.id)}><Trash2 size={12} /></button>
@@ -5015,7 +5268,7 @@ export default function App() {
                     ))}
                     {(selectedPiece.buttons || []).length > 0 && (
                       <div className="trim-editor-item trim-summary-item">
-                        <div><strong>Buttons</strong><small>{selectedPiece.buttons.length} placed on pattern</small></div>
+                        <div><strong>Buttons</strong><small>{selectedPiece.buttons.length} placed on pattern · {getHardwarePreset(selectedPiece.buttons[0]?.hardwarePresetId)?.name || 'Custom'}</small></div>
                         <button className="trim-clear" onClick={() => mutateProject((next) => {
                           const piece = next.pieces.find((item) => item.id === selectedPiece.id)
                           if (!piece) return
@@ -5030,7 +5283,8 @@ export default function App() {
             </>
           )}
 
-          {activeSection === 'Fabric' && (
+          {activeSection === 'Fabric' && clothcraftHybrid && <div id="cc-native-fabric-inspector"/>}
+          {activeSection === 'Fabric' && !clothcraftHybrid && (
             <>
               <div className="panel-section">
                 <div className="panel-title"><span>Fabric library</span><button onClick={addFabricSwatch}><Plus size={14} /></button></div>
@@ -5050,8 +5304,11 @@ export default function App() {
               <div className="panel-section">
                 <div className="panel-title"><span>Physical fabric</span><strong>{selectedFabricId.toUpperCase().slice(0, 10)}</strong></div>
                 <label className="text-field"><span>Name</span><input value={fabric.name || ''} onChange={(event) => updateFabric('name', event.target.value)} /></label>
-                <label className="select-field"><span>Preset</span><select value={Object.keys(FABRIC_PRESETS).find((key) => FABRIC_PRESETS[key].name === fabric.name) || ''} onChange={(event) => applyFabricPreset(event.target.value)}><option value="">Custom</option>{Object.entries(FABRIC_PRESETS).map(([key, preset]) => <option key={key} value={key}>{preset.name}</option>)}</select></label>
+                <label className="select-field"><span>Preset</span><select value={Object.keys(FABRIC_PRESETS).find((key) => FABRIC_PRESETS[key].name === fabric.name) || ''} onChange={(event) => applyFabricPreset(event.target.value)}><option value="">Custom</option>{FABRIC_PRESET_GROUPS.map(([group,entries])=><optgroup key={group} label={group}>{entries.map(([key,preset])=><option key={key} value={key}>{preset.name}</option>)}</optgroup>)}</select></label>
                 <label className="color-field"><span>Surface color</span><input type="color" value={fabric.color} onChange={(event) => updateFabric('color', event.target.value)} /><strong>{fabric.color.toUpperCase()}</strong></label>
+                <div className="control-row split-control"><span>Physical evidence</span><strong>{fabric.calibration?.status==='imported-unverified' ? `IMPORTED · ${fabric.calibration.grade}` : 'ESTIMATED'}</strong></div>
+                <button className="wide-action" onClick={()=>fabricEvidenceInputRef.current?.click()}><Upload size={14}/>IMPORT LAB SPECIMEN DATA (JSON)</button>
+                <p className="panel-copy">Requires traceable GSM, compressed-thickness and optional warp/weft test curves for this exact specimen. Mass and thickness can be assigned directly. Curve-derived tensile, shear and bending coefficients remain advisory until calibrated against the cloth solver. Imported data is not independently certified.</p>
                 <div className="clo-fabric-apply-actions">
                   <button disabled={!selectedPiece} onClick={() => assignFabric(selectedFabricId)}>APPLY TO SELECTED PATTERN</button>
                   <button onClick={() => assignFabric(selectedFabricId, true)}>APPLY TO ALL GARMENT PIECES</button>
@@ -5060,16 +5317,63 @@ export default function App() {
                 {selectedFabricId !== 'main' && <button className="wide-action danger-action" onClick={() => deleteFabricSwatch(selectedFabricId)}><Trash2 size={14} />DELETE SWATCH · REASSIGN TO MAIN</button>}
               </div>
               <div className="panel-section">
+                <details aria-label="CLO7 style fabric detailed property comparison">
+                  <summary className="panel-title" style={{cursor:'pointer'}}>
+                    <span>CLO-style fabric property detail</span><strong>WARP · WEFT · BIAS</strong>
+                  </summary>
+                  <p className="panel-copy">Read-only, source-linked property comparison for this EXO fabric. Values shown are existing EXO inputs, not extracted CLO preset strengths. Blank directional/buckling values are real model gaps, not zeros. Select any of the 400 presets to inspect its full physical, surface and measurement breakdown.</p>
+                  {clo7FabricReadout(fabric).sections.map(group=>(
+                    <div key={group.id}>
+                      <div className="panel-title"><span>{group.label}</span><strong>{group.rows.length} FIELDS</strong></div>
+                      {group.rows.map(item=>(
+                        <div key={item.id} className="control-row split-control" title={item.note}>
+                          <span>{item.label}</span>
+                          <strong style={{textAlign:'right',fontSize:11}}>
+                            {item.value==null?'NOT AVAILABLE':String(item.value)+(item.unit?' '+item.unit:'')}
+                            <small style={{display:'block',fontSize:9,opacity:.65}}>
+                              {item.status==='solver-input'?'EXO SOLVER':item.status==='optical-only'?'VISUAL ONLY':item.status==='not-implemented'?'MISSING MODEL':'EVIDENCE'}
+                            </small>
+                          </strong>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <p className="panel-copy">CLO 7.x documentation reference: <a href={clo7FabricReadout(fabric).referenceUrls.physical} target="_blank" rel="noreferrer">Physical Property Details</a> · <a href={clo7FabricReadout(fabric).referenceUrls.measurement} target="_blank" rel="noreferrer">Fabric Kit measurements</a>. Live CLO7 selected-material field order has not been captured by the current automation permissions.</p>
+                </details>
+              </div>
+              <div className="panel-section">
                 <div className="panel-title"><span>Textile surface</span><strong>{fabric.texture?.src ? 'MAPPED' : 'COLOR'}</strong></div>
                 <FabricMaterialPreview fabric={fabric} />
+                {fabric.texture?.scanAssetId ? <p className="panel-copy">
+                  Photographic PBR reference: <a href={fabric.texture.originalSourceUrl} target="_blank" rel="noreferrer">{fabric.texture.scanSource} · {fabric.texture.scanAssetId}</a> · CC0 · {fabric.texture.scanMatch==='family-proxy'?'similar fabric family, NOT an exact specimen':'construction reference'}. Physical parameters are still estimated and must be measured for production.
+                </p> : <p className="panel-copy">Procedurally generated surface or user-uploaded image. Material mechanics have not been certified by a fabric laboratory.</p>}
+                {fabric.photoReference?.visualReviewFlags?.length>0 && (
+                  <p className="panel-copy" aria-label="Scan optical review notes">
+                    Source image needs visual review: {fabric.photoReference.visualReviewFlags.map(flag=>{
+                      const [channel,reason]=flag.split(':')
+                      return `${channel} ${reason.replaceAll('_',' ')}`
+                    }).join('; ')}. These image-statistics flags are not a finding that the scan is incorrect. Compare actual grazing-light PBR shading before approving a production visual.
+                  </p>
+                )}
+                {fabric.texture?.physicalScaleStatus==='unknown-illustrative-20cm' && (
+                  <p className="panel-copy" aria-label="Scan repeat scale not measured">
+                    This stock photo has no published physical textile repeat size. The displayed 20 cm repeat is an illustrative starting point: adjust using a photographed ruler or physical fabric sample.
+                  </p>
+                )}
                 <label className="select-field"><span>Fabric structure</span><select value={fabric.surfaceFamily || 'auto'} onChange={(event) => updateFabric('surfaceFamily', event.target.value)}>
                   <option value="auto">Auto-detect from fabric name</option>
                   <option value="plain-weave">Plain woven cotton / linen</option>
                   <option value="twill">Twill / denim diagonal weave</option>
                   <option value="jersey-knit">Jersey single knit</option>
                   <option value="rib-knit">Rib knit</option>
+                  <option value="waffle-knit">Waffle thermal knit</option>
                   <option value="corduroy">Corduroy raised wales</option>
                   <option value="terry-knit">French terry / fleece</option>
+                  <option value="fleece-pile">Sherpa / fleece pile</option>
+                  <option value="basket-weave">Basket weave / Oxford</option>
+                  <option value="crepe">Crêpe / pebbled yarn</option>
+                  <option value="boucle">Bouclé / looped yarn</option>
+                  <option value="mesh">Sports mesh / open knit approximation</option>
                   <option value="silk">Silk / satin weave</option>
                   <option value="synthetic">Technical nylon / polyester</option>
                   <option value="ripstop">Ripstop woven reinforcement</option>
@@ -5097,6 +5401,35 @@ export default function App() {
                     <button className="wide-action" onClick={() => fabricTextureInputRef.current?.click()}><Upload size={14} />UPLOAD TEXTILE IMAGE</button>
                   </>
                 )}
+              </div>
+              <div className="panel-section" aria-label="Non destructive digital fabric wash editor">
+                <div className="panel-title"><span>Digital wash and dye</span><strong>{normalizeWashSpec(fabric.wash).type.toUpperCase()}</strong></div>
+                <label className="select-field"><span>Finish / wash effect</span><select aria-label="Fabric wash effect" value={normalizeWashSpec(fabric.wash).type}
+                  onChange={(event)=>updateFabricWash({type:event.target.value,strength:event.target.value==='raw'?0:.65})}>
+                  {Object.entries(WASH_EFFECTS).map(([id,item])=><option key={id} value={id}>{item.label}</option>)}
+                </select></label>
+                <SliderRow label="Wash intensity" value={normalizeWashSpec(fabric.wash).strength} min={0} max={1} step={.02} display={`${Math.round(normalizeWashSpec(fabric.wash).strength*100)}%`} onChange={value=>updateFabricWash({strength:value})}/>
+                <SliderRow label="Effect scale" value={normalizeWashSpec(fabric.wash).scale} min={.1} max={12} step={.1} display={`${normalizeWashSpec(fabric.wash).scale.toFixed(1)}×`} onChange={value=>updateFabricWash({scale:value})}/>
+                <label className="select-field"><span>Color blend</span><select aria-label="Fabric wash blend" value={normalizeWashSpec(fabric.wash).blend} onChange={event=>updateFabricWash({blend:event.target.value})}>
+                  <option value="overlay">Overlay-style</option><option value="soft-light">Soft light</option>
+                  <option value="screen">Screen-style fade</option><option value="multiply">Multiply-style dye</option>
+                </select></label>
+                <SliderRow label="Absorbency look" value={normalizeWashSpec(fabric.wash).absorbency} min={0} max={1} step={.02} display={`${Math.round(normalizeWashSpec(fabric.wash).absorbency*100)}%`} onChange={value=>updateFabricWash({absorbency:value})}/>
+                <SliderRow label="Cycle / wear amount" value={normalizeWashSpec(fabric.wash).cycleDuration} min={0} max={1} step={.02} display={`${Math.round(normalizeWashSpec(fabric.wash).cycleDuration*100)}%`} onChange={value=>updateFabricWash({cycleDuration:value})}/>
+                <SliderRow label="UV edge fade" value={normalizeWashSpec(fabric.wash).seamAbrasion} min={0} max={1} step={.02} display={`${Math.round(normalizeWashSpec(fabric.wash).seamAbrasion*100)}%`} onChange={value=>updateFabricWash({seamAbrasion:value})}/>
+                <div className="field-grid two">
+                  <div><span>Position X</span><NumberField value={normalizeWashSpec(fabric.wash).placement.x*100} min={0} max={100} step={1} suffix="%" onChange={value=>updateFabricWash({placement:{...normalizeWashSpec(fabric.wash).placement,x:value/100}})}/></div>
+                  <div><span>Position Y</span><NumberField value={normalizeWashSpec(fabric.wash).placement.y*100} min={0} max={100} step={1} suffix="%" onChange={value=>updateFabricWash({placement:{...normalizeWashSpec(fabric.wash).placement,y:value/100}})}/></div>
+                </div>
+                <div className="field-grid two">
+                  <div><span>Direction</span><NumberField value={normalizeWashSpec(fabric.wash).rotation} min={-180} max={180} step={5} suffix="°" onChange={value=>updateFabricWash({rotation:value})}/></div>
+                  <div><span>Random seed</span><NumberField value={normalizeWashSpec(fabric.wash).seed} min={0} max={9999} step={1} onChange={value=>updateFabricWash({seed:Math.round(value)})}/></div>
+                </div>
+                <button className="wide-action" onClick={()=>updateFabricWash({type:'raw',strength:0,scale:1,seed:0,placement:{x:.5,y:.5},rotation:0,absorbency:0,cycleDuration:0,seamAbrasion:0,blend:'overlay'})}>RESET VISUAL WASH</button>
+                <p className="panel-copy" aria-label="Fabric-specific wash guidance">
+                  {digitalWashSuitability(fabric,fabric.wash).caution || digitalWashSuitability(fabric,fabric.wash).recommendation}
+                </p>
+                <p className="panel-copy">Non-destructive visual simulation, not an industrial treatment recipe. Stone, acid, enzyme, ozone, garment dye, localized PP-inspired fading, abrasion and whiskers use editable digital maps. The UV-edge fade is not yet aware of true sewn seam geometry. Actual fabric chemistry, tensile weakening, shrinkage and garment-shaped wear require measured samples and solver integration.</p>
               </div>
               <div className="panel-section">
                 <div className="panel-title"><span>Textile PBR maps</span><strong>{[fabric.texture?.normalSrc, fabric.texture?.roughnessSrc, fabric.texture?.metalnessSrc, fabric.texture?.opacitySrc, fabric.texture?.displacementSrc].filter(Boolean).length}/5</strong></div>

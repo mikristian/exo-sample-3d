@@ -13,10 +13,10 @@ const ACTIVE_TOOL = {
   '3d': {edit:'orbit',move3d:'move',rotate3d:'rotate',stretch3d:'hand'},
 }
 
-export default function ClothCraftCornerTools({dimension,mode,onChangeMode,disabled=false}) {
+export default function ClothCraftCornerTools({dimension,mode,activeTool:controlledTool,onChangeMode,onChangeTool,disabled=false}) {
   const tools = MODE_BY_TOOL[dimension] || {}
   const [lastTool,setLastTool] = useState(null)
-  const activeTool = lastTool && tools[lastTool] === mode
+  const activeTool = controlledTool && tools[controlledTool] === mode ? controlledTool : lastTool && tools[lastTool] === mode
     ? lastTool : (ACTIVE_TOOL[dimension]?.[mode] || 'select')
   return <div className="cc-corner-tool-host">
     <ViewportQuickTools dimension={dimension}
@@ -24,7 +24,11 @@ export default function ClothCraftCornerTools({dimension,mode,onChangeMode,disab
       availableTools={Object.keys(tools)}
       disabled={disabled}
       onChangeTool={name => {
-        if (tools[name]) {setLastTool(name);onChangeMode?.(tools[name])}
+        if (tools[name]) {
+          setLastTool(name)
+          onChangeTool?.(name)
+          onChangeMode?.(tools[name])
+        }
       }}/>
   </div>
 }

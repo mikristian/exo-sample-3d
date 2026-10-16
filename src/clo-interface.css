@@ -766,7 +766,22 @@
 .clo-reference-column button.active { background:#344857; border-color:#587e9a; color:#5cc9f7; }
 .clo-reference-column button:focus-visible { outline:2px solid #82d2ee; outline-offset:-2px; }
 .clo-reference-column button:disabled { opacity:.25; cursor:not-allowed; }
+.clo-reference-column button[data-clo-slot]:disabled,
+.tool-rail .clo-left-3d-column button[data-clo-slot]:disabled {
+  opacity:.58;
+  cursor:help;
+}
 .clo-reference-column .cad-tool-icon { width:20px; height:20px; }
+.clo-tool-palette-group-divider {
+  padding:7px 2px 5px;
+  border-top:1px solid #4c4e52;
+  background:#25282c;
+  color:#aab8c1;
+  font-size:8px;
+  letter-spacing:.045em;
+  font-weight:700;
+  text-align:center;
+}
 .tool-rail {
   /* A full tool inventory is taller than a laptop viewport. Scrolling the
      independent rail keeps every button reachable rather than clipping the
@@ -929,6 +944,57 @@
 .tool-rail .clo-left-3d-column button:hover:not(:disabled){background:#42464d;border-color:#5e646b;color:#fff;}
 .tool-rail .clo-left-3d-column button.active{background:#344857;border-color:#587e9a;color:#5cc9f7;}
 .tool-rail .clo-left-3d-column button:disabled{opacity:.3;cursor:not-allowed;}
+
+/* Daily workspace: show only real working tools by default. The full CLO
+   reference inventory is opt-in and never impersonates an implemented tool. */
+.tool-rail > .clo-reference-mode-toggle {
+  grid-column:1 / -1;
+  width:100%;
+  height:23px;
+  padding:0 2px;
+  border:1px solid #404e59;
+  background:#242a32;
+  color:#a4c3d3;
+  border-radius:3px;
+  font-size:8px;
+  font-weight:700;
+  letter-spacing:.04em;
+  cursor:pointer;
+}
+.tool-rail > .clo-reference-mode-toggle:hover,
+.tool-rail > .clo-reference-mode-toggle[aria-pressed="true"] {
+  background:#354957;
+  border-color:#74a9c6;
+  color:#effaff;
+}
+.clo-left-3d-column button.clo-supported-tool,
+.clo-reference-column button.clo-supported-tool {
+  color:#e2e9f0;
+  background:#30363d;
+  border-color:#48515c;
+}
+.clo-left-3d-column button.clo-supported-tool:hover,
+.clo-reference-column button.clo-supported-tool:hover {
+  border-color:#8dc0dc;
+  background:#3b515f;
+}
+.clo-left-3d-column button.clo-placeholder-tool,
+.clo-reference-column button.clo-placeholder-tool {opacity:.3;filter:grayscale(1);}
+.clo-tool-palette-label .clo-palette-mode-text {
+  flex:1 1 0;
+  width:auto;
+  min-width:0;
+  font-size:8px;
+  font-weight:750;
+}
+.clo-right-tool-palette .clo-extra-group-toggle {
+  width:100%;
+  border-right:0;
+  border-left:0;
+  cursor:pointer;
+  font-size:8px;
+}
+.clo-extra-group-toggle:hover {background:#34424e;color:#e4f5ff;}
 
 /* CLO-inspired upper-left viewport widgets. The old 1–5 text placeholders
    are replaced by real CAD SVG icons, with each tool family retaining its

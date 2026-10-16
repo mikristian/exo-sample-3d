@@ -3,7 +3,8 @@
  * properties are deliberately not routed through this EXO draft adapter. */
 export const CLO_DRAFT_FIELDS = Object.freeze({
   pattern: {
-    name:{type:'text',maxLength:96}, grainAngleDeg:{type:'number',min:-360,max:360},
+    name:{type:'text',maxLength:96}, itemNo:{type:'optionalText',maxLength:96},
+    grainAngleDeg:{type:'number',min:-360,max:360},
     seamAllowance:{type:'number',min:0,max:8}, cutQuantity:{type:'number',min:1,max:100,integer:true},
     layerIndex:{type:'number',min:0,max:32,integer:true}, visible3d:{type:'boolean'}, locked:{type:'boolean'},
     fabricId:{type:'fabric'},

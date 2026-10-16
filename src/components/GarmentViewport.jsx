@@ -18,6 +18,43 @@ import { assessNativeSolverResult } from '../core/backends/nativeServiceBackend.
 import { makeProceduralTextileMaps } from '../core/textileProcedurals.js'
 import { normalizeFabricOptics } from '../core/fabricSurfaceModel.js'
 import { physicsInputFingerprint, opticalFabricFingerprint } from '../core/visualOnlyChanges.js'
+import { normalizeWashSpec } from '../core/clothWashProcedurals.js'
+import { washTextureImage } from '../core/clothWashImage.js'
+import { tintLicensedFabricScan } from '../core/photographicScanToning.js'
+import { balanceScannedRoughness, shouldBalanceFabricRoughness } from '../core/fabricPbrAppearance.js'
+import { getHardwarePreset } from '../data/hardwarePresets.js'
+
+// Approximate hardware shell only: holes and optical finish follow the catalog
+// but metal bending, thread shanks and button/cloth rigid contact are separate.
+function buttonDiscGeometry(button, preset) {
+  const radius = Math.max(.004,Number(button.diameterCm ?? 1.8)*.005)
+  const thickness = Math.max(.0008,Number(preset?.dimensionsMm.thickness ?? preset?.dimensionsMm.capHeight ?? 2.5)/1000)
+  const holes = Number(button.holes ?? preset?.holes ?? 0)
+  if (holes === 2 || holes === 4) {
+    const face=new THREE.Shape()
+    face.absarc(0,0,radius,0,2*Math.PI,false)
+    const offset=Math.min(radius*.42,Math.max(.0013,Number(preset?.dimensionsMm.holeSpacing ?? 4)/2000))
+    const centers = holes===2 ? [[-offset,0],[offset,0]] : [
+      [-offset,-offset],[-offset,offset],[offset,-offset],[offset,offset],
+    ]
+    const holeRadius=Math.min(radius*.11,Math.max(.0004,Number(preset?.dimensionsMm.holeDiameter ?? 1.4)/2000))
+    for (const [x,y] of centers) {
+      const hole=new THREE.Path()
+      hole.absarc(x,y,holeRadius,0,Math.PI*2,true)
+      face.holes.push(hole)
+    }
+    const bevel=Math.min(.00035,thickness*.18)
+    const result=new THREE.ExtrudeGeometry(face,{
+      depth:thickness,bevelEnabled:true,bevelSegments:2,steps:1,
+      bevelThickness:bevel,bevelSize:bevel,curveSegments:24,
+    })
+    result.translate(0,0,-thickness*.5)
+    return result
+  }
+  const result=new THREE.CylinderGeometry(radius,radius*.98,thickness,32,1)
+  result.rotateX(Math.PI/2)
+  return result
+}
 
 function syncSurfaceOverlay(record) {
   const position = record.meshRecord.geometry.getAttribute('position')
@@ -69,11 +106,13 @@ function syncSurfaceOverlay(record) {
 
   if (record.type === 'button') {
     const vertexIndex = record.vertexIndex
+    const surfaceNormal=new THREE.Vector3(normal.getX(vertexIndex),normal.getY(vertexIndex),normal.getZ(vertexIndex)).normalize()
     record.object.position.set(
       position.getX(vertexIndex) + normal.getX(vertexIndex) * record.lift,
       position.getY(vertexIndex) + normal.getY(vertexIndex) * record.lift,
       position.getZ(vertexIndex) + normal.getZ(vertexIndex) * record.lift,
     )
+    if (record.orientToSurface) record.object.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),surfaceNormal)
     return
   }
 
@@ -248,7 +287,26 @@ function makeAvatarTorsoGeometry(avatar) {
 function makeFabricTexture(fabric, sourceField = 'src', colorTexture = false) {
   const source = fabric?.texture?.[sourceField]
   if (!source) return null
-  const texture = new THREE.TextureLoader().load(source)
+  const wash=normalizeWashSpec(fabric.wash)
+  const appliesWash=colorTexture&&wash.type!=='raw'&&wash.strength>0
+  const isLicensedPhoto=colorTexture&&Boolean(fabric.texture?.scanAssetId)
+  const rebalanceRoughness=sourceField==='roughnessSrc'&&shouldBalanceFabricRoughness(fabric)
+  const texture = new THREE.TextureLoader().load(source,(loaded)=>{
+    if (!appliesWash && !isLicensedPhoto && !rebalanceRoughness) return
+    const sourceImage=loaded.image
+    const size={
+      width:Math.min(768,sourceImage?.naturalWidth||sourceImage?.width||512),
+      height:Math.min(768,sourceImage?.naturalHeight||sourceImage?.height||512),
+    }
+    // A real scan supplies material yarn variation; tinting reproduces the
+    // selected dye color rather than multiplying its original dye twice.
+    const processed=rebalanceRoughness
+      ? balanceScannedRoughness(sourceImage,fabric,size)
+      : isLicensedPhoto
+      ? tintLicensedFabricScan(sourceImage,fabric,size)
+      : washTextureImage(sourceImage,wash,size)
+    if (processed) {loaded.image=processed;loaded.needsUpdate=true}
+  })
   texture.colorSpace = colorTexture ? THREE.SRGBColorSpace : THREE.NoColorSpace
   texture.wrapS = THREE.RepeatWrapping
   texture.wrapT = THREE.RepeatWrapping
@@ -267,6 +325,7 @@ function textileMapSignature(fabric = {}) {
     fabric.thickness, texture.src, texture.normalSrc, texture.roughnessSrc,
     texture.metalnessSrc, texture.opacitySrc, texture.displacementSrc,
     texture.repeatWidthCm, texture.repeatHeightCm, texture.rotationDeg,
+    fabric.wash, fabric.color,
   ])
 }
 
@@ -284,16 +343,18 @@ function makeFabricSurfaceMaps(fabric) {
     normalMap: uploadedNormal || generated?.normalMap || null,
     roughnessMap: uploadedRoughness || generated?.roughnessMap || null,
     metalnessMap: uploadedMetalness,
-    alphaMap: uploadedOpacity,
+    alphaMap: uploadedOpacity || generated?.alphaMap || null,
     displacementMap: uploadedDisplacement,
     proceduralChannels: {
       color: !uploadedColor, normal: !uploadedNormal, roughness: !uploadedRoughness,
+      alpha:!uploadedOpacity&&Boolean(generated?.alphaMap),
     },
     family: generated?.family || fabric.surfaceFamily || 'uploaded-pbr',
   }
   if (uploadedColor) generated?.colorMap?.dispose?.()
   if (uploadedNormal) generated?.normalMap?.dispose?.()
   if (uploadedRoughness) generated?.roughnessMap?.dispose?.()
+  if (uploadedOpacity) generated?.alphaMap?.dispose?.()
   return maps
 }
 
@@ -1469,7 +1530,9 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       if (!hasSimulated) setStagedGeometry(geometry, stagedPositions)
       const fabric = project.fabrics?.[simPiece.piece.fabricId] || project.fabrics?.main || {}
       const optics = normalizeFabricOptics(fabric)
-      const fabricColor = new THREE.Color(fabric.color || '#d3d3d3')
+      const wash=normalizeWashSpec(fabric.wash)
+      const hasWash=wash.type!=='raw'&&wash.strength>0
+      const fabricColor = new THREE.Color(hasWash||fabric.texture?.scanAssetId ? '#ffffff':fabric.color || '#d3d3d3')
       const analysisEnabled = analysisModeRef.current !== 'surface'
       const isInterfacing = simPiece.piece.generatedRole === 'interfacing'
       const surfaceMaps = makeFabricSurfaceMaps(fabric)
@@ -1483,6 +1546,7 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
         roughnessMap: analysisEnabled ? null : roughnessMap,
         metalnessMap: analysisEnabled ? null : metalnessMap,
         alphaMap: analysisEnabled ? null : alphaMap,
+        alphaTest:surfaceMaps.proceduralChannels.alpha ? .40:0,
         displacementMap: analysisEnabled ? null : displacementMap,
         displacementScale: optics.displacementMm / 1000,
         displacementBias: -optics.displacementMm / 2000,
@@ -1634,10 +1698,17 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       }
 
       for (const button of simPiece.piece.buttons || []) {
+        const preset = getHardwarePreset(button.hardwarePresetId)
         const radius = Math.max(0.004, Number(button.diameterCm ?? 1.8) * 0.005)
         const buttonMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(radius, 16, 10),
-          new THREE.MeshStandardMaterial({ color: button.color || '#222222', roughness: 0.48, metalness: 0.05 }),
+          buttonDiscGeometry(button,preset),
+          new THREE.MeshPhysicalMaterial({
+            color: button.color || preset?.pbr.baseColor || '#222222',
+            roughness: preset?.pbr.roughness ?? .48,
+            metalness: preset?.pbr.metalness ?? .05,
+            clearcoat: preset?.pbr.metalness > .6 ? .08 : .2,
+            clearcoatRoughness: .28,
+          }),
         )
         buttonMesh.castShadow = true
         buttonMesh.renderOrder = 32
@@ -1646,7 +1717,8 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
           object: buttonMesh,
           meshRecord,
           vertexIndex: nearestFlatVertexIndex(simPiece, button),
-          lift: radius * 0.72,
+          lift: Math.max(.001,Number(preset?.dimensionsMm.thickness ?? preset?.dimensionsMm.capHeight ?? 2.5)/2000+.0008),
+          orientToSurface:true,
         }
         syncSurfaceOverlay(trimRecord)
         buttonMesh.name = `button-${button.id}`
@@ -1809,7 +1881,8 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
     for (const record of records) {
       const fabric=project.fabrics?.[record.simPiece.piece.fabricId] || project.fabrics?.main || {}
       const optics=normalizeFabricOptics(fabric)
-      record.fabricColor.set(fabric.color || '#d3d3d3')
+      const wash=normalizeWashSpec(fabric.wash)
+      record.fabricColor.set((wash.type!=='raw'&&wash.strength>0)||fabric.texture?.scanAssetId?'#ffffff':fabric.color || '#d3d3d3')
       const material=record.material
       material.color.copy(surfaceMode ? record.fabricColor : new THREE.Color('#ffffff'))
       material.normalScale.set(optics.normalStrength,optics.normalStrength)
@@ -1852,6 +1925,7 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       material.roughnessMap=surfaceMode ? record.roughnessMap : null
       material.metalnessMap=surfaceMode ? record.metalnessMap : null
       material.alphaMap=surfaceMode ? record.alphaMap : null
+      material.alphaTest=surfaceMode&&record.proceduralChannels.alpha ? .40 : 0
       material.displacementMap=surfaceMode ? record.displacementMap : null
       material.depthWrite = !isInterfacing && optics.opacity >= .99 && !record.alphaMap
       material.needsUpdate=true

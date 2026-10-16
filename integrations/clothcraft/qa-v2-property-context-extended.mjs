@@ -9,15 +9,15 @@ import {chromium} from 'playwright-core'
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..')
 const output=mkdtempSync(path.join(root,'integrations/clothcraft/output/qa-property-context-'))
 mkdirSync(path.join(output,'workspace'),{recursive:true})
-const api='http://127.0.0.1:5481',ui='http://127.0.0.1:5482',children=[]
+const api='http://127.0.0.1:5415',ui='http://127.0.0.1:5416',children=[]
 const launch=(binary,args,env={})=>{const p=spawn(binary,args,{cwd:root,detached:true,stdio:'ignore',env:{...process.env,...env}});children.push(p)}
 async function ready(url){for(let i=0;i<100;i++){try{if((await fetch(url,{signal:AbortSignal.timeout(1000)})).ok)return}catch{}if(children.some(p=>p.exitCode!==null))throw Error('Service exited before ready: '+url);await new Promise(r=>setTimeout(r,200))}throw Error('Service timeout: '+url)}
 const all=['Information','Selected Line','Simulation Properties','Fabric','Bond','Solidify','Arrange','Miscellaneous']
 const fabric=['Information','Material','Physical Property','Miscellaneous']
 let browser
 try{
- launch(process.execPath,['integrations/clothcraft/server.mjs'],{EXO_CLOTHCRAFT_PORT:'5481',EXO_CLOTHCRAFT_REPO:path.join(root,'research/oss/clothcraft'),EXO_CLOTHCRAFT_SESSION_BIN:path.join(root,'research/oss/clothcraft/target/debug/exo-session'),EXO_CLOTHCRAFT_OUTPUT_DIR:output,EXO_CLOTHCRAFT_GPU:'0'})
- launch(path.join(root,'node_modules/.bin/vite'),['--host','127.0.0.1','--port','5482','--strictPort'],{VITE_CLOTHCRAFT_BRIDGE_URL:api})
+ launch(process.execPath,['integrations/clothcraft/server.mjs'],{EXO_CLOTHCRAFT_PORT:'5415',EXO_CLOTHCRAFT_REPO:path.join(root,'research/oss/clothcraft'),EXO_CLOTHCRAFT_SESSION_BIN:path.join(root,'research/oss/clothcraft/target/debug/exo-session'),EXO_CLOTHCRAFT_OUTPUT_DIR:output,EXO_CLOTHCRAFT_GPU:'0'})
+ launch(path.join(root,'node_modules/.bin/vite'),['--host','127.0.0.1','--port','5416','--strictPort'],{VITE_CLOTHCRAFT_BRIDGE_URL:api})
  await Promise.all([ready(api+'/health'),ready(ui)])
  browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',args:['--enable-webgl','--ignore-gpu-blocklist','--use-angle=metal']})
  const page=await browser.newPage({viewport:{width:1700,height:1080}}),errors=[]
@@ -33,12 +33,10 @@ try{
  const field=key=>page.locator(`.clo-property-panel [data-property-field="${key}"] input`)
  const commit=async(key,value)=>{const input=field(key);await input.fill(String(value));await input.blur()}
  const undo=()=>page.getByRole('button',{name:'Undo',exact:true}).first()
- assert.deepEqual(await headings(),all)
+ // Saved EXO projects may restore a selected pattern on startup. In that
+ // case the inspector correctly shows the Pattern schema.
+ assert.deepEqual(await headings(),all,'Restored selected pattern opens Pattern groups')
  const host=page.locator('#clo-pattern-properties-host')
- assert.equal(await host.count(),1)
- await expand('Arrange')
- assert.equal(await host.count(),1)
- await list.getByRole('button',{name:'Arrange',exact:true}).click()
  assert.equal(await host.count(),1)
  // The first Scene row is the avatar. It must expose its own limited context.
  assert(await select('Scene'))
@@ -50,6 +48,10 @@ try{
  assert(await patternRow.count(),'Scene must contain a pattern after the avatar')
  await patternRow.click()
  assert.deepEqual(await headings(),all)
+ await expand('Arrange')
+ assert.equal(await host.count(),1)
+ await list.getByRole('button',{name:'Arrange',exact:true}).click()
+ assert.equal(await host.count(),1)
  await expand('Information')
  const originalName=await field('name').inputValue()
  const renamed=originalName+' QA'
