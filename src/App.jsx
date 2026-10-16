@@ -748,6 +748,8 @@ export default function App() {
   const [avatarAvailability, setAvatarAvailability] = useState({ 'makehuman-base': true })
   const [clothCraftBusy, setClothCraftBusy] = useState(false)
   const [clothCraftMeshPreview, setClothCraftMeshPreview] = useState(null)
+  const [clothCraftContactSteps, setClothCraftContactSteps] = useState(3)
+  const [clothCraftContactResult, setClothCraftContactResult] = useState(null)
   useEffect(() => {
     let active = true
     // A private desktop build can have different installed avatar assets than
@@ -3648,6 +3650,39 @@ export default function App() {
     }
   }
 
+  const runClothCraftOgc = async () => {
+    setClothCraftBusy(true)
+    setClothCraftContactResult(null)
+    setCommandResult('ClothCraft Rust VBD + OGC is testing your garment against the selected body mesh…')
+    try {
+      const bridgeUrl = import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193'
+      const response = await fetch(`${bridgeUrl}/contact-simulate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document: project, avatarModel: project.avatar?.model,
+          steps: clothCraftContactSteps }),
+      })
+      const result = await response.json()
+      setClothCraftContactResult(result)
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Rust OGC run failed')
+      if (!result.artifacts?.cloth || !result.artifacts?.avatar) {
+        throw new Error('Rust OGC did not produce the mesh and avatar diagnostic pair')
+      }
+      const [clothResponse, avatarResponse] = await Promise.all([
+        fetch(`${bridgeUrl}${result.artifacts.cloth}`),
+        fetch(`${bridgeUrl}${result.artifacts.avatar}`),
+      ])
+      if (!clothResponse.ok || !avatarResponse.ok) throw new Error('Generated contact mesh could not be fetched')
+      const [obj, avatarObj] = await Promise.all([clothResponse.text(), avatarResponse.text()])
+      setClothCraftMeshPreview({ obj, avatarObj, diagnostics: result,
+        garmentName: project.name, kind: 'ogc' })
+      setCommandResult(`ClothCraft Rust OGC: ${result.completedSteps} steps on ${project.avatar.name}. Worst seam gap ${result.maxSeamGapMm.toFixed(1)} mm, contacts ${result.activeContacts}. ${result.reason} Original EXO simulation is unchanged.`)
+    } catch (error) {
+      setCommandResult(`ClothCraft VBD + OGC unavailable or failed: ${error.message}. EXO simulation remains unchanged.`)
+    } finally {
+      setClothCraftBusy(false)
+    }
+  }
+
   const exportGarmentCode = () => {
     const payload = projectToGarmentCode(project)
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
@@ -5077,6 +5112,15 @@ export default function App() {
 
           {activeSection === 'Fit' && (
             <>
+              <div className="panel-section" aria-label="ClothCraft OGC contact solver">
+                <div className="panel-title"><span>ClothCraft Rust · VBD + OGC</span><strong>OPT-IN</strong></div>
+                <p className="panel-copy">Run ClothCraft's actual CPU solver with the current EXO garment and {project.avatar.name}. The Thomas and MakeHuman body-only collision meshes are supported. The result opens as a 3D comparison with both cloth and avatar. Your editable pattern and existing live solver stay unchanged.</p>
+                <label className="select-field"><span>Rust OGC steps</span><select value={clothCraftContactSteps} onChange={(event) => setClothCraftContactSteps(Number(event.target.value))}><option value={1}>1 · Contact diagnostic</option><option value={3}>3 · Short trial</option><option value={10}>10 · Relaxation trial</option><option value={30}>30 · Extended trial</option></select></label>
+                <button className="wide-action" disabled={clothCraftBusy} onClick={runClothCraftOgc}><Cpu size={15} />{clothCraftBusy ? 'RUNNING CLOTHCRAFT VBD + OGC…' : 'RUN CLOTHCRAFT VBD + OGC CONTACT'}</button>
+                {clothCraftContactResult?.ok && <div className="stat-grid" role="status"><MiniStat label="OGC seam peak" value={`${clothCraftContactResult.maxSeamGapMm.toFixed(1)} mm`} /><MiniStat label="OGC contacts" value={String(clothCraftContactResult.activeContacts)} /><MiniStat label="OGC stretch p95" value={`${clothCraftContactResult.p95ExtensionPercent.toFixed(1)}%`} /><MiniStat label="OGC fit accepted" value="NO" /></div>}
+                {clothCraftContactResult?.ok && <p className="panel-copy" style={{color:'#f39a88'}} role="status">{clothCraftContactResult.reason} Experimental normal contact only: no swept CCD, friction or certified sewn-body fit. View the diagnostic mesh before comparing solvers.</p>}
+                {clothCraftContactResult?.error && <p className="panel-copy" style={{color:'#f39a88'}} role="alert">OGC could not complete: {clothCraftContactResult.error}</p>}
+              </div>
               <div className="panel-section" aria-label="ZOZO GitHub original dress simulation test">
                 <div className="panel-title"><span>Original GitHub dress · first fabric test</span><strong>RUST/METAL</strong></div>
                 <p className="panel-copy">The source dress is the original 14-panel upstream example, not a reconstructed pattern. Inspect its real 241-frame body and fabric simulation in the 3D viewport while preserving this editable garment project.</p>
@@ -5315,6 +5359,7 @@ export default function App() {
               </div>
               <button className="wide-action" disabled={clothCraftBusy} onClick={() => sendToClothCraft(false)}><FileDown size={15} />{clothCraftBusy ? 'CLOTHCRAFT RUNNING…' : 'VALIDATE IN CLOTHCRAFT RUST'}</button>
               <button className="wide-action" disabled={clothCraftBusy} onClick={() => sendToClothCraft(true)}><Box size={15} />BAKE CLOTHCRAFT OBJ + TEMPLATE</button>
+              <button className="wide-action" disabled={clothCraftBusy} onClick={() => { setActiveSection('Fit'); void runClothCraftOgc() }}><Cpu size={15} />RUN CLOTHCRAFT VBD + OGC CONTACT · FIT</button>
             </>
           )}
 
@@ -5378,6 +5423,7 @@ export default function App() {
       <WorkspaceCommandPalette open={commandPaletteOpen} commands={STUDIO_COMMANDS} onExecute={executeStudioAction} onClose={() => setCommandPaletteOpen(false)} />
       {clothCraftMeshPreview && (
         <ClothCraftPreview obj={clothCraftMeshPreview.obj} garmentName={clothCraftMeshPreview.garmentName}
+          avatarObj={clothCraftMeshPreview.avatarObj} diagnostics={clothCraftMeshPreview.diagnostics}
           onClose={() => setClothCraftMeshPreview(null)} />
       )}
     </div>
