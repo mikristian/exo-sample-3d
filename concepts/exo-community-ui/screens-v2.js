@@ -10,7 +10,7 @@ export function createPremiumScreens({getAlt,art,assets,escape,showLab,backToCat
  function enter(css){
   closeFullScreen?.();closeFullScreen=null;
   currentViewer?.destroy?.();currentMaterials?.destroy?.();currentViewer=null;currentMaterials=null;
-  const node=getAlt();node.hidden=false;node.className=css;$('#hero').hidden=true;$('.intro-strip').hidden=true;$('.edition-feature').hidden=true;$('#fabric-store')?.setAttribute('hidden','');$('#catalog-section').hidden=true;closeModal();window.scrollTo(0,0);return node;
+  const node=getAlt();node.hidden=false;node.className=css;$('#project-home')?.setAttribute('hidden','');$('#hero').hidden=true;$('.intro-strip').hidden=true;$('.edition-feature').hidden=true;$('#fabric-store')?.setAttribute('hidden','');$('#catalog-section').hidden=true;closeModal();window.scrollTo(0,0);return node;
  }
  function assetDetail(id){
   const a=assets.find(x=>x.id===id);if(!a)return;

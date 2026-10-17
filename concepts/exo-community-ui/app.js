@@ -3,12 +3,22 @@ import {createPremiumScreens} from './screens-v2.js';
 import {mountPatternVisualizer} from './pattern-visualizer.js';
 import {mountMaterialExperience} from './materials-experience.js';
 import {mountFabricStore} from './fabric-store.js';
+import {PROJECTS} from './project-media.js';
+import {mountProjectHomepage} from './project-home.js';
+import {mountExplorePage,mountForumPage} from './community-social.js';
+import {mountDesignerProfiles} from './designer-profiles.js';
+import {mountARExperience} from './ar-experience.js';
+import {mountGarmentExhibition} from './garment-exhibition.js';
 const A=[
 {id:'arc',title:'Arc Shoulder Hoodie',creator:'STUDIO FORM',category:'Garments',tone:'sand',price:'View only',remix:false,formats:['GLB'],kind:'hoodie',desc:'A sculptural French terry silhouette with forward shoulder articulation.',spec:{Silhouette:'Relaxed / oversize',Material:'French Terry',Sizes:'XS–XXL',Source:'Private / view-only'}},
 {id:'denim',title:'Selvedge Straight Denim',creator:'MAISON ZERO',category:'Patterns',tone:'chalk',price:'Free',remix:true,formats:['DXF'],kind:'pattern',desc:'Five-pocket drafting study, grainlines, documented construction.',spec:{Formats:'DXF / SVG',Sizes:'28–38',Seams:'Illustrative',Source:'Remix-friendly concept'}},
 {id:'terry',title:'Loopback French Terry',creator:'MATERIAL ARCHIVE',category:'Materials',tone:'olive',price:'Free',remix:true,formats:['PBR'],kind:'fabric',desc:'Dense loopback cotton study, procedural weave and neutral finish.',spec:{Weight:'460 GSM (sample metadata)',Appearance:'Procedural',Physics:'Unmeasured',Maps:'Albedo / normal / roughness'}},
 {id:'concrete',title:'Concrete Atelier',creator:'STUDIO FORM',category:'Studios',tone:'studio',price:'$18',remix:true,formats:['GLB','BLEND'],kind:'studio',desc:'A brutalist photo set with neutral surfaces and warm lighting.',spec:{Formats:'BLEND / GLB',Cameras:'Front / ¾ / detail',Lighting:'Three rigs',Source:'Paid concept'}},
-{id:'moto',title:'Moto Layer 02',creator:'MIKRISTIAN LAB',category:'Garments',tone:'ink',price:'View only',remix:false,formats:['GLB'],kind:'jacket',desc:'An architectural padded moto silhouette with original details.',spec:{Fit:'Cropped / articulated',Material:'Washed cotton/padding',Patterns:'Not shared',Source:'Visual only'}},
+{id:'moto',title:'Architectural Moto / CGI Study',creator:'EXO Studio',category:'Garments',tone:'ink',price:'View only',remix:false,formats:['IMAGE'],kind:'jacket',image:'./project-media/moto-study-34.webp',gallery:[
+ {src:'./project-media/moto-study-34.webp',label:'THREE-QUARTER',alt:'EXO original procedural architectural hoodie CGI viewed three-quarter against black studio background'},
+ {src:'./project-media/moto-study-front.webp',label:'FRONT',alt:'Front render of EXO original sculptural padded hoodie CGI development concept'},
+ {src:'./project-media/moto-study-detail.webp',label:'FORM DETAIL',alt:'Close-up of EXO experimental hood and raised seam geometry in Blender CGI'}
+],desc:'An original procedural Blender design-form illustration exploring ribbed architecture and padded moto styling. CGI form study only: not a fitted garment, validated pattern, manufacturer sample, or finished MIKRISTIAN product.',spec:{Model:'Procedural Blender CGI concept',Material:'Illustrative shader, not measured textile',Pattern:'No production pattern',Fit:'Not simulated or validated',Rights:'Original EXO CGI reference only'}},
 {id:'rib',title:'Rib Collar System',creator:'FORMLESS PATTERNS',category:'Patterns',tone:'cream',price:'$12',remix:false,formats:['DXF'],kind:'pattern',desc:'A modular collar and cuffs construction reference.',spec:{Format:'DXF / SVG',Type:'Pattern components',Sizes:'Concept graded templates',Rights:'Paid reference'}},
 {id:'suede',title:'Washed Suede / 07',creator:'TEXTILE LAB',category:'Materials',tone:'clay',price:'Free',remix:false,formats:['PBR'],kind:'fabric',desc:'Soft micro-relief and directional nap with muted variation.',spec:{Surface:'Suede inspired',Maps:'Visual-only',Weight:'Unknown',Physics:'Not calibrated'}},
 {id:'runway',title:'Runway / No. 04',creator:'OTHER SPACES',category:'Studios',tone:'denim',price:'$24',remix:true,formats:['BLEND','GLB'],kind:'studio',desc:'A dramatic linear showroom for multiple avatars.',spec:{Environment:'Runway',Lighting:'Spots',Cameras:'Multiple',Rights:'Paid concept'}}
@@ -16,6 +26,11 @@ const A=[
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
 const safe=v=>String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const state={page:'discover',search:'',sort:'curated',discipline:new Set(),license:new Set(),format:new Set(),remix:false,labFilter:'All',labSearch:'',labFree:false,selected:null,detailTab:'Overview',saved:new Set(),imported:new Set()};
+const EXTRAS=PROJECTS.filter(p=>['Trims','Avatars','Scenes','Garments'].includes(p.category)).map(p=>({id:'work-'+p.id,projectId:p.id,title:p.title,creator:p.creator,category:p.category,tone:'ink',price:'View only',remix:false,formats:['IMAGE'],kind:'studio',image:p.image,desc:p.description,spec:{Source:p.source,Status:'Original project screenshot or render'}}));
+const CATEGORY_NAMES=['All','Garments','Fabrics','Trims','Avatars','Scenes','Patterns'];
+let FABRIC_ITEMS=[],marketLimit=30;
+let marketCategory='All',activeSocialCleanup=null,homeMount=null,arMount=null,garmentExhibition=null;
+const marketName=a=>a.category==='Materials'?'Fabrics':a.category==='Studios'?'Scenes':a.category;
 let artSerial=0;
 function art(x){
  const k=x.kind||x,base=(k==='jacket'?'#4a504b':k==='hoodie'?'#b7ad9d':k==='fabric'?'#a1a795':'#dad8cf');
@@ -38,12 +53,17 @@ let fabricStore=null;
 function hideFabricStore(){const host=$('#fabric-store');if(host){host.hidden=true;fabricStore?.close?.();}}
 function showFabricStore(){
  let host=$('#fabric-store');
- if(!host){host=document.createElement('section');host.id='fabric-store';host.setAttribute('aria-label','EXO Fabric Store');$('#site-content').insertBefore(host,$('#catalog-section'));}
+ if(!host){host=document.createElement('section');host.id='fabric-store';host.setAttribute('aria-label','EXO Fabric Store');$('#catalog-section').insertBefore(host,$('#catalog-section .explore-shell'));}
  host.hidden=false;
  if(!fabricStore)fabricStore=mountFabricStore(host,{mountStudy:(node,asset)=>mountMaterialExperience(node,asset)});
  else fabricStore.refresh();
 }
 function galleryVisual(a){
+ if(a.fabric){
+  const color=/^#[0-9a-f]{6}$/i.test(a.fabric.color||'')?a.fabric.color:'#696969';
+  return '<span class="market-fabric-photo" style="--market-fabric-color:'+color+'"><span class="market-fabric-sample"></span><span class="market-fabric-label">'+safe(a.fabric.family)+'<small>'+safe(a.fabric.gsm==null?'WEIGHT UNKNOWN':a.fabric.gsm+' GSM · ESTIMATED')+'</small></span></span>';
+ }
+ if(a.image)return '<span class="asset-photograph"><img src="'+safe(a.image)+'" alt="'+safe(a.title)+' project render" loading="eager" decoding="async"></span>';
  if(a.category==='Garments'||a.category==='Patterns')return '<span class="asset-preview-mount" data-preview-asset="'+safe(a.id)+'"></span>';
  if(a.category==='Materials')return '<span class="asset-textile-visual '+(a.id==='terry'?'asset-terry':'asset-suede')+'"><span class="textile-cut textile-cut-back"></span><span class="textile-cut textile-cut-front"></span><span class="textile-specimen">SURFACE REFERENCE / '+safe(a.id.toUpperCase())+'</span></span>';
  return art(a);
@@ -88,25 +108,140 @@ function clearWorkspacePreview(){
   workspacePattern(A[0]);
 }
 function closeDetail(){const modal=$('#detail-modal');if(modal.hidden)return;modal.hidden=true;const node=detailOpener;detailOpener=null;if(node?.isConnected&&!node.closest('[hidden]'))node.focus();}
-function filtered(a){return (!f.search||[a.title,a.creator,a.category].join(' ').toLowerCase().includes(f.search))&&(!f.discipline.size||f.discipline.has(a.category))&&(!f.license.size||f.license.has(a.price==='View only'?'View only':a.price==='Free'?'Free':'Paid'))&&(!f.format.size||[...f.format].some(x=>a.formats.includes(x)))&&(!f.remix||a.remix);}
-function results(){const o=A.filter(filtered);if(f.sort==='name')o.sort((a,b)=>a.title.localeCompare(b.title));if(f.sort==='free')o.sort((a,b)=>Number(b.price==='Free')-Number(a.price==='Free'));if(f.sort==='new')o.reverse();return o;}
-function render(){const list=results();galleryViewers.forEach(v=>v.destroy?.());galleryViewers=[];$('#asset-grid').innerHTML=list.map((a,i)=>'<article class="asset-card asset-'+safe(a.category.toLowerCase())+'"><div class="asset-art" data-tone="'+a.tone+'"><span class="asset-card-num">'+String(i+1).padStart(2,'0')+' / '+String(list.length).padStart(2,'0')+'</span>'+galleryVisual(a)+'<span class="asset-card-action" aria-hidden="true">↗</span><span class="asset-visual-label">'+(a.category==='Patterns'?'CUT & CONSTRUCTION':a.category==='Materials'?'TEXTILE / SURFACE':a.category==='Garments'?'GARMENT / 3D STUDY':'SPACE / ENVIRONMENT')+'</span><button class="asset-art-open" type="button" data-open="'+a.id+'" aria-label="Open '+safe(a.title)+' details"></button></div><div class="asset-foot"><div class="asset-meta">EXO / '+safe(a.category.toUpperCase())+' <span>· '+safe(a.creator)+'</span></div><div class="asset-title-row"><button class="asset-title" data-open="'+a.id+'">'+safe(a.title)+'</button><span class="asset-price">'+a.price+'</span></div><div class="asset-description">'+safe(a.desc)+'</div><div class="asset-tags"><span>'+a.formats.join(' / ')+'</span><span>'+(a.remix?'REMIXABLE':'VISUAL ONLY')+'</span></div></div></article>').join('');buildGalleryPreviews();$('#result-count').textContent=String(list.length).padStart(2,'0')+' WORKS';$('#empty-results').hidden=list.length!==0;
+function filtered(a){return (marketCategory==='All'||marketName(a)===marketCategory)&&(!f.search||[a.title,a.creator,marketName(a)].join(' ').toLowerCase().includes(f.search))&&(!f.discipline.size||f.discipline.has(marketName(a)))&&(!f.license.size||f.license.has(a.price==='View only'?'View only':a.price==='Free'?'Free':'Paid'))&&(!f.format.size||[...f.format].some(x=>a.formats.includes(x)))&&(!f.remix||a.remix);}
+function results(){const o=[...A,...EXTRAS,...FABRIC_ITEMS].filter(filtered);if(f.sort==='name')o.sort((a,b)=>a.title.localeCompare(b.title));if(f.sort==='free')o.sort((a,b)=>Number(b.price==='Free')-Number(a.price==='Free'));if(f.sort==='new')o.reverse();return o;}
+function render(){
+ const list=results();
+ // Home is an editorial edit of the collection. Full inventory, advanced
+ // filtering and pagination remain on the dedicated Marketplace route.
+ const editorialLimit=f.page==='discover'?9:marketLimit;
+ const featureIDs=['work-garment-02','work-cathedral-03','work-atelier-01','moto','work-studio-09','terry','work-world-10','denim','work-nyc-07'];
+ const isUnfilteredHome=f.page==='discover'&&marketCategory==='All'&&!f.search&&!f.discipline.size&&!f.license.size&&!f.format.size&&!f.remix&&f.sort==='curated';
+ const visible=isUnfilteredHome?featureIDs.map(id=>list.find(item=>item.id===id)).filter(Boolean):list.slice(0,editorialLimit);
+ galleryViewers.forEach(v=>v.destroy?.());galleryViewers=[];
+ $('#asset-grid').innerHTML=visible.map((a,i)=>'<article class="asset-card asset-'+safe(marketName(a).toLowerCase())+'"><div class="asset-art" data-tone="'+a.tone+'"><span class="asset-card-num">'+String(i+1).padStart(2,'0')+' / '+String(list.length).padStart(2,'0')+'</span>'+galleryVisual(a)+'<span class="asset-card-action" aria-hidden="true">↗</span><span class="asset-visual-label">'+safe(marketName(a).toUpperCase())+' / '+(a.fabric?'TEXTILE REFERENCE':a.image?'PROJECT PHOTO':a.category==='Materials'?'TEXTILE STUDY':'3D REFERENCE')+'</span><button class="asset-art-open" type="button" data-open="'+a.id+'" aria-label="Open '+safe(a.title)+' details"></button></div><div class="asset-foot"><div class="asset-meta">EXO / '+safe(marketName(a).toUpperCase())+' <span>· '+safe(a.creator)+'</span></div><div class="asset-title-row"><button class="asset-title" data-open="'+a.id+'">'+safe(a.title)+'</button><span class="asset-price">'+safe(a.price)+'</span></div><div class="asset-description">'+safe(a.desc)+'</div><div class="asset-tags"><span>'+a.formats.join(' / ')+'</span><span>'+(a.remix?'REMIXABLE':'REFERENCE')+'</span></div></div></article>').join('');
+ buildGalleryPreviews();
+ $('#result-count').textContent=String(list.length).padStart(2,'0')+' WORKS';
+ $('#empty-results').hidden=list.length!==0;
+ let more=$('#catalog-load-more');if(!more){more=document.createElement('button');more.type='button';more.id='catalog-load-more';more.className='exo-catalog-more';more.textContent='LOAD MORE FABRICS & PROJECTS ↓';$('#asset-grid').after(more);}more.hidden=f.page==='discover'||list.length<=marketLimit;
+ const homeCTA=$('#home-market-cta');if(homeCTA){homeCTA.hidden=f.page!=='discover';const total=homeCTA.querySelector('[data-home-total]');if(total)total.textContent=String(list.length).padStart(3,'0');}
  const active=[...f.discipline,...f.license,...f.format,...(f.remix?['Remix permitted']:[])];
  $('#active-filters').innerHTML=active.length?active.map(v=>'<button class="filter-chip" data-clear-one="'+v+'">'+safe(v)+' <span>×</span></button>').join(''):'<span class="quiet">SELECTED WORK / ALL DISCIPLINES</span>';
 }
 function toast(s){const x=$('#toast');x.textContent=s;x.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>x.classList.remove('show'),3600);}
 function clearAll(){for(const x of ['discipline','license','format'])f[x].clear();f.search='';f.remix=false;$('#catalog-search').value='';$$('#facets input').forEach(x=>x.checked=false);render();}
-function closeAlternate(){const alt=$('#alt-view');if(alt){alt.hidden=true;alt.className='alt-page';}}
-function nav(page){f.page=page;document.body.classList.toggle('exo-fabrics-active',page==='materials');$$('[data-nav]').forEach(el=>el.classList.toggle('selected',el.dataset.nav===page));if(page==='creators'){hideFabricStore();alternate('CREATOR NETWORK','People who make the world.','Discover fashion designers, patternmakers and artists behind the archive.',[['STUDIO FORM','Garment design','PROFILE'],['TEXTILE LAB','Materials and textiles','MATERIALS'],['OTHER SPACES','Environmental design','STUDIOS']]);return;}
- if(page==='materials'){window.history.replaceState(null,'','#fabrics');closeAlternate();$('#hero').hidden=true;$('.intro-strip').hidden=true;$('.edition-feature').hidden=true;$('#catalog-section').hidden=true;showFabricStore();window.scrollTo({top:0,behavior:'instant'});return;}
- if(location.hash==='#fabrics')window.history.replaceState(null,'',location.pathname+location.search);
- hideFabricStore();
- closeAlternate();$('#hero').hidden=page!=='discover';$('.intro-strip').hidden=page!=='discover';$('.edition-feature').hidden=page!=='discover';$('#catalog-section').hidden=false;
- const lines={discover:['The archive.','A considered collection of forms, construction studies and textile surfaces.'],patterns:['The pattern room.','Lines, pieces, seams. Construction deserves its own stage.'],materials:['The texture index.','Get closer to the surfaces that give a garment character.'],studios:['Spaces for ideas.','Digital stages, architecture and environments for the final story.']};
- $('#catalog-heading').textContent=lines[page][0];$('#catalog-subtitle').textContent=lines[page][1];f.discipline.clear();if(page==='patterns')f.discipline.add('Patterns');if(page==='materials')f.discipline.add('Materials');if(page==='studios')f.discipline.add('Studios');$$('input[name="discipline"]').forEach(i=>i.checked=f.discipline.has(i.value));render();if(page!=='discover')$('#catalog-section').scrollIntoView({block:'start'});
+function closeAlternate(){activeSocialCleanup?.();activeSocialCleanup=null;const alt=$('#alt-view');if(alt){alt.hidden=true;alt.className='alt-page';}}
+let photoFocus=null;
+function closePhotoProject(){
+ const el=$('#exo-project-detail');if(!el)return;el.remove();document.body.classList.remove('exo-project-open');photoFocus?.focus?.();photoFocus=null;
 }
-function alternate(kicker,title,descr,tiles){hideFabricStore();$('#hero').hidden=true;$('.intro-strip').hidden=true;$('.edition-feature').hidden=true;$('#catalog-section').hidden=true;let alt=$('#alt-view');if(!alt){alt=document.createElement('section');alt.id='alt-view';alt.className='alt-page';$('#site-content').insertBefore(alt,$('.feature-banner'))}alt.hidden=false;alt.innerHTML='<div class="alt-kicker">'+safe(kicker)+' / RESEARCH UI CONCEPT</div><h1>'+safe(title)+'</h1><p>'+safe(descr)+'</p><div class="alt-grid">'+tiles.map(t=>'<button class="alt-tile" data-action="placeholder"><small>EXO / '+safe(t[2])+'</small><strong>'+safe(t[0])+'</strong><span>'+safe(t[1])+' ↗</span></button>').join('')+'</div><div class="alt-actions"><button id="alt-return">Explore the archive ↗</button></div>';$('#alt-return').addEventListener('click',()=>nav('discover'));}
-function view(page){$$('[data-nav]').forEach(el=>el.classList.remove('selected'));if(page==='profile'){creatorProfile();return}if(page==='teams'){alternate('TEAM WORKSPACE','Better together.','Collaborate with factories and patternmakers, without losing source control or approved revisions.',[['PRODUCT WORKROOM','Review and comment','TEAMS'],['INTERACTIVE TECH PACK','Measurements and samples','FACTORY'],['RELEASE HISTORY','Approved snapshots','VERSIONED']]);$$('.alt-tile')[1].dataset.action='techpack';}}
+function openPhotoProject(project){
+ if(!project)return;
+ closePhotoProject();photoFocus=document.activeElement;
+ const dialog=document.createElement('div');dialog.id='exo-project-detail';dialog.className='exo-project-overlay';dialog.dataset.category=project.category||'Unknown';
+ const gallery=Array.isArray(project.gallery)&&project.gallery.length?project.gallery:[{src:project.image,alt:project.alt||project.title,label:'STUDY'}];
+ const multiple=gallery.length>1;
+ let mediaIndex=0;
+ const fullMedia=multiple?'<div class="exo-project-large-photo expo-project-media-gallery"><div class="expo-project-main"><img id="expo-project-active-image" src="'+safe(gallery[0].src)+'" alt="'+safe(gallery[0].alt)+'" decoding="async"><span class="expo-project-source">ORIGINAL DEVELOPMENT RENDER / '+safe(project.category.toUpperCase())+'</span><button type="button" class="expo-project-zoom" data-photo-zoom aria-pressed="false" aria-label="Zoom garment render for detail">EXPAND +</button><div class="expo-project-arrow-controls"><button type="button" data-gallery-arrow="-1" aria-label="Previous render angle">←</button><span id="expo-media-position">01 / '+String(gallery.length).padStart(2,'0')+'</span><button type="button" data-gallery-arrow="1" aria-label="Next render angle">→</button></div></div><div class="expo-project-thumbs" role="group" aria-label="Garment render angles">'+gallery.map((m,i)=>'<button type="button" data-gallery-index="'+i+'" aria-pressed="'+(i===0)+'" aria-label="Show '+safe(m.label)+' render"><img src="'+safe(m.src)+'" alt="" loading="lazy" decoding="async"><span>'+safe(m.label)+'</span></button>').join('')+'</div></div>':'<div class="exo-project-large-photo"><img src="'+safe(project.image)+'" alt="'+safe(project.alt||project.title)+'"><span>ACTUAL WORKSPACE IMAGE · '+safe(project.category.toUpperCase())+'</span></div>';
+ dialog.innerHTML='<div class="exo-project-shade" data-project-close></div><section class="exo-project-panel '+(multiple?'expo-project-panel-gallery':'')+'" role="dialog" aria-modal="true" aria-label="'+safe(project.title)+'">'+fullMedia+'<div class="exo-project-description"><div class="exo-project-top"><span>EXO COMMUNITY / '+(multiple?'MULTI-ANGLE DESIGN STUDY':'PROJECT SPOTLIGHT')+'</span><button type="button" data-project-close aria-label="Close project">✕</button></div><span class="exo-project-category">'+safe(project.category.toUpperCase())+' / CREATOR STUDY</span><h2>'+safe(project.title)+'</h2><p>'+safe(project.description||project.desc||'Original digital concept study.')+'</p><div class="exo-project-credit"><span>CREATED IN</span><strong>'+safe(project.source||'EXO original procedural reference')+'</strong><span>CURATED CREATOR</span><strong>'+safe(project.creator)+'</strong></div><div class="exo-project-actions"><button type="button" data-project-profile="'+safe(project.creator)+'">View designer portfolio ↗</button>'+(project.assetId?'<button type="button" data-related-asset="'+safe(project.assetId)+'">View related asset ↗</button>':'')+'</div><small>Project media is rendered from the local design workspace. Garment CGI and fit-study images are visual research, not finished product photography or manufacturing/fit validation. Social profiles are prototype only.</small></div></section>';
+ function selectGallery(index){
+  if(!multiple)return;
+  mediaIndex=(index+gallery.length)%gallery.length;
+  const m=gallery[mediaIndex],img=dialog.querySelector('#expo-project-active-image');
+  img.src=m.src;img.alt=m.alt;dialog.querySelector('.expo-project-main')?.classList.remove('is-zoomed');const zoom=dialog.querySelector('[data-photo-zoom]');if(zoom){zoom.setAttribute('aria-pressed','false');zoom.textContent='EXPAND +';}
+  dialog.querySelector('#expo-media-position').textContent=String(mediaIndex+1).padStart(2,'0')+' / '+String(gallery.length).padStart(2,'0');
+  dialog.querySelectorAll('[data-gallery-index]').forEach(btn=>btn.setAttribute('aria-pressed',String(Number(btn.dataset.galleryIndex)===mediaIndex)));
+ }
+ dialog._selectGallery=selectGallery;
+ $('#website').append(dialog);document.body.classList.add('exo-project-open');
+ dialog.addEventListener('click',e=>{
+  if(e.target.classList.contains('exo-project-shade')){closePhotoProject();return;}
+  const zoomButton=e.target.closest('[data-photo-zoom]');if(zoomButton){const isZoomed=dialog.querySelector('.expo-project-main')?.classList.toggle('is-zoomed');zoomButton.setAttribute('aria-pressed',String(Boolean(isZoomed)));zoomButton.textContent=isZoomed?'RESET −':'EXPAND +';return;}
+  const mediaButton=e.target.closest('[data-gallery-index],[data-gallery-arrow]');
+  if(mediaButton){if(mediaButton.dataset.galleryIndex!==undefined)selectGallery(Number(mediaButton.dataset.galleryIndex));else selectGallery(mediaIndex+Number(mediaButton.dataset.galleryArrow));return;}
+  const button=e.target.closest('[data-project-close],[data-project-profile],[data-related-asset]');
+  if(!button)return;
+  if(button.hasAttribute('data-project-close'))closePhotoProject();
+  if(button.dataset.projectProfile){const name=button.dataset.projectProfile;closePhotoProject();nav('profile',name);}
+  if(button.dataset.relatedAsset){const id=button.dataset.relatedAsset;closePhotoProject();detail(id);}
+ });
+ dialog.querySelector('[data-project-close][aria-label]')?.focus({preventScroll:true});
+ dialog.querySelector('.exo-project-panel')?.scrollTo({top:0,behavior:'instant'});
+}
+document.addEventListener('keydown',e=>{
+ const dialog=$('#exo-project-detail');
+ if(!dialog)return;
+ if(e.key==='Escape'){e.preventDefault();closePhotoProject();return;}
+ if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&dialog._selectGallery&&!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)){e.preventDefault();dialog._selectGallery(Number(dialog.querySelector('[data-gallery-index][aria-pressed="true"]')?.dataset.galleryIndex||0)+(e.key==='ArrowRight'?1:-1));return;}
+ if(e.key==='Tab'){
+  const controls=[...dialog.querySelectorAll('button:not([disabled]),a[href],input:not([disabled])')].filter(el=>el.getClientRects().length>0);
+  if(!controls.length)return;
+  const first=controls[0],last=controls[controls.length-1];
+  if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+  else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+ }
+});
+let initializingNavigation=true,historyNavigation=false,lastObservedHash=location.hash;
+function routeHash(page,creatorName){
+ if(historyNavigation)return;
+ const slug={discover:'home',marketplace:'marketplace',explore:'explore',forum:'forum',profile:'profile',ar:'ar'}[page];
+ if(!slug)return;
+ const creatorSlug=creatorName?String(creatorName).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,''):'';
+ const marketSlug=page==='marketplace'&&marketCategory!=='All'?(marketCategory==='Fabrics'?'fabrics':'marketplace/'+encodeURIComponent(marketCategory.toLowerCase())):slug;
+ const target='#'+marketSlug+(page==='profile'&&creatorSlug?'/'+encodeURIComponent(creatorSlug):'');
+ if(location.hash!==target)history[initializingNavigation?'replaceState':'pushState'](null,'',target);
+ lastObservedHash=target;
+}
+function marketplaceCategory(category='All'){
+ marketCategory=CATEGORY_NAMES.includes(category)?category:'All';
+ garmentExhibition?.setVisible(f.page==='marketplace'&&(marketCategory==='All'||marketCategory==='Garments'));
+ $$('[data-market-category]').forEach(el=>{const active=el.dataset.marketCategory===marketCategory;el.classList.toggle('active',active);el.setAttribute('aria-pressed',String(active));});
+ if(marketCategory==='Fabrics'){showFabricStore();$('#catalog-section .explore-shell').hidden=true;}
+ else{hideFabricStore();$('#catalog-section .explore-shell').hidden=false;}
+ f.discipline.clear();$$('input[name="discipline"]').forEach(i=>i.checked=false);render();
+ if(f.page==='marketplace')routeHash('marketplace');
+}
+function routeSocial(page,creatorName){
+ closeAlternate();hideFabricStore();
+ const alt=$('#alt-view')||(()=>{const n=document.createElement('section');n.id='alt-view';$('#site-content').insertBefore(n,$('.feature-banner'));return n})();
+ alt.hidden=false;alt.className='exo-social-page';
+ const props={projects:PROJECTS,onOpenProject:openPhotoProject,onProfile:(name)=>nav('profile',name)};
+ if(page==='explore')activeSocialCleanup=mountExplorePage(alt,props);
+ else if(page==='forum')activeSocialCleanup=mountForumPage(alt,props);
+ else {alt.className='exo-profile-page';activeSocialCleanup=mountDesignerProfiles(alt,{projects:PROJECTS,creatorId:creatorName||'mikristian-lab',onOpenProject:openPhotoProject,onNavigate:nav});}
+ window.scrollTo({top:0,behavior:'instant'});
+}
+function nav(page,creatorName){
+ if(page==='patterns'){page='marketplace';creatorName=null;marketCategory='Patterns';}
+ if(page==='materials'){page='marketplace';marketCategory='Fabrics';}
+ if(page==='studios'){page='marketplace';marketCategory='Scenes';}
+ if(page==='creators')page='profile';
+ const isHome=page==='discover',isMarket=page==='marketplace',isAR=page==='ar';
+ if(isHome)marketCategory='All';
+ f.page=page;
+ document.body.classList.toggle('exo-home-route',isHome);
+ document.body.classList.toggle('exo-fabrics-active',isMarket&&marketCategory==='Fabrics');
+ document.body.classList.toggle('exo-community-social-active',!isHome&&!isMarket&&!isAR);
+ $$('[data-nav]').forEach(el=>el.classList.toggle('selected',el.dataset.nav===page));
+ $('#hero').hidden=true;$('.intro-strip').hidden=true;$('.edition-feature').hidden=true;
+ $('#project-home').hidden=!isHome;$('#catalog-section').hidden=!(isHome||isMarket);
+ $('#ar-studio').hidden=!isAR;
+ $('#home-action-reel').hidden=!isHome;
+ if(isHome||isMarket){
+   closeAlternate();
+   homeMount?.[isHome?'resume':'pause']?.();
+   if(isMarket&&marketCategory==='All')marketCategory='All';
+   marketplaceCategory(marketCategory);
+   $('#catalog-heading').textContent=isHome?'Explore the edit.':'The marketplace.';
+   $('#catalog-subtitle').textContent=isHome?'A small selection from our digital resource library. Go deeper in the complete marketplace.':'One archive for garments, fabrics, trims, avatars, scenes and pattern resources.';
+   if(isMarket)$('#catalog-section').scrollIntoView({block:'start'});
+   else window.scrollTo({top:0,behavior:'instant'});
+ }else if(isAR){closeAlternate();homeMount?.pause?.();$('#ar-studio').scrollIntoView({block:'start',behavior:'instant'});}
+ else {homeMount?.pause?.();routeSocial(page,creatorName);}
+ routeHash(page,creatorName);
+}
+function alternate(kicker,title,descr,tiles){hideFabricStore();$('#project-home').hidden=true;$('#hero').hidden=true;$('.intro-strip').hidden=true;$('.edition-feature').hidden=true;$('#catalog-section').hidden=true;let alt=$('#alt-view');if(!alt){alt=document.createElement('section');alt.id='alt-view';alt.className='alt-page';$('#site-content').insertBefore(alt,$('.feature-banner'))}alt.hidden=false;alt.innerHTML='<div class="alt-kicker">'+safe(kicker)+' / RESEARCH UI CONCEPT</div><h1>'+safe(title)+'</h1><p>'+safe(descr)+'</p><div class="alt-grid">'+tiles.map(t=>'<button class="alt-tile" data-action="placeholder"><small>EXO / '+safe(t[2])+'</small><strong>'+safe(t[0])+'</strong><span>'+safe(t[1])+' ↗</span></button>').join('')+'</div><div class="alt-actions"><button id="alt-return">Explore the archive ↗</button></div>';$('#alt-return').addEventListener('click',()=>nav('discover'));}
+function view(page){$$('[data-nav]').forEach(el=>el.classList.remove('selected'));if(page==='profile'){nav('profile');return}if(page==='teams'){alternate('TEAM WORKSPACE','Better together.','Collaborate with factories and patternmakers, without losing source control or approved revisions.',[['PRODUCT WORKROOM','Review and comment','TEAMS'],['INTERACTIVE TECH PACK','Measurements and samples','FACTORY'],['RELEASE HISTORY','Approved snapshots','VERSIONED']]);$$('.alt-tile')[1].dataset.action='techpack';}}
 function creatorProfile(tab='Work'){
  $('#hero').hidden=true;$('.intro-strip').hidden=true;$('.edition-feature').hidden=true;$('#catalog-section').hidden=true;let alt=$('#alt-view');
  if(!alt){alt=document.createElement('section');alt.id='alt-view';$('#site-content').insertBefore(alt,$('.feature-banner'))}
@@ -136,7 +271,7 @@ function techpack(){
  secondRound.enhanceTechPack();
  window.scrollTo(0,0);
 }
-function detail(id){const a=A.find(x=>x.id===id);if(!a)return;detailOpener=document.activeElement;f.selected=id;f.detailTab='Overview';$('#detail-title').textContent=a.title;$('#detail-kind').textContent='EXO / '+a.category.toUpperCase()+' / '+a.id.toUpperCase();$('#detail-creator').textContent='By '+a.creator+' · '+a.price;$('#detail-art').innerHTML=art(a);$('#detail-art').style.background={sand:'#cfc6b4',chalk:'#d7d7cf',ink:'#646a65',cream:'#cec6b8',denim:'#9da7a4',olive:'#b0b1a1',clay:'#a99989',studio:'#bebdb5'}[a.tone];$('#detail-save').textContent=f.saved.has(id)?'✓ Saved to collection':'＋ Save to collection';$('#detail-primary').textContent=a.price==='View only'?'Inspect in Pattern Lab ↗':a.price==='Free'?'Preview for import ↗':'Review license in Pattern Lab ↗';detailBody();$('#detail-modal').hidden=false;$('#detail-close').focus();}
+function detail(id){const a=A.find(x=>x.id===id);if(a?.gallery?.length){openPhotoProject({...a,alt:a.gallery[0].alt,description:a.desc,source:'EXO Studio · original illustrative Blender CGI · not production geometry'});return;}if(!a){if(id.startsWith('work-'))openPhotoProject(PROJECTS.find(p=>p.id===id.slice(5)));else if(id.startsWith('fabric:')){if(f.page!=='marketplace')nav('marketplace');marketplaceCategory('Fabrics');fabricStore?.select?.(id.slice(7));}return;}detailOpener=document.activeElement;f.selected=id;f.detailTab='Overview';$('#detail-title').textContent=a.title;$('#detail-kind').textContent='EXO / '+a.category.toUpperCase()+' / '+a.id.toUpperCase();$('#detail-creator').textContent='By '+a.creator+' · '+a.price;$('#detail-art').innerHTML=art(a);$('#detail-art').style.background={sand:'#cfc6b4',chalk:'#d7d7cf',ink:'#646a65',cream:'#cec6b8',denim:'#9da7a4',olive:'#b0b1a1',clay:'#a99989',studio:'#bebdb5'}[a.tone];$('#detail-save').textContent=f.saved.has(id)?'✓ Saved to collection':'＋ Save to collection';$('#detail-primary').textContent=a.price==='View only'?'Inspect in Pattern Lab ↗':a.price==='Free'?'Preview for import ↗':'Review license in Pattern Lab ↗';detailBody();$('#detail-modal').hidden=false;$('#detail-close').focus();}
 function detailBody(){const a=A.find(x=>x.id===f.selected);if(!a)return;$$('[data-detail-tab]').forEach(b=>b.classList.toggle('active',b.dataset.detailTab===f.detailTab));if(f.detailTab==='Overview')$('#detail-body').innerHTML='<p>'+safe(a.desc)+'</p><p><strong>Rights:</strong> '+(a.price==='View only'?'Preview only. Original source remains private.':'Demonstration listing with no downloadable files.')+'</p>';if(f.detailTab==='Specifications')$('#detail-body').innerHTML='<dl>'+Object.entries(a.spec).map(([k,v])=>'<dt>'+safe(k)+'</dt><dd>'+safe(v)+'</dd>').join('')+'</dl>';if(f.detailTab==='License')$('#detail-body').innerHTML='<p>'+ (a.price==='View only'?'Not available for download or editing.':a.price==='Free'?'Conceptually free. A real license and files would still be verified.':'Payment rights and entitlement are not implemented.')+'</p><p>This research prototype makes no actual sale, file grant, or file transfer.</p>';}
 function labResults(){let a=A.filter(x=>(f.labFilter==='All'||x.category===f.labFilter)&&(!f.labSearch||[x.title,x.creator,x.category].join(' ').toLowerCase().includes(f.labSearch)));if(f.labFree)a.sort((x,y)=>Number(y.price==='Free')-Number(x.price==='Free'));return a;}
 function labRender(){const a=labResults();$('#lab-result-count').textContent=a.length+' ASSETS';$('#lab-items').innerHTML=a.map(x=>'<button class="lab-item '+(f.selected===x.id?'active':'')+'" data-lab-id="'+x.id+'"><span class="lab-thumb">'+art(x)+'</span><span class="lab-copy"><strong>'+safe(x.title)+'</strong><small>'+safe(x.creator)+' · '+x.category+'</small><em>'+x.price+' · '+x.formats.join(' / ')+'</em></span><span class="lab-arrow">›</span></button>').join('')||'<p style="padding:16px;font-size:11px">No matching assets. Try another query.</p>';$$('[data-lab-filter]').forEach(x=>x.classList.toggle('on',x.dataset.labFilter===f.labFilter));}
@@ -169,11 +304,22 @@ $('#pattern-board').addEventListener('click',event=>{
  $('#property-selected').textContent=piece.querySelector('span')?.textContent || 'Pattern section';
 });
 $('.brand').addEventListener('click',event=>{event.preventDefault();nav('discover');window.scrollTo({top:0,behavior:'smooth'});});
-document.addEventListener('click',ev=>{const b=ev.target.closest('[data-nav],[data-view],[data-open],[data-lab-id],[data-clear-one],[data-action]');if(!b)return;if(b.dataset.nav){nav(b.dataset.nav);return}if(b.dataset.view){view(b.dataset.view);return}if(b.dataset.open){detail(b.dataset.open);return}if(b.dataset.labId){labInfo(b.dataset.labId);labRender();return}if(b.dataset.clearOne){const v=b.dataset.clearOne;if(v==='Remix permitted'){f.remix=false;$('#remix-check').checked=false;}else{for(const kind of ['discipline','license','format'])f[kind].delete(v);$$('#facets input').filter(x=>x.value===v).forEach(x=>x.checked=false);}render();return}if(b.dataset.action){if(b.dataset.action==='studio'){enterApp();return}if(b.dataset.action==='techpack'){techpack();return}if(b.dataset.action==='upload'){secondRound.publishWizard();return}if(b.dataset.action==='asset-full'){secondRound.assetDetail(f.selected);return}toast('Concept section only. No external actions.');}});
+document.addEventListener('click',ev=>{
+ if(ev.target.closest('.exo-social-root,.dp-root,.exo-ar-root'))return;
+ const b=ev.target.closest('[data-nav],[data-view],[data-open],[data-lab-id],[data-clear-one],[data-action],[data-market-category]');
+ if(!b)return;
+ if(b.dataset.marketCategory){nav('marketplace');marketplaceCategory(b.dataset.marketCategory);document.body.classList.toggle('exo-fabrics-active',b.dataset.marketCategory==='Fabrics');return;}
+ if(b.dataset.nav){marketCategory='All';nav(b.dataset.nav);return;}
+ if(b.dataset.view){view(b.dataset.view);return;}
+ if(b.dataset.open){detail(b.dataset.open);return;}
+ if(b.dataset.labId){labInfo(b.dataset.labId);labRender();return;}
+ if(b.dataset.clearOne){const v=b.dataset.clearOne;if(v==='Remix permitted'){f.remix=false;$('#remix-check').checked=false;}else{for(const kind of ['discipline','license','format'])f[kind].delete(v);$$('#facets input').filter(x=>x.value===v).forEach(x=>x.checked=false);}render();return;}
+ if(b.dataset.action){if(b.dataset.action==='studio'){enterApp();return;}if(b.dataset.action==='techpack'){techpack();return;}if(b.dataset.action==='upload'){secondRound.publishWizard();return;}if(b.dataset.action==='asset-full'){secondRound.assetDetail(f.selected);return;}toast('Concept section only. No external actions.');}
+});
 $$('#facets input').forEach(i=>i.addEventListener('change',()=>{if(i.name&&f[i.name]){i.checked?f[i.name].add(i.value):f[i.name].delete(i.value)}else f.remix=$('#remix-check').checked;render()}));
 $('#catalog-search').addEventListener('input',e=>{f.search=e.target.value.trim().toLowerCase();render()});$('#sort-choice').addEventListener('change',e=>{f.sort=e.target.value;render()});
 $('#clear-filters').addEventListener('click',clearAll);$('#empty-clear').addEventListener('click',clearAll);$('#grid-toggle').addEventListener('click',()=>$('#asset-grid').classList.toggle('compact'));$('#mobile-filter-toggle').addEventListener('click',()=>$('#facets').classList.toggle('visible'));
-$('#top-search-trigger').addEventListener('click',()=>{if($('#fabric-store')&&!$('#fabric-store').hidden){$('#exfs-search').focus();$('#exfs-search').scrollIntoView({block:'center'});return;}nav('discover');$('#catalog-search').focus();$('#catalog-section').scrollIntoView()});
+$('#top-search-trigger').addEventListener('click',()=>{if($('#fabric-store')&&!$('#fabric-store').hidden){$('#exfs-search').focus();$('#exfs-search').scrollIntoView({block:'center'});return;}marketCategory='All';nav('marketplace');$('#catalog-search').focus();$('#catalog-section').scrollIntoView()});
 $('#detail-close').addEventListener('click',closeDetail);$('#detail-modal').addEventListener('click',e=>{if(e.target.id==='detail-modal')closeDetail()});
 $$('[data-detail-tab]').forEach(x=>x.addEventListener('click',()=>{f.detailTab=x.dataset.detailTab;detailBody()}));
 $('#detail-save').addEventListener('click',()=>{const id=f.selected;f.saved.has(id)?f.saved.delete(id):f.saved.add(id);$('#detail-save').textContent=f.saved.has(id)?'✓ Saved to collection':'＋ Save to collection';toast('Changed the demo saved collection.')});
@@ -182,20 +328,53 @@ $('#launch-lab').addEventListener('click',enterApp);$('#back-to-site').addEventL
 $('#lab-search').addEventListener('input',e=>{f.labSearch=e.target.value.trim().toLowerCase();labRender()});$('#lab-free').addEventListener('change',e=>{f.labFree=e.target.checked;labRender()});
 $$('[data-lab-filter]').forEach(x=>x.addEventListener('click',()=>{f.labFilter=x.dataset.labFilter;labRender()}));
 $('#lab-close').addEventListener('click',()=>$('#lab-drawer').classList.add('closed'));$('#close-lab').addEventListener('click',()=>$('#lab-drawer').classList.toggle('closed'));$('#open-lab-from-panel').addEventListener('click',()=>$('#lab-drawer').classList.remove('closed'));$('#app-library').addEventListener('click',()=>toast('The demo library holds '+f.imported.size+' assets; live EXO is unchanged.'));
-document.addEventListener('keydown',ev=>{const typing=['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);if(ev.key==='Escape'){closeDetail();$('#facets').classList.remove('visible')}if((ev.key==='/'||((ev.metaKey||ev.ctrlKey)&&ev.key.toLowerCase()==='k'))&&!typing){ev.preventDefault();if(!$('#app-surface').hidden){$('#lab-search').focus();}else if($('#fabric-store')&&!$('#fabric-store').hidden){$('#exfs-search').focus();}else{nav('discover');$('#catalog-search').focus();}}});
+document.addEventListener('keydown',ev=>{const typing=['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName);if(ev.key==='Escape'){closeDetail();$('#facets').classList.remove('visible')}if((ev.key==='/'||((ev.metaKey||ev.ctrlKey)&&ev.key.toLowerCase()==='k'))&&!typing){ev.preventDefault();if(!$('#app-surface').hidden){$('#lab-search').focus();}else if($('#fabric-store')&&!$('#fabric-store').hidden){$('#exfs-search').focus();}else{marketCategory='All';nav('marketplace');$('#catalog-search').focus();}}});
 document.addEventListener('keydown',ev=>{if(ev.key!=='Tab'||$('#detail-modal').hidden)return;const visible=[...$('#detail-modal').querySelectorAll('button:not([disabled]),a[href],input:not([disabled])')].filter(x=>x.getClientRects().length);if(!visible.length)return;const first=visible[0],last=visible[visible.length-1];if(ev.shiftKey&&document.activeElement===first){ev.preventDefault();last.focus()}else if(!ev.shiftKey&&document.activeElement===last){ev.preventDefault();first.focus()}});
-mountPatternVisualizer($('#hero-garment'),A[0],{mode:'3d'});
-mountPatternVisualizer($('#spotlight-denim'),A[1],{mode:'3d'});
-$('#spotlight-denim .exo-pv-stage')?.setAttribute('tabindex','-1');
+// Previous prototype hero preview regions remain hidden for legacy reference.
+// The new photo-led homepage avoids mounting two invisible animated canvases.
 $('#app-3d-art').innerHTML=art('hoodie');render();labRender();
-window.EXO_CONCEPT={assets:A,state:f,render,labRender,enterApp,leaveApp,detail,art,toast,nav};
+homeMount=mountProjectHomepage($('#project-home'),{projects:PROJECTS,onOpen:openPhotoProject,onExplore:()=>nav('explore'),onProfile:(name)=>nav('profile',name),onMarketplace:category=>{nav('marketplace');marketplaceCategory(category);}});
+garmentExhibition=mountGarmentExhibition($('#garment-exhibition'));
+arMount=mountARExperience($('#ar-studio'),{projects:PROJECTS,onMarketplace:()=>{marketCategory='All';nav('marketplace');},onOpenProject:openPhotoProject});
+fetch('./fabric-index.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw new Error('Fabric index unavailable');return response.json()}).then(data=>{
+ const records=Array.isArray(data.fabrics)?data.fabrics:[];
+ FABRIC_ITEMS=records.map((x,i)=>({id:'fabric:'+String(x.id),title:x.name,creator:'EXO FABRIC REFERENCE',category:'Fabrics',tone:'ink',price:'View only',remix:false,formats:['PRESET'],kind:'fabric',fabric:x,desc:(x.family||'Textile')+' · '+(x.finish||'Base surface')+' · estimated material data, not calibrated against a real swatch',spec:{Mass:x.gsm,Source:'EXO fabric presets'}}));
+ render();
+}).catch(()=>{});
+$('#catalog-load-more')?.addEventListener('click',()=>{marketLimit+=30;render();});
+window.EXO_CONCEPT={assets:A,projects:PROJECTS,state:f,render,labRender,enterApp,leaveApp,detail,art,toast,nav,marketplaceCategory};
 const secondRound=createPremiumScreens({
  getAlt:()=>{let node=$('#alt-view');if(!node){node=document.createElement('section');node.id='alt-view';$('#site-content').insertBefore(node,$('.feature-banner'))}return node},
  art,assets:A,escape:safe,mountVisualizer:mountPatternVisualizer,mountMaterials:(container,asset,options={})=>mountMaterialExperience(container,asset,{...options,onMaterialChange:material=>{options.onMaterialChange?.(viewerMaterialName(material))}}),
  showLab:id=>{enterApp();f.labFilter='All';f.labSearch='';$('#lab-search').value='';labRender();labInfo(id)},
- backToCatalog:()=>nav('discover'),
+ backToCatalog:()=>nav(['discover','marketplace','explore','forum','profile','ar'].includes(f.page)?f.page:'discover'),
  notify:toast,
  closeModal:()=>{$('#detail-modal').hidden=true}
 });
 window.EXO_CONCEPT.screens=secondRound;
-if(location.hash==='#fabrics'||location.hash==='#materials')nav('materials');
+function navigateFromHash(){
+ const hash=decodeURIComponent(location.hash.slice(1));
+ if(hash==='fabrics'||hash==='materials'){marketCategory='Fabrics';nav('marketplace');}
+ else if(hash.startsWith('marketplace/')){marketCategory=CATEGORY_NAMES.find(x=>x.toLowerCase()===hash.slice(12))||'All';nav('marketplace');}
+ else if(hash==='marketplace'){marketCategory='All';nav('marketplace');}
+ else if(hash==='explore'||hash==='forum'||hash==='ar')nav(hash);
+ else if(hash.startsWith('profile/'))nav('profile',hash.slice(8));
+ else if(hash==='profile')nav('profile');
+ else if(hash.startsWith('project-')){
+  const priorHistory=historyNavigation;historyNavigation=true;
+  try{nav('explore');}finally{historyNavigation=priorHistory;}
+  const item=PROJECTS.find(p=>p.id===hash.slice(8));if(item)openPhotoProject(item);
+ }
+ else nav('discover');
+}
+navigateFromHash();
+initializingNavigation=false;
+lastObservedHash=location.hash;
+function onNavigationHistory(){
+ if(location.hash===lastObservedHash)return;
+ lastObservedHash=location.hash;historyNavigation=true;
+ closePhotoProject();
+ try{navigateFromHash();}finally{historyNavigation=false;}
+}
+window.addEventListener('popstate',onNavigationHistory);
+window.addEventListener('hashchange',onNavigationHistory);
