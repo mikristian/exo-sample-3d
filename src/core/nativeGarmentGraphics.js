@@ -4,6 +4,49 @@ const MAX_BYTES = 8 * 1024 * 1024
 const MAX_PIXELS = 16_000_000
 const MAX_DATA_URL_LENGTH = 24 * 1024 * 1024
 export const GARMENT_GRAPHICS_DOCUMENT_VERSION = 1
+// Actual EXO V2 runtime Rust port: a dependency-free WebAssembly
+// module built from ClothCraft's shared src/garment/graphic_uv_kernel.rs.
+// Until it loads (or when WebAssembly is unavailable), math remains identical
+// through the previous JS calculation; the shader/texture renderer stays Three.js.
+let rustGraphicUV = null
+let rustGraphicUVPromise = null
+const RUST_UV_EXPORTS = ['exo_graphic_uv_u','exo_graphic_uv_v','exo_graphic_width_uv','exo_graphic_rotation_radians','exo_graphic_mm_ratio','exo_graphic_mm_to_uv_v']
+
+export function rustGraphicUVReady() { return rustGraphicUV !== null }
+
+export async function initRustGraphicUV(wasmBytes = null) {
+  if (rustGraphicUV) return true
+  if (typeof WebAssembly === 'undefined') return false
+  if (!wasmBytes && rustGraphicUVPromise) return rustGraphicUVPromise
+  const load = async () => {
+    const binary = wasmBytes || await (async () => {
+      const response = await fetch('/graphic-presets/exo-graphic-uv.wasm', {cache:'force-cache'})
+      if (!response.ok) throw new Error('Rust garment UV kernel is not available')
+      return response.arrayBuffer()
+    })()
+    const module = await WebAssembly.instantiate(binary, {})
+    const kernel = module.instance?.exports || module.exports
+    if (!kernel || RUST_UV_EXPORTS.some(name => typeof kernel[name] !== 'function')) throw new Error('Unsupported Rust garment UV kernel')
+    // Refuse an incompatible/mismatched wasm binary. These values must match
+    // the JavaScript editor's origin, angle direction, and width constraints.
+    const near = (a,b) => Math.abs(a-b) < 1e-12
+    if (!near(kernel.exo_graphic_uv_u(.3),.3) || !near(kernel.exo_graphic_uv_v(.3),.7) ||
+        !near(kernel.exo_graphic_width_uv(2),1.5) ||
+        !near(kernel.exo_graphic_rotation_radians(90),-Math.PI/2) ||
+        !near(kernel.exo_graphic_mm_ratio(176,400),.44) ||
+        !near(kernel.exo_graphic_mm_to_uv_v(232,400),.42)) throw new Error('Rust garment UV kernel fails compatibility check')
+    rustGraphicUV = kernel
+    return true
+  }
+  const pending=load()
+  if (!wasmBytes) rustGraphicUVPromise=pending.catch(()=>false).finally(()=>{rustGraphicUVPromise=null})
+  return wasmBytes?pending:rustGraphicUVPromise
+}
+
+// Starting the load does not block React, a solver frame, or graphic import.
+if (typeof window !== 'undefined' && typeof fetch === 'function' && typeof WebAssembly !== 'undefined') {
+  void initRustGraphicUV().catch(()=>false)
+}
 const SVG_ELEMENTS = new Set(['svg','g','path','rect','circle','ellipse','line','polyline','polygon','defs','linearGradient','radialGradient','stop','clipPath','mask','use','title','desc','text','tspan'])
 const SVG_ATTRIBUTES = new Set(['xmlns','viewBox','width','height','x','y','x1','y1','x2','y2','cx','cy','r','rx','ry','points','d','fill','fill-rule','fill-opacity','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-miterlimit','stroke-dasharray','stroke-dashoffset','stroke-opacity','opacity','transform','gradientUnits','gradientTransform','offset','stop-color','stop-opacity','id','clip-path','mask','href','preserveAspectRatio','font-size','font-family','font-weight','text-anchor','letter-spacing','paint-order','display','visibility'])
 const SVG_PRESENTATION = new Set(['fill','fill-rule','fill-opacity','stroke','stroke-width','stroke-linecap','stroke-linejoin','stroke-miterlimit','stroke-dasharray','stroke-dashoffset','stroke-opacity','opacity','stop-color','stop-opacity','clip-path','mask','font-size','font-family','font-weight','text-anchor','letter-spacing','paint-order','display','visibility'])
@@ -177,7 +220,37 @@ export function deserializeGarmentGraphics(document, options = {}) {
 /** Used by editor drags and the renderer; UV v axis is bottom-up, UI y is top-down. */
 export function graphicPlacementInUV(graphic) {
   const record = normalizeGarmentGraphic(graphic)
+  if (rustGraphicUV) {
+    return {
+      u:rustGraphicUV.exo_graphic_uv_u(record.center[0]),
+      v:rustGraphicUV.exo_graphic_uv_v(record.center[1]),
+      widthUV:rustGraphicUV.exo_graphic_width_uv(record.scale),
+      rotationRadians:rustGraphicUV.exo_graphic_rotation_radians(record.rotation),
+    }
+  }
   return {u: record.center[0], v: 1 - record.center[1], widthUV: record.scale, rotationRadians: -record.rotation * Math.PI / 180}
+}
+
+/** Convert native material-space millimetres to panel-local UV coordinates.
+ * Panel UVs are the garment mesh's immutable physical rest-space metres.
+ * The 3D cloth can deform without changing print dimensions in material space.
+ */
+export function physicalGraphicPlacement(graphic, spanXMetres, spanYMetres) {
+  const record=normalizeGarmentGraphic(graphic)
+  if(!(Number.isFinite(spanXMetres)&&Number.isFinite(spanYMetres)&&spanXMetres>0&&spanYMetres>0))
+    throw new Error('The selected panel has no valid physical UV dimensions')
+  const xMm=spanXMetres*1000,yMm=spanYMetres*1000
+  const widthMm=record.widthMm??record.scale*xMm
+  const heightMm=record.heightMm??widthMm*record.height/record.width
+  const [x,y]=record.positionMm??[record.center[0]*xMm,record.center[1]*yMm]
+  // This is the actual 3D print renderer's positioning path. With the shared
+  // WASM module loaded, physical UV ratios and rotations run inside Rust.
+  const ratio=rustGraphicUV?.exo_graphic_mm_ratio || ((value,span)=>value/span)
+  const uvV=rustGraphicUV?.exo_graphic_mm_to_uv_v || ((value,span)=>1-value/span)
+  const rotation=rustGraphicUV?.exo_graphic_rotation_radians || (degrees=>-degrees*Math.PI/180)
+  return {u:ratio(x,xMm),v:uvV(y,yMm),widthUV:ratio(widthMm,xMm),heightUV:ratio(heightMm,yMm),
+    widthMm,heightMm,xMm:x,yMm:y,rotationRadians:rotation(record.rotation),
+    effectiveDpi:record.width*25.4/widthMm}
 }
 
 /**
