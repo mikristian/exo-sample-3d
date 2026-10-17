@@ -9,9 +9,11 @@ const TOOLS = {
     { name: 'select', label: 'Select / Transform', icon: 'select-2d', options: ['select', 'point', 'split'] },
     { name: 'point', label: 'Edit Pattern Points', icon: 'points', options: ['point', 'curve', 'split'] },
     { name: 'curve', label: 'Edit Curves', icon: 'curve', options: ['curve', 'point', 'split'] },
-    { name: 'sew', label: 'Edit Sewing', icon: 'sew', options: ['sew', 'notch', 'fastener'] },
+    { name: 'polygon', label: 'Draw New Polygon Pattern', icon: 'polygon-tool', options: ['polygon', 'internal'] },
+    { name: 'sew', label: 'Edit Sewing', icon: 'sew', options: ['sew', 'notch', 'allowance', 'fastener'] },
+    { name: 'notch', label: 'Notches / Seam Allowance', icon: 'notch', options: ['notch', 'allowance'] },
     { name: 'internal', label: 'Internal Line / Dart', icon: 'internal', options: ['internal', 'pin', 'measure'] },
-    { name: 'measure', label: 'Measure', icon: 'measure', options: ['measure', 'notch', 'pin'] },
+    { name: 'measure', label: 'Measure', icon: 'measure', options: ['measure', 'notch', 'allowance', 'pin'] },
   ],
   '3d': [
     { name: 'orbit', label: 'Orbit Camera', icon: 'camera', options: ['orbit', 'hand'] },
@@ -23,23 +25,24 @@ const TOOLS = {
 }
 
 const LABELS = {
-  select: 'Select / Transform', point: 'Edit Points', split: 'Add / Split Point',
-  curve: 'Edit Curve', sew: 'Free Sewing', notch: 'Add Notch',
+  select: 'Select / Transform', point: 'Edit Points', split: 'Add / Split Point', polygon: 'Draw Polygon',
+  curve: 'Edit Curve', sew: 'Free Sewing', notch: 'Add Notch', allowance: 'Seam Allowance',
   fastener: 'Fastener', internal: 'Internal Line / Dart', pin: 'Pin',
   measure: 'Measure', orbit: 'Orbit', transform: 'Select / Move',
   move: 'Move', rotate: 'Rotate', hand: 'Fabric Hand',
 }
 const ICONS = {
-  select: 'select-2d', point: 'points', split: 'split', curve: 'curve',
-  sew: 'sew', notch: 'notch', fastener: 'fastener', internal: 'internal',
+  select: 'select-2d', point: 'points', split: 'split', curve: 'curve', polygon: 'polygon-tool',
+  sew: 'sew', notch: 'notch', allowance: 'seam-links', fastener: 'fastener', internal: 'internal',
   pin: 'pin', measure: 'measure', orbit: 'camera', transform: 'select-3d',
   move: 'move-3d', rotate: 'rotate-3d', hand: 'hand',
 }
 
-export default function ViewportQuickTools({ dimension, activeTool, onChangeTool }) {
+export default function ViewportQuickTools({ dimension, activeTool, onChangeTool, availableTools, disabled = false }) {
+  const usable = name => !disabled && (!availableTools || availableTools.includes(name))
   return (
     <div className={`canvas-tool-flyouts clo-corner-toolkit clo-corner-toolkit-${dimension}`} aria-label={`${dimension.toUpperCase()} viewport quick tools`} role="toolbar">
-      {(TOOLS[dimension] || []).map((group) => (
+      {(TOOLS[dimension] || []).filter(group => !availableTools || availableTools.includes(group.name)).map((group) => (
         <div className="canvas-tool-group clo-corner-tool-group" key={group.name}>
           <button
             type="button"
@@ -47,14 +50,15 @@ export default function ViewportQuickTools({ dimension, activeTool, onChangeTool
             title={group.label}
             aria-pressed={activeTool === group.name}
             className={activeTool === group.name ? 'active' : ''}
-            onClick={() => onChangeTool?.(group.name)}
+            disabled={!usable(group.name)}
+            onClick={() => usable(group.name) && onChangeTool?.(group.name)}
           >
             <CadToolIcon id={group.icon} size={21}/>
             <span className="clo-corner-flyout-caret" aria-hidden="true" />
           </button>
           <div className="canvas-tool-options clo-corner-tool-options" role="group" aria-label={`${group.label} alternatives`}>
             {group.options.map((name) => (
-              <button key={name} type="button" className={activeTool === name ? 'active' : ''} aria-label={LABELS[name]} title={LABELS[name]} onClick={() => onChangeTool?.(name)}>
+              <button key={name} type="button" disabled={!usable(name)} className={activeTool === name ? 'active' : ''} aria-label={LABELS[name]} title={usable(name) ? LABELS[name] : `${LABELS[name]} (available in full Garment Studio)`} onClick={() => usable(name) && onChangeTool?.(name)}>
                 <CadToolIcon id={ICONS[name]} size={19}/><span>{LABELS[name]}</span>
               </button>
             ))}

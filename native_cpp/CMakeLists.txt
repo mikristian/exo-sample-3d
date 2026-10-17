@@ -76,6 +76,7 @@ target_sources(garment_cad_core PRIVATE core/zozo_reference_dress.cpp)
 target_sources(garment_cad_core PRIVATE core/seam_assembly_parity_bridge.cpp)
 target_sources(garment_cad_core PRIVATE core/seam_assembly_advanced.cpp)
 target_sources(garment_cad_core PRIVATE core/factory_package_files.cpp)
+target_sources(garment_cad_core PRIVATE core/graded_geometry_parity_bridge.cpp)
 target_link_libraries(garment_cad_core PUBLIC LibXml2::LibXml2)
 target_compile_options(garment_cad_core PRIVATE -Wall -Wextra -Wpedantic)
 

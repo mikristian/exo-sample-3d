@@ -1,3 +1,7 @@
+import { APPAREL_MATERIAL_EXPANSION } from './apparelMaterialExpansion.js'
+import { extendTo400FabricPresets } from './fabricCatalog400.js'
+import { installPolyHavenFabricReferences } from './polyhavenScans.js'
+
 export const FABRIC_PRESETS = {
   jersey: {
     id: 'jersey',
@@ -217,6 +221,23 @@ Object.assign(FABRIC_PRESETS, {
     surfaceFamily:'synthetic',clearcoat:.28,clearcoatRoughness:.38,
   }),
 })
+
+// Extend both the project fabric menu and the browser's editable PBR preview.
+// Existing preset IDs and numerical defaults are left intact for saved files.
+// The values below are representative construction examples, not CLO data.
+for (const {base, ...item} of APPAREL_MATERIAL_EXPANSION) {
+  const parent = FABRIC_PRESETS[base]
+  if (!parent || FABRIC_PRESETS[item.id]) throw new Error('Invalid apparel fabric expansion preset')
+  FABRIC_PRESETS[item.id] = {
+    ...parent, ...item,
+    presetSource: 'EXO illustrative material starting point; no lab measurement',
+  }
+}
+
+// 80 archetypes × 4 additional physical/finish specifications = exactly
+// 400 selectable materials. Append only: preserves every existing preset ID.
+Object.assign(FABRIC_PRESETS,extendTo400FabricPresets(FABRIC_PRESETS))
+export const FABRIC_SCAN_COVERAGE=installPolyHavenFabricReferences(FABRIC_PRESETS)
 
 const frontPoints = [
   { x: -9, y: 71 },

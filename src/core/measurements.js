@@ -157,6 +157,10 @@ export function buildTechPack(project) {
     materials: Object.values(project.fabrics || {}).map((fabric) => ({
       id: fabric.id,
       name: fabric.name,
+      catalogPresetId: fabric.catalogPresetId || null,
+      calibration: fabric.calibration ? structuredClone(fabric.calibration) : null,
+      calibrationEvidence: fabric.calibrationEvidence ? structuredClone(fabric.calibrationEvidence) : null,
+      photoReference: fabric.photoReference ? structuredClone(fabric.photoReference) : null,
       color: fabric.color,
       gsm: fabric.gsm,
       thickness: fabric.thickness,
@@ -181,6 +185,8 @@ export function buildTechPack(project) {
       colorVariation: fabric.colorVariation ?? .25,
       weaveScaleCm: fabric.weaveScaleCm ?? 3,
       surfaceFamily: fabric.surfaceFamily || 'auto',
+      wash: fabric.wash ? structuredClone(fabric.wash) : null,
+      washNote: 'Digitally simulated appearance reference only; validate actual manufacturing treatment and physical fabric behavior with supplier samples.',
       texture: fabric.texture ? {
         colorMap: fabric.texture.name || null,
         normalMap: fabric.texture.normalName || null,

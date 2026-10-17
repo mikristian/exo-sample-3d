@@ -18,6 +18,16 @@ import { assessNativeSolverResult } from '../core/backends/nativeServiceBackend.
 import { makeProceduralTextileMaps } from '../core/textileProcedurals.js'
 import { normalizeFabricOptics } from '../core/fabricSurfaceModel.js'
 import { physicsInputFingerprint, opticalFabricFingerprint } from '../core/visualOnlyChanges.js'
+import { normalizeWashSpec } from '../core/clothWashProcedurals.js'
+import { washTextureImage } from '../core/clothWashImage.js'
+import { tintLicensedFabricScan } from '../core/photographicScanToning.js'
+import { balanceScannedRoughness, shouldBalanceFabricRoughness } from '../core/fabricPbrAppearance.js'
+import { getHardwarePreset } from '../data/hardwarePresets.js'
+import { createStageEnvironment } from '../core/createStageEnvironment.js'
+import { createHanger3D } from './Library3DAssetPreview.jsx'
+import { createHardwareButton3D } from './HardwareButton3D.js'
+import { createButtonholeHardware3D } from './ButtonholeHardware3D.js'
+import { createZipperHardware3D } from './ZipperHardware3D.js'
 
 function syncSurfaceOverlay(record) {
   const position = record.meshRecord.geometry.getAttribute('position')
@@ -69,11 +79,18 @@ function syncSurfaceOverlay(record) {
 
   if (record.type === 'button') {
     const vertexIndex = record.vertexIndex
+    const surfaceNormal=new THREE.Vector3(normal.getX(vertexIndex),normal.getY(vertexIndex),normal.getZ(vertexIndex)).normalize()
     record.object.position.set(
       position.getX(vertexIndex) + normal.getX(vertexIndex) * record.lift,
       position.getY(vertexIndex) + normal.getY(vertexIndex) * record.lift,
       position.getZ(vertexIndex) + normal.getZ(vertexIndex) * record.lift,
     )
+    if (record.orientToSurface) {
+      record.object.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),surfaceNormal)
+      if (record.object.userData.angleDeg) record.object.quaternion.multiply(
+        new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1),THREE.MathUtils.degToRad(record.object.userData.angleDeg)),
+      )
+    }
     return
   }
 
@@ -248,13 +265,36 @@ function makeAvatarTorsoGeometry(avatar) {
 function makeFabricTexture(fabric, sourceField = 'src', colorTexture = false) {
   const source = fabric?.texture?.[sourceField]
   if (!source) return null
-  const texture = new THREE.TextureLoader().load(source)
+  const wash=normalizeWashSpec(fabric.wash)
+  const appliesWash=colorTexture&&wash.type!=='raw'&&wash.strength>0
+  const isLicensedPhoto=colorTexture&&Boolean(fabric.texture?.scanAssetId)
+  const rebalanceRoughness=sourceField==='roughnessSrc'&&shouldBalanceFabricRoughness(fabric)
+  const texture = new THREE.TextureLoader().load(source,(loaded)=>{
+    if (!appliesWash && !isLicensedPhoto && !rebalanceRoughness) return
+    const sourceImage=loaded.image
+    const size={
+      width:Math.min(1024,sourceImage?.naturalWidth||sourceImage?.width||512),
+      height:Math.min(1024,sourceImage?.naturalHeight||sourceImage?.height||512),
+    }
+    // A real scan supplies material yarn variation; tinting reproduces the
+    // selected dye color rather than multiplying its original dye twice.
+    const processed=rebalanceRoughness
+      ? balanceScannedRoughness(sourceImage,fabric,size)
+      : isLicensedPhoto
+      ? tintLicensedFabricScan(sourceImage,fabric,size)
+      : washTextureImage(sourceImage,wash,size)
+    if (processed) {loaded.image=processed;loaded.needsUpdate=true}
+  })
   texture.colorSpace = colorTexture ? THREE.SRGBColorSpace : THREE.NoColorSpace
   texture.wrapS = THREE.RepeatWrapping
   texture.wrapT = THREE.RepeatWrapping
+  texture.anisotropy = 8
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
   texture.center.set(0.5, 0.5)
   texture.rotation = THREE.MathUtils.degToRad(Number(fabric.texture.rotationDeg || 0))
-  texture.needsUpdate = true
+  // TextureLoader sets needsUpdate after the real image arrives. Marking it
+  // ready here races image decoding and triggers repeated empty-map uploads.
   return texture
 }
 
@@ -267,6 +307,7 @@ function textileMapSignature(fabric = {}) {
     fabric.thickness, texture.src, texture.normalSrc, texture.roughnessSrc,
     texture.metalnessSrc, texture.opacitySrc, texture.displacementSrc,
     texture.repeatWidthCm, texture.repeatHeightCm, texture.rotationDeg,
+    fabric.wash, fabric.color,
   ])
 }
 
@@ -284,16 +325,18 @@ function makeFabricSurfaceMaps(fabric) {
     normalMap: uploadedNormal || generated?.normalMap || null,
     roughnessMap: uploadedRoughness || generated?.roughnessMap || null,
     metalnessMap: uploadedMetalness,
-    alphaMap: uploadedOpacity,
+    alphaMap: uploadedOpacity || generated?.alphaMap || null,
     displacementMap: uploadedDisplacement,
     proceduralChannels: {
       color: !uploadedColor, normal: !uploadedNormal, roughness: !uploadedRoughness,
+      alpha:!uploadedOpacity&&Boolean(generated?.alphaMap),
     },
     family: generated?.family || fabric.surfaceFamily || 'uploaded-pbr',
   }
   if (uploadedColor) generated?.colorMap?.dispose?.()
   if (uploadedNormal) generated?.normalMap?.dispose?.()
   if (uploadedRoughness) generated?.roughnessMap?.dispose?.()
+  if (uploadedOpacity) generated?.alphaMap?.dispose?.()
   return maps
 }
 
@@ -353,7 +396,15 @@ function makeAvatar(project) {
   return group
 }
 
-async function upgradeAvatarVisualization(group, project, customAvatar = null) {
+function disposeAvatarObject(root) {
+  root?.traverse((object) => {
+    object.geometry?.dispose?.()
+    const materials = Array.isArray(object.material) ? object.material : object.material ? [object.material] : []
+    for (const material of materials) material?.dispose?.()
+  })
+}
+
+async function upgradeAvatarVisualization(group, project, customAvatar = null, isCurrent = () => true) {
   const avatarModel = project.avatar?.model || 'makehuman-base'
   let detailed
   if (avatarModel === 'clo-thomas') {
@@ -372,6 +423,13 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null) {
     detailed.name = 'makehuman-detailed-avatar'
   }
 
+  // Fast avatar switching can finish an earlier GLB/OBJ request after the new
+  // avatar has been installed. Never attach a stale loaded model to the scene.
+  if (!isCurrent()) {
+    disposeAvatarObject(detailed)
+    return null
+  }
+
   // Skinned CLO avatars need their skeleton updated before computing world bounds.
   detailed.updateMatrixWorld(true)
   const initialBounds = new THREE.Box3().setFromObject(detailed)
@@ -379,6 +437,10 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null) {
   initialBounds.getSize(initialSize)
   const targetHeightM = Math.max(1.4, Math.min(2.2, Number(project.avatar?.heightCm ?? 180) / 100))
   const uniformScale = targetHeightM / Math.max(0.001, initialSize.y)
+  if (!Number.isFinite(uniformScale) || initialSize.y < 0.001) {
+    disposeAvatarObject(detailed)
+    throw new Error('Avatar file contains no measurable body height')
+  }
   detailed.scale.setScalar(uniformScale)
   detailed.updateMatrixWorld(true)
 
@@ -387,6 +449,12 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null) {
   scaledBounds.getCenter(scaledCenter)
   detailed.position.set(-scaledCenter.x, -scaledBounds.min.y, -scaledCenter.z)
   detailed.updateMatrixWorld(true)
+  const finalBounds = new THREE.Box3().setFromObject(detailed)
+  const finalHeightM = finalBounds.max.y - finalBounds.min.y
+  if (!Number.isFinite(finalHeightM) || Math.abs(finalHeightM - targetHeightM) > 0.025) {
+    disposeAvatarObject(detailed)
+    throw new Error(`Avatar normalization failed: ${finalHeightM} m instead of ${targetHeightM} m`)
+  }
 
   const opacity = project.avatar?.visibility ?? 0.82
   const material = new THREE.MeshStandardMaterial({
@@ -417,6 +485,7 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null) {
   for (const child of fallbackChildren) child.visible = false
   group.add(detailed)
   group.userData.visualAvatar = avatarModel
+  group.userData.visualHeightM = finalHeightM
   group.userData.collisionAvatar = 'analytic-parametric'
   return detailed
 }
@@ -445,6 +514,8 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
   const meshAvatarColliderRef = useRef(null)
   const floorRef = useRef(null)
   const gridRef = useRef(null)
+  const stageSceneRef = useRef(null)
+  const hangerSceneRef = useRef(null)
   const windHelperRef = useRef(null)
   const cameraRef = useRef(null)
   const controlsRef = useRef(null)
@@ -1101,6 +1172,10 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       }
       for (const trim of trimRecordsRef.current) {
         if (!trim.meshRecord) continue
+        if (trim.type === 'zipper-hardware') {
+          trim.update()
+          continue
+        }
         if (trim.type === 'button' || trim.type === 'surface-object') {
           syncSurfaceOverlay(trim)
           trim.object.position.add(trim.meshRecord.mesh.position)
@@ -1141,6 +1216,43 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       }
       controls.update()
       updateRings()
+      // Read-only QA probe of actual live scene nodes, refreshed every frame.
+      // Counts instantiated child meshes rather than project/DOM annotations.
+      let hardwareButtonMeshCount = 0
+      let hardwareButtonGroupCount = 0
+      let hardwareButtonholeMeshCount = 0
+      let hardwareButtonholeGroupCount = 0
+      for (const record of trimRecordsRef.current) {
+        if (record.type !== 'button' || !record.object.isGroup || !record.object.parent) continue
+        const isButtonhole=record.object.userData.hardware?.kind==='buttonhole'
+        if(isButtonhole)hardwareButtonholeGroupCount++
+        else hardwareButtonGroupCount++
+        record.object.traverse(child => {
+          if (child.isMesh && child.geometry?.getAttribute('position')?.count > 0 && child.parent){
+            if(isButtonhole)hardwareButtonholeMeshCount++
+            else hardwareButtonMeshCount++
+          }
+        })
+      }
+      renderer.domElement.dataset.hardwareButtonMeshCount = String(hardwareButtonMeshCount)
+      renderer.domElement.dataset.hardwareButtonGroupCount = String(hardwareButtonGroupCount)
+      renderer.domElement.dataset.hardwareButtonholeMeshCount = String(hardwareButtonholeMeshCount)
+      renderer.domElement.dataset.hardwareButtonholeGroupCount = String(hardwareButtonholeGroupCount)
+      const zipperHardware = trimRecordsRef.current.filter(record => record.type === 'zipper-hardware' && record.object.parent)
+      renderer.domElement.dataset.hardwareZipperGroupCount = String(zipperHardware.length)
+      renderer.domElement.dataset.hardwareZipperTapeMeshCount = String(zipperHardware.reduce((sum, record) => sum + record.tapeCount, 0))
+      renderer.domElement.dataset.hardwareZipperToothInstanceCount = String(zipperHardware.reduce((sum, record) => sum + record.toothInstanceCount, 0))
+      renderer.domElement.dataset.hardwareZipperSliderCount = String(zipperHardware.reduce((sum, record) => sum + record.sliderCount, 0))
+      renderer.domElement.dataset.hardwareZipperStopCount = String(zipperHardware.reduce((sum, record) => sum + record.stopCount, 0))
+      renderer.domElement.dataset.hardwareZipperEngagedToothCount = String(zipperHardware.reduce((sum, record) => sum + record.engagedToothCount, 0))
+      renderer.domElement.dataset.hardwareZipperOpenToothCount = String(zipperHardware.reduce((sum, record) => sum + record.openToothCount, 0))
+      renderer.domElement.dataset.hardwareZipperTerminalExtensionMm = String(zipperHardware.reduce((sum, record) => sum + record.endExtensionM * 1000, 0))
+      renderer.domElement.dataset.hardwareZipperStartExtensionMm = String(zipperHardware.reduce((sum, record) => sum + record.startExtensionM * 1000, 0))
+      renderer.domElement.dataset.hardwareZipperEndExtensionMm = String(zipperHardware.reduce((sum, record) => sum + record.endExtensionM * 1000, 0))
+      renderer.domElement.dataset.hardwareZipperPrimarySliderFractions = zipperHardware.map(record => record.primarySliderFraction.toFixed(4)).join(',')
+      renderer.domElement.dataset.hardwareZipperBottomSliderFractions = zipperHardware.map(record => record.bottomSliderFraction.toFixed(4)).join(',')
+      renderer.domElement.dataset.hardwareZipperOpenStartFractions = zipperHardware.map(record => record.openStartFraction.toFixed(4)).join(',')
+      renderer.domElement.dataset.hardwareZipperOpenEndFractions = zipperHardware.map(record => record.openEndFraction.toFixed(4)).join(',')
       renderer.render(scene, camera)
       statsClock += dt
       if (statsClock > 0.5 && simulation) {
@@ -1232,11 +1344,138 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
           materials.forEach((material) => material.dispose?.())
         }
       })
+      if (stageSceneRef.current) stageSceneRef.current.userData.disposed = true
+      stageSceneRef.current = null
+      hangerSceneRef.current = null
       sceneRef.current = null
       cameraRef.current = null
       controlsRef.current = null
     }
   }, [])
+
+  // Scene environments are decorative, reversible Three.js objects. Rebuilding
+  // the stage never rebuilds the cloth solver or changes garment particles.
+  useEffect(() => {
+    const scene = sceneRef.current
+    const canvas = rendererRef.current?.domElement
+    if (!scene || !canvas) return undefined
+    const stageId = project.render?.stageId || 'none'
+    if (stageSceneRef.current) {
+      const previous = stageSceneRef.current
+      previous.userData.disposed = true
+      scene.remove(previous)
+      previous.traverse(node => {
+        node.geometry?.dispose?.()
+        const materials = Array.isArray(node.material) ? node.material : node.material ? [node.material] : []
+        materials.forEach(material => material.dispose?.())
+      })
+      stageSceneRef.current = null
+    }
+    const enabled = stageId !== 'none'
+    if (floorRef.current) floorRef.current.visible = !enabled
+    if (gridRef.current) gridRef.current.visible = !enabled
+    const refreshStageCount = () => {
+      if (stageSceneRef.current?.userData.disposed || !rendererRef.current?.domElement) return
+      let count = 0
+      stageSceneRef.current?.traverse(node => { if (node.isMesh && node.geometry?.getAttribute('position')?.count > 0) count++ })
+      canvas.dataset.stageMeshCount = String(count)
+      canvas.dataset.stageLoaded = String(Boolean(stageSceneRef.current?.userData.loaded))
+      canvas.dataset.stageLoadError = String(stageSceneRef.current?.userData.loadError || '')
+      canvas.dataset.stageStatus = !enabled ? 'none' : stageSceneRef.current?.userData.loadError ? 'error' : stageSceneRef.current?.userData.loaded && count > 0 ? 'ready' : 'loading'
+      // Stage ID signals a completed selection to browser QA and UI observers.
+      // Keep the pending marker until asynchronous GLB geometry has arrived.
+      canvas.dataset.stageId = stageSceneRef.current ? stageId : 'none'
+    }
+    if (enabled) {
+      const stage = createStageEnvironment(THREE, stageId, loadedStage => {
+        if (stageSceneRef.current !== loadedStage) return
+        refreshStageCount()
+      })
+      if (stage) {
+        stageSceneRef.current = stage
+        scene.add(stage)
+      }
+    }
+    refreshStageCount()
+    return () => {
+      const current = stageSceneRef.current
+      if (!current || current.userData.stageId !== stageId) return
+      current.userData.disposed = true
+      scene.remove(current)
+      current.traverse(node => {
+        node.geometry?.dispose?.()
+        const materials = Array.isArray(node.material) ? node.material : node.material ? [node.material] : []
+        materials.forEach(material => material.dispose?.())
+      })
+      stageSceneRef.current = null
+    }
+  }, [project.render?.stageId])
+
+  // The selected hanger is a visual display prop, independent of garment
+  // simulation and all physical collision/attachment constraints.
+  useEffect(() => {
+    const scene = sceneRef.current
+    const canvas = rendererRef.current?.domElement
+    if (!scene || !canvas) return
+    let cancelled = false
+    const disposeHanger = object => {
+      if(!object)return
+      scene.remove(object)
+      object.traverse(node => {
+        node.geometry?.dispose?.()
+        ;(Array.isArray(node.material)?node.material:[node.material]).forEach(mat=>{
+          if(!mat)return
+          for(const key of ['map','normalMap','roughnessMap','metalnessMap','aoMap','emissiveMap'])mat[key]?.dispose?.()
+          mat.dispose?.()
+        })
+      })
+    }
+    const updateDiagnostics = (preset, hanger, source='procedural') => {
+      canvas.dataset.hangerPreset = hanger ? preset : 'none'
+      let meshCount=0
+      hanger?.traverse(node=>{if(node.isMesh)meshCount++})
+      canvas.dataset.hangerMeshCount = String(meshCount)
+      canvas.dataset.hangerGeometrySource = hanger ? source : 'none'
+    }
+    const previous = hangerSceneRef.current
+    if (previous) {
+      disposeHanger(previous)
+      hangerSceneRef.current = null
+    }
+    const hangerPreset = project.render?.hangerPreset || 'none'
+    if (['wood','chrome','velvet','padded','trouser-clip'].includes(hangerPreset)) {
+      // Fast deterministic prop while the two actual CC0 hanger GLBs load.
+      const hanger = createHanger3D(hangerPreset==='trouser-clip'?'chrome':hangerPreset)
+      hanger.position.set(0, 1.55, -.3)
+      hanger.scale.setScalar(.31)
+      hangerSceneRef.current = hanger
+      scene.add(hanger)
+    }
+    updateDiagnostics(hangerPreset,hangerSceneRef.current,'procedural-fallback')
+    const importedUrls={
+      wood:'/hangers/innerscene-shoulder-form.glb',
+      'trouser-clip':'/hangers/innerscene-clip-rail.glb',
+    }
+    if(importedUrls[hangerPreset]){
+      new GLTFLoader().load(importedUrls[hangerPreset],gltf=>{
+        const imported=gltf.scene
+        if(cancelled){imported.traverse(node=>{node.geometry?.dispose?.();(Array.isArray(node.material)?node.material:[node.material]).forEach(mat=>mat?.dispose?.())});return}
+        const bounds=new THREE.Box3().setFromObject(imported)
+        const size=bounds.getSize(new THREE.Vector3())
+        if(!Number.isFinite(size.x)||size.x<.001)return
+        const center=bounds.getCenter(new THREE.Vector3())
+        const scale=.54/size.x
+        imported.scale.setScalar(scale)
+        imported.position.set(-center.x*scale,1.65-center.y*scale,-.3-center.z*scale)
+        imported.traverse(node=>{if(node.isMesh){node.castShadow=true;node.receiveShadow=true}})
+        disposeHanger(hangerSceneRef.current)
+        hangerSceneRef.current=imported
+        scene.add(imported)
+        updateDiagnostics(hangerPreset,imported,'imported-cc0-glb')
+      },undefined,()=>{if(!cancelled)updateDiagnostics(hangerPreset,hangerSceneRef.current,'procedural-fallback')})
+    }
+    return ()=>{cancelled=true}
+  }, [project.render?.hangerPreset])
 
   useEffect(() => {
     const scene = sceneRef.current
@@ -1349,9 +1588,14 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
 
     for (const record of trimRecordsRef.current) {
       scene.remove(record.object)
-      record.object.geometry?.dispose?.()
-      record.object.material?.map?.dispose?.()
-      record.object.material?.dispose?.()
+      record.object.traverse(child => {
+        child.geometry?.dispose?.()
+        const materials = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : [])
+        for (const material of materials) {
+          material.map?.dispose?.()
+          material.dispose?.()
+        }
+      })
     }
     trimRecordsRef.current = []
 
@@ -1364,10 +1608,7 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
 
     if (avatarRef.current) {
       scene.remove(avatarRef.current)
-      avatarRef.current.traverse((object) => {
-        object.geometry?.dispose?.()
-        if (object.material && object.material !== avatarRef.current?.material) object.material.dispose?.()
-      })
+      disposeAvatarObject(avatarRef.current)
     }
     meshAvatarColliderRef.current?.dispose?.()
     meshAvatarColliderRef.current = null
@@ -1375,8 +1616,17 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
     avatarRef.current.visible = showAvatar
     scene.add(avatarRef.current)
     const avatarGroup = avatarRef.current
-    void upgradeAvatarVisualization(avatarGroup, project, customAvatar).then((detailed) => {
-      if (avatarRef.current === avatarGroup) return
+    if (mountRef.current) {
+      mountRef.current.dataset.avatarModel = project.avatar?.model || 'makehuman-base'
+      mountRef.current.dataset.avatarLoadStatus = 'loading'
+    }
+    void upgradeAvatarVisualization(avatarGroup, project, customAvatar, () => avatarRef.current === avatarGroup).then((detailed) => {
+      if (!detailed || avatarRef.current !== avatarGroup) return
+      if (mountRef.current) {
+        mountRef.current.dataset.avatarLoadStatus = 'ready'
+        mountRef.current.dataset.avatarVisualHeightM = String(avatarGroup.userData.visualHeightM)
+        mountRef.current.dataset.avatarVisibleChildren = String(avatarGroup.children.filter(child => child.visible).length)
+      }
       // Build from the actual imported/displayed avatar model in its final
       // normalized world pose, not the simplified analytic placeholder.
       meshAvatarColliderRef.current?.dispose?.()
@@ -1391,13 +1641,11 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
         meshAvatarColliderRef.current.dispose()
         meshAvatarColliderRef.current = null
       }
-      avatarGroup.remove(detailed)
-      detailed.traverse((object) => {
-        object.geometry?.dispose?.()
-        object.material?.dispose?.()
-      })
     }).catch((error) => {
-      console.warn('Detailed fitting avatar failed to load; using analytic avatar fallback', error)
+      if (avatarRef.current === avatarGroup) {
+        if (mountRef.current) mountRef.current.dataset.avatarLoadStatus = 'fallback'
+        console.warn('Detailed fitting avatar failed to load; using analytic avatar fallback', error)
+      }
     })
 
     if (windHelperRef.current) {
@@ -1439,7 +1687,9 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       if (!hasSimulated) setStagedGeometry(geometry, stagedPositions)
       const fabric = project.fabrics?.[simPiece.piece.fabricId] || project.fabrics?.main || {}
       const optics = normalizeFabricOptics(fabric)
-      const fabricColor = new THREE.Color(fabric.color || '#d3d3d3')
+      const wash=normalizeWashSpec(fabric.wash)
+      const hasWash=wash.type!=='raw'&&wash.strength>0
+      const fabricColor = new THREE.Color(hasWash||fabric.texture?.scanAssetId ? '#ffffff':fabric.color || '#d3d3d3')
       const analysisEnabled = analysisModeRef.current !== 'surface'
       const isInterfacing = simPiece.piece.generatedRole === 'interfacing'
       const surfaceMaps = makeFabricSurfaceMaps(fabric)
@@ -1453,6 +1703,7 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
         roughnessMap: analysisEnabled ? null : roughnessMap,
         metalnessMap: analysisEnabled ? null : metalnessMap,
         alphaMap: analysisEnabled ? null : alphaMap,
+        alphaTest:surfaceMaps.proceduralChannels.alpha ? .40:0,
         displacementMap: analysisEnabled ? null : displacementMap,
         displacementScale: optics.displacementMm / 1000,
         displacementBias: -optics.displacementMm / 2000,
@@ -1582,41 +1833,16 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
         }
       }
 
-      for (const zipper of simPiece.piece.zippers || []) {
-        const indices = boundaryIndicesForEdge(simPiece, zipper.edgeIndex)
-        const trimRecord = makeTrimLine(
-          meshRecord,
-          indices,
-          new THREE.LineDashedMaterial({
-            color: zipper.color || '#c2c2c2',
-            dashSize: 0.004,
-            gapSize: 0.0015,
-            transparent: true,
-            opacity: 0.98,
-          }),
-          0.0042,
-        )
-        if (trimRecord) {
-          trimRecord.object.name = `zipper-${zipper.id}`
-          scene.add(trimRecord.object)
-          trimRecordsRef.current.push(trimRecord)
-        }
-      }
-
       for (const button of simPiece.piece.buttons || []) {
-        const radius = Math.max(0.004, Number(button.diameterCm ?? 1.8) * 0.005)
-        const buttonMesh = new THREE.Mesh(
-          new THREE.SphereGeometry(radius, 16, 10),
-          new THREE.MeshStandardMaterial({ color: button.color || '#222222', roughness: 0.48, metalness: 0.05 }),
-        )
-        buttonMesh.castShadow = true
-        buttonMesh.renderOrder = 32
+        const preset = getHardwarePreset(button.hardwarePresetId)
+        const buttonMesh = createHardwareButton3D(button,preset)
         const trimRecord = {
           type: 'button',
           object: buttonMesh,
           meshRecord,
           vertexIndex: nearestFlatVertexIndex(simPiece, button),
-          lift: radius * 0.72,
+          lift: buttonMesh.userData.rearExtensionM + .00055,
+          orientToSurface:true,
         }
         syncSurfaceOverlay(trimRecord)
         buttonMesh.name = `button-${button.id}`
@@ -1625,21 +1851,15 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       }
 
       for (const buttonhole of simPiece.piece.buttonholes || []) {
-        const length = Math.max(0.006, Number(buttonhole.lengthCm ?? 2.4) * 0.01)
-        const width = Math.max(0.0015, Number(buttonhole.widthCm ?? 0.35) * 0.01)
-        const slotMesh = new THREE.Mesh(
-          new THREE.BoxGeometry(length, width, 0.0012),
-          new THREE.MeshStandardMaterial({ color: buttonhole.color || '#575757', roughness: 0.7, metalness: 0 }),
-        )
-        slotMesh.castShadow = false
-        slotMesh.renderOrder = 33
+        const slotMesh = createButtonholeHardware3D(buttonhole,getHardwarePreset(buttonhole.hardwarePresetId))
+        slotMesh.traverse(child=>{if(child.isMesh)child.renderOrder=33})
         const trimRecord = {
-          type: 'surface-object',
+          type: 'button',
           object: slotMesh,
           meshRecord,
           vertexIndex: nearestFlatVertexIndex(simPiece, buttonhole),
-          lift: 0.0045,
-          orientationDeg: buttonhole.orientationDeg || 0,
+          lift: 0.0015,
+          orientToSurface:true,
         }
         syncSurfaceOverlay(trimRecord)
         slotMesh.name = `buttonhole-${buttonhole.id}`
@@ -1657,16 +1877,18 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
         if (!meshRecord) continue
         const isPrimary = role === 'a'
         const hardwareRadius = isPrimary ? radius : radius * (type === 'button' ? 0.62 : 0.82)
-        const hardware = new THREE.Mesh(
-          new THREE.SphereGeometry(hardwareRadius, 16, 10),
-          new THREE.MeshStandardMaterial({
-            color: type === 'snap' ? '#b8b8b8' : type === 'hook' ? '#8d8d8d' : '#252525',
-            roughness: type === 'button' ? 0.5 : 0.28,
-            metalness: type === 'button' ? 0.05 : 0.72,
-            transparent: fastener.closed === false,
-            opacity: fastener.closed === false ? 0.58 : 1,
-          }),
-        )
+        const hardware = type === 'button' && isPrimary
+          ? createHardwareButton3D({ ...fastener, diameterCm: hardwareRadius * 200, holes: fastener.holes ?? 4 }, getHardwarePreset(fastener.hardwarePresetId))
+          : new THREE.Mesh(
+            new THREE.SphereGeometry(hardwareRadius, 16, 10),
+            new THREE.MeshStandardMaterial({
+              color: type === 'snap' ? '#b8b8b8' : type === 'hook' ? '#8d8d8d' : '#252525',
+              roughness: type === 'button' ? 0.5 : 0.28,
+              metalness: type === 'button' ? 0.05 : 0.72,
+              transparent: fastener.closed === false,
+              opacity: fastener.closed === false ? 0.58 : 1,
+            }),
+          )
         hardware.castShadow = true
         hardware.renderOrder = 34
         const trimRecord = {
@@ -1674,7 +1896,8 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
           object: hardware,
           meshRecord,
           vertexIndex: nearestFlatVertexIndex(meshRecord.simPiece, endpoint),
-          lift: hardwareRadius * 0.82,
+          lift: hardware.userData.rearExtensionM ? hardware.userData.rearExtensionM + .00055 : hardwareRadius * 0.82,
+          orientToSurface: Boolean(hardware.userData.rearExtensionM),
         }
         syncSurfaceOverlay(trimRecord)
         hardware.name = `fastener-${fastener.id}-${role}`
@@ -1683,49 +1906,36 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       }
     }
 
+    const renderedZipperSeams = new Set()
+    const zipperRecordsById = new Map(meshRecordsRef.current.map(record => [record.simPiece.id, record]))
+    for (const meshRecord of meshRecordsRef.current) {
+      for (const zipper of meshRecord.simPiece.piece.zippers || []) {
+        const indices = boundaryIndicesForEdge(meshRecord.simPiece, zipper.edgeIndex)
+        if (indices.length < 2) continue
+        const pairedSeam = (project.seams || []).find(seam => seam.id === zipper.pairedSeamId || (seam.type === 'zipper' && ((seam.a?.pieceId === meshRecord.simPiece.id && seam.a?.edgeIndex === zipper.edgeIndex) || (seam.b?.pieceId === meshRecord.simPiece.id && seam.b?.edgeIndex === zipper.edgeIndex))))
+        if (pairedSeam && renderedZipperSeams.has(pairedSeam.id)) continue
+        const opposite = pairedSeam && (pairedSeam.a?.pieceId === meshRecord.simPiece.id && pairedSeam.a?.edgeIndex === zipper.edgeIndex ? pairedSeam.b : pairedSeam.a)
+        const opposingRecord = zipperRecordsById.get(opposite?.pieceId)
+        const opposingIndices = opposingRecord && boundaryIndicesForEdge(opposingRecord.simPiece, opposite.edgeIndex)
+        const hardware = createZipperHardware3D(zipper, [{ record: meshRecord, indices }, ...(opposingIndices?.length >= 2 ? [{ record: opposingRecord, indices: opposingIndices }] : [])])
+        if (!hardware) continue
+        if (pairedSeam) renderedZipperSeams.add(pairedSeam.id)
+        scene.add(hardware.object)
+        trimRecordsRef.current.push({ type: 'zipper-hardware', meshRecord, ...hardware })
+      }
+    }
     for (const seam of project.seams || []) {
-      if (seam.type !== 'zipper') continue
-      const meshRecord = meshRecordsRef.current.find((record) => record.simPiece.id === seam.a?.pieceId)
-      if (!meshRecord) continue
-      const edgeIndices = boundaryIndicesForEdge(meshRecord.simPiece, seam.a.edgeIndex)
-      if (!edgeIndices.length) continue
-      const openFraction = Math.max(0, Math.min(1, Number(seam.openFraction ?? 0)))
-      const sliderT = seam.openFrom === 'start' ? openFraction : 1 - openFraction
-      const edgeSlot = Math.max(0, Math.min(edgeIndices.length - 1, Math.round(sliderT * (edgeIndices.length - 1))))
-      const vertexIndex = edgeIndices[edgeSlot]
-      const sliderMaterial = new THREE.MeshStandardMaterial({ color: '#b9b9b9', roughness: 0.24, metalness: 0.78 })
-      const slider = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.018, 0.005), sliderMaterial)
-      slider.castShadow = true
-      slider.renderOrder = 35
-      const sliderRecord = {
-        type: 'button',
-        object: slider,
-        meshRecord,
-        vertexIndex,
-        lift: 0.0062,
-      }
-      syncSurfaceOverlay(sliderRecord)
-      slider.name = `zipper-slider-${seam.id}`
-      scene.add(slider)
-      trimRecordsRef.current.push(sliderRecord)
-
-      const pull = new THREE.Mesh(
-        new THREE.TorusGeometry(0.0055, 0.0012, 8, 18),
-        new THREE.MeshStandardMaterial({ color: '#c8c8c8', roughness: 0.2, metalness: 0.82 }),
-      )
-      pull.castShadow = true
-      pull.renderOrder = 36
-      const pullRecord = {
-        type: 'button',
-        object: pull,
-        meshRecord,
-        vertexIndex,
-        lift: 0.012,
-      }
-      syncSurfaceOverlay(pullRecord)
-      pull.name = `zipper-pull-${seam.id}`
-      scene.add(pull)
-      trimRecordsRef.current.push(pullRecord)
+      if (seam.type !== 'zipper' || renderedZipperSeams.has(seam.id)) continue
+      const aRecord = zipperRecordsById.get(seam.a?.pieceId)
+      const bRecord = zipperRecordsById.get(seam.b?.pieceId)
+      if (!aRecord) continue
+      const aIndices = boundaryIndicesForEdge(aRecord.simPiece, seam.a.edgeIndex)
+      const bIndices = bRecord && boundaryIndicesForEdge(bRecord.simPiece, seam.b.edgeIndex)
+      const hardware = createZipperHardware3D({ ...seam, sliderFraction: 1 - Number(seam.openFraction ?? 0) }, [{ record: aRecord, indices: aIndices }, ...(bIndices?.length >= 2 ? [{ record: bRecord, indices: bIndices }] : [])])
+      if (!hardware) continue
+      scene.add(hardware.object)
+      trimRecordsRef.current.push({ type: 'zipper-hardware', meshRecord: aRecord, ...hardware })
+      renderedZipperSeams.add(seam.id)
     }
 
     // Show the actual paired solver cutline constraints (including fractional
@@ -1779,7 +1989,8 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
     for (const record of records) {
       const fabric=project.fabrics?.[record.simPiece.piece.fabricId] || project.fabrics?.main || {}
       const optics=normalizeFabricOptics(fabric)
-      record.fabricColor.set(fabric.color || '#d3d3d3')
+      const wash=normalizeWashSpec(fabric.wash)
+      record.fabricColor.set((wash.type!=='raw'&&wash.strength>0)||fabric.texture?.scanAssetId?'#ffffff':fabric.color || '#d3d3d3')
       const material=record.material
       material.color.copy(surfaceMode ? record.fabricColor : new THREE.Color('#ffffff'))
       material.normalScale.set(optics.normalStrength,optics.normalStrength)
@@ -1822,6 +2033,7 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
       material.roughnessMap=surfaceMode ? record.roughnessMap : null
       material.metalnessMap=surfaceMode ? record.metalnessMap : null
       material.alphaMap=surfaceMode ? record.alphaMap : null
+      material.alphaTest=surfaceMode&&record.proceduralChannels.alpha ? .40 : 0
       material.displacementMap=surfaceMode ? record.displacementMap : null
       material.depthWrite = !isInterfacing && optics.opacity >= .99 && !record.alphaMap
       material.needsUpdate=true
