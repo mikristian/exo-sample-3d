@@ -2,7 +2,7 @@
 %µ¶
 
 1 0 obj
-<</Title(EXO Complete CLO-Class Rebuild Engineering Specification)/Creator(Mozilla/5.0 \(Macintosh; Intel Mac OS X 10_15_7\) AppleWebKit/537.36 \(KHTML, like Gecko\) HeadlessChrome/155.0.0.0 Safari/537.36)/Producer(Skia/PDF m155)/CreationDate(D:20261016224141+00'00')/ModDate(D:20261016224141+00'00')>>
+<</Title(EXO Complete CLO-Class Rebuild Engineering Specification)/Creator(Mozilla/5.0 \(Macintosh; Intel Mac OS X 10_15_7\) AppleWebKit/537.36 \(KHTML, like Gecko\) HeadlessChrome/155.0.0.0 Safari/537.36)/Producer(Skia/PDF m155)/CreationDate(D:20261016224621+00'00')/ModDate(D:20261016224621+00'00')>>
 endobj
 
 2 0 obj
@@ -155542,755 +155542,755 @@ endobj
 endobj
 
 34448 0 obj
-<</Count -176/A<</S/GoTo/D[2 0 R/XYZ 72 805.92 0]>>/First 34449 0 R/Last 34624 0 R/Next 34625 0 R/Parent 34447 0 R/Title(EXO complete engineering specification)>>
+<</Count -176/A<</S/GoTo/D[2 0 R/XYZ 72 805.92 0]>>/First 34449 0 R/Last 34624 0 R/Next 34625 0 R/Parent 34447 0 R/Title(EXO \267 Complete Engineering Program)>>
 endobj
 
 34449 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34450 0 R/Parent 34448 0 R/Title(00 Executive contract and present-state truth)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34450 0 R/Parent 34448 0 R/Title(00 \267 Executive contract and present-state truth)>>
 endobj
 
 34450 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34451 0 R/Parent 34448 0 R/Prev 34449 0 R/Title(01 Dependency-critical implementation order)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34451 0 R/Parent 34448 0 R/Prev 34449 0 R/Title(01 \267 Dependency-critical implementation order)>>
 endobj
 
 34451 0 obj
-<</A<</S/GoTo/D[2 0 R/XYZ 72 805.92 0]>>/Next 34452 0 R/Parent 34448 0 R/Prev 34450 0 R/Title(02 System boundaries and canonical dependency graph)>>
+<</A<</S/GoTo/D[2 0 R/XYZ 72 805.92 0]>>/Next 34452 0 R/Parent 34448 0 R/Prev 34450 0 R/Title(02 \267 System boundaries and canonical dependency graph)>>
 endobj
 
 34452 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34453 0 R/Parent 34448 0 R/Prev 34451 0 R/Title(EVIDENCE-01 Latest known validation gaps and confidence boundaries)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34453 0 R/Parent 34448 0 R/Prev 34451 0 R/Title(EVIDENCE-01 \267 Latest known validation gaps and confidence boundaries)>>
 endobj
 
 34453 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34454 0 R/Parent 34448 0 R/Prev 34452 0 R/Title(ARCH-001 Canonical garment document)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34454 0 R/Parent 34448 0 R/Prev 34452 0 R/Title(ARCH-001 \267 Canonical garment document)>>
 endobj
 
 34454 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34455 0 R/Parent 34448 0 R/Prev 34453 0 R/Title(ARCH-002 Typed command engine and undo)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34455 0 R/Parent 34448 0 R/Prev 34453 0 R/Title(ARCH-002 \267 Typed command engine and undo)>>
 endobj
 
 34455 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34456 0 R/Parent 34448 0 R/Prev 34454 0 R/Title(ARCH-003 2D planar geometry kernel)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34456 0 R/Parent 34448 0 R/Prev 34454 0 R/Title(ARCH-003 \267 2D planar geometry kernel)>>
 endobj
 
 34456 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34457 0 R/Parent 34448 0 R/Prev 34455 0 R/Title(ARCH-004 2D drawing and selection)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34457 0 R/Parent 34448 0 R/Prev 34455 0 R/Title(ARCH-004 \267 2D drawing and selection)>>
 endobj
 
 34457 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34458 0 R/Parent 34448 0 R/Prev 34456 0 R/Title(ARCH-005 2D drafting constructions)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34458 0 R/Parent 34448 0 R/Prev 34456 0 R/Title(ARCH-005 \267 2D drafting constructions)>>
 endobj
 
 34458 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34459 0 R/Parent 34448 0 R/Prev 34457 0 R/Title(ARCH-006 Notches and seam allowance CAD)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34459 0 R/Parent 34448 0 R/Prev 34457 0 R/Title(ARCH-006 \267 Notches and seam allowance CAD)>>
 endobj
 
 34459 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34460 0 R/Parent 34448 0 R/Prev 34458 0 R/Title(ARCH-007 Linked 2D to 3D correspondence)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34460 0 R/Parent 34448 0 R/Prev 34458 0 R/Title(ARCH-007 \267 Linked 2D to 3D correspondence)>>
 endobj
 
 34460 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34461 0 R/Parent 34448 0 R/Prev 34459 0 R/Title(ARCH-008 Sewing graph and partial seams)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34461 0 R/Parent 34448 0 R/Prev 34459 0 R/Title(ARCH-008 \267 Sewing graph and partial seams)>>
 endobj
 
 34461 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34462 0 R/Parent 34448 0 R/Prev 34460 0 R/Title(ARCH-009 Complex construction and hardware)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34462 0 R/Parent 34448 0 R/Prev 34460 0 R/Title(ARCH-009 \267 Complex construction and hardware)>>
 endobj
 
 34462 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34463 0 R/Parent 34448 0 R/Prev 34461 0 R/Title(ARCH-010 3D garment editing tools)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34463 0 R/Parent 34448 0 R/Prev 34461 0 R/Title(ARCH-010 \267 3D garment editing tools)>>
 endobj
 
 34463 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34464 0 R/Parent 34448 0 R/Prev 34462 0 R/Title(ARCH-011 Avatar geometry and measurement)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34464 0 R/Parent 34448 0 R/Prev 34462 0 R/Title(ARCH-011 \267 Avatar geometry and measurement)>>
 endobj
 
 34464 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34465 0 R/Parent 34448 0 R/Prev 34463 0 R/Title(ARCH-012 Animation timeline)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34465 0 R/Parent 34448 0 R/Prev 34463 0 R/Title(ARCH-012 \267 Animation timeline)>>
 endobj
 
 34465 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34466 0 R/Parent 34448 0 R/Prev 34464 0 R/Title(ARCH-013 Interactive VBD and XPBD preview)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34466 0 R/Parent 34448 0 R/Prev 34464 0 R/Title(ARCH-013 \267 Interactive VBD and XPBD preview)>>
 endobj
 
 34466 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34467 0 R/Parent 34448 0 R/Prev 34465 0 R/Title(ARCH-014 PPF contact batch acceptance)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34467 0 R/Parent 34448 0 R/Prev 34465 0 R/Title(ARCH-014 \267 PPF contact batch acceptance)>>
 endobj
 
 34467 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34468 0 R/Parent 34448 0 R/Prev 34466 0 R/Title(ARCH-015 Simulation numerical reliability)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34468 0 R/Parent 34448 0 R/Prev 34466 0 R/Title(ARCH-015 \267 Simulation numerical reliability)>>
 endobj
 
 34468 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34469 0 R/Parent 34448 0 R/Prev 34467 0 R/Title(ARCH-016 Physical fabric model)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34469 0 R/Parent 34448 0 R/Prev 34467 0 R/Title(ARCH-016 \267 Physical fabric model)>>
 endobj
 
 34469 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34470 0 R/Parent 34448 0 R/Prev 34468 0 R/Title(ARCH-017 Physical fabric acquisition)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34470 0 R/Parent 34448 0 R/Prev 34468 0 R/Title(ARCH-017 \267 Physical fabric acquisition)>>
 endobj
 
 34470 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34471 0 R/Parent 34448 0 R/Prev 34469 0 R/Title(ARCH-018 PBR textile optical pipeline)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34471 0 R/Parent 34448 0 R/Prev 34469 0 R/Title(ARCH-018 \267 PBR textile optical pipeline)>>
 endobj
 
 34471 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34472 0 R/Parent 34448 0 R/Prev 34470 0 R/Title(ARCH-019 400 fabric catalog engineering)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34472 0 R/Parent 34448 0 R/Prev 34470 0 R/Title(ARCH-019 \267 400 fabric catalog engineering)>>
 endobj
 
 34472 0 obj
-<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34473 0 R/Parent 34448 0 R/Prev 34471 0 R/Title(ARCH-020 Fabric optical finishes and washes)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34473 0 R/Parent 34448 0 R/Prev 34471 0 R/Title(ARCH-020 \267 Fabric optical finishes and washes)>>
 endobj
 
 34473 0 obj
-<</A<</S/GoTo/D[296 0 R/XYZ 72 805.92 0]>>/Next 34474 0 R/Parent 34448 0 R/Prev 34472 0 R/Title(ARCH-021 Fabric browser and property editing)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34474 0 R/Parent 34448 0 R/Prev 34472 0 R/Title(ARCH-021 \267 Fabric browser and property editing)>>
 endobj
 
 34474 0 obj
-<</A<</S/GoTo/D[298 0 R/XYZ 72 805.92 0]>>/Next 34475 0 R/Parent 34448 0 R/Prev 34473 0 R/Title(ARCH-022 Avatar/garment fit interpretation)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34475 0 R/Parent 34448 0 R/Prev 34473 0 R/Title(ARCH-022 \267 Avatar/garment fit interpretation)>>
 endobj
 
 34475 0 obj
-<</A<</S/GoTo/D[300 0 R/XYZ 72 805.92 0]>>/Next 34476 0 R/Parent 34448 0 R/Prev 34474 0 R/Title(ARCH-023 POM and measurement tools)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34476 0 R/Parent 34448 0 R/Prev 34474 0 R/Title(ARCH-023 \267 POM and measurement tools)>>
 endobj
 
 34476 0 obj
-<</A<</S/GoTo/D[302 0 R/XYZ 72 805.92 0]>>/Next 34477 0 R/Parent 34448 0 R/Prev 34475 0 R/Title(ARCH-024 Grading and multi-size)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34477 0 R/Parent 34448 0 R/Prev 34475 0 R/Title(ARCH-024 \267 Grading and multi-size)>>
 endobj
 
 34477 0 obj
-<</A<</S/GoTo/D[304 0 R/XYZ 72 805.92 0]>>/Next 34478 0 R/Parent 34448 0 R/Prev 34476 0 R/Title(ARCH-025 DXF and industrial CAD interchange)>>
+<</A<</S/GoTo/D[18 0 R/XYZ 72 805.92 0]>>/Next 34478 0 R/Parent 34448 0 R/Prev 34476 0 R/Title(ARCH-025 \267 DXF and industrial CAD interchange)>>
 endobj
 
 34478 0 obj
-<</A<</S/GoTo/D[306 0 R/XYZ 72 805.92 0]>>/Next 34479 0 R/Parent 34448 0 R/Prev 34477 0 R/Title(ARCH-026 Markers and cutting layout)>>
+<</A<</S/GoTo/D[306 0 R/XYZ 72 805.92 0]>>/Next 34479 0 R/Parent 34448 0 R/Prev 34477 0 R/Title(ARCH-026 \267 Markers and cutting layout)>>
 endobj
 
 34479 0 obj
-<</A<</S/GoTo/D[308 0 R/XYZ 72 805.92 0]>>/Next 34480 0 R/Parent 34448 0 R/Prev 34478 0 R/Title(ARCH-027 Factory BOM and cost)>>
+<</A<</S/GoTo/D[308 0 R/XYZ 72 805.92 0]>>/Next 34480 0 R/Parent 34448 0 R/Prev 34478 0 R/Title(ARCH-027 \267 Factory BOM and cost)>>
 endobj
 
 34480 0 obj
-<</A<</S/GoTo/D[310 0 R/XYZ 72 805.92 0]>>/Next 34481 0 R/Parent 34448 0 R/Prev 34479 0 R/Title(ARCH-028 Technical pack production)>>
+<</A<</S/GoTo/D[310 0 R/XYZ 72 805.92 0]>>/Next 34481 0 R/Parent 34448 0 R/Prev 34479 0 R/Title(ARCH-028 \267 Technical pack production)>>
 endobj
 
 34481 0 obj
-<</A<</S/GoTo/D[312 0 R/XYZ 72 805.92 0]>>/Next 34482 0 R/Parent 34448 0 R/Prev 34480 0 R/Title(ARCH-029 Project save, migration and recovery)>>
+<</A<</S/GoTo/D[312 0 R/XYZ 72 805.92 0]>>/Next 34482 0 R/Parent 34448 0 R/Prev 34480 0 R/Title(ARCH-029 \267 Project save, migration and recovery)>>
 endobj
 
 34482 0 obj
-<</A<</S/GoTo/D[314 0 R/XYZ 72 805.92 0]>>/Next 34483 0 R/Parent 34448 0 R/Prev 34481 0 R/Title(ARCH-030 Desktop app shell and Qt strategy)>>
+<</A<</S/GoTo/D[314 0 R/XYZ 72 805.92 0]>>/Next 34483 0 R/Parent 34448 0 R/Prev 34481 0 R/Title(ARCH-030 \267 Desktop app shell and Qt strategy)>>
 endobj
 
 34483 0 obj
-<</A<</S/GoTo/D[316 0 R/XYZ 72 805.92 0]>>/Next 34484 0 R/Parent 34448 0 R/Prev 34482 0 R/Title(ARCH-031 Typed automation and scripting)>>
+<</A<</S/GoTo/D[316 0 R/XYZ 72 805.92 0]>>/Next 34484 0 R/Parent 34448 0 R/Prev 34482 0 R/Title(ARCH-031 \267 Typed automation and scripting)>>
 endobj
 
 34484 0 obj
-<</A<</S/GoTo/D[318 0 R/XYZ 72 805.92 0]>>/Next 34485 0 R/Parent 34448 0 R/Prev 34483 0 R/Title(ARCH-032 Rendering and visual studio)>>
+<</A<</S/GoTo/D[318 0 R/XYZ 72 805.92 0]>>/Next 34485 0 R/Parent 34448 0 R/Prev 34483 0 R/Title(ARCH-032 \267 Rendering and visual studio)>>
 endobj
 
 34485 0 obj
-<</A<</S/GoTo/D[320 0 R/XYZ 72 805.92 0]>>/Next 34486 0 R/Parent 34448 0 R/Prev 34484 0 R/Title(ARCH-033 Asset library and local ownership)>>
+<</A<</S/GoTo/D[320 0 R/XYZ 72 805.92 0]>>/Next 34486 0 R/Parent 34448 0 R/Prev 34484 0 R/Title(ARCH-033 \267 Asset library and local ownership)>>
 endobj
 
 34486 0 obj
-<</A<</S/GoTo/D[322 0 R/XYZ 72 805.92 0]>>/Next 34487 0 R/Parent 34448 0 R/Prev 34485 0 R/Title(ARCH-034 Open-source packaging and CI)>>
+<</A<</S/GoTo/D[322 0 R/XYZ 72 805.92 0]>>/Next 34487 0 R/Parent 34448 0 R/Prev 34485 0 R/Title(ARCH-034 \267 Open-source packaging and CI)>>
 endobj
 
 34487 0 obj
-<</A<</S/GoTo/D[324 0 R/XYZ 72 805.92 0]>>/Next 34488 0 R/Parent 34448 0 R/Prev 34486 0 R/Title(ARCH-035 Community and pattern marketplace)>>
+<</A<</S/GoTo/D[324 0 R/XYZ 72 805.92 0]>>/Next 34488 0 R/Parent 34448 0 R/Prev 34486 0 R/Title(ARCH-035 \267 Community and pattern marketplace)>>
 endobj
 
 34488 0 obj
-<</A<</S/GoTo/D[326 0 R/XYZ 72 805.92 0]>>/Next 34489 0 R/Parent 34448 0 R/Prev 34487 0 R/Title(ARCH-036 Interactive web tech packs)>>
+<</A<</S/GoTo/D[326 0 R/XYZ 72 805.92 0]>>/Next 34489 0 R/Parent 34448 0 R/Prev 34487 0 R/Title(ARCH-036 \267 Interactive web tech packs)>>
 endobj
 
 34489 0 obj
-<</A<</S/GoTo/D[328 0 R/XYZ 72 805.92 0]>>/Next 34490 0 R/Parent 34448 0 R/Prev 34488 0 R/Title(ARCH-037 Spatial showroom and projection)>>
+<</A<</S/GoTo/D[328 0 R/XYZ 72 805.92 0]>>/Next 34490 0 R/Parent 34448 0 R/Prev 34488 0 R/Title(ARCH-037 \267 Spatial showroom and projection)>>
 endobj
 
 34490 0 obj
-<</A<</S/GoTo/D[330 0 R/XYZ 72 805.92 0]>>/Next 34491 0 R/Parent 34448 0 R/Prev 34489 0 R/Title(ARCH-038 Security/privacy and permissions)>>
+<</A<</S/GoTo/D[330 0 R/XYZ 72 805.92 0]>>/Next 34491 0 R/Parent 34448 0 R/Prev 34489 0 R/Title(ARCH-038 \267 Security/privacy and permissions)>>
 endobj
 
 34491 0 obj
-<</A<</S/GoTo/D[332 0 R/XYZ 72 805.92 0]>>/Next 34492 0 R/Parent 34448 0 R/Prev 34490 0 R/Title(ARCH-039 Performance budgets and telemetry)>>
+<</A<</S/GoTo/D[332 0 R/XYZ 72 805.92 0]>>/Next 34492 0 R/Parent 34448 0 R/Prev 34490 0 R/Title(ARCH-039 \267 Performance budgets and telemetry)>>
 endobj
 
 34492 0 obj
-<</A<</S/GoTo/D[334 0 R/XYZ 72 805.92 0]>>/Next 34493 0 R/Parent 34448 0 R/Prev 34491 0 R/Title(ARCH-040 Accessibility and localization)>>
+<</A<</S/GoTo/D[334 0 R/XYZ 72 805.92 0]>>/Next 34493 0 R/Parent 34448 0 R/Prev 34491 0 R/Title(ARCH-040 \267 Accessibility and localization)>>
 endobj
 
 34493 0 obj
-<</A<</S/GoTo/D[336 0 R/XYZ 72 805.92 0]>>/Next 34494 0 R/Parent 34448 0 R/Prev 34492 0 R/Title(ARCH-041 Tool-bar and property parity reference)>>
+<</A<</S/GoTo/D[336 0 R/XYZ 72 805.92 0]>>/Next 34494 0 R/Parent 34448 0 R/Prev 34492 0 R/Title(ARCH-041 \267 Tool-bar and property parity reference)>>
 endobj
 
 34494 0 obj
-<</A<</S/GoTo/D[338 0 R/XYZ 72 805.92 0]>>/Next 34495 0 R/Parent 34448 0 R/Prev 34493 0 R/Title(ARCH-042 Context-aware Property Editor)>>
+<</A<</S/GoTo/D[338 0 R/XYZ 72 805.92 0]>>/Next 34495 0 R/Parent 34448 0 R/Prev 34493 0 R/Title(ARCH-042 \267 Context-aware Property Editor)>>
 endobj
 
 34495 0 obj
-<</A<</S/GoTo/D[340 0 R/XYZ 72 805.92 0]>>/Next 34496 0 R/Parent 34448 0 R/Prev 34494 0 R/Title(ARCH-043 Material calibration regression)>>
+<</A<</S/GoTo/D[340 0 R/XYZ 72 805.92 0]>>/Next 34496 0 R/Parent 34448 0 R/Prev 34494 0 R/Title(ARCH-043 \267 Material calibration regression)>>
 endobj
 
 34496 0 obj
-<</A<</S/GoTo/D[342 0 R/XYZ 72 805.92 0]>>/Next 34497 0 R/Parent 34448 0 R/Prev 34495 0 R/Title(ARCH-044 Cross-backend numerical parity)>>
+<</A<</S/GoTo/D[342 0 R/XYZ 72 805.92 0]>>/Next 34497 0 R/Parent 34448 0 R/Prev 34495 0 R/Title(ARCH-044 \267 Cross-backend numerical parity)>>
 endobj
 
 34497 0 obj
-<</A<</S/GoTo/D[344 0 R/XYZ 72 805.92 0]>>/Next 34498 0 R/Parent 34448 0 R/Prev 34496 0 R/Title(ARCH-045 Engineering release gating)>>
+<</A<</S/GoTo/D[344 0 R/XYZ 72 805.92 0]>>/Next 34498 0 R/Parent 34448 0 R/Prev 34496 0 R/Title(ARCH-045 \267 Engineering release gating)>>
 endobj
 
 34498 0 obj
-<</A<</S/GoTo/D[346 0 R/XYZ 72 805.92 0]>>/Next 34499 0 R/Parent 34448 0 R/Prev 34497 0 R/Title(EXT-001 Interchange format matrix)>>
+<</A<</S/GoTo/D[346 0 R/XYZ 72 805.92 0]>>/Next 34499 0 R/Parent 34448 0 R/Prev 34497 0 R/Title(EXT-001 \267 Interchange format matrix)>>
 endobj
 
 34499 0 obj
-<</A<</S/GoTo/D[348 0 R/XYZ 72 805.92 0]>>/Next 34500 0 R/Parent 34448 0 R/Prev 34498 0 R/Title(EXT-002 Regression fixture repository)>>
+<</A<</S/GoTo/D[348 0 R/XYZ 72 805.92 0]>>/Next 34500 0 R/Parent 34448 0 R/Prev 34498 0 R/Title(EXT-002 \267 Regression fixture repository)>>
 endobj
 
 34500 0 obj
-<</A<</S/GoTo/D[350 0 R/XYZ 72 805.92 0]>>/Next 34501 0 R/Parent 34448 0 R/Prev 34499 0 R/Title(EXT-003 Cloth solver benchmark protocol)>>
+<</A<</S/GoTo/D[350 0 R/XYZ 72 805.92 0]>>/Next 34501 0 R/Parent 34448 0 R/Prev 34499 0 R/Title(EXT-003 \267 Cloth solver benchmark protocol)>>
 endobj
 
 34501 0 obj
-<</A<</S/GoTo/D[352 0 R/XYZ 72 805.92 0]>>/Next 34502 0 R/Parent 34448 0 R/Prev 34500 0 R/Title(EXT-004 Deployment update architecture)>>
+<</A<</S/GoTo/D[352 0 R/XYZ 72 805.92 0]>>/Next 34502 0 R/Parent 34448 0 R/Prev 34500 0 R/Title(EXT-004 \267 Deployment update architecture)>>
 endobj
 
 34502 0 obj
-<</A<</S/GoTo/D[354 0 R/XYZ 72 805.92 0]>>/Next 34503 0 R/Parent 34448 0 R/Prev 34501 0 R/Title(EXT-005 Typography and design quality)>>
+<</A<</S/GoTo/D[354 0 R/XYZ 72 805.92 0]>>/Next 34503 0 R/Parent 34448 0 R/Prev 34501 0 R/Title(EXT-005 \267 Typography and design quality)>>
 endobj
 
 34503 0 obj
-<</A<</S/GoTo/D[356 0 R/XYZ 72 805.92 0]>>/Next 34504 0 R/Parent 34448 0 R/Prev 34502 0 R/Title(EXT-006 Manufacturing traceability)>>
+<</A<</S/GoTo/D[356 0 R/XYZ 72 805.92 0]>>/Next 34504 0 R/Parent 34448 0 R/Prev 34502 0 R/Title(EXT-006 \267 Manufacturing traceability)>>
 endobj
 
 34504 0 obj
-<</A<</S/GoTo/D[358 0 R/XYZ 72 805.92 0]>>/Next 34505 0 R/Parent 34448 0 R/Prev 34503 0 R/Title(EXT-007 Fabric inspection laboratory)>>
+<</A<</S/GoTo/D[358 0 R/XYZ 72 805.92 0]>>/Next 34505 0 R/Parent 34448 0 R/Prev 34503 0 R/Title(EXT-007 \267 Fabric inspection laboratory)>>
 endobj
 
 34505 0 obj
-<</A<</S/GoTo/D[360 0 R/XYZ 72 805.92 0]>>/Next 34506 0 R/Parent 34448 0 R/Prev 34504 0 R/Title(EXT-008 Finish masking studio)>>
+<</A<</S/GoTo/D[360 0 R/XYZ 72 805.92 0]>>/Next 34506 0 R/Parent 34448 0 R/Prev 34504 0 R/Title(EXT-008 \267 Finish masking studio)>>
 endobj
 
 34506 0 obj
-<</A<</S/GoTo/D[362 0 R/XYZ 72 805.92 0]>>/Next 34507 0 R/Parent 34448 0 R/Prev 34505 0 R/Title(EXT-009 CLO version change monitoring)>>
+<</A<</S/GoTo/D[362 0 R/XYZ 72 805.92 0]>>/Next 34507 0 R/Parent 34448 0 R/Prev 34505 0 R/Title(EXT-009 \267 CLO version change monitoring)>>
 endobj
 
 34507 0 obj
-<</A<</S/GoTo/D[364 0 R/XYZ 72 805.92 0]>>/Next 34508 0 R/Parent 34448 0 R/Prev 34506 0 R/Title(EXT-010 Backend isolation and diagnostics)>>
+<</A<</S/GoTo/D[364 0 R/XYZ 72 805.92 0]>>/Next 34508 0 R/Parent 34448 0 R/Prev 34506 0 R/Title(EXT-010 \267 Backend isolation and diagnostics)>>
 endobj
 
 34508 0 obj
-<</A<</S/GoTo/D[366 0 R/XYZ 72 805.92 0]>>/Next 34509 0 R/Parent 34448 0 R/Prev 34507 0 R/Title(EXT-011 Asset licensing and provenance)>>
+<</A<</S/GoTo/D[366 0 R/XYZ 72 805.92 0]>>/Next 34509 0 R/Parent 34448 0 R/Prev 34507 0 R/Title(EXT-011 \267 Asset licensing and provenance)>>
 endobj
 
 34509 0 obj
-<</A<</S/GoTo/D[368 0 R/XYZ 72 805.92 0]>>/Next 34510 0 R/Parent 34448 0 R/Prev 34508 0 R/Title(EXT-012 Automated tool functional matrix)>>
+<</A<</S/GoTo/D[368 0 R/XYZ 72 805.92 0]>>/Next 34510 0 R/Parent 34448 0 R/Prev 34508 0 R/Title(EXT-012 \267 Automated tool functional matrix)>>
 endobj
 
 34510 0 obj
-<</A<</S/GoTo/D[370 0 R/XYZ 72 805.92 0]>>/Next 34511 0 R/Parent 34448 0 R/Prev 34509 0 R/Title(EXT-013 Context property exhaustive matrix)>>
+<</A<</S/GoTo/D[370 0 R/XYZ 72 805.92 0]>>/Next 34511 0 R/Parent 34448 0 R/Prev 34509 0 R/Title(EXT-013 \267 Context property exhaustive matrix)>>
 endobj
 
 34511 0 obj
-<</A<</S/GoTo/D[372 0 R/XYZ 72 805.92 0]>>/Next 34512 0 R/Parent 34448 0 R/Prev 34510 0 R/Title(EXT-014 Look and rendering ownership)>>
+<</A<</S/GoTo/D[372 0 R/XYZ 72 805.92 0]>>/Next 34512 0 R/Parent 34448 0 R/Prev 34510 0 R/Title(EXT-014 \267 Look and rendering ownership)>>
 endobj
 
 34512 0 obj
-<</A<</S/GoTo/D[374 0 R/XYZ 72 805.92 0]>>/Next 34513 0 R/Parent 34448 0 R/Prev 34511 0 R/Title(EXT-015 Development operation and observability)>>
+<</A<</S/GoTo/D[374 0 R/XYZ 72 805.92 0]>>/Next 34513 0 R/Parent 34448 0 R/Prev 34511 0 R/Title(EXT-015 \267 Development operation and observability)>>
 endobj
 
 34513 0 obj
-<</A<</S/GoTo/D[376 0 R/XYZ 72 805.92 0]>>/Next 34514 0 R/Parent 34448 0 R/Prev 34512 0 R/Title(TOOL-001 Simulate)>>
+<</A<</S/GoTo/D[376 0 R/XYZ 72 805.92 0]>>/Next 34514 0 R/Parent 34448 0 R/Prev 34512 0 R/Title(TOOL-001 \267 Simulate)>>
 endobj
 
 34514 0 obj
-<</A<</S/GoTo/D[378 0 R/XYZ 72 805.92 0]>>/Next 34515 0 R/Parent 34448 0 R/Prev 34513 0 R/Title(TOOL-002 Select/Move)>>
+<</A<</S/GoTo/D[378 0 R/XYZ 72 805.92 0]>>/Next 34515 0 R/Parent 34448 0 R/Prev 34513 0 R/Title(TOOL-002 \267 Select/Move)>>
 endobj
 
 34515 0 obj
-<</A<</S/GoTo/D[380 0 R/XYZ 72 805.92 0]>>/Next 34516 0 R/Parent 34448 0 R/Prev 34514 0 R/Title(TOOL-003 Select Mesh \(Brush\))>>
+<</A<</S/GoTo/D[380 0 R/XYZ 72 805.92 0]>>/Next 34516 0 R/Parent 34448 0 R/Prev 34514 0 R/Title(TOOL-003 \267 Select Mesh \(Brush\))>>
 endobj
 
 34516 0 obj
-<</A<</S/GoTo/D[382 0 R/XYZ 72 805.92 0]>>/Next 34517 0 R/Parent 34448 0 R/Prev 34515 0 R/Title(TOOL-004 Edit Styleline)>>
+<</A<</S/GoTo/D[382 0 R/XYZ 72 805.92 0]>>/Next 34517 0 R/Parent 34448 0 R/Prev 34515 0 R/Title(TOOL-004 \267 Edit Styleline)>>
 endobj
 
 34517 0 obj
-<</A<</S/GoTo/D[384 0 R/XYZ 72 805.92 0]>>/Next 34518 0 R/Parent 34448 0 R/Prev 34516 0 R/Title(TOOL-005 Edit Sewing)>>
+<</A<</S/GoTo/D[384 0 R/XYZ 72 805.92 0]>>/Next 34518 0 R/Parent 34448 0 R/Prev 34516 0 R/Title(TOOL-005 \267 Edit Sewing)>>
 endobj
 
 34518 0 obj
-<</A<</S/GoTo/D[386 0 R/XYZ 72 805.92 0]>>/Next 34519 0 R/Parent 34448 0 R/Prev 34517 0 R/Title(TOOL-006 Segment Sewing)>>
+<</A<</S/GoTo/D[386 0 R/XYZ 72 805.92 0]>>/Next 34519 0 R/Parent 34448 0 R/Prev 34517 0 R/Title(TOOL-006 \267 Segment Sewing)>>
 endobj
 
 34519 0 obj
-<</A<</S/GoTo/D[388 0 R/XYZ 72 805.92 0]>>/Next 34520 0 R/Parent 34448 0 R/Prev 34518 0 R/Title(TOOL-007 Free Sewing)>>
+<</A<</S/GoTo/D[388 0 R/XYZ 72 805.92 0]>>/Next 34520 0 R/Parent 34448 0 R/Prev 34518 0 R/Title(TOOL-007 \267 Free Sewing)>>
 endobj
 
 34520 0 obj
-<</A<</S/GoTo/D[390 0 R/XYZ 72 805.92 0]>>/Next 34521 0 R/Parent 34448 0 R/Prev 34519 0 R/Title(TOOL-008 Auto Sewing)>>
+<</A<</S/GoTo/D[390 0 R/XYZ 72 805.92 0]>>/Next 34521 0 R/Parent 34448 0 R/Prev 34519 0 R/Title(TOOL-008 \267 Auto Sewing)>>
 endobj
 
 34521 0 obj
-<</A<</S/GoTo/D[392 0 R/XYZ 72 805.92 0]>>/Next 34522 0 R/Parent 34448 0 R/Prev 34520 0 R/Title(TOOL-009 Edit Tack)>>
+<</A<</S/GoTo/D[392 0 R/XYZ 72 805.92 0]>>/Next 34522 0 R/Parent 34448 0 R/Prev 34520 0 R/Title(TOOL-009 \267 Edit Tack)>>
 endobj
 
 34522 0 obj
-<</A<</S/GoTo/D[394 0 R/XYZ 72 805.92 0]>>/Next 34523 0 R/Parent 34448 0 R/Prev 34521 0 R/Title(TOOL-010 Tack)>>
+<</A<</S/GoTo/D[394 0 R/XYZ 72 805.92 0]>>/Next 34523 0 R/Parent 34448 0 R/Prev 34521 0 R/Title(TOOL-010 \267 Tack)>>
 endobj
 
 34523 0 obj
-<</A<</S/GoTo/D[396 0 R/XYZ 72 805.92 0]>>/Next 34524 0 R/Parent 34448 0 R/Prev 34522 0 R/Title(TOOL-011 Fold Arrangement)>>
+<</A<</S/GoTo/D[396 0 R/XYZ 72 805.92 0]>>/Next 34524 0 R/Parent 34448 0 R/Prev 34522 0 R/Title(TOOL-011 \267 Fold Arrangement)>>
 endobj
 
 34524 0 obj
-<</A<</S/GoTo/D[398 0 R/XYZ 72 805.92 0]>>/Next 34525 0 R/Parent 34448 0 R/Prev 34523 0 R/Title(TOOL-012 Fold 3D Garment)>>
+<</A<</S/GoTo/D[398 0 R/XYZ 72 805.92 0]>>/Next 34525 0 R/Parent 34448 0 R/Prev 34523 0 R/Title(TOOL-012 \267 Fold 3D Garment)>>
 endobj
 
 34525 0 obj
-<</A<</S/GoTo/D[400 0 R/XYZ 72 805.92 0]>>/Next 34526 0 R/Parent 34448 0 R/Prev 34524 0 R/Title(TOOL-013 Reset 2D Arrangement \(All\))>>
+<</A<</S/GoTo/D[400 0 R/XYZ 72 805.92 0]>>/Next 34526 0 R/Parent 34448 0 R/Prev 34524 0 R/Title(TOOL-013 \267 Reset 2D Arrangement \(All\))>>
 endobj
 
 34526 0 obj
-<</A<</S/GoTo/D[402 0 R/XYZ 72 805.92 0]>>/Next 34527 0 R/Parent 34448 0 R/Prev 34525 0 R/Title(TOOL-014 Reset 3D Arrangement \(All\))>>
+<</A<</S/GoTo/D[402 0 R/XYZ 72 805.92 0]>>/Next 34527 0 R/Parent 34448 0 R/Prev 34525 0 R/Title(TOOL-014 \267 Reset 3D Arrangement \(All\))>>
 endobj
 
 34527 0 obj
-<</A<</S/GoTo/D[404 0 R/XYZ 72 805.92 0]>>/Next 34528 0 R/Parent 34448 0 R/Prev 34526 0 R/Title(TOOL-015 Re-drape 3D Arrangement)>>
+<</A<</S/GoTo/D[404 0 R/XYZ 72 805.92 0]>>/Next 34528 0 R/Parent 34448 0 R/Prev 34526 0 R/Title(TOOL-015 \267 Re-drape 3D Arrangement)>>
 endobj
 
 34528 0 obj
-<</A<</S/GoTo/D[406 0 R/XYZ 72 805.92 0]>>/Next 34529 0 R/Parent 34448 0 R/Prev 34527 0 R/Title(TOOL-016 Hi-Res Garment)>>
+<</A<</S/GoTo/D[406 0 R/XYZ 72 805.92 0]>>/Next 34529 0 R/Parent 34448 0 R/Prev 34527 0 R/Title(TOOL-016 \267 Hi-Res Garment)>>
 endobj
 
 34529 0 obj
-<</A<</S/GoTo/D[408 0 R/XYZ 72 805.92 0]>>/Next 34530 0 R/Parent 34448 0 R/Prev 34528 0 R/Title(TOOL-017 Edit Measure \(Avatar\))>>
+<</A<</S/GoTo/D[408 0 R/XYZ 72 805.92 0]>>/Next 34530 0 R/Parent 34448 0 R/Prev 34528 0 R/Title(TOOL-017 \267 Edit Measure \(Avatar\))>>
 endobj
 
 34530 0 obj
-<</A<</S/GoTo/D[410 0 R/XYZ 72 805.92 0]>>/Next 34531 0 R/Parent 34448 0 R/Prev 34529 0 R/Title(TOOL-018 Basic Tape Measure \(Avatar\))>>
+<</A<</S/GoTo/D[410 0 R/XYZ 72 805.92 0]>>/Next 34531 0 R/Parent 34448 0 R/Prev 34529 0 R/Title(TOOL-018 \267 Basic Tape Measure \(Avatar\))>>
 endobj
 
 34531 0 obj
-<</A<</S/GoTo/D[412 0 R/XYZ 72 805.92 0]>>/Next 34532 0 R/Parent 34448 0 R/Prev 34530 0 R/Title(TOOL-019 Edit Measure \(Garment\))>>
+<</A<</S/GoTo/D[412 0 R/XYZ 72 805.92 0]>>/Next 34532 0 R/Parent 34448 0 R/Prev 34530 0 R/Title(TOOL-019 \267 Edit Measure \(Garment\))>>
 endobj
 
 34532 0 obj
-<</A<</S/GoTo/D[414 0 R/XYZ 72 805.92 0]>>/Next 34533 0 R/Parent 34448 0 R/Prev 34531 0 R/Title(TOOL-020 Linear Measure \(Garment\))>>
+<</A<</S/GoTo/D[414 0 R/XYZ 72 805.92 0]>>/Next 34533 0 R/Parent 34448 0 R/Prev 34531 0 R/Title(TOOL-020 \267 Linear Measure \(Garment\))>>
 endobj
 
 34533 0 obj
-<</A<</S/GoTo/D[416 0 R/XYZ 72 805.92 0]>>/Next 34534 0 R/Parent 34448 0 R/Prev 34532 0 R/Title(TOOL-021 Play Motion)>>
+<</A<</S/GoTo/D[416 0 R/XYZ 72 805.92 0]>>/Next 34534 0 R/Parent 34448 0 R/Prev 34532 0 R/Title(TOOL-021 \267 Play Motion)>>
 endobj
 
 34534 0 obj
-<</A<</S/GoTo/D[418 0 R/XYZ 72 805.92 0]>>/Next 34535 0 R/Parent 34448 0 R/Prev 34533 0 R/Title(TOOL-022 Edit Line \(3D Pattern\))>>
+<</A<</S/GoTo/D[418 0 R/XYZ 72 805.92 0]>>/Next 34535 0 R/Parent 34448 0 R/Prev 34533 0 R/Title(TOOL-022 \267 Edit Line \(3D Pattern\))>>
 endobj
 
 34535 0 obj
-<</A<</S/GoTo/D[420 0 R/XYZ 72 805.92 0]>>/Next 34536 0 R/Parent 34448 0 R/Prev 34534 0 R/Title(TOOL-023 Line \(3D Pattern\))>>
+<</A<</S/GoTo/D[420 0 R/XYZ 72 805.92 0]>>/Next 34536 0 R/Parent 34448 0 R/Prev 34534 0 R/Title(TOOL-023 \267 Line \(3D Pattern\))>>
 endobj
 
 34536 0 obj
-<</A<</S/GoTo/D[422 0 R/XYZ 72 805.92 0]>>/Next 34537 0 R/Parent 34448 0 R/Prev 34535 0 R/Title(TOOL-024 3D Base Pen)>>
+<</A<</S/GoTo/D[422 0 R/XYZ 72 805.92 0]>>/Next 34537 0 R/Parent 34448 0 R/Prev 34535 0 R/Title(TOOL-024 \267 3D Base Pen)>>
 endobj
 
 34537 0 obj
-<</A<</S/GoTo/D[424 0 R/XYZ 72 805.92 0]>>/Next 34538 0 R/Parent 34448 0 R/Prev 34536 0 R/Title(TOOL-025 Edit 3D Pen \(Avatar\))>>
+<</A<</S/GoTo/D[424 0 R/XYZ 72 805.92 0]>>/Next 34538 0 R/Parent 34448 0 R/Prev 34536 0 R/Title(TOOL-025 \267 Edit 3D Pen \(Avatar\))>>
 endobj
 
 34538 0 obj
-<</A<</S/GoTo/D[426 0 R/XYZ 72 805.92 0]>>/Next 34539 0 R/Parent 34448 0 R/Prev 34537 0 R/Title(TOOL-026 3D Pen \(Avatar\))>>
+<</A<</S/GoTo/D[426 0 R/XYZ 72 805.92 0]>>/Next 34539 0 R/Parent 34448 0 R/Prev 34537 0 R/Title(TOOL-026 \267 3D Pen \(Avatar\))>>
 endobj
 
 34539 0 obj
-<</A<</S/GoTo/D[428 0 R/XYZ 72 805.92 0]>>/Next 34540 0 R/Parent 34448 0 R/Prev 34538 0 R/Title(TOOL-027 Edit Texture \(3D\))>>
+<</A<</S/GoTo/D[428 0 R/XYZ 72 805.92 0]>>/Next 34540 0 R/Parent 34448 0 R/Prev 34538 0 R/Title(TOOL-027 \267 Edit Texture \(3D\))>>
 endobj
 
 34540 0 obj
-<</A<</S/GoTo/D[430 0 R/XYZ 72 805.92 0]>>/Next 34541 0 R/Parent 34448 0 R/Prev 34539 0 R/Title(TOOL-028 Transform Graphic)>>
+<</A<</S/GoTo/D[430 0 R/XYZ 72 805.92 0]>>/Next 34541 0 R/Parent 34448 0 R/Prev 34539 0 R/Title(TOOL-028 \267 Transform Graphic)>>
 endobj
 
 34541 0 obj
-<</A<</S/GoTo/D[432 0 R/XYZ 72 805.92 0]>>/Next 34542 0 R/Parent 34448 0 R/Prev 34540 0 R/Title(TOOL-029 Graphic \(3D Pattern\))>>
+<</A<</S/GoTo/D[432 0 R/XYZ 72 805.92 0]>>/Next 34542 0 R/Parent 34448 0 R/Prev 34540 0 R/Title(TOOL-029 \267 Graphic \(3D Pattern\))>>
 endobj
 
 34542 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34543 0 R/Parent 34448 0 R/Prev 34541 0 R/Title(TOOL-030 Select/Move Button)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34543 0 R/Parent 34448 0 R/Prev 34541 0 R/Title(TOOL-030 \267 Select/Move Button)>>
 endobj
 
 34543 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34544 0 R/Parent 34448 0 R/Prev 34542 0 R/Title(TOOL-031 Button)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34544 0 R/Parent 34448 0 R/Prev 34542 0 R/Title(TOOL-031 \267 Button)>>
 endobj
 
 34544 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34545 0 R/Parent 34448 0 R/Prev 34543 0 R/Title(TOOL-032 Fasten Button)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34545 0 R/Parent 34448 0 R/Prev 34543 0 R/Title(TOOL-032 \267 Fasten Button)>>
 endobj
 
 34545 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34546 0 R/Parent 34448 0 R/Prev 34544 0 R/Title(TOOL-033 Zipper)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34546 0 R/Parent 34448 0 R/Prev 34544 0 R/Title(TOOL-033 \267 Zipper)>>
 endobj
 
 34546 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34547 0 R/Parent 34448 0 R/Prev 34545 0 R/Title(TOOL-034 Edit Piping)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34547 0 R/Parent 34448 0 R/Prev 34545 0 R/Title(TOOL-034 \267 Edit Piping)>>
 endobj
 
 34547 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34548 0 R/Parent 34448 0 R/Prev 34546 0 R/Title(TOOL-035 Piping)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34548 0 R/Parent 34448 0 R/Prev 34546 0 R/Title(TOOL-035 \267 Piping)>>
 endobj
 
 34548 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34549 0 R/Parent 34448 0 R/Prev 34547 0 R/Title(TOOL-036 Select Binding)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34549 0 R/Parent 34448 0 R/Prev 34547 0 R/Title(TOOL-036 \267 Select Binding)>>
 endobj
 
 34549 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34550 0 R/Parent 34448 0 R/Prev 34548 0 R/Title(TOOL-037 Binding)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34550 0 R/Parent 34448 0 R/Prev 34548 0 R/Title(TOOL-037 \267 Binding)>>
 endobj
 
 34550 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34551 0 R/Parent 34448 0 R/Prev 34549 0 R/Title(TOOL-038 Press)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34551 0 R/Parent 34448 0 R/Prev 34549 0 R/Title(TOOL-038 \267 Press)>>
 endobj
 
 34551 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34552 0 R/Parent 34448 0 R/Prev 34550 0 R/Title(TOOL-039 Transform Pattern)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34552 0 R/Parent 34448 0 R/Prev 34550 0 R/Title(TOOL-039 \267 Transform Pattern)>>
 endobj
 
 34552 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34553 0 R/Parent 34448 0 R/Prev 34551 0 R/Title(TOOL-040 Edit Pattern)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34553 0 R/Parent 34448 0 R/Prev 34551 0 R/Title(TOOL-040 \267 Edit Pattern)>>
 endobj
 
 34553 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34554 0 R/Parent 34448 0 R/Prev 34552 0 R/Title(TOOL-041 Fullness \(Point\))>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34554 0 R/Parent 34448 0 R/Prev 34552 0 R/Title(TOOL-041 \267 Fullness \(Point\))>>
 endobj
 
 34554 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34555 0 R/Parent 34448 0 R/Prev 34553 0 R/Title(TOOL-042 Polygon)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34555 0 R/Parent 34448 0 R/Prev 34553 0 R/Title(TOOL-042 \267 Polygon)>>
 endobj
 
 34555 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34556 0 R/Parent 34448 0 R/Prev 34554 0 R/Title(TOOL-043 Internal Polygon/Line)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34556 0 R/Parent 34448 0 R/Prev 34554 0 R/Title(TOOL-043 \267 Internal Polygon/Line)>>
 endobj
 
 34556 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34557 0 R/Parent 34448 0 R/Prev 34555 0 R/Title(TOOL-044 Base Polygon)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34557 0 R/Parent 34448 0 R/Prev 34555 0 R/Title(TOOL-044 \267 Base Polygon)>>
 endobj
 
 34557 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34558 0 R/Parent 34448 0 R/Prev 34556 0 R/Title(TOOL-045 Trace)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34558 0 R/Parent 34448 0 R/Prev 34556 0 R/Title(TOOL-045 \267 Trace)>>
 endobj
 
 34558 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34559 0 R/Parent 34448 0 R/Prev 34557 0 R/Title(TOOL-046 Notch)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34559 0 R/Parent 34448 0 R/Prev 34557 0 R/Title(TOOL-046 \267 Notch)>>
 endobj
 
 34559 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34560 0 R/Parent 34448 0 R/Prev 34558 0 R/Title(TOOL-047 Seam Allowance)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34560 0 R/Parent 34448 0 R/Prev 34558 0 R/Title(TOOL-047 \267 Seam Allowance)>>
 endobj
 
 34560 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34561 0 R/Parent 34448 0 R/Prev 34559 0 R/Title(TOOL-048 Walk Pattern)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34561 0 R/Parent 34448 0 R/Prev 34559 0 R/Title(TOOL-048 \267 Walk Pattern)>>
 endobj
 
 34561 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34562 0 R/Parent 34448 0 R/Prev 34560 0 R/Title(TOOL-049 Edit Point of Measure)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34562 0 R/Parent 34448 0 R/Prev 34560 0 R/Title(TOOL-049 \267 Edit Point of Measure)>>
 endobj
 
 34562 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34563 0 R/Parent 34448 0 R/Prev 34561 0 R/Title(TOOL-050 Point of Measure)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34563 0 R/Parent 34448 0 R/Prev 34561 0 R/Title(TOOL-050 \267 Point of Measure)>>
 endobj
 
 34563 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34564 0 R/Parent 34448 0 R/Prev 34562 0 R/Title(TOOL-051 Edit Annotation)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34564 0 R/Parent 34448 0 R/Prev 34562 0 R/Title(TOOL-051 \267 Edit Annotation)>>
 endobj
 
 34564 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34565 0 R/Parent 34448 0 R/Prev 34563 0 R/Title(TOOL-052 Pattern Annotation)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34565 0 R/Parent 34448 0 R/Prev 34563 0 R/Title(TOOL-052 \267 Pattern Annotation)>>
 endobj
 
 34565 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34566 0 R/Parent 34448 0 R/Prev 34564 0 R/Title(TOOL-053 Pleats)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34566 0 R/Parent 34448 0 R/Prev 34564 0 R/Title(TOOL-053 \267 Pleats)>>
 endobj
 
 34566 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34567 0 R/Parent 34448 0 R/Prev 34565 0 R/Title(TOOL-054 Edit Grading)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34567 0 R/Parent 34448 0 R/Prev 34565 0 R/Title(TOOL-054 \267 Edit Grading)>>
 endobj
 
 34567 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34568 0 R/Parent 34448 0 R/Prev 34566 0 R/Title(TOOL-055 Auto Grading)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34568 0 R/Parent 34448 0 R/Prev 34566 0 R/Title(TOOL-055 \267 Auto Grading)>>
 endobj
 
 34568 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34569 0 R/Parent 34448 0 R/Prev 34567 0 R/Title(TOOL-056 Edit Sewing)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34569 0 R/Parent 34448 0 R/Prev 34567 0 R/Title(TOOL-056 \267 Edit Sewing)>>
 endobj
 
 34569 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34570 0 R/Parent 34448 0 R/Prev 34568 0 R/Title(TOOL-057 Segment Sewing)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34570 0 R/Parent 34448 0 R/Prev 34568 0 R/Title(TOOL-057 \267 Segment Sewing)>>
 endobj
 
 34570 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34571 0 R/Parent 34448 0 R/Prev 34569 0 R/Title(TOOL-058 Free Sewing)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34571 0 R/Parent 34448 0 R/Prev 34569 0 R/Title(TOOL-058 \267 Free Sewing)>>
 endobj
 
 34571 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34572 0 R/Parent 34448 0 R/Prev 34570 0 R/Title(TOOL-059 Check Sewing Length)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34572 0 R/Parent 34448 0 R/Prev 34570 0 R/Title(TOOL-059 \267 Check Sewing Length)>>
 endobj
 
 34572 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34573 0 R/Parent 34448 0 R/Prev 34571 0 R/Title(TOOL-060 Steam)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34573 0 R/Parent 34448 0 R/Prev 34571 0 R/Title(TOOL-060 \267 Steam)>>
 endobj
 
 34573 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34574 0 R/Parent 34448 0 R/Prev 34572 0 R/Title(TOOL-061 Seam Taping)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34574 0 R/Parent 34448 0 R/Prev 34572 0 R/Title(TOOL-061 \267 Seam Taping)>>
 endobj
 
 34574 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34575 0 R/Parent 34448 0 R/Prev 34573 0 R/Title(TOOL-062 Edit Texture \(2D\))>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34575 0 R/Parent 34448 0 R/Prev 34573 0 R/Title(TOOL-062 \267 Edit Texture \(2D\))>>
 endobj
 
 34575 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34576 0 R/Parent 34448 0 R/Prev 34574 0 R/Title(TOOL-063 Transform Graphic)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34576 0 R/Parent 34448 0 R/Prev 34574 0 R/Title(TOOL-063 \267 Transform Graphic)>>
 endobj
 
 34576 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34577 0 R/Parent 34448 0 R/Prev 34575 0 R/Title(TOOL-064 Graphic \(2D Pattern\))>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34577 0 R/Parent 34448 0 R/Prev 34575 0 R/Title(TOOL-064 \267 Graphic \(2D Pattern\))>>
 endobj
 
 34577 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34578 0 R/Parent 34448 0 R/Prev 34576 0 R/Title(TOOL-065 Edit Topstitch)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34578 0 R/Parent 34448 0 R/Prev 34576 0 R/Title(TOOL-065 \267 Edit Topstitch)>>
 endobj
 
 34578 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34579 0 R/Parent 34448 0 R/Prev 34577 0 R/Title(TOOL-066 Segment Topstitch)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34579 0 R/Parent 34448 0 R/Prev 34577 0 R/Title(TOOL-066 \267 Segment Topstitch)>>
 endobj
 
 34579 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34580 0 R/Parent 34448 0 R/Prev 34578 0 R/Title(TOOL-067 Edit Puckering)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34580 0 R/Parent 34448 0 R/Prev 34578 0 R/Title(TOOL-067 \267 Edit Puckering)>>
 endobj
 
 34580 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34581 0 R/Parent 34448 0 R/Prev 34579 0 R/Title(TOOL-068 Segment Puckering)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34581 0 R/Parent 34448 0 R/Prev 34579 0 R/Title(TOOL-068 \267 Segment Puckering)>>
 endobj
 
 34581 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34582 0 R/Parent 34448 0 R/Prev 34580 0 R/Title(TOOL-069 Set Sublayer)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34582 0 R/Parent 34448 0 R/Prev 34580 0 R/Title(TOOL-069 \267 Set Sublayer)>>
 endobj
 
 34582 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34583 0 R/Parent 34448 0 R/Prev 34581 0 R/Title(TOOL-070 Fill)>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34583 0 R/Parent 34448 0 R/Prev 34581 0 R/Title(TOOL-070 \267 Fill)>>
 endobj
 
 34583 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34584 0 R/Parent 34448 0 R/Prev 34582 0 R/Title<FEFF004600410042002D0030003000310020004600610062007200690063007300200030003000312013003000310030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34584 0 R/Parent 34448 0 R/Prev 34582 0 R/Title<FEFF004600410042002D003000300031002000B70020004600610062007200690063007300200030003000312013003000310030>>>
 endobj
 
 34584 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34585 0 R/Parent 34448 0 R/Prev 34583 0 R/Title<FEFF004600410042002D0030003000320020004600610062007200690063007300200030003100312013003000320030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34585 0 R/Parent 34448 0 R/Prev 34583 0 R/Title<FEFF004600410042002D003000300032002000B70020004600610062007200690063007300200030003100312013003000320030>>>
 endobj
 
 34585 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34586 0 R/Parent 34448 0 R/Prev 34584 0 R/Title<FEFF004600410042002D0030003000330020004600610062007200690063007300200030003200312013003000330030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34586 0 R/Parent 34448 0 R/Prev 34584 0 R/Title<FEFF004600410042002D003000300033002000B70020004600610062007200690063007300200030003200312013003000330030>>>
 endobj
 
 34586 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34587 0 R/Parent 34448 0 R/Prev 34585 0 R/Title<FEFF004600410042002D0030003000340020004600610062007200690063007300200030003300312013003000340030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34587 0 R/Parent 34448 0 R/Prev 34585 0 R/Title<FEFF004600410042002D003000300034002000B70020004600610062007200690063007300200030003300312013003000340030>>>
 endobj
 
 34587 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34588 0 R/Parent 34448 0 R/Prev 34586 0 R/Title<FEFF004600410042002D0030003000350020004600610062007200690063007300200030003400312013003000350030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34588 0 R/Parent 34448 0 R/Prev 34586 0 R/Title<FEFF004600410042002D003000300035002000B70020004600610062007200690063007300200030003400312013003000350030>>>
 endobj
 
 34588 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34589 0 R/Parent 34448 0 R/Prev 34587 0 R/Title<FEFF004600410042002D0030003000360020004600610062007200690063007300200030003500312013003000360030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34589 0 R/Parent 34448 0 R/Prev 34587 0 R/Title<FEFF004600410042002D003000300036002000B70020004600610062007200690063007300200030003500312013003000360030>>>
 endobj
 
 34589 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34590 0 R/Parent 34448 0 R/Prev 34588 0 R/Title<FEFF004600410042002D0030003000370020004600610062007200690063007300200030003600312013003000370030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34590 0 R/Parent 34448 0 R/Prev 34588 0 R/Title<FEFF004600410042002D003000300037002000B70020004600610062007200690063007300200030003600312013003000370030>>>
 endobj
 
 34590 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34591 0 R/Parent 34448 0 R/Prev 34589 0 R/Title<FEFF004600410042002D0030003000380020004600610062007200690063007300200030003700312013003000380030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34591 0 R/Parent 34448 0 R/Prev 34589 0 R/Title<FEFF004600410042002D003000300038002000B70020004600610062007200690063007300200030003700312013003000380030>>>
 endobj
 
 34591 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34592 0 R/Parent 34448 0 R/Prev 34590 0 R/Title<FEFF004600410042002D0030003000390020004600610062007200690063007300200030003800312013003000390030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34592 0 R/Parent 34448 0 R/Prev 34590 0 R/Title<FEFF004600410042002D003000300039002000B70020004600610062007200690063007300200030003800312013003000390030>>>
 endobj
 
 34592 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34593 0 R/Parent 34448 0 R/Prev 34591 0 R/Title<FEFF004600410042002D0030003100300020004600610062007200690063007300200030003900312013003100300030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34593 0 R/Parent 34448 0 R/Prev 34591 0 R/Title<FEFF004600410042002D003000310030002000B70020004600610062007200690063007300200030003900312013003100300030>>>
 endobj
 
 34593 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34594 0 R/Parent 34448 0 R/Prev 34592 0 R/Title<FEFF004600410042002D0030003100310020004600610062007200690063007300200031003000312013003100310030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34594 0 R/Parent 34448 0 R/Prev 34592 0 R/Title<FEFF004600410042002D003000310031002000B70020004600610062007200690063007300200031003000312013003100310030>>>
 endobj
 
 34594 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34595 0 R/Parent 34448 0 R/Prev 34593 0 R/Title<FEFF004600410042002D0030003100320020004600610062007200690063007300200031003100312013003100320030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34595 0 R/Parent 34448 0 R/Prev 34593 0 R/Title<FEFF004600410042002D003000310032002000B70020004600610062007200690063007300200031003100312013003100320030>>>
 endobj
 
 34595 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34596 0 R/Parent 34448 0 R/Prev 34594 0 R/Title<FEFF004600410042002D0030003100330020004600610062007200690063007300200031003200312013003100330030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34596 0 R/Parent 34448 0 R/Prev 34594 0 R/Title<FEFF004600410042002D003000310033002000B70020004600610062007200690063007300200031003200312013003100330030>>>
 endobj
 
 34596 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34597 0 R/Parent 34448 0 R/Prev 34595 0 R/Title<FEFF004600410042002D0030003100340020004600610062007200690063007300200031003300312013003100340030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34597 0 R/Parent 34448 0 R/Prev 34595 0 R/Title<FEFF004600410042002D003000310034002000B70020004600610062007200690063007300200031003300312013003100340030>>>
 endobj
 
 34597 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34598 0 R/Parent 34448 0 R/Prev 34596 0 R/Title<FEFF004600410042002D0030003100350020004600610062007200690063007300200031003400312013003100350030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34598 0 R/Parent 34448 0 R/Prev 34596 0 R/Title<FEFF004600410042002D003000310035002000B70020004600610062007200690063007300200031003400312013003100350030>>>
 endobj
 
 34598 0 obj
-<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34599 0 R/Parent 34448 0 R/Prev 34597 0 R/Title<FEFF004600410042002D0030003100360020004600610062007200690063007300200031003500312013003100360030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34599 0 R/Parent 34448 0 R/Prev 34597 0 R/Title<FEFF004600410042002D003000310036002000B70020004600610062007200690063007300200031003500312013003100360030>>>
 endobj
 
 34599 0 obj
-<</A<</S/GoTo/D[565 0 R/XYZ 72 805.92 0]>>/Next 34600 0 R/Parent 34448 0 R/Prev 34598 0 R/Title<FEFF004600410042002D0030003100370020004600610062007200690063007300200031003600312013003100370030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34600 0 R/Parent 34448 0 R/Prev 34598 0 R/Title<FEFF004600410042002D003000310037002000B70020004600610062007200690063007300200031003600312013003100370030>>>
 endobj
 
 34600 0 obj
-<</A<</S/GoTo/D[567 0 R/XYZ 72 805.92 0]>>/Next 34601 0 R/Parent 34448 0 R/Prev 34599 0 R/Title<FEFF004600410042002D0030003100380020004600610062007200690063007300200031003700312013003100380030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34601 0 R/Parent 34448 0 R/Prev 34599 0 R/Title<FEFF004600410042002D003000310038002000B70020004600610062007200690063007300200031003700312013003100380030>>>
 endobj
 
 34601 0 obj
-<</A<</S/GoTo/D[569 0 R/XYZ 72 805.92 0]>>/Next 34602 0 R/Parent 34448 0 R/Prev 34600 0 R/Title<FEFF004600410042002D0030003100390020004600610062007200690063007300200031003800312013003100390030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34602 0 R/Parent 34448 0 R/Prev 34600 0 R/Title<FEFF004600410042002D003000310039002000B70020004600610062007200690063007300200031003800312013003100390030>>>
 endobj
 
 34602 0 obj
-<</A<</S/GoTo/D[571 0 R/XYZ 72 805.92 0]>>/Next 34603 0 R/Parent 34448 0 R/Prev 34601 0 R/Title<FEFF004600410042002D0030003200300020004600610062007200690063007300200031003900312013003200300030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34603 0 R/Parent 34448 0 R/Prev 34601 0 R/Title<FEFF004600410042002D003000320030002000B70020004600610062007200690063007300200031003900312013003200300030>>>
 endobj
 
 34603 0 obj
-<</A<</S/GoTo/D[573 0 R/XYZ 72 805.92 0]>>/Next 34604 0 R/Parent 34448 0 R/Prev 34602 0 R/Title<FEFF004600410042002D0030003200310020004600610062007200690063007300200032003000312013003200310030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34604 0 R/Parent 34448 0 R/Prev 34602 0 R/Title<FEFF004600410042002D003000320031002000B70020004600610062007200690063007300200032003000312013003200310030>>>
 endobj
 
 34604 0 obj
-<</A<</S/GoTo/D[575 0 R/XYZ 72 805.92 0]>>/Next 34605 0 R/Parent 34448 0 R/Prev 34603 0 R/Title<FEFF004600410042002D0030003200320020004600610062007200690063007300200032003100312013003200320030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34605 0 R/Parent 34448 0 R/Prev 34603 0 R/Title<FEFF004600410042002D003000320032002000B70020004600610062007200690063007300200032003100312013003200320030>>>
 endobj
 
 34605 0 obj
-<</A<</S/GoTo/D[577 0 R/XYZ 72 805.92 0]>>/Next 34606 0 R/Parent 34448 0 R/Prev 34604 0 R/Title<FEFF004600410042002D0030003200330020004600610062007200690063007300200032003200312013003200330030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34606 0 R/Parent 34448 0 R/Prev 34604 0 R/Title<FEFF004600410042002D003000320033002000B70020004600610062007200690063007300200032003200312013003200330030>>>
 endobj
 
 34606 0 obj
-<</A<</S/GoTo/D[579 0 R/XYZ 72 805.92 0]>>/Next 34607 0 R/Parent 34448 0 R/Prev 34605 0 R/Title<FEFF004600410042002D0030003200340020004600610062007200690063007300200032003300312013003200340030>>>
+<</A<</S/GoTo/D[131 0 R/XYZ 72 805.92 0]>>/Next 34607 0 R/Parent 34448 0 R/Prev 34605 0 R/Title<FEFF004600410042002D003000320034002000B70020004600610062007200690063007300200032003300312013003200340030>>>
 endobj
 
 34607 0 obj
-<</A<</S/GoTo/D[581 0 R/XYZ 72 805.92 0]>>/Next 34608 0 R/Parent 34448 0 R/Prev 34606 0 R/Title<FEFF004600410042002D0030003200350020004600610062007200690063007300200032003400312013003200350030>>>
+<</A<</S/GoTo/D[581 0 R/XYZ 72 805.92 0]>>/Next 34608 0 R/Parent 34448 0 R/Prev 34606 0 R/Title<FEFF004600410042002D003000320035002000B70020004600610062007200690063007300200032003400312013003200350030>>>
 endobj
 
 34608 0 obj
-<</A<</S/GoTo/D[583 0 R/XYZ 72 805.92 0]>>/Next 34609 0 R/Parent 34448 0 R/Prev 34607 0 R/Title<FEFF004600410042002D0030003200360020004600610062007200690063007300200032003500312013003200360030>>>
+<</A<</S/GoTo/D[583 0 R/XYZ 72 805.92 0]>>/Next 34609 0 R/Parent 34448 0 R/Prev 34607 0 R/Title<FEFF004600410042002D003000320036002000B70020004600610062007200690063007300200032003500312013003200360030>>>
 endobj
 
 34609 0 obj
-<</A<</S/GoTo/D[585 0 R/XYZ 72 805.92 0]>>/Next 34610 0 R/Parent 34448 0 R/Prev 34608 0 R/Title<FEFF004600410042002D0030003200370020004600610062007200690063007300200032003600312013003200370030>>>
+<</A<</S/GoTo/D[585 0 R/XYZ 72 805.92 0]>>/Next 34610 0 R/Parent 34448 0 R/Prev 34608 0 R/Title<FEFF004600410042002D003000320037002000B70020004600610062007200690063007300200032003600312013003200370030>>>
 endobj
 
 34610 0 obj
-<</A<</S/GoTo/D[587 0 R/XYZ 72 805.92 0]>>/Next 34611 0 R/Parent 34448 0 R/Prev 34609 0 R/Title<FEFF004600410042002D0030003200380020004600610062007200690063007300200032003700312013003200380030>>>
+<</A<</S/GoTo/D[587 0 R/XYZ 72 805.92 0]>>/Next 34611 0 R/Parent 34448 0 R/Prev 34609 0 R/Title<FEFF004600410042002D003000320038002000B70020004600610062007200690063007300200032003700312013003200380030>>>
 endobj
 
 34611 0 obj
-<</A<</S/GoTo/D[589 0 R/XYZ 72 805.92 0]>>/Next 34612 0 R/Parent 34448 0 R/Prev 34610 0 R/Title<FEFF004600410042002D0030003200390020004600610062007200690063007300200032003800312013003200390030>>>
+<</A<</S/GoTo/D[589 0 R/XYZ 72 805.92 0]>>/Next 34612 0 R/Parent 34448 0 R/Prev 34610 0 R/Title<FEFF004600410042002D003000320039002000B70020004600610062007200690063007300200032003800312013003200390030>>>
 endobj
 
 34612 0 obj
-<</A<</S/GoTo/D[591 0 R/XYZ 72 805.92 0]>>/Next 34613 0 R/Parent 34448 0 R/Prev 34611 0 R/Title<FEFF004600410042002D0030003300300020004600610062007200690063007300200032003900312013003300300030>>>
+<</A<</S/GoTo/D[591 0 R/XYZ 72 805.92 0]>>/Next 34613 0 R/Parent 34448 0 R/Prev 34611 0 R/Title<FEFF004600410042002D003000330030002000B70020004600610062007200690063007300200032003900312013003300300030>>>
 endobj
 
 34613 0 obj
-<</A<</S/GoTo/D[593 0 R/XYZ 72 805.92 0]>>/Next 34614 0 R/Parent 34448 0 R/Prev 34612 0 R/Title<FEFF004600410042002D0030003300310020004600610062007200690063007300200033003000312013003300310030>>>
+<</A<</S/GoTo/D[593 0 R/XYZ 72 805.92 0]>>/Next 34614 0 R/Parent 34448 0 R/Prev 34612 0 R/Title<FEFF004600410042002D003000330031002000B70020004600610062007200690063007300200033003000312013003300310030>>>
 endobj
 
 34614 0 obj
-<</A<</S/GoTo/D[595 0 R/XYZ 72 805.92 0]>>/Next 34615 0 R/Parent 34448 0 R/Prev 34613 0 R/Title<FEFF004600410042002D0030003300320020004600610062007200690063007300200033003100312013003300320030>>>
+<</A<</S/GoTo/D[595 0 R/XYZ 72 805.92 0]>>/Next 34615 0 R/Parent 34448 0 R/Prev 34613 0 R/Title<FEFF004600410042002D003000330032002000B70020004600610062007200690063007300200033003100312013003300320030>>>
 endobj
 
 34615 0 obj
-<</A<</S/GoTo/D[597 0 R/XYZ 72 805.92 0]>>/Next 34616 0 R/Parent 34448 0 R/Prev 34614 0 R/Title<FEFF004600410042002D0030003300330020004600610062007200690063007300200033003200312013003300330030>>>
+<</A<</S/GoTo/D[597 0 R/XYZ 72 805.92 0]>>/Next 34616 0 R/Parent 34448 0 R/Prev 34614 0 R/Title<FEFF004600410042002D003000330033002000B70020004600610062007200690063007300200033003200312013003300330030>>>
 endobj
 
 34616 0 obj
-<</A<</S/GoTo/D[599 0 R/XYZ 72 805.92 0]>>/Next 34617 0 R/Parent 34448 0 R/Prev 34615 0 R/Title<FEFF004600410042002D0030003300340020004600610062007200690063007300200033003300312013003300340030>>>
+<</A<</S/GoTo/D[599 0 R/XYZ 72 805.92 0]>>/Next 34617 0 R/Parent 34448 0 R/Prev 34615 0 R/Title<FEFF004600410042002D003000330034002000B70020004600610062007200690063007300200033003300312013003300340030>>>
 endobj
 
 34617 0 obj
-<</A<</S/GoTo/D[601 0 R/XYZ 72 805.92 0]>>/Next 34618 0 R/Parent 34448 0 R/Prev 34616 0 R/Title<FEFF004600410042002D0030003300350020004600610062007200690063007300200033003400312013003300350030>>>
+<</A<</S/GoTo/D[601 0 R/XYZ 72 805.92 0]>>/Next 34618 0 R/Parent 34448 0 R/Prev 34616 0 R/Title<FEFF004600410042002D003000330035002000B70020004600610062007200690063007300200033003400312013003300350030>>>
 endobj
 
 34618 0 obj
-<</A<</S/GoTo/D[603 0 R/XYZ 72 805.92 0]>>/Next 34619 0 R/Parent 34448 0 R/Prev 34617 0 R/Title<FEFF004600410042002D0030003300360020004600610062007200690063007300200033003500312013003300360030>>>
+<</A<</S/GoTo/D[603 0 R/XYZ 72 805.92 0]>>/Next 34619 0 R/Parent 34448 0 R/Prev 34617 0 R/Title<FEFF004600410042002D003000330036002000B70020004600610062007200690063007300200033003500312013003300360030>>>
 endobj
 
 34619 0 obj
-<</A<</S/GoTo/D[605 0 R/XYZ 72 805.92 0]>>/Next 34620 0 R/Parent 34448 0 R/Prev 34618 0 R/Title<FEFF004600410042002D0030003300370020004600610062007200690063007300200033003600312013003300370030>>>
+<</A<</S/GoTo/D[605 0 R/XYZ 72 805.92 0]>>/Next 34620 0 R/Parent 34448 0 R/Prev 34618 0 R/Title<FEFF004600410042002D003000330037002000B70020004600610062007200690063007300200033003600312013003300370030>>>
 endobj
 
 34620 0 obj
-<</A<</S/GoTo/D[607 0 R/XYZ 72 805.92 0]>>/Next 34621 0 R/Parent 34448 0 R/Prev 34619 0 R/Title<FEFF004600410042002D0030003300380020004600610062007200690063007300200033003700312013003300380030>>>
+<</A<</S/GoTo/D[607 0 R/XYZ 72 805.92 0]>>/Next 34621 0 R/Parent 34448 0 R/Prev 34619 0 R/Title<FEFF004600410042002D003000330038002000B70020004600610062007200690063007300200033003700312013003300380030>>>
 endobj
 
 34621 0 obj
-<</A<</S/GoTo/D[609 0 R/XYZ 72 805.92 0]>>/Next 34622 0 R/Parent 34448 0 R/Prev 34620 0 R/Title<FEFF004600410042002D0030003300390020004600610062007200690063007300200033003800312013003300390030>>>
+<</A<</S/GoTo/D[609 0 R/XYZ 72 805.92 0]>>/Next 34622 0 R/Parent 34448 0 R/Prev 34620 0 R/Title<FEFF004600410042002D003000330039002000B70020004600610062007200690063007300200033003800312013003300390030>>>
 endobj
 
 34622 0 obj
-<</A<</S/GoTo/D[611 0 R/XYZ 72 805.92 0]>>/Next 34623 0 R/Parent 34448 0 R/Prev 34621 0 R/Title<FEFF004600410042002D0030003400300020004600610062007200690063007300200033003900312013003400300030>>>
+<</A<</S/GoTo/D[611 0 R/XYZ 72 805.92 0]>>/Next 34623 0 R/Parent 34448 0 R/Prev 34621 0 R/Title<FEFF004600410042002D003000340030002000B70020004600610062007200690063007300200033003900312013003400300030>>>
 endobj
 
 34623 0 obj
-<</A<</S/GoTo/D[613 0 R/XYZ 72 805.92 0]>>/Next 34624 0 R/Parent 34448 0 R/Prev 34622 0 R/Title(QA-01 Execution matrix and hard numerical release gates)>>
+<</A<</S/GoTo/D[613 0 R/XYZ 72 805.92 0]>>/Next 34624 0 R/Parent 34448 0 R/Prev 34622 0 R/Title(QA-01 \267 Execution matrix and hard numerical release gates)>>
 endobj
 
 34624 0 obj
-<</A<</S/GoTo/D[615 0 R/XYZ 72 805.92 0]>>/Parent 34448 0 R/Prev 34623 0 R/Title(QA-02 Official CLO research and compatibility boundaries)>>
+<</A<</S/GoTo/D[615 0 R/XYZ 72 805.92 0]>>/Parent 34448 0 R/Prev 34623 0 R/Title(QA-02 \267 Official CLO research and compatibility boundaries)>>
 endobj
 
 34625 0 obj
-<</A<</S/GoTo/D[617 0 R/XYZ 72 805.92 0]>>/Next 34626 0 R/Parent 34447 0 R/Prev 34448 0 R/Title(Annex 01: GARMENT_STUDIO_COMPLETE_CLO3D_PARITY_MASTER_PLAN_2026-10-13.md)>>
+<</A<</S/GoTo/D[617 0 R/XYZ 72 805.92 0]>>/Next 34626 0 R/Parent 34447 0 R/Prev 34448 0 R/Title(Source annex 1)>>
 endobj
 
 34626 0 obj
-<</A<</S/GoTo/D[719 0 R/XYZ 72 805.92 0]>>/Next 34627 0 R/Parent 34447 0 R/Prev 34625 0 R/Title(Annex 02: EXO_MASTER_ROADMAP.md)>>
+<</A<</S/GoTo/D[719 0 R/XYZ 72 805.92 0]>>/Next 34627 0 R/Parent 34447 0 R/Prev 34625 0 R/Title(Source annex 2)>>
 endobj
 
 34627 0 obj
-<</A<</S/GoTo/D[728 0 R/XYZ 72 805.92 0]>>/Next 34628 0 R/Parent 34447 0 R/Prev 34626 0 R/Title(Annex 03: CLO3D_NON_SIMULATION_FULL_BUILD_AUDIT_2026-10-13.md)>>
+<</A<</S/GoTo/D[728 0 R/XYZ 72 805.92 0]>>/Next 34628 0 R/Parent 34447 0 R/Prev 34626 0 R/Title(Source annex 3)>>
 endobj
 
 34628 0 obj
-<</A<</S/GoTo/D[734 0 R/XYZ 72 805.92 0]>>/Next 34629 0 R/Parent 34447 0 R/Prev 34627 0 R/Title(Annex 04: CLO3D_PROPERTY_EDITOR_DEEP_AUDIT_20261016.md)>>
+<</A<</S/GoTo/D[734 0 R/XYZ 72 805.92 0]>>/Next 34629 0 R/Parent 34447 0 R/Prev 34627 0 R/Title(Source annex 4)>>
 endobj
 
 34629 0 obj
-<</A<</S/GoTo/D[764 0 R/XYZ 72 805.92 0]>>/Next 34630 0 R/Parent 34447 0 R/Prev 34628 0 R/Title(Annex 05: CLO7_LIVE_PROPERTY_EDITOR_AUDIT_20261016.md)>>
+<</A<</S/GoTo/D[764 0 R/XYZ 72 805.92 0]>>/Next 34630 0 R/Parent 34447 0 R/Prev 34628 0 R/Title(Source annex 5)>>
 endobj
 
 34630 0 obj
-<</A<</S/GoTo/D[775 0 R/XYZ 72 805.92 0]>>/Next 34631 0 R/Parent 34447 0 R/Prev 34629 0 R/Title(Annex 06: EXO_400_FABRIC_LIBRARY_AND_WASH_SYSTEM.md)>>
+<</A<</S/GoTo/D[775 0 R/XYZ 72 805.92 0]>>/Next 34631 0 R/Parent 34447 0 R/Prev 34629 0 R/Title(Source annex 6)>>
 endobj
 
 34631 0 obj
-<</A<</S/GoTo/D[792 0 R/XYZ 72 805.92 0]>>/Next 34632 0 R/Parent 34447 0 R/Prev 34630 0 R/Title(Annex 07: FABRIC_PHYSICS_AND_CLO_RESEARCH_2026-10-16.md)>>
+<</A<</S/GoTo/D[792 0 R/XYZ 72 805.92 0]>>/Next 34632 0 R/Parent 34447 0 R/Prev 34630 0 R/Title(Source annex 7)>>
 endobj
 
 34632 0 obj
-<</A<</S/GoTo/D[807 0 R/XYZ 72 805.92 0]>>/Next 34633 0 R/Parent 34447 0 R/Prev 34631 0 R/Title(Annex 08: EXO_PPF_MATERIALS_IMMERSIVE_STUDIOS_FUTURE_ARCHITECTURE_2026-10-16.md)>>
+<</A<</S/GoTo/D[807 0 R/XYZ 72 805.92 0]>>/Next 34633 0 R/Parent 34447 0 R/Prev 34631 0 R/Title(Source annex 8)>>
 endobj
 
 34633 0 obj
-<</A<</S/GoTo/D[822 0 R/XYZ 72 805.92 0]>>/Next 34634 0 R/Parent 34447 0 R/Prev 34632 0 R/Title(Annex 09: EXO_ECOSYSTEM_MASTER_IMPLEMENTATION_PROGRAM_2026-10-16.md)>>
+<</A<</S/GoTo/D[822 0 R/XYZ 72 805.92 0]>>/Next 34634 0 R/Parent 34447 0 R/Prev 34632 0 R/Title(Source annex 9)>>
 endobj
 
 34634 0 obj
-<</A<</S/GoTo/D[848 0 R/XYZ 72 805.92 0]>>/Next 34635 0 R/Parent 34447 0 R/Prev 34633 0 R/Title(Annex 10: EXO_INTERACTIVE_WEB_TECHPACK_PLANNING_2026-10-16.md)>>
+<</A<</S/GoTo/D[848 0 R/XYZ 72 805.92 0]>>/Next 34635 0 R/Parent 34447 0 R/Prev 34633 0 R/Title(Source annex 10)>>
 endobj
 
 34635 0 obj
-<</A<</S/GoTo/D[866 0 R/XYZ 72 805.92 0]>>/Parent 34447 0 R/Prev 34634 0 R/Title(Annex 11: EXO_COMMUNITY_MARKETPLACE_SOCIAL_COLLABORATION_ARCHITECTURE_2026-10-16.md)>>
+<</A<</S/GoTo/D[866 0 R/XYZ 72 805.92 0]>>/Parent 34447 0 R/Prev 34634 0 R/Title(Source annex 11)>>
 endobj
 
 xref
@@ -190744,196 +190744,196 @@ xref
 0007183262 00000 n 
 0007183562 00000 n 
 0007183641 00000 n 
-0007183824 00000 n 
-0007183973 00000 n 
-0007184135 00000 n 
-0007184304 00000 n 
-0007184489 00000 n 
-0007184643 00000 n 
-0007184800 00000 n 
-0007184953 00000 n 
-0007185105 00000 n 
-0007185258 00000 n 
-0007185416 00000 n 
-0007185574 00000 n 
-0007185732 00000 n 
-0007185893 00000 n 
-0007186045 00000 n 
-0007186204 00000 n 
-0007186350 00000 n 
-0007186510 00000 n 
-0007186666 00000 n 
-0007186826 00000 n 
-0007186975 00000 n 
-0007187130 00000 n 
-0007187286 00000 n 
-0007187444 00000 n 
-0007187606 00000 n 
-0007187770 00000 n 
-0007187932 00000 n 
-0007188086 00000 n 
-0007188237 00000 n 
-0007188400 00000 n 
-0007188555 00000 n 
-0007188704 00000 n 
-0007188858 00000 n 
-0007189023 00000 n 
-0007189185 00000 n 
-0007189344 00000 n 
-0007189500 00000 n 
-0007189662 00000 n 
-0007189819 00000 n 
-0007189981 00000 n 
-0007190136 00000 n 
-0007190296 00000 n 
-0007190457 00000 n 
-0007190619 00000 n 
-0007190778 00000 n 
-0007190945 00000 n 
-0007191103 00000 n 
-0007191263 00000 n 
-0007191422 00000 n 
-0007191577 00000 n 
-0007191730 00000 n 
-0007191887 00000 n 
-0007192046 00000 n 
-0007192204 00000 n 
-0007192361 00000 n 
-0007192515 00000 n 
-0007192671 00000 n 
-0007192820 00000 n 
-0007192977 00000 n 
-0007193138 00000 n 
-0007193296 00000 n 
-0007193456 00000 n 
-0007193618 00000 n 
-0007193774 00000 n 
-0007193941 00000 n 
-0007194078 00000 n 
-0007194218 00000 n 
-0007194368 00000 n 
-0007194511 00000 n 
-0007194651 00000 n 
-0007194794 00000 n 
-0007194934 00000 n 
-0007195074 00000 n 
-0007195212 00000 n 
-0007195345 00000 n 
-0007195490 00000 n 
-0007195634 00000 n 
-0007195791 00000 n 
-0007195948 00000 n 
-0007196100 00000 n 
-0007196243 00000 n 
-0007196395 00000 n 
-0007196553 00000 n 
-0007196706 00000 n 
-0007196861 00000 n 
-0007197001 00000 n 
-0007197154 00000 n 
-0007197302 00000 n 
-0007197442 00000 n 
-0007197593 00000 n 
-0007197739 00000 n 
-0007197887 00000 n 
-0007198033 00000 n 
-0007198184 00000 n 
-0007198331 00000 n 
-0007198466 00000 n 
-0007198608 00000 n 
-0007198743 00000 n 
-0007198883 00000 n 
-0007199018 00000 n 
-0007199161 00000 n 
-0007199297 00000 n 
-0007199431 00000 n 
-0007199577 00000 n 
-0007199718 00000 n 
-0007199865 00000 n 
-0007200001 00000 n 
-0007200151 00000 n 
-0007200292 00000 n 
-0007200426 00000 n 
-0007200560 00000 n 
-0007200703 00000 n 
-0007200844 00000 n 
-0007200994 00000 n 
-0007201139 00000 n 
-0007201283 00000 n 
-0007201430 00000 n 
-0007201565 00000 n 
-0007201706 00000 n 
-0007201847 00000 n 
-0007201987 00000 n 
-0007202130 00000 n 
-0007202270 00000 n 
-0007202418 00000 n 
-0007202552 00000 n 
-0007202692 00000 n 
-0007202840 00000 n 
-0007202986 00000 n 
-0007203137 00000 n 
-0007203280 00000 n 
-0007203426 00000 n 
-0007203569 00000 n 
-0007203715 00000 n 
-0007203856 00000 n 
-0007203989 00000 n 
-0007204205 00000 n 
-0007204421 00000 n 
-0007204637 00000 n 
-0007204853 00000 n 
-0007205069 00000 n 
-0007205285 00000 n 
-0007205501 00000 n 
-0007205717 00000 n 
-0007205933 00000 n 
-0007206149 00000 n 
-0007206365 00000 n 
-0007206581 00000 n 
-0007206797 00000 n 
-0007207013 00000 n 
-0007207229 00000 n 
-0007207445 00000 n 
-0007207661 00000 n 
-0007207877 00000 n 
-0007208093 00000 n 
-0007208309 00000 n 
-0007208525 00000 n 
-0007208741 00000 n 
-0007208957 00000 n 
-0007209173 00000 n 
-0007209389 00000 n 
-0007209605 00000 n 
-0007209821 00000 n 
-0007210037 00000 n 
+0007183823 00000 n 
+0007183977 00000 n 
+0007184144 00000 n 
+0007184318 00000 n 
+0007184508 00000 n 
+0007184667 00000 n 
+0007184829 00000 n 
+0007184987 00000 n 
+0007185144 00000 n 
+0007185302 00000 n 
+0007185465 00000 n 
+0007185628 00000 n 
+0007185791 00000 n 
+0007185957 00000 n 
+0007186114 00000 n 
+0007186278 00000 n 
+0007186429 00000 n 
+0007186594 00000 n 
+0007186755 00000 n 
+0007186920 00000 n 
+0007187074 00000 n 
+0007187234 00000 n 
+0007187395 00000 n 
+0007187558 00000 n 
+0007187725 00000 n 
+0007187893 00000 n 
+0007188059 00000 n 
+0007188217 00000 n 
+0007188372 00000 n 
+0007188539 00000 n 
+0007188699 00000 n 
+0007188853 00000 n 
+0007189012 00000 n 
+0007189182 00000 n 
+0007189349 00000 n 
+0007189513 00000 n 
+0007189674 00000 n 
+0007189841 00000 n 
+0007190003 00000 n 
+0007190170 00000 n 
+0007190330 00000 n 
+0007190495 00000 n 
+0007190661 00000 n 
+0007190828 00000 n 
+0007190992 00000 n 
+0007191164 00000 n 
+0007191327 00000 n 
+0007191492 00000 n 
+0007191656 00000 n 
+0007191816 00000 n 
+0007191974 00000 n 
+0007192136 00000 n 
+0007192300 00000 n 
+0007192463 00000 n 
+0007192625 00000 n 
+0007192784 00000 n 
+0007192945 00000 n 
+0007193099 00000 n 
+0007193261 00000 n 
+0007193427 00000 n 
+0007193590 00000 n 
+0007193755 00000 n 
+0007193922 00000 n 
+0007194083 00000 n 
+0007194255 00000 n 
+0007194397 00000 n 
+0007194542 00000 n 
+0007194697 00000 n 
+0007194845 00000 n 
+0007194990 00000 n 
+0007195138 00000 n 
+0007195283 00000 n 
+0007195428 00000 n 
+0007195571 00000 n 
+0007195709 00000 n 
+0007195859 00000 n 
+0007196008 00000 n 
+0007196170 00000 n 
+0007196332 00000 n 
+0007196489 00000 n 
+0007196637 00000 n 
+0007196794 00000 n 
+0007196957 00000 n 
+0007197115 00000 n 
+0007197275 00000 n 
+0007197420 00000 n 
+0007197578 00000 n 
+0007197731 00000 n 
+0007197876 00000 n 
+0007198032 00000 n 
+0007198183 00000 n 
+0007198336 00000 n 
+0007198487 00000 n 
+0007198643 00000 n 
+0007198795 00000 n 
+0007198935 00000 n 
+0007199082 00000 n 
+0007199222 00000 n 
+0007199367 00000 n 
+0007199507 00000 n 
+0007199655 00000 n 
+0007199796 00000 n 
+0007199935 00000 n 
+0007200086 00000 n 
+0007200232 00000 n 
+0007200384 00000 n 
+0007200525 00000 n 
+0007200680 00000 n 
+0007200826 00000 n 
+0007200965 00000 n 
+0007201104 00000 n 
+0007201252 00000 n 
+0007201398 00000 n 
+0007201553 00000 n 
+0007201703 00000 n 
+0007201852 00000 n 
+0007202004 00000 n 
+0007202144 00000 n 
+0007202290 00000 n 
+0007202436 00000 n 
+0007202581 00000 n 
+0007202729 00000 n 
+0007202874 00000 n 
+0007203027 00000 n 
+0007203166 00000 n 
+0007203311 00000 n 
+0007203464 00000 n 
+0007203615 00000 n 
+0007203771 00000 n 
+0007203919 00000 n 
+0007204070 00000 n 
+0007204218 00000 n 
+0007204369 00000 n 
+0007204515 00000 n 
+0007204653 00000 n 
+0007204877 00000 n 
+0007205101 00000 n 
+0007205325 00000 n 
+0007205549 00000 n 
+0007205773 00000 n 
+0007205997 00000 n 
+0007206221 00000 n 
+0007206445 00000 n 
+0007206669 00000 n 
+0007206893 00000 n 
+0007207117 00000 n 
+0007207341 00000 n 
+0007207565 00000 n 
+0007207789 00000 n 
+0007208013 00000 n 
+0007208237 00000 n 
+0007208461 00000 n 
+0007208685 00000 n 
+0007208909 00000 n 
+0007209133 00000 n 
+0007209357 00000 n 
+0007209581 00000 n 
+0007209805 00000 n 
+0007210029 00000 n 
 0007210253 00000 n 
-0007210469 00000 n 
-0007210685 00000 n 
-0007210901 00000 n 
-0007211117 00000 n 
-0007211333 00000 n 
-0007211549 00000 n 
-0007211765 00000 n 
-0007211981 00000 n 
-0007212197 00000 n 
-0007212413 00000 n 
-0007212629 00000 n 
-0007212804 00000 n 
-0007212965 00000 n 
-0007213157 00000 n 
-0007213308 00000 n 
-0007213489 00000 n 
-0007213663 00000 n 
-0007213836 00000 n 
-0007214007 00000 n 
-0007214182 00000 n 
-0007214381 00000 n 
-0007214568 00000 n 
-0007214749 00000 n 
+0007210477 00000 n 
+0007210701 00000 n 
+0007210925 00000 n 
+0007211149 00000 n 
+0007211373 00000 n 
+0007211597 00000 n 
+0007211821 00000 n 
+0007212045 00000 n 
+0007212269 00000 n 
+0007212493 00000 n 
+0007212717 00000 n 
+0007212941 00000 n 
+0007213165 00000 n 
+0007213389 00000 n 
+0007213613 00000 n 
+0007213793 00000 n 
+0007213959 00000 n 
+0007214093 00000 n 
+0007214227 00000 n 
+0007214361 00000 n 
+0007214495 00000 n 
+0007214629 00000 n 
+0007214763 00000 n 
+0007214897 00000 n 
+0007215031 00000 n 
+0007215165 00000 n 
+0007215300 00000 n 
 
 trailer
-<</Size 34636/Info 1 0 R/Root 32915 0 R/ID[<C2ABC2B90FC2B2C39D7BC2BEC39FC297><00BA0D769F82BEEE57D63F555012C0AF>]>>
+<</Size 34636/Info 1 0 R/Root 32915 0 R/ID[<47250BC3BE39C2A77AC3ABC2B3C2B969><9C2609C2FBAE7AFA73C2BB212CBEFC3B>]>>
 startxref
-7214937
+7215420
 %%EOF
