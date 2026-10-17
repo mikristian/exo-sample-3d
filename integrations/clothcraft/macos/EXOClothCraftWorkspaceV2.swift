@@ -115,8 +115,15 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         let template = clothCraft.appendingPathComponent("target/debug/cloth-template")
         let fitting = clothCraft.appendingPathComponent("target/debug/cloth-fit")
         let native = resources.appendingPathComponent("native_cpp/build-cmake/garment_cad_cli")
+        // Keep this list in sync with the server's local imports. An earlier
+        // V2 bundle omitted agent-api.mjs; the window opened but its project
+        // service crashed with ERR_MODULE_NOT_FOUND before a garment loaded.
         for required in [node, template, fitting, native,
-                         resources.appendingPathComponent("web/index.html")] {
+                         resources.appendingPathComponent("web/index.html"),
+                         scripts.appendingPathComponent("static.mjs"),
+                         scripts.appendingPathComponent("server.mjs"),
+                         scripts.appendingPathComponent("workspace.mjs"),
+                         scripts.appendingPathComponent("agent-api.mjs")] {
             if !FileManager.default.fileExists(atPath: required.path) {
                 throw NSError(domain: "EXO", code: 2,
                               userInfo: [NSLocalizedDescriptionKey: "Missing bundled resource: \(required.lastPathComponent)"])

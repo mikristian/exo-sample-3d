@@ -98,6 +98,58 @@ try {
     await page.screenshot({path:path.join(output,'startup-debug.png'),fullPage:true})
     throw error
   }
+  // The displayed 3D mannequin silhouette must meet the *actual* shoulder
+  // seams of the front cut pattern, not an arbitrary constant Y anchor.
+  const registered=await board.evaluate(root=>{
+    const svg=root.querySelector('svg'),figure=svg.querySelector('[aria-label="Centered front avatar silhouette"]')
+    const left=svg.querySelector('[data-edge="front:shoulder-left"]')
+    const right=svg.querySelector('[data-edge="front:shoulder-right"]')
+    if(!figure||!left||!right)return null
+    const shoulderScreen=[left,right].map(el=>el.getBoundingClientRect())
+    const seamMidY=shoulderScreen.reduce((n,r)=>n+r.top+r.height/2,0)/2
+    const seamMinX=Math.min(...shoulderScreen.map(r=>r.left))
+    const seamMaxX=Math.max(...shoulderScreen.map(r=>r.right))
+    const shoulderY=Number(figure.dataset.registeredShoulderY)
+    const avatarY=Number(figure.dataset.avatarAnchorY)
+    const path=figure.querySelector('path'),matrix=path.getScreenCTM()
+    const localY=shoulderY-avatarY,position=new DOMPoint(0,localY).matrixTransform(matrix)
+    const sampled=[]
+    const length=path.getTotalLength()
+    for(let i=0;i<=4000;i++){
+      const xy=path.getPointAtLength(length*i/4000)
+      if(Math.abs(xy.y-localY)<.008)sampled.push(new DOMPoint(xy.x,xy.y).matrixTransform(matrix).x)
+    }
+    return {seamMidY,guideY:position.y,seamWidth:seamMaxX-seamMinX,
+      bodyWidth:sampled.length>2?Math.max(...sampled)-Math.min(...sampled):0,
+      axisDelta:(seamMinX+seamMaxX)/2-position.x,
+      bodyAnchor:figure.getAttribute('transform')}
+  })
+  assert(registered,'Live body silhouette and front shoulder edges must both be visible')
+  assert(Math.abs(registered.guideY-registered.seamMidY)<4,
+    'Body shoulder landmark must align vertically with the pattern shoulder seam: '+JSON.stringify(registered))
+  assert(Math.abs(registered.axisDelta)<4,
+    'Body shoulder axis must align with the centered pattern: '+JSON.stringify(registered))
+  assert(registered.bodyWidth>0&&Math.abs(registered.seamWidth-registered.bodyWidth)<13,
+    'Avatar mesh upper torso width should match the garment shoulder seam: '+JSON.stringify(registered))
+  // The reference continues to track metre-space geometry when the native
+  // desktop is resized, and Frame all must not crop the character's head/feet.
+  await page.setViewportSize({width:1230,height:790})
+  await board.getByRole('button',{name:'Frame all'}).click()
+  const narrow=await board.evaluate(root=>{
+    const visible=root.querySelector('svg').getBoundingClientRect()
+    const body=root.querySelector('[aria-label="Centered front avatar silhouette"]')?.getBoundingClientRect()
+    const front=root.querySelector('[data-panel="front"]')?.getBoundingClientRect()
+    return {visible:{left:visible.left,right:visible.right,top:visible.top,bottom:visible.bottom},
+      body:body&&{left:body.left,right:body.right,top:body.top,bottom:body.bottom},
+      front:front&&{left:front.left,right:front.right,top:front.top,bottom:front.bottom}}
+  })
+  assert(narrow.body&&narrow.front&&narrow.body.top>=narrow.visible.top-2&&
+    narrow.body.bottom<=narrow.visible.bottom+2&&narrow.body.left>=narrow.visible.left-2&&
+    narrow.body.right<=narrow.visible.right+2,
+    'Frame all clips the body silhouette after resizing: '+JSON.stringify(narrow))
+  await board.screenshot({path:path.join(output,'aligned-avatar-narrow-2d.png')})
+  await page.setViewportSize({width:1728,height:1040})
+  await board.getByRole('button',{name:'Frame all'}).click()
   const toolbar=board.getByRole('toolbar',{name:'2D viewport quick tools'})
   const selectTool=toolbar.getByRole('button',{name:'Select / Transform',exact:true}).first()
   // The global EXO tool may start in a 3D mode. Explicitly select the 2D
@@ -170,6 +222,7 @@ try {
   await front.click()
   await marquee.waitFor()
   await board.screenshot({path:path.join(output,'selected-pattern-2d.png')})
+  const figureBefore=await board.locator('[aria-label="Centered front avatar silhouette"]').getAttribute('transform')
   const box=await front.boundingBox()
   assert(box && box.width>40 && box.height>40)
   const start={x:box.x+box.width/2,y:box.y+box.height*.53}
@@ -184,6 +237,8 @@ try {
     'center front follows live move preview')
   await page.mouse.up()
   await page.waitForFunction(()=>document.querySelector('[data-2d-marquee="front"]')!==null)
+  assert.equal(await board.locator('[aria-label="Centered front avatar silhouette"]').getAttribute('transform'),figureBefore,
+    'Dragging an authored pattern must never shift the body reference as a side effect')
   assert(edits.some(x=>x.kind==='BoardTransform' && x.panel==='front'),'drag must commit Rust BoardTransform')
   await board.screenshot({path:path.join(output,'moved-pattern-2d.png')})
   await page.waitForTimeout(250)
@@ -201,6 +256,8 @@ try {
   assert(Math.abs(rotatedGuide[0])>.003,'center-front guide rotates with the bodice')
   assert.equal(errors.length,0,'uncaught frontend browser errors: '+errors.join('; '))
   console.log(JSON.stringify({passed:true,output,checks:[
+    'mesh-derived shoulder registration within 4px and torso width within 13px',
+    'narrow 1230x790 viewport Frame all keeps the entire body visible',
     'accurate chest/belly guide clipped to cut outline','center front inside true cut silhouette and follows move/rotate','external Select/Point/Curve event updates corner icons and marquee','marquee limited to 2D Select/Transform tool',
     'no transform marquee in point, curve, or sew modes',
     'click blank gray canvas to deselect','selection leaves fabric fill unchanged',
