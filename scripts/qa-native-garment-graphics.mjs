@@ -68,7 +68,10 @@ try {
     geometry.setIndex([0,1,2,1,3,2])
     geometry.computeVertexNormals()
     const mesh = new THREE.Mesh(geometry,new THREE.MeshStandardMaterial())
-    const overlay = lib.createGarmentGraphicOverlay(mesh,[{...record,center:[.5,.5],scale:1,visible:true}],{resolution:512})
+    // This test asks for a full-width projected print. Once graphics use
+    // real-world millimetres, setting scale:1 alone cannot override an
+    // authored 100 mm print width on a 2000 mm UV test panel.
+    const overlay = lib.createGarmentGraphicOverlay(mesh,[{...record,center:[.5,.5],scale:1,widthMm:2000,heightMm:1000,visible:true}],{resolution:512})
     if (!overlay || !overlay.material.isMeshStandardMaterial) throw Error('UV cloth overlay not created with lit material')
     const source = geometry.getAttribute('position').array
     const projected = overlay.geometry.getAttribute('position').array
@@ -145,7 +148,7 @@ try {
   await page.locator('.cc-graphic-item').waitFor({timeout:30000})
   assert.equal(await page.locator('.cc-graphic-item').count(),1,'Upload should create one editable print')
   await page.locator('.cc-graphic-controls select').first().selectOption('back')
-  await page.locator('.cc-graphic-controls input[type=range]').last().fill('35')
+  await page.locator('.cc-graphic-controls label').filter({hasText:'Rotation'}).locator('input[type=range]').fill('35')
   assert.deepEqual(await page.evaluate(()=>globalThis.__qaGraphics.map(g=>[g.panel,g.rotation])),[['back',35]])
   await page.getByRole('button',{name:'Remove'}).click()
   assert.equal(await page.locator('.cc-graphic-item').count(),0,'Remove should clear artwork')

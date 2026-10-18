@@ -1,4 +1,5 @@
 import { cloneProject, uniqueId } from './project.js'
+import { arrangePatternProject } from './patternBodyArrangement.js'
 
 function relControl(a, b, control) {
   const dx = b.x - a.x
@@ -306,7 +307,7 @@ export function garmentCodeToProject(spec, baseProject = {}) {
     }
   }
 
-  return project
+  return arrangePatternProject(project)
 }
 
 export function garmentCodeRoundTripSummary(project) {

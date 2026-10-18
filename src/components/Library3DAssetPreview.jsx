@@ -4,7 +4,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import { createStageEnvironment } from '../core/createStageEnvironment.js'
 import './Library3DAssetPreview.css'
 
-const CATHEDRAL_URL = '/library-3d/MIKRISTIAN_Cathedral_House.glb'
 const REAL_WOOD_HANGER_URL = '/hangers/innerscene-shoulder-form.glb'
 const REAL_TROUSER_HANGER_URL = '/hangers/innerscene-clip-rail.glb'
 export const LIBRARY_AVATAR_URLS = Object.freeze({
@@ -202,10 +201,12 @@ function LiveLibrary3DAssetPreview({ kind, category='hanger', variant='wood', la
     scene.background=new THREE.Color('#161719')
     const camera=new THREE.PerspectiveCamera(36,1,.05,100)
     const stage = assetType==='stage'
-    const catalogStage = stage && /^(?:R0[1-5]|S(?:0[1-9]|1[0-5]))$/.test(variant)
+    // Only approved EXO01 is a stage. Load the *same* GLB used by the 3D
+    // editor; never show the old generic procedural showroom on hover.
+    const catalogStage = stage && variant === 'EXO01'
     const hangerView=assetType==='hanger'
-    camera.position.set(stage ? (catalogStage ? 7.5 : 4) : 0,stage ? (catalogStage ? 5.3 : 1.9) : hangerView ? .17 : .25,stage ? (catalogStage ? 14 : 8) : hangerView ? 2.45 : 4.15)
-    camera.lookAt(0,stage?(catalogStage?1.5:-.12):(hangerView ? .14 : .1),0)
+    camera.position.set(stage ? (catalogStage ? 7.0 : 4) : 0,stage ? (catalogStage ? 6.3 : 1.9) : hangerView ? .17 : .25,stage ? (catalogStage ? 18.0 : 8) : hangerView ? 2.45 : 4.15)
+    camera.lookAt(0,stage?(catalogStage?1.85:-.12):(hangerView ? .14 : .1),catalogStage?-.15:0)
     if(hangerView){camera.zoom=1.13;camera.updateProjectionMatrix()}
     // Room previews require restrained illumination: the brighter prop rig
     // clips pale plaster and erases subtle roughness in authored stage maps.
@@ -293,39 +294,7 @@ function LiveLibrary3DAssetPreview({ kind, category='hanger', variant='wood', la
         draw()
       },undefined,()=>{if(!cancelled){root.add(createLibraryHanger3D(variant==='wood'?'wood':'chrome'));setModelStatus('fallback');draw()}})
     }
-    if (stage && variant==='cathedral') {
-      new GLTFLoader().load(CATHEDRAL_URL, gltf => {
-        if (cancelled) { disposeTree(gltf.scene); return }
-        const model=gltf.scene
-        let actualMeshes=0
-        model.traverse(node=>{if(node.isMesh && node.geometry?.getAttribute('position')?.count>0)actualMeshes++})
-        const bbox=new THREE.Box3().setFromObject(model)
-        const size=bbox.getSize(new THREE.Vector3())
-        if (!actualMeshes || !size.lengthSq() || !Number.isFinite(size.lengthSq())) {
-          disposeTree(model)
-          renderer.domElement.dataset.previewMeshCount='0'
-          renderer.domElement.dataset.stageStatus='error'
-          setModelStatus('error')
-          draw()
-          return
-        }
-        const center=bbox.getCenter(new THREE.Vector3())
-        const scale=5.4/Math.max(size.x,size.y,size.z, .001)
-        model.scale.setScalar(scale)
-        model.position.copy(center.multiplyScalar(-scale))
-        model.traverse(mesh => { if(mesh.isMesh) {mesh.castShadow=true;mesh.receiveShadow=true} })
-        root.add(model)
-        renderer.domElement.dataset.previewMeshCount=String(actualMeshes)
-        renderer.domElement.dataset.stageStatus='ready'
-        setModelStatus('imported')
-        draw()
-      },undefined,() => {if(!cancelled) {
-        renderer.domElement.dataset.previewMeshCount='0'
-        renderer.domElement.dataset.stageStatus='error'
-        setModelStatus('error')
-        draw()
-      }})
-    } else if (catalogStage) {
+    if (catalogStage) {
       const originalStage=createStageEnvironment(THREE,variant, loaded => {
         if (cancelled) return
         const count = loaded.userData.meshCount || 0
@@ -335,7 +304,7 @@ function LiveLibrary3DAssetPreview({ kind, category='hanger', variant='wood', la
         draw()
       })
       root.add(originalStage)
-    } else if(assetType!=='avatar' && !importedHanger) root.add(stage?createLibraryStudioStage3D(variant):createLibraryHanger3D(variant))
+    } else if(assetType!=='avatar' && !importedHanger && !stage) root.add(createLibraryHanger3D(variant))
     if (assetType==='avatar') {
       const ground=part(root,new THREE.CircleGeometry(1.46,64),physical('#29292b',.89),[0,-1.13,-.18],[-Math.PI/2,0,0])
       ground.castShadow=false
@@ -347,9 +316,9 @@ function LiveLibrary3DAssetPreview({ kind, category='hanger', variant='wood', la
     renderer.shadowMap.type=THREE.PCFSoftShadowMap
     renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,stage ? 1.4 : 1.7))
     renderer.domElement.setAttribute('aria-label', `3D ${assetType} preview: ${label||variant}`)
-    renderer.domElement.dataset.previewStageId = stage && variant==='cathedral' ? 'cathedral' : catalogStage ? variant : ''
+    renderer.domElement.dataset.previewStageId = catalogStage ? variant : ''
     renderer.domElement.dataset.previewMeshCount = String(catalogStage ? 0 : 0)
-    if (catalogStage || (stage && variant==='cathedral')) renderer.domElement.dataset.stageStatus = 'loading'
+    if (catalogStage) renderer.domElement.dataset.stageStatus = 'loading'
     host.appendChild(renderer.domElement)
     function draw(){renderer.render(scene,camera)}
     function resize(){
@@ -392,8 +361,9 @@ function LiveLibrary3DAssetPreview({ kind, category='hanger', variant='wood', la
       renderer.domElement.remove()
     }
   },[assetType,variant,label,interactive])
-  return <div className={`library-3d-preview ${className}`} ref={elementRef} role="img" aria-label={`3D preview of ${label || variant}; ${assetType==='avatar' || (assetType==='hanger' && (variant==='wood'||variant==='trouser-clip')) ? modelStatus : 'procedural'}`} data-model-status={assetType==='avatar' || (assetType==='hanger' && (variant==='wood'||variant==='trouser-clip')) ? modelStatus:undefined} style={height?{height}:undefined}>
+  return <div className={`library-3d-preview ${className}`} ref={elementRef} role="img" aria-label={`3D preview of ${label || variant}; ${modelStatus}`} data-model-status={modelStatus} style={height?{height}:undefined}>
     {error && <span className="library-3d-preview-fallback">3D preview unavailable</span>}
+    {assetType==='stage' && variant==='EXO01' && (error || modelStatus==='error') && <img src="/stage-posters/EXO01.png" alt="Approved Stage 01 Blender runway chamber poster" className="exo-stage-preview-fallback-image"/>}
     {assetType==='avatar' && variant==='makehuman-base' && <span className="library-3d-preview-provenance">Procedural display stand · MakeHuman OBJ not rendered</span>}
   </div>
 }

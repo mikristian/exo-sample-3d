@@ -108,7 +108,7 @@ function Artwork({ id }) {
       return <><circle cx="12" cy="5.6" r="3.2" fill="currentColor" fillOpacity=".16" strokeWidth="1.25"/><path d="M12 8.8v12.7l-1.2-3.3 1.2 3.3 1.2-3.3" strokeWidth="1.35"/><path d="M9.7 5.6h4.6" strokeWidth=".85"/><path d="M5 13.5h4M15 13.5h4" strokeDasharray="1.4 1.2" strokeOpacity=".65"/></>
     case 'sew':
       return <SewingMachine/>
-    case 'sew-pair': case 'free-sew':
+    case 'sew-pair': case 'segment-sew':
       return <SewPair/>
     case 'fastener':
       return <><path d="M3.3 4.8h8.1v14.4H3.3ZM12.6 4.8h8.1v14.4h-8.1Z" strokeOpacity=".65"/><circle cx="9.2" cy="12" r="2.6" fill="currentColor" fillOpacity=".2"/><circle cx="9.2" cy="12" r=".8" fill="currentColor" stroke="none"/><path d="M12 12h4.5m-2-2 2 2-2 2" strokeWidth="1.2"/><path d="M17 8.5v7" strokeDasharray="1.3 1.2"/></>
@@ -212,6 +212,63 @@ function Artwork({ id }) {
       return <><path d="m3 7 9-5 9 5-9 5Zm0 5 9 5 9-5M3 17l9 5 9-5"/><path d="M12 12v5" strokeDasharray="1 1"/></>
     case 'fill-pattern':
       return <><Pattern/><path d="m8 13 4 4 9-10" strokeWidth="2"/><path d="M6 8h9" strokeDasharray="1 2"/></>
+    // The live CLO 2D rail distinguishes author/edit and segment/free tools.
+    // These source-owned vector symbols preserve those distinctions at 20px.
+    case 'free-sew':
+      return <><path d="M3 4h5l1.2 15H3ZM16 4h5v15h-6.2Z" fill="currentColor" fillOpacity=".08"/><path d="M8.5 7c3-4 4 13 7.4 9" stroke="#55d8e9" strokeDasharray="1.5 1.3" strokeWidth="1.7"/><circle cx="8.5" cy="7" r="1.7" fill="currentColor"/><circle cx="15.9" cy="16" r="1.7" fill="currentColor"/></>
+    case 'base-polygon':
+      return <><path d="M3.5 4h17v16h-17Z" strokeWidth="1.55"/><path d="M7 7h10v10H7Z" strokeWidth="1.15" strokeDasharray="2.5 1.5"/><circle cx="3.5" cy="4" r="1.4" fill="currentColor"/><circle cx="20.5" cy="20" r="1.4" fill="currentColor"/></>
+    case 'pom-edit':
+      return <><MiniShirt/><path d="M7 13h9m-9 0 2-1.6m-2 1.6 2 1.6m7-1.6-2-1.6m2 1.6-2 1.6" strokeWidth="1.15"/><path d="m14.5 19 5-6 2 2-5 6-2.7.7Z" fill="currentColor" fillOpacity=".35" strokeWidth=".9"/></>
+    case 'annotation-add':
+      return <><path d="M4 18 10 3l6 15M6.5 12h7" strokeWidth="1.7"/><path d="M18 13v9m-4.5-4.5h9" strokeWidth="1.7" stroke="#55d8e9"/></>
+    case 'annotation-edit':
+      return <><path d="M3 18 9 3l6 15M5.5 12h7" strokeWidth="1.5"/><path d="m12 20 6-7 3 3-6 6-3 0Z" fill="currentColor" fillOpacity=".3" strokeWidth="1"/></>
+    case 'grading-edit':
+      return <><path d="M3 9 12 3l7 14-10 4Z" strokeOpacity=".4"/><path d="m5 10 8-5 5 11-9 4Z" strokeDasharray="2 1"/><path d="M17 8 21 4l2 2-4 4-2.5.6Z" fill="currentColor" fillOpacity=".3"/></>
+    case 'grading-auto':
+      return <><path d="m2 10 8-6 9 11-8 6Z" strokeDasharray="1.6 1.5"/><path d="m5 10 7-4 5 9-8 4Z"/><path d="M17 3v7m-3.5-3.5h7" strokeWidth="1.5" stroke="#55d8e9"/></>
+    case 'seam-length':
+      return <><path d="M3.5 4V20m8-16v16" strokeWidth="1.25"/><path d="M5 8h6m-6 8h6" strokeDasharray="1 1.3" stroke="#55d8e9"/><path d="M14 4h7m-3.5 0v10m-3-3 3 3 3-3" strokeWidth="1.15"/><circle cx="17.5" cy="17" r="3.3" strokeWidth="1.3"/><path d="m20 19.5 2 2"/></>
+    case 'topstitch-edit':
+      return <><path d="M3 4h16v16H3Z" strokeOpacity=".55"/><path d="M6 7h10v10H6Z" strokeDasharray="1.5 1.3"/><path d="m13 20 6-7 2 2-6 7-2.5.5Z" fill="currentColor" fillOpacity=".3"/></>
+    case 'topstitch-segment':
+      return <><path d="M3 5h18v14H3Z" strokeOpacity=".4"/><path d="M5 12h14" strokeDasharray="1.5 1.4" strokeWidth="1.6" stroke="#55d8e9"/><circle cx="5" cy="12" r="2" fill="currentColor"/><circle cx="19" cy="12" r="2" fill="currentColor"/></>
+    case 'puckering-edit':
+      return <><path d="M2 7q2-4 5 0t5 0t5 0t5 0M2 17q2-4 5 0t5 0t5 0t5 0"/><path d="m11 19 6-7 2 2-6 7-2.5.5Z" fill="currentColor" fillOpacity=".3"/></>
+    case 'puckering-segment':
+      return <><path d="M3 8q2-5 4 0t4 0t4 0t6 0M3 16q2-5 4 0t4 0t4 0t6 0" strokeWidth="1.5"/><circle cx="3" cy="8" r="1.65" fill="currentColor"/><circle cx="21" cy="16" r="1.65" fill="currentColor"/></>
+    // Dedicated 3D reference glyphs identify separate CLO tool semantics.
+    case 'auto-sew':
+      return <><SewPair/><path d="M18 1v8m-4-4h8" stroke="#55d8e9" strokeWidth="1.5"/></>
+    case 'tack':
+      return <><circle cx="12" cy="5.5" r="3.5" fill="currentColor" fillOpacity=".3"/><path d="M12 9v12M9 17l3 4 3-4" strokeWidth="1.5"/><path d="M4 12h5m6 0h5" strokeDasharray="2 1"/></>
+    case 'tack-edit':
+      return <><circle cx="7" cy="5.5" r="2.5" fill="currentColor" fillOpacity=".3"/><path d="M7 8v11M4 15l3 4 3-4"/><path d="m11 18 7-9 3 2-7 10-3 .3Z" fill="currentColor" fillOpacity=".26"/></>
+    case 'arrange-reset-2d':
+      return <><rect x="3" y="7" width="10" height="12" rx="1"/><path d="M13 10h7V4"/><path d="M20 4a9 9 0 1 1-17 3m17-3-5 1" strokeWidth="1.4" stroke="#55d8e9"/></>
+    case 'arrange-reset-3d':
+      return <><path d="m5 6 8-4 7 4v10l-7 4-8-4Z" fill="currentColor" fillOpacity=".09"/><path d="m13 11 7-5M13 11v9M13 11 5 6" strokeWidth="1"/><path d="M3 18a9 9 0 0 0 16 1l-4 1m4-1-1-4" strokeWidth="1.5" stroke="#55d8e9"/></>
+    case 'mesh-hires':
+      return <><MiniShirt/><path d="M8 8v11m4-12v13m4-12v11M6 12h12M6 16h12" strokeWidth=".65" strokeOpacity=".85"/><path d="M19 3v7m-3.5-3.5h7" strokeWidth="1.5" stroke="#55d8e9"/></>
+    case 'avatar-measure':
+      return <><circle cx="9" cy="4" r="2"/><path d="m6 8 2-1h3l2 2 2 6M8 8l-2 7 2 6h5l-1-7"/><path d="M16 4h5m-5 12h5m-2.5-12v12" strokeWidth="1" strokeDasharray="2 1"/></>
+    case 'avatar-measure-edit':
+      return <><circle cx="8" cy="4" r="2"/><path d="M8 8 5 14l2 7h5l1-8-2-5Z"/><path d="m14 19 5-7 3 2-5 7-3 1Z" stroke="#55d8e9" fill="currentColor" fillOpacity=".2"/></>
+    case 'garment-measure':
+      return <><MiniShirt/><path d="M7 11h10M7 10v5m10-5v5M9 12l-2-1 2-1m6 0 2 1-2 1" strokeWidth="1.1" stroke="#55d8e9"/></>
+    case 'garment-measure-edit':
+      return <><MiniShirt/><path d="M6 11h8m-8-2v5m8-5v5" strokeDasharray="2 1"/><path d="m13 19 6-7 3 2-6 7-3 .5Z" stroke="#55d8e9" fill="currentColor" fillOpacity=".2"/></>
+    case 'line-3d':
+      return <><path d="m3 7 9-4 9 4v9l-9 4-9-4Z" strokeOpacity=".45"/><path d="M5 14q8-11 14 0" stroke="#55d8e9" strokeWidth="1.5"/><circle cx="5" cy="14" r="1.5" fill="currentColor"/><circle cx="19" cy="14" r="1.5" fill="currentColor"/></>
+    case 'line-3d-edit':
+      return <><path d="m2 7 8-4 8 4v8l-8 4-8-4Z" strokeOpacity=".45"/><path d="M4 13q7-9 12 0" strokeDasharray="2 1" stroke="#55d8e9"/><path d="m12 20 6-8 3 2-6 8-3 .5Z" fill="currentColor" fillOpacity=".3"/></>
+    case 'pen-3d-edit':
+      return <><path d="m3 7 8-4 8 4v8l-8 4-8-4Z" strokeOpacity=".45"/><circle cx="6" cy="14" r="1.6" fill="currentColor"/><circle cx="16" cy="10" r="1.6" fill="currentColor"/><path d="m10 19 7-8 3 3-7 8-3 .5Z" fill="currentColor" fillOpacity=".3"/></>
+    case 'piping-edit':
+      return <><path d="M3 5c7-4 9 16 17 12" strokeWidth="3" strokeOpacity=".4"/><path d="M3 5c7-4 9 16 17 12" strokeWidth="1.2"/><path d="m12 20 5-7 3 2-5 6-3 1Z" fill="currentColor" fillOpacity=".3"/></>
+    case 'binding-select':
+      return <><path d="M4 3h15v18H4Z" strokeOpacity=".4"/><path d="M6 3v18m11-18v18" strokeDasharray="1 2"/><path d="m2 2 2 13 2-4 2 5 2-1-3-5 5-1Z" fill="currentColor"/></>
     default:
       return <><Cursor/></>
   }
@@ -219,7 +276,18 @@ function Artwork({ id }) {
 
 export default function CadToolIcon({ id, size = 18, className = '', strokeWidth = 1.3 }) {
   if (toolbarIconIds.has(id) && svgUrlFor(id)) {
-    return <img className={`cad-tool-icon ${className}`} src={svgUrlFor(id)} alt="" width={size} height={size} data-icon-id={id} data-icon-format="svg" aria-hidden="true" draggable="false"/>
+    // Keep the original full-color CAD artwork in the factory Graphite UI.
+    // In a themed editor, CSS switches to the alpha-only mask below so a
+    // single hue inherited from the toolbar can tint *every* original SVG,
+    // even when its file has embedded white/gray strokes. This avoids brittle
+    // CSS filters and never recolors the garment mesh or its PBR materials.
+    const src=svgUrlFor(id)
+    return <>
+      <img className={`cad-tool-icon cad-tool-icon-artwork ${className}`} src={src} alt="" width={size} height={size} data-icon-id={id} data-icon-format="svg" aria-hidden="true" draggable="false"/>
+      <span className={`cad-tool-icon cad-tool-icon-mask ${className}`}
+        style={{width:size,height:size,'--cad-tool-icon-mask':`url("${src}")`}}
+        data-icon-id={id} data-icon-format="mask" aria-hidden="true"/>
+    </>
   }
   return <svg className={`cad-tool-icon ${className}`} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
     <Artwork id={id}/>

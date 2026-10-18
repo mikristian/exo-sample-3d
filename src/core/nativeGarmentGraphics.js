@@ -176,7 +176,12 @@ export async function importGarmentArtwork(file) {
 export function createGarmentGraphic(artwork, panel) {
   if (!artwork?.dataUrl?.startsWith('data:image/png;base64,')) throw new Error('Artwork must be imported first')
   if (typeof panel !== 'string' || !panel) throw new Error('Select a garment panel')
-  return {...artwork, panel, center: [0.5, 0.5], scale: 0.42, rotation: 0, side: 'front', visible: true}
+  const widthMm=100
+  return {...artwork, panel, center: [0.5, 0.5], positionMm:null,
+    widthMm,heightMm:widthMm*artwork.height/artwork.width,lockAspectRatio:true,
+    scale: 0.42, rotation: 0, side: 'front', visible: true,
+    color:'#ffffff',opacity:1,reflectivity:.25,roughness:.88,metalness:0,inkHeightMm:0,
+    displayedMap:'texture',normalMapDataUrl:null}
 }
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, Number.isFinite(Number(value)) ? Number(value) : min))
@@ -188,19 +193,38 @@ export function normalizeGarmentGraphic(input, {panels} = {}) {
   if (typeof input.panel !== 'string' || !input.panel.trim() || input.panel.length > 256 || (panels?.length && !panels.some(p => p.id === input.panel))) throw new Error('Graphic references an unknown panel')
   const center = Array.isArray(input.center) && input.center.length === 2 ? input.center : [.5, .5]
   const side = ['front', 'back', 'both'].includes(input.side) ? input.side : 'front'
+  const pixelWidth=Math.round(clamp(input.width,1,8192))
+  const pixelHeight=Math.round(clamp(input.height,1,8192))
+  const widthMm=input.widthMm == null ? null : clamp(input.widthMm,.1,2000)
+  const heightMm=input.heightMm == null ? null : clamp(input.heightMm,.1,2000)
+  const validColor=typeof input.color==='string'&&/^#[0-9a-fA-F]{6}$/.test(input.color)
+  const validNormal=typeof input.normalMapDataUrl==='string'&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(input.normalMapDataUrl)&&input.normalMapDataUrl.length<=MAX_DATA_URL_LENGTH
+  const positionMm=Array.isArray(input.positionMm)&&input.positionMm.length===2&&input.positionMm.every(Number.isFinite)
+    ?input.positionMm.map(value=>clamp(value,-2000,3000)):null
   return {
     id: String(input.id || globalThis.crypto?.randomUUID?.() || `art-${Date.now()}`).slice(0, 128),
     name: String(input.name || 'Artwork').slice(0, 256),
     panel: input.panel,
     dataUrl: input.dataUrl,
     format: 'image/png',
-    width: Math.round(clamp(input.width, 1, 8192)),
-    height: Math.round(clamp(input.height, 1, 8192)),
+    width: pixelWidth,
+    height: pixelHeight,
     center: [clamp(center[0], 0, 1), clamp(center[1], 0, 1)],
+    positionMm,
+    widthMm,heightMm,
+    lockAspectRatio:input.lockAspectRatio!==false,
     scale: clamp(input.scale ?? .42, .03, 1.5),
     rotation: clamp(input.rotation ?? 0, -180, 180),
     side,
     visible: input.visible !== false,
+    color:validColor?input.color:'#ffffff',
+    opacity:clamp(input.opacity??1,0,1),
+    reflectivity:clamp(input.reflectivity??.25,0,1),
+    roughness:clamp(input.roughness??.88,0,1),
+    metalness:clamp(input.metalness??0,0,1),
+    inkHeightMm:clamp(input.inkHeightMm??input.reliefHeightMm??0,0,10),
+    displayedMap:['texture','normal'].includes(input.displayedMap)?input.displayedMap:'texture',
+    normalMapDataUrl:validNormal?input.normalMapDataUrl:null,
   }
 }
 
@@ -242,13 +266,15 @@ export function physicalGraphicPlacement(graphic, spanXMetres, spanYMetres) {
   const xMm=spanXMetres*1000,yMm=spanYMetres*1000
   const widthMm=record.widthMm??record.scale*xMm
   const heightMm=record.heightMm??widthMm*record.height/record.width
-  const [x,y]=record.positionMm??[record.center[0]*xMm,record.center[1]*yMm]
+  // positionMm is the artwork's TOP-LEFT from the pattern material bounding
+  // rectangle, whereas the canvas drawImage transform uses its CENTER.
+  const [x,y]=record.positionMm??[record.center[0]*xMm-widthMm/2,record.center[1]*yMm-heightMm/2]
   // This is the actual 3D print renderer's positioning path. With the shared
   // WASM module loaded, physical UV ratios and rotations run inside Rust.
   const ratio=rustGraphicUV?.exo_graphic_mm_ratio || ((value,span)=>value/span)
   const uvV=rustGraphicUV?.exo_graphic_mm_to_uv_v || ((value,span)=>1-value/span)
   const rotation=rustGraphicUV?.exo_graphic_rotation_radians || (degrees=>-degrees*Math.PI/180)
-  return {u:ratio(x,xMm),v:uvV(y,yMm),widthUV:ratio(widthMm,xMm),heightUV:ratio(heightMm,yMm),
+  return {u:ratio(x+widthMm/2,xMm),v:uvV(y+heightMm/2,yMm),widthUV:ratio(widthMm,xMm),heightUV:ratio(heightMm,yMm),
     widthMm,heightMm,xMm:x,yMm:y,rotationRadians:rotation(record.rotation),
     effectiveDpi:record.width*25.4/widthMm}
 }
@@ -286,7 +312,16 @@ export function createGarmentGraphicOverlay(panelMesh, graphics = [], {resolutio
   // fronts arrive back-facing relative to the avatar camera. Draw the printed
   // FRONT on either winding so it remains visible on the authored panel; the
   // garment panel and UVs still define the geometry it follows.
-  const material = new THREE.MeshStandardMaterial({map: texture, transparent: true, alphaTest: .001, depthWrite: false, roughness: .88, metalness: 0, side: face === 'back' ? THREE.BackSide : THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2})
+  // One artwork per overlay permits real independent PBR and alpha settings.
+  // The render canvas is an interactive preview; full-source PNG pixels remain
+  // in the Rust saved print document for production raster export.
+  const selected=records[0]
+  const material = new THREE.MeshStandardMaterial({map:texture, color:selected.color||'#ffffff',
+    transparent:true,alphaTest:.001,depthWrite:false,
+    opacity:selected.opacity??1,roughness:selected.roughness??.88,metalness:selected.metalness??0,
+    envMapIntensity:1+(selected.reflectivity??.25),
+    side:face==='back'?THREE.BackSide:THREE.DoubleSide,
+    polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2})
   const overlay = new THREE.Mesh(geometry, material)
   overlay.name = 'Native garment UV graphic'
   overlay.renderOrder = (panelMesh.renderOrder || 0) + 1
@@ -294,6 +329,46 @@ export function createGarmentGraphicOverlay(panelMesh, graphics = [], {resolutio
   // SceneV2's disposeTree disposes material.userData.ownedTexture on every
   // snapshot change. Mark this layer before its async raster paint can finish.
   material.userData.ownedTexture = {dispose() { overlay.userData.disposed = true; texture.dispose() }}
+  const paintPhysical=(target,image,record)=>{
+    const placement=physicalGraphicPlacement(record,spanX,spanY)
+    const width=placement.widthUV*canvas.width
+    const height=placement.heightUV*canvas.height
+    target.save()
+    target.translate(placement.u*canvas.width,placement.v*canvas.height)
+    // Rotate in real millimetres so UV aspect and rectangular panels cannot
+    // stretch or skew the requested manufacturing angle.
+    target.scale(canvas.width/(spanX*1000),canvas.height/(spanY*1000))
+    target.rotate(placement.rotationRadians)
+    target.scale(spanX*1000/canvas.width,spanY*1000/canvas.height)
+    target.drawImage(image,-width/2,-height/2,width,height)
+    target.restore()
+  }
+  // Normal images are tangent-space shading maps. They never alter cut size,
+  // fabric rest geometry, 2D coordinates or collision constraints.
+  if(selected.normalMapDataUrl){
+    loadGraphicImage(selected.normalMapDataUrl).then(image=>{
+      if(overlay.userData.disposed)return
+      // Neutral tangent normals outside the printed artwork. A raw image
+      // texture would otherwise distort the ENTIRE fabric panel.
+      const normalCanvas=document.createElement('canvas')
+      normalCanvas.width=canvas.width;normalCanvas.height=canvas.height
+      const normalCtx=normalCanvas.getContext('2d')
+      normalCtx.fillStyle='#8080ff'
+      normalCtx.fillRect(0,0,normalCanvas.width,normalCanvas.height)
+      paintPhysical(normalCtx,image,selected)
+      const normals=new THREE.CanvasTexture(normalCanvas)
+      normals.colorSpace=THREE.NoColorSpace
+      normals.flipY=false
+      normals.needsUpdate=true
+      material.normalMap=normals
+      material.normalScale.setScalar(1)
+      material.needsUpdate=true
+      material.userData.ownedNormalTexture=normals
+    }).catch(()=>{})
+  }
+  // A shallow relief preview is visual only; actual print thickness depends
+  // on ink, embroidery or transfer process selected by the manufacturer.
+  if(selected.inkHeightMm>0){material.bumpMap=texture;material.bumpScale=selected.inkHeightMm/1000}
   Promise.all(records.map(async record => {
     try {return {record, image: await loadGraphicImage(record.dataUrl)}} catch {return null}
   })).then(items => {
@@ -302,14 +377,7 @@ export function createGarmentGraphicOverlay(panelMesh, graphics = [], {resolutio
     for (const item of items) {
       if (!item) continue
       const {record, image} = item
-      const placement = graphicPlacementInUV(record)
-      const width = placement.widthUV * canvas.width
-      const height = width * image.naturalHeight / image.naturalWidth * spanX / spanY
-      ctx.save()
-      ctx.translate(placement.u * canvas.width, placement.v * canvas.height)
-      ctx.rotate(placement.rotationRadians)
-      ctx.drawImage(image, -width / 2, -height / 2, width, height)
-      ctx.restore()
+      paintPhysical(ctx,image,record)
     }
     texture.needsUpdate = true
   })
@@ -323,13 +391,15 @@ export function disposeGarmentGraphicOverlays(overlays = []) {
     overlay.parent?.remove(overlay)
     overlay.geometry?.dispose()
     overlay.material?.userData?.ownedTexture?.dispose()
+    overlay.material?.userData?.ownedNormalTexture?.dispose()
     overlay.material?.dispose()
   }
 }
 
 /** Attaches front and reverse printed layers to one deforming panel mesh. */
 export function attachGarmentGraphics(panelMesh, graphics = []) {
-  const overlays = ['front', 'back'].map(face => createGarmentGraphicOverlay(panelMesh, graphics, {face})).filter(Boolean)
+  const overlays=graphics.flatMap(graphic=>['front','back']
+    .map(face=>createGarmentGraphicOverlay(panelMesh,[graphic],{face})).filter(Boolean))
   for (const overlay of overlays) panelMesh.add(overlay)
   return overlays
 }

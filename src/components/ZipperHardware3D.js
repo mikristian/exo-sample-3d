@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js'
 
 const clamp = (value, fallback, min, max) => THREE.MathUtils.clamp(Number.isFinite(Number(value)) ? Number(value) : fallback, min, max)
 const v = () => new THREE.Vector3()
@@ -7,7 +8,7 @@ const v = () => new THREE.Vector3()
  * Three.js metres; appearance approximation, not a supplier's certified mesh.
  * Local X spans the chain, Y follows its length, Z rises off the cloth.
  */
-export function createZipperToothGeometry(chainWidthM, pitchM, tapeThicknessM, type = 'metal') {
+export function createZipperToothGeometry(chainWidthM, pitchM, tapeThicknessM, type = 'metal', toothThicknessM = null) {
   const w = Math.max(.0004, chainWidthM * .43)
   const h = Math.max(.0005, Math.min(pitchM * .78, chainWidthM * .55))
   const coil = /coil|invisible/i.test(type)
@@ -26,7 +27,7 @@ export function createZipperToothGeometry(chainWidthM, pitchM, tapeThicknessM, t
         Math.sin(angle)*Math.max(tapeThicknessM*.55,w*.12),
       ))
     }
-    const radius=Math.max(.00012,Math.min(w*.12,h*.11,tapeThicknessM*.38))
+    const radius=Math.max(.00012,Math.min(w*.22,h*.2,(toothThicknessM??tapeThicknessM)*.38))
     const geometry=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),48,radius,7,false)
     geometry.computeVertexNormals()
     return geometry
@@ -43,7 +44,7 @@ export function createZipperToothGeometry(chainWidthM, pitchM, tapeThicknessM, t
   profile.quadraticCurveTo(-w * .5, h * .5, -w * .5, h * .5 - chamfer)
   profile.lineTo(-w * .5, -h * .5 + chamfer)
   profile.quadraticCurveTo(-w * .5, -h * .5, -w * .5 + chamfer, -h * .5)
-  const depth = Math.max(.00035, tapeThicknessM * (coil ? 1.8 : molded ? 2.1 : 2.7))
+  const depth = Math.max(.00035, toothThicknessM ?? tapeThicknessM * (molded ? 2.1 : 2.7))
   const bevel = Math.min(depth * .19, chamfer * .7)
   const geo = new THREE.ExtrudeGeometry(profile, { depth: Math.max(.0001, depth - 2*bevel),
     bevelEnabled:true, bevelSegments:2, steps:1, bevelThickness:bevel, bevelSize:bevel*.7, curveSegments:5 })
@@ -53,8 +54,8 @@ export function createZipperToothGeometry(chainWidthM, pitchM, tapeThicknessM, t
 }
 
 /** A channel-shaped slider casing rather than a plain block. */
-export function createZipperSliderHousingGeometry(chainWidthM, tapeThicknessM) {
-  const w=chainWidthM*1.38, h=chainWidthM*1.85
+export function createZipperSliderHousingGeometry(chainWidthM, tapeThicknessM, requestedWidthM = null, requestedLengthM = null, requestedThicknessM = null) {
+  const w=requestedWidthM??chainWidthM*1.38, h=requestedLengthM??chainWidthM*1.85
   const s=new THREE.Shape()
   s.moveTo(-w*.46,-h*.5)
   s.lineTo(w*.46,-h*.5)
@@ -65,16 +66,31 @@ export function createZipperSliderHousingGeometry(chainWidthM, tapeThicknessM) {
   s.quadraticCurveTo(-w*.39,h*.5,-w*.43,h*.36)
   s.lineTo(-w*.49,-h*.31)
   s.closePath()
-  const d=Math.max(.0006,tapeThicknessM*3.1), bevel=d*.09
-  const geo=new THREE.ExtrudeGeometry(s,{depth:d-bevel*2,bevelEnabled:true,bevelSegments:3,
-    bevelThickness:bevel,bevelSize:bevel,curveSegments:8})
-  geo.translate(0,0,-d*.5+bevel)
+  const d=Math.max(.0006,requestedThicknessM??tapeThicknessM*3.1), bevel=d*.09
+  // Two flanges and side rails form a real through-channel along local Y.
+  // A solid extrusion looked like a block and swallowed the zipper chain.
+  const plate=d*.22
+  const makePlate=z=>{
+    const g=new THREE.ExtrudeGeometry(s,{depth:plate,bevelEnabled:true,bevelSegments:2,
+      bevelThickness:Math.min(bevel,plate*.2),bevelSize:Math.min(bevel,plate*.2),curveSegments:12})
+    g.translate(0,0,z)
+    return g.index?g.toNonIndexed():g
+  }
+  const parts=[makePlate(-d*.5),makePlate(d*.5-plate)]
+  for(const side of [-1,1]){
+    const rail=new THREE.BoxGeometry(w*.10,h*.70,d-plate*2).toNonIndexed()
+    rail.translate(side*w*.425,-h*.04,0);parts.push(rail)
+  }
+  const geo=mergeGeometries(parts,false)
+  parts.forEach(g=>g.dispose())
+  geo.computeVertexNormals()
+
   return geo
 }
 
 /** True cut-out tab: light passes through the inset slot in the puller. */
-export function createZipperPullTabGeometry(chainWidthM, tapeThicknessM) {
-  const w=chainWidthM*.84, h=chainWidthM*2.7
+export function createZipperPullTabGeometry(chainWidthM, tapeThicknessM, requestedWidthM = null, requestedLengthM = null, requestedThicknessM = null) {
+  const w=requestedWidthM??chainWidthM*.84, h=requestedLengthM??chainWidthM*2.7
   const s=new THREE.Shape()
   const r=w*.18
   s.moveTo(-w*.5+r,-h*.5)
@@ -89,7 +105,7 @@ export function createZipperPullTabGeometry(chainWidthM, tapeThicknessM) {
   const slot=new THREE.Path()
   slot.absellipse(0,h*.1,w*.22,h*.21,0,Math.PI*2,true)
   s.holes.push(slot)
-  const d=Math.max(.00035,tapeThicknessM*1.25), bevel=d*.10
+  const d=Math.max(.00035,requestedThicknessM??tapeThicknessM*1.25), bevel=d*.10
   const geo=new THREE.ExtrudeGeometry(s,{depth:d-bevel*2,bevelEnabled:true,bevelSegments:2,
     bevelThickness:bevel,bevelSize:bevel*.8,curveSegments:12})
   geo.translate(0,0,-d*.5+bevel)
@@ -137,20 +153,46 @@ export function createZipperHardware3D(zipper, sides) {
   const chain = clamp(zipper.chainWidthMm, 5, 2, 20) / 1000
   const tape = clamp(zipper.tapeWidthMm, 12, 5, 35) / 1000
   const thickness = clamp(zipper.tapeThicknessMm, 0.65, 0.2, 2.5) / 1000
+  const toothThickness = clamp(zipper.toothThicknessMm, thickness*1000*2.3, .3, 5)/1000
+  const sliderWidth = clamp(zipper.sliderWidthMm,chain*1000*1.38,3,45)/1000
+  const sliderLength = clamp(zipper.sliderLengthMm,chain*1000*1.85,3,65)/1000
+  const sliderThickness = clamp(zipper.sliderThicknessMm,thickness*1000*3.1,.4,8)/1000
+  const pullerWidth = clamp(zipper.pullerWidthMm,chain*1000*.84,2,35)/1000
+  const pullerLength = clamp(zipper.pullerLengthMm,chain*1000*2.7,5,70)/1000
+  const pullerThickness = clamp(zipper.pullerThicknessMm,thickness*1000*1.25,.2,5)/1000
+  const stopperThickness = clamp(zipper.stopperThicknessMm,thickness*1000*3,.3,8)/1000
   const startExtension = clamp(zipper.startExtensionMm, zipper.endExtensionMm == null ? 0 : Number(zipper.endExtensionMm), 0, 80) / 1000
   const endExtension = clamp(zipper.endExtensionMm, 0, 0, 80) / 1000
   const body = new THREE.Group()
   body.name = `zipper-hardware-${zipper.id ?? 'seam'}`
-  const textile = new THREE.MeshPhysicalMaterial({ color: zipper.tapeColor || zipper.color || '#343434', metalness: 0, roughness: clamp(zipper.tapeRoughness, 0.89, 0, 1), sheen: 0.55, sheenRoughness: 0.7, side: THREE.DoubleSide })
+  const tapeType=zipper.tapeMaterialType||'polyester'
+  const tapeShine=tapeType==='satin'?.8:tapeType==='cotton'?.32:.55
+  const reflectionIntensity=clamp(zipper.reflectionIntensity,1,0,3)
+  const clearcoat=clamp(zipper.clearcoat,.12,0,1)
+  const textile = new THREE.MeshPhysicalMaterial({
+    color: zipper.tapeColor || zipper.color || '#343434',
+    metalness:0,roughness:clamp(zipper.tapeRoughness,tapeType==='satin'?.53:.89,0,1),
+    sheen:clamp(zipper.tapeSheen,tapeShine,0,1),sheenRoughness:tapeType==='satin'?.42:.7,
+    envMapIntensity:reflectionIntensity,side:THREE.DoubleSide,
+  })
   const metalness = clamp(zipper.metalness, 0.85, 0, 1)
   const roughness = clamp(zipper.roughness, 0.27, 0, 1)
   const chainType=zipper.type||zipper.zipperType||'metal'
-  const nonMetalChain=/coil|invisible|molded/i.test(chainType)
-  const teethMaterial = new THREE.MeshStandardMaterial({ color: zipper.teethColor || '#b5b8bc',
-    metalness:nonMetalChain ? .03 : metalness, roughness:nonMetalChain ? Math.max(.42,roughness):roughness })
-  const sliderMaterial = new THREE.MeshStandardMaterial({ color: zipper.sliderColor || '#929aa3', metalness, roughness })
-  const pullMaterial = new THREE.MeshStandardMaterial({ color: zipper.pullerColor || zipper.sliderColor || '#bdc1c6', metalness, roughness })
-  const stopMaterial = new THREE.MeshStandardMaterial({ color: zipper.stopperColor || zipper.teethColor || '#b8a88d', metalness, roughness })
+  const teethType=zipper.teethMaterialType||(/coil|invisible|molded/i.test(chainType)?'nylon':'metal')
+  const sliderType=zipper.sliderMaterialType||'metal'
+  const hardwareMaterial=(color,componentRoughness,componentMetalness)=>new THREE.MeshPhysicalMaterial({
+    color,metalness:componentMetalness,roughness:componentRoughness,clearcoat,
+    clearcoatRoughness:Math.max(.05,componentRoughness*.5),envMapIntensity:reflectionIntensity,
+  })
+  const teethMaterial=hardwareMaterial(zipper.teethColor||'#b5b8bc',
+    clamp(zipper.teethRoughness,teethType==='metal'?roughness:Math.max(.42,roughness),0,1),
+    teethType==='metal'?metalness:.02)
+  const sliderMaterial=hardwareMaterial(zipper.sliderColor||'#929aa3',
+    clamp(zipper.sliderRoughness,roughness,0,1),sliderType==='metal'?metalness:.03)
+  const pullMaterial=hardwareMaterial(zipper.pullerColor||zipper.sliderColor||'#bdc1c6',
+    clamp(zipper.pullerRoughness,roughness,0,1),sliderType==='metal'?metalness:.03)
+  const stopMaterial=hardwareMaterial(zipper.stopperColor||zipper.teethColor||'#b8a88d',
+    clamp(zipper.stopperRoughness,roughness,0,1),teethType==='metal'?metalness:.03)
   const rows = sides.filter(side => side?.indices?.length >= 2)
   if (!rows.length) return null
   const maps = surfaceMaps()
@@ -201,7 +243,7 @@ export function createZipperHardware3D(zipper, sides) {
   }
   const pitch = clamp(zipper.toothPitchMm, 3.2, 1.4, 8) / 1000
   const maxTeeth = Math.min(280, Math.max(8, Math.round(clamp(zipper.toothCount, runLength / pitch, 8, 280))))
-  const toothGeometry = createZipperToothGeometry(chain,pitch,thickness,chainType)
+  const toothGeometry = createZipperToothGeometry(chain,pitch,thickness,chainType,toothThickness)
   const teeth = rows.map((_, index) => {
     const instanced = new THREE.InstancedMesh(toothGeometry, teethMaterial.clone(), maxTeeth)
     instanced.name = `zipper-teeth-${index}`
@@ -213,7 +255,7 @@ export function createZipperHardware3D(zipper, sides) {
   function makeSlider(name) {
     const slider = new THREE.Group()
     slider.name = name
-    const housing = new THREE.Mesh(createZipperSliderHousingGeometry(chain,thickness), sliderMaterial)
+    const housing = new THREE.Mesh(createZipperSliderHousingGeometry(chain,thickness,sliderWidth,sliderLength,sliderThickness), sliderMaterial)
     housing.name = 'zipper-slider-body'
     housing.castShadow = true
     slider.add(housing)
@@ -221,7 +263,7 @@ export function createZipperHardware3D(zipper, sides) {
     neck.rotation.x = Math.PI / 2
     neck.position.z = thickness * 4
     slider.add(neck)
-    const pull = new THREE.Mesh(createZipperPullTabGeometry(chain,thickness), pullMaterial)
+    const pull = new THREE.Mesh(createZipperPullTabGeometry(chain,thickness,pullerWidth,pullerLength,pullerThickness), pullMaterial)
     pull.position.set(0, -chain * 1.55, thickness * 4.8)
     pull.name = 'zipper-puller-tab'
     pull.castShadow = true
@@ -232,7 +274,7 @@ export function createZipperHardware3D(zipper, sides) {
   const slider = makeSlider('zipper-slider-assembly')
   const bottomSlider = zipper.twoWay ? makeSlider('zipper-bottom-slider-assembly') : null
   const stops = rows.flatMap((_, index) => [0, 1].map(end => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(chain * .52, chain * .52, thickness * 3), stopMaterial.clone())
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(chain * .52, chain * .52, stopperThickness), stopMaterial.clone())
     mesh.name = `zipper-stop-${index}-${end}`
     mesh.castShadow = true
     body.add(mesh)
@@ -342,6 +384,14 @@ export function createZipperHardware3D(zipper, sides) {
     body.visible = rows.some(item => item.record.mesh.visible)
   }
   update()
+  body.userData.specifications={
+    chainWidthMm:chain*1000,tapeWidthMm:tape*1000,tapeThicknessMm:thickness*1000,
+    toothThicknessMm:toothThickness*1000,sliderWidthMm:sliderWidth*1000,sliderLengthMm:sliderLength*1000,
+    sliderThicknessMm:sliderThickness*1000,pullerWidthMm:pullerWidth*1000,pullerLengthMm:pullerLength*1000,
+    pullerThicknessMm:pullerThickness*1000,stopperThicknessMm:stopperThickness*1000,
+    weightGrams:Number.isFinite(Number(zipper.weightGrams))?Number(zipper.weightGrams):null,
+    reflectionIntensity,clearcoat,tapeMaterialType:tapeType,teethMaterialType:teethType,sliderMaterialType:sliderType,
+  }
   return { object: body, update, tapeCount: tapes.length, toothInstanceCount: teeth.length * maxTeeth, sliderCount: bottomSlider ? 2 : 1, stopCount: stops.length,
     get engagedToothCount() { return engagedCount }, get openToothCount() { return openCount },
     get startExtensionM() { return startExtension },

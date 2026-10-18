@@ -1,0 +1,98 @@
+/* Compact Webcam launcher in the actual LEFT 3D tool rail: below Press B18.
+   CLO B18 is positioned 658px below the top of the observed second column.
+   The next 30px tool occupies 694px, following the same 34px rhythm. */
+.tool-rail .clo-left-3d-double-bars.clo-observed-3d-bars > .clo-observed-3d-column .clo-3d-webcam-slot{
+  position:absolute;left:3px;top:694px;width:28px;height:28px;
+  display:grid;place-items:center;z-index:2;
+}
+.tool-rail .clo-left-3d-double-bars.clo-observed-3d-bars > .clo-observed-3d-column .clo-3d-webcam-slot > .cc-camera-hand-launch{
+  position:relative;top:auto;left:auto;display:grid;place-items:center;
+  width:24px;height:24px;min-width:24px;padding:0;margin:0;
+  color:#9dd9ea;background:#333b43;border:1px solid #596a76;
+  border-radius:4px;cursor:pointer;box-shadow:none;
+}
+.tool-rail .clo-3d-webcam-slot > .cc-camera-hand-launch:is(:hover,:focus-visible,.active){
+  color:#d5f8ff;background:#395362;border-color:#85b7cc;
+}
+/* The fallback is part of the existing 3D quick-toolbar in standalone V2.
+   The full EXO interface already has the left Press toolbar, so hide the
+   unused fallback there rather than leaving a blank tool in the 3D canvas. */
+.cc-3d-camera-hand-host{margin-top:4px}
+.cc-rust-embedded .cc-scene .cc-3d-camera-hand-host{display:none}
+.cc-corner-tool-host .cc-3d-camera-hand-host [data-camera-hand-toolbar-fallback-slot]{
+  display:grid;place-items:center;width:30px;height:30px;
+}
+.cc-corner-tool-host .cc-3d-camera-hand-host .cc-camera-hand-launch{
+  position:relative;display:grid;place-items:center;width:24px;height:24px;min-width:24px;
+  padding:0;margin:0;color:#9dd9ea;background:#333b43;border:1px solid #596a76;
+  border-radius:4px;cursor:pointer;box-shadow:none;
+}
+.cc-corner-tool-host .cc-3d-camera-hand-host .cc-camera-hand-launch:is(:hover,:focus-visible,.active){
+  color:#d5f8ff;background:#395362;border-color:#85b7cc;
+}
+.cc-camera-hand-launch:disabled{opacity:.42;cursor:not-allowed}
+.cc-camera-hand-icon{position:absolute;right:0;bottom:0;display:grid;place-items:center;pointer-events:none}
+
+/* Draggable floating preview within the viewport, independent of tracked cursor. */
+.cc-scene > .cc-camera-hand-panel{
+  position:absolute;z-index:65;left:auto;right:14px;bottom:14px;top:auto;
+  box-sizing:border-box;width:min(286px,calc(100% - 16px));max-height:calc(100% - 16px);
+  padding:10px;background:rgba(19,28,36,.94);color:#eef4f5;
+  border:1px solid rgba(203,238,250,.48);border-radius:11px;
+  box-shadow:0 16px 45px rgba(0,0,0,.46),inset 0 1px rgba(255,255,255,.16);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  font:11px/1.45 system-ui,sans-serif;overflow:auto;
+}
+.cc-scene > .cc-camera-hand-panel[style*="left"]{right:auto;bottom:auto}
+.cc-camera-hand-heading{
+  display:flex;align-items:center;gap:6px;margin:-4px -4px 8px;padding:5px 4px 8px;
+  border-bottom:1px solid rgba(207,233,243,.16);cursor:grab;touch-action:none;user-select:none;
+}
+.cc-camera-hand-heading:active{cursor:grabbing}
+.cc-camera-hand-heading strong{font-size:10px;letter-spacing:.065em;white-space:nowrap;flex:1}
+.cc-camera-hand-heading label{display:flex;gap:4px;align-items:center;cursor:default}
+.cc-camera-hand-heading label span{display:none}
+.cc-camera-hand-heading select{max-width:107px;background:#283b47;color:#f0f6f6;border:1px solid #576e7e;border-radius:4px;padding:3px;font-size:10px}
+.cc-camera-hand-heading button,.cc-camera-hand-footer button{background:#303c45;border:1px solid #62747f;color:#fff;border-radius:4px;padding:3px 6px;cursor:pointer}
+.cc-camera-hand-feed{
+  position:relative;background:#070d13;border-radius:6px;overflow:hidden;
+  aspect-ratio:4/3;display:grid;place-items:center;
+}
+.cc-camera-hand-feed video{display:block;width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.cc-camera-hand-point{
+  position:absolute;pointer-events:none;width:16px;height:16px;border:2px solid #9ffff1;
+  background:#9ffff133;box-shadow:0 0 0 7px #9ffff122;border-radius:50%;
+  transform:translate(-50%,-50%);
+}
+.cc-camera-hand-grabbing{border-color:#ffd17b;background:#ffd17b66;box-shadow:0 0 0 11px #ffd17b2b}
+.cc-camera-hand-loading{position:absolute;background:#091018c9;color:#f1f5f6;border-radius:4px;padding:5px 9px;font-size:10px;letter-spacing:.07em}
+.cc-camera-hand-status{min-height:32px;color:#c6d4db;margin:7px 0}
+.cc-camera-hand-footer{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cc-camera-hand-footer span{font-size:9px;color:#aab9c0}
+
+/* Real screen-space hand cursor, driven by the same coordinates as the Rust grab. */
+.cc-camera-fabric-cursor{
+  position:absolute;z-index:50;width:28px;height:34px;pointer-events:none;
+  transform:translate(-3px,-3px);filter:drop-shadow(0 2px 2px rgba(4,13,22,.85));
+  transition:opacity .10s ease;opacity:0;visibility:hidden;
+}
+.cc-camera-fabric-cursor[data-visible="true"]{opacity:1;visibility:visible}
+.cc-camera-fabric-cursor .cc-camera-cursor-arrow{
+  position:absolute;top:0;left:0;width:21px;height:27px;
+  background:#08232f;clip-path:polygon(0 0,0 100%,6px 18px,11px 27px,15px 25px,10px 16px,20px 17px);
+}
+.cc-camera-fabric-cursor .cc-camera-cursor-arrow::after{
+  content:"";position:absolute;inset:2px;background:#aaf1ff;
+  clip-path:polygon(0 0,0 100%,6px 18px,11px 27px,15px 25px,10px 16px,20px 17px);
+}
+.cc-camera-fabric-cursor .cc-camera-cursor-contact{
+  position:absolute;left:2px;top:0;width:15px;height:15px;border-radius:50%;
+  border:2px solid #7fe9f7;box-shadow:0 0 0 4px rgba(66,211,251,.16);opacity:0;
+}
+.cc-camera-fabric-cursor[data-over-fabric="true"] .cc-camera-cursor-contact{opacity:1}
+.cc-camera-fabric-cursor[data-grabbing="true"] .cc-camera-cursor-contact{
+  border-color:#ffce73;background:rgba(255,193,80,.3);box-shadow:0 0 0 8px rgba(255,193,80,.17);opacity:1;
+}
+.cc-camera-fabric-cursor[data-grabbing="true"] .cc-camera-cursor-arrow{opacity:.5}
+@media(max-width:480px){.cc-scene > .cc-camera-hand-panel{width:min(245px,calc(100% - 16px))}}
+@media(prefers-reduced-motion:reduce){.cc-camera-fabric-cursor{transition:none}}

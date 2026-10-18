@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import './PremiumHardware3DPreview.css'
+import {createProceduralHardwarePreview} from '../core/proceduralHardwarePreview.js'
 
 function disposeMeshTree(root) {
   root.traverse(node => {
@@ -19,13 +20,17 @@ function disposeMeshTree(root) {
  * Actual imported GLB is displayed; no physics or production tolerances implied. */
 export default function PremiumHardware3DPreview({ preset }) {
   const hostRef = useRef(null)
+  const controlsRef = useRef(null)
+  const rollRef = useRef(null)
+  const [rolled,setRolled]=useState(false)
   const [status, setStatus] = useState('loading')
   const modelAsset = preset?.modelAsset
   const image = preset?.previewImage || `/hardware-thumbnails/${preset.id}.png`
 
   useEffect(() => {
     const host = hostRef.current
-    if (!host || !/^\/hardware-premium\/[a-z0-9-]+\.glb$/i.test(modelAsset || '')) return undefined
+    if (!host) return undefined
+    setStatus('loading');setRolled(false)
     let alive = true
     let renderer
     try {
@@ -56,7 +61,7 @@ export default function PremiumHardware3DPreview({ preset }) {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.6))
     renderer.domElement.setAttribute('aria-label', `Rotate real 3D preview of ${preset.name}`)
     host.appendChild(renderer.domElement)
-    let drawn = false
+    let procedural = null
     const draw = () => {
       if (alive && renderer.domElement.parentNode) renderer.render(scene, camera)
     }
@@ -86,7 +91,7 @@ export default function PremiumHardware3DPreview({ preset }) {
       renderer.domElement.addEventListener(event, callback)
     }
     const loader = new GLTFLoader()
-    loader.load(modelAsset, gltf => {
+    const accept = gltf => {
       if (!alive) { disposeMeshTree(gltf.scene); return }
       const object = gltf.scene
       const bounds = new THREE.Box3().setFromObject(object)
@@ -100,33 +105,45 @@ export default function PremiumHardware3DPreview({ preset }) {
       if (dimensions.y < dimensions.z * .32 && dimensions.y < dimensions.x * .32) object.rotation.x = Math.PI / 2
       else if (dimensions.x < dimensions.z * .32 && dimensions.x < dimensions.y * .32) object.rotation.y = Math.PI / 2
       object.updateMatrixWorld(true)
-      const facing = new THREE.Box3().setFromObject(object)
-      const size = facing.getSize(new THREE.Vector3())
-      const center = facing.getCenter(new THREE.Vector3())
-      const scale = 2.35 / Math.max(size.x, size.y, size.z, .0001)
-      object.scale.multiplyScalar(scale)
-      object.position.sub(center.multiplyScalar(scale))
+      const frameObject=()=>{
+        object.scale.setScalar(1);object.position.set(0,0,0)
+        object.traverse(node=>{if(node.geometry){node.geometry.computeBoundingBox();node.geometry.computeBoundingSphere()}if(node.isInstancedMesh){node.computeBoundingBox();node.computeBoundingSphere()}})
+        object.updateMatrixWorld(true)
+        const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3())
+        const scale=1.8/Math.max(size.x/Math.min(1,camera.aspect),size.y,size.z/Math.min(1,camera.aspect),.0001)
+        object.scale.setScalar(scale);object.position.copy(center).multiplyScalar(-scale)
+      }
+      frameObject()
       root.add(object)
-      drawn = true
+      let meshCount=0
+      object.traverse(node=>{if(node.isMesh)meshCount++})
+      renderer.domElement.dataset.hardwareMeshCount=String(meshCount)
+      rollRef.current = procedural?.setRoll ? value=>{procedural.setRoll(value);root.rotation.y=value?-.55:0;frameObject();draw()} : null
+      controlsRef.current = procedural?.setClosure ? value=>{procedural.setClosure(value);frameObject();draw()} : null
       setStatus('loaded')
       draw()
-    }, undefined, () => { if (alive) setStatus('fallback') })
+    }
+    if(modelAsset) loader.load(modelAsset,accept,undefined,()=>{if(alive)setStatus('fallback')})
+    else {try {procedural=createProceduralHardwarePreview(preset);accept({scene:procedural.object})} catch(error){console.error(error);setStatus('fallback')}}
     return () => {
       alive = false
       observer?.disconnect()
       for (const [event, callback] of [['pointerdown', down], ['pointermove', move], ['pointerup', up], ['pointercancel', up]]) {
         renderer.domElement.removeEventListener(event, callback)
       }
+      controlsRef.current=null;rollRef.current=null
+      procedural?.dispose?.()
       disposeMeshTree(root)
       renderer.dispose()
       renderer.forceContextLoss()
       renderer.domElement.remove()
     }
-  }, [modelAsset, preset.name])
+  }, [modelAsset, preset.id, preset.name])
 
   return <div className="exo-premium-hardware-3d" data-hardware-model={preset.id} data-model-status={status}>
     <img className={status === 'loaded' ? 'is-hidden' : ''} src={image} alt={`${preset.name} Blender rendered preview`} />
     <div className="exo-premium-hardware-3d-canvas" ref={hostRef} />
+    {preset.kind==='zipper' && !modelAsset && status==='loaded' && <label style={{position:'absolute',bottom:30,left:12,right:12,color:'#fff',fontSize:10}}>OPEN / CLOSED<button type="button" aria-label="Toggle zipper roll preview" aria-pressed={rolled} onClick={()=>{const next=!rolled;setRolled(next);rollRef.current?.(next)}}>{rolled?'Straight strip':'Roll zipper'}</button><input aria-label="Zipper preview closure" type="range" min="0" max="1" step=".01" defaultValue=".68" onChange={e=>controlsRef.current?.(Number(e.target.value))}/></label>}
     <span>{status === 'loaded' ? '3D MODEL · DRAG TO ROTATE' : status === 'fallback' ? 'STUDIO RENDER' : 'LOADING 3D MODEL'}</span>
   </div>
 }

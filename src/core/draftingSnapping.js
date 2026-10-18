@@ -1,6 +1,7 @@
 // Independent CLO-style 2D drafting geometry. Coordinates are centimeters.
 // CLO reference: Snap to Grid and Snap to Pattern are independent preferences.
 import { sampleEdge } from './project.js'
+import {rustGridCoordinate,rustNearestSegmentT,rustConstrainDraftAxis} from './rustGeometryKernel.js'
 
 const finitePoint = p => !!p && Number.isFinite(p.x) && Number.isFinite(p.y)
 
@@ -9,17 +10,15 @@ export function snapDraftGrid(point, spacingCm = 1, origin = { x: 0, y: 0 }) {
     throw new Error('Invalid 2D drafting grid')
   }
   return {
-    x: origin.x + Math.round((point.x - origin.x) / spacingCm) * spacingCm,
-    y: origin.y + Math.round((point.y - origin.y) / spacingCm) * spacingCm,
+    x: rustGridCoordinate(point.x,origin.x,spacingCm),
+    y: rustGridCoordinate(point.y,origin.y,spacingCm),
   }
 }
 
 export function nearestOnDraftSegment(point, a, b) {
   if (![point, a, b].every(finitePoint)) throw new Error('Invalid drafting segment')
   const dx = b.x - a.x, dy = b.y - a.y
-  const squared = dx * dx + dy * dy
-  const t = squared < 1e-12 ? 0
-    : Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / squared))
+  const t = rustNearestSegmentT(point,a,b)
   return { x: a.x + t * dx, y: a.y + t * dy, t }
 }
 
@@ -92,10 +91,5 @@ export function constrainDraftAxis(start, destination, incrementDegrees = 45) {
   if (!finitePoint(start) || !finitePoint(destination)
     || !Number.isFinite(incrementDegrees) || incrementDegrees <= 0
     || 360 % incrementDegrees !== 0) throw new Error('Invalid drafting guideline')
-  const dx = destination.x - start.x, dy = destination.y - start.y
-  if (Math.hypot(dx, dy) < 1e-10) return { ...destination }
-  const increment = incrementDegrees * Math.PI / 180
-  const angle = Math.round(Math.atan2(dy, dx) / increment) * increment
-  const travel = dx * Math.cos(angle) + dy * Math.sin(angle)
-  return { x: start.x + travel * Math.cos(angle), y: start.y + travel * Math.sin(angle) }
+  return rustConstrainDraftAxis(start,destination,incrementDegrees)
 }

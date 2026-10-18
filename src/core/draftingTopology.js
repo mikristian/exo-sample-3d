@@ -3,6 +3,7 @@
 // CLO internals. A production pattern must be a finite, closed, non-folding
 // contour; crossing segments cannot be trusted for cut/sewing exports.
 import { sampleEdge } from './project.js'
+import { rustTopologyCollision } from './rustGeometryKernel.js'
 
 const EPS = 1e-7
 const cross = (a, b) => a.x * b.y - a.y * b.x
@@ -81,7 +82,7 @@ export function inspectDraftTopology(piece, { curveSamples = 16 } = {}) {
     const path = sampleEdge(piece,edge,sampling)
     boundary.push(...path.slice(0,-1))
     for (let segment=0; segment<path.length-1; segment++) {
-      pieces.push({ edge, a:path[segment], b:path[segment+1] })
+      pieces.push({ edge, segment, a:path[segment], b:path[segment+1] })
     }
   }
   if (errors.length) return { valid:false, errors, areaCm2:0, intersections:[] }
@@ -92,16 +93,23 @@ export function inspectDraftTopology(piece, { curveSamples = 16 } = {}) {
     const p=pieces[i]
     for (let j=i+1; j<pieces.length; j++) {
       const q=pieces[j]
-      // A quadratic edge may be internally subdivided for intersection
-      // detection. These sampled chords never count as a self-crossing.
-      if (p.edge === q.edge) continue
       if (!segmentsBoundsOverlap(p.a,p.b,q.a,q.b)) continue
-      const result = collision(p.a,p.b,q.a,q.b)
+      const native = rustTopologyCollision(p.a,p.b,q.a,q.b)
+      const result = native ? (native.kind === 'none' ? null : native) : collision(p.a,p.b,q.a,q.b)
       if (!result) continue
-      const next = (p.edge+1)%n === q.edge
-      const previous = (q.edge+1)%n === p.edge
-      const join = next ? vertices[q.edge] : previous ? vertices[p.edge] : null
-      if (result.kind === 'point' && join && near(result.point,join)) continue
+      if (p.edge === q.edge) {
+        // Sampled chords of the same curve normally touch at their shared
+        // endpoint. But a collinear Bézier control can fold a segment back
+        // over itself, overlapping even adjacent sampled chords. Reject that
+        // physical cutline instead of silently accepting a retraced edge.
+        if (Math.abs(p.segment-q.segment) === 1 && result.kind === 'point'
+            && near(result.point,p.b)) continue
+      } else {
+        const next = (p.edge+1)%n === q.edge
+        const previous = (q.edge+1)%n === p.edge
+        const join = next ? vertices[q.edge] : previous ? vertices[p.edge] : null
+        if (result.kind === 'point' && join && near(result.point,join)) continue
+      }
       intersections.push({ edgeA:p.edge,edgeB:q.edge,kind:result.kind,
         ...(result.point ? { point:result.point } : {}) })
       if (intersections.length >= 16) break

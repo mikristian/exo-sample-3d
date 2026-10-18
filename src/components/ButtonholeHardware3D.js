@@ -27,7 +27,13 @@ export function createButtonholeHardware3D(buttonhole = {}, preset = null) {
   group.rotation.z = THREE.MathUtils.degToRad(group.userData.angleDeg)
 
   const matte = new THREE.MeshStandardMaterial({ color: buttonhole.recessColor || '#08090c', roughness: .98, metalness: 0, side: THREE.DoubleSide })
-  const edge = new THREE.MeshStandardMaterial({ color: threadColor, roughness: .86, metalness: 0, side: THREE.DoubleSide })
+  const edge = new THREE.MeshPhysicalMaterial({
+    color:threadColor,
+    roughness:clamp(finite(buttonhole.threadRoughness,.86),0,1),
+    metalness:clamp(finite(buttonhole.threadMetalness,0),0,1),
+    envMapIntensity:clamp(finite(buttonhole.reflectionIntensity,1),0,3),
+    side:THREE.DoubleSide,
+  })
   const shadow = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: .48, depthWrite: false, side: THREE.DoubleSide })
   const add = (geometry, material, name, z = 0) => {
     const mesh = new THREE.Mesh(geometry, material)

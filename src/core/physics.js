@@ -223,7 +223,7 @@ function hipSectionAtY(worldY, avatar) {
   }
 }
 
-function initialPosition(piece, point, bounds, avatar) {
+export function initialPosition(piece, point, bounds, avatar) {
   const arrangement = piece.arrangement3d || {}
   const flip = arrangement.flip ? -1 : 1
   if (arrangement.wrap === 'front' || arrangement.wrap === 'back') {
@@ -958,7 +958,7 @@ function addPieceTrimConstraints(pieceSim, constraints) {
   }
 
   for (const stitch of pieceSim.piece.topstitches || []) {
-    const rows = Math.max(1, Math.min(3, Number(stitch.rows || 1)))
+    const rows = Math.max(1, Math.min(8, Number(stitch.rows || 1)))
     const base = 0.48 + rows * 0.08
     addReinforcement(stitch.edgeIndex, base, 'topstitch', stitch.id)
   }
@@ -1796,7 +1796,7 @@ function collideEllipsoidPreserveY(particle, center, radii, margin, friction = 0
   )
   const sideZ = particle.collisionSideZ || Math.sign(particle.previous.z - center.z) || 1
   if (q <= EPSILON || Math.abs(particle.patternU ?? 1) < 0.78) {
-    particle.position.z = center.z + sideZ * sectionZ
+    particle.position.z = center.z + sideZ * sectionZ * Math.sqrt(Math.max(0, 1 - (dx * dx) / (sectionX * sectionX)))
   } else {
     const scale = 1 / Math.sqrt(Math.max(q, EPSILON))
     particle.position.x = center.x + dx * scale
@@ -1879,7 +1879,10 @@ function collideVerticalEllipse(particle, centerX, centerZ, minY, maxY, radiusX,
     // hint adjacent particles can choose opposite lateral exits from the body
     // and create impossible local textile stretch.
     const sideZ = particle.collisionSideZ || Math.sign(particle.previous.z - centerZ) || 1
-    particle.position.z = centerZ + sideZ * rz
+    // At the lateral torso edge the available front/back depth tends to zero.
+    // Using full rz here creates a discontinuous jump for adjacent particles
+    // straddling the ellipse boundary, stretching a 1 cm cloth edge by >10 cm.
+    particle.position.z = centerZ + sideZ * rz * Math.sqrt(Math.max(0, 1 - (dx * dx) / (rx * rx)))
   } else {
     const scale = 1 / Math.sqrt(q)
     particle.position.x = centerX + dx * scale
@@ -2122,10 +2125,39 @@ export function refreshSimulationAnalysis(simulation, project) {
     .filter((constraint) => constraint?.a && constraint?.b)
     .map((constraint) => seamGap(constraint) * 1000)
     .sort((a, b) => a - b)
-  const strains = (simulation.constraints || [])
-    .filter((constraint) => constraint.type === 'structural' && constraint.rest > EPSILON)
-    .map((constraint) => Math.abs(constraint.a.position.distanceTo(constraint.b.position) - constraint.rest) / constraint.rest)
-    .sort((a, b) => a - b)
+  // Retain the original particle and constraint identities when ranking fit
+  // failures. A scalar maximum cannot distinguish a badly graded armhole from
+  // shoulder contact pushing neighboring sewn vertices apart. The full trace
+  // is ephemeral diagnostic data and never changes the pattern or cloth state.
+  const structuralEdges = (simulation.constraints || [])
+    .flatMap((constraint, constraintIndex) => {
+      if (constraint.type !== 'structural' || constraint.rest <= EPSILON) return []
+      const currentLength = constraint.a.position.distanceTo(constraint.b.position)
+      return [{
+        constraintIndex,
+        a: constraint.a,
+        b: constraint.b,
+        restLengthMm: constraint.rest * 1000,
+        currentLengthMm: currentLength * 1000,
+        strainPercent: Math.abs(currentLength - constraint.rest) / constraint.rest * 100,
+      }]
+    })
+    .sort((a, b) => a.strainPercent - b.strainPercent || a.constraintIndex - b.constraintIndex)
+  const strains = structuralEdges.map(edge => edge.strainPercent / 100)
+  const worstStructuralEdges = structuralEdges.slice(-10).reverse().map(edge => ({
+    constraintIndex: edge.constraintIndex,
+    particleIds: [edge.a.id, edge.b.id],
+    pieceIds: [edge.a.pieceId, edge.b.pieceId],
+    wrapModes: [edge.a.wrapMode, edge.b.wrapMode],
+    seamIds: [
+      [...(edge.a.seamIds || [])],
+      [...(edge.b.seamIds || [])],
+    ],
+    restLengthMm: edge.restLengthMm,
+    currentLengthMm: edge.currentLengthMm,
+    strainPercent: edge.strainPercent,
+    contactDepthMm: [(edge.a.contactDepth || 0) * 1000, (edge.b.contactDepth || 0) * 1000],
+  }))
   const worstSeams = (simulation.seamConstraints || [])
     .filter((constraint) => constraint?.a && constraint?.b)
     .map((constraint) => ({
@@ -2140,6 +2172,7 @@ export function refreshSimulationAnalysis(simulation, project) {
       meanStrainPercent: simulation.strain.average * 100,
       p95StrainPercent: percentile(strains, 0.95) * 100,
       maxStrainPercent: percentile(strains, 1) * 100,
+      worstStructuralEdges,
     },
     sewing: {
       pairs: seamGaps.length,

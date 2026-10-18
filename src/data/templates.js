@@ -1,6 +1,9 @@
 import { createDefaultProject, FABRIC_PRESETS } from './defaultProject.js'
 import { edgeLength } from '../core/project.js'
 import { create501JeansTemplate } from './jeans501.js'
+import cloMaleTshirtSource from './cloMaleTshirtPattern.json' with { type: 'json' }
+import { createNativeAvatarWornTeeProject } from './avatarWornTeeNativeProject.js'
+import { arrangePatternProject } from '../core/patternBodyArrangement.js'
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -200,6 +203,13 @@ export function createTeeTemplate() {
   }
   project.updatedAt = new Date().toISOString()
   return project
+}
+
+/** The editable four-panel shirt opened on the live avatar in a new studio.
+ * Keep its pattern, seam graph, and avatar placement sourced from the same
+ * default project; Foundation Tee intentionally has a different fit block. */
+export function createAvatarWornTeeTemplate() {
+  return createNativeAvatarWornTeeProject()
 }
 
 function splitTemplateEdge(piece, edgeIndex, t = 0.5) {
@@ -844,6 +854,13 @@ export function createBlankTemplate() {
 
 export const GARMENT_TEMPLATES = [
   { id: 'tee', name: 'Foundation Tee', description: 'Front/back + two sleeve system', create: createTeeTemplate },
+  { id: 'avatar-worn-tee', name: 'Avatar Worn Tee · Native MakeHuman Fixture', description: 'Three native clothcraft panels and eight authored seams from installed MakeHuman fitting fixture', create: createAvatarWornTeeTemplate },
+  { id: 'clo-male-tshirt', name: 'CLO Male T-Shirt · Source Pattern', description: 'Seven authentic CLO pattern pieces with source-curved 3D preview; sewing not fit-certified', create: () => {
+    const project=clone(cloMaleTshirtSource)
+    project.templateId='clo-male-tshirt'
+    project.cloReference={...project.cloReference,previewAsset:'/garment-previews/clo-male-tshirt.v1.json',previewType:'official-clo-obj-staged-snapshot',sewnFitCertified:false}
+    return project
+  } },
   { id: 'hoodie', name: 'Foundation Hoodie', description: 'Heavy fleece shell with measured two-panel hood', create: createHoodieTemplate },
   { id: 'zip-hoodie', name: 'Zip Hoodie', description: 'Split front shell with a live openable center zipper', create: createZipHoodieTemplate },
   { id: 'skirt', name: 'A-Line Skirt', description: 'Two-panel lower-body woven foundation', create: createSkirtTemplate },
@@ -855,5 +872,5 @@ export const GARMENT_TEMPLATES = [
 
 export function createTemplateProject(templateId) {
   const template = GARMENT_TEMPLATES.find((item) => item.id === templateId) || GARMENT_TEMPLATES[0]
-  return template.create()
+  return arrangePatternProject(template.create())
 }

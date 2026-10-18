@@ -1,4 +1,5 @@
 import { polygonArea, seamAllowanceBoundary } from './project.js'
+import { rustMarkerPlacements } from './rustMarkerKernel.js'
 
 function rotatePoint(point, rotationDeg) {
   const radians = rotationDeg * Math.PI / 180
@@ -147,8 +148,9 @@ export function buildMarker(project, fabricWidth = 150, gap = 1.5, options = {})
   const placements = []
   let unusedPieces = 0
   const unplaced = []
-  for (const entry of entries) {
-    const best = bestPlacement(entry, placements, fabricWidth, gap)
+  const rustPlacements = rustMarkerPlacements(entries, fabricWidth, gap)
+  for (const [index, entry] of entries.entries()) {
+    const best = rustPlacements ? rustPlacements[index] : bestPlacement(entry, placements, fabricWidth, gap)
     if (!best) {
       unusedPieces += 1
       const minimumWidth = entry.options.length ? Math.min(...entry.options.map((option) => option.width)) : null

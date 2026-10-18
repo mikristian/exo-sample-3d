@@ -8,6 +8,9 @@ import { nativeExport, paths } from './bridge.mjs'
 import { runContact } from './contact_run.mjs'
 import { createWorkspace } from './workspace.mjs'
 import { createAgentApi } from './agent-api.mjs'
+import { createAgentKeyStore } from './agent-key-store.mjs'
+import { createCollaborationApi } from './collaboration.mjs'
+import { createAppleVisionHand } from './apple-vision-hand.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 // Standalone signed .apps must not write generated garments into Contents/Resources.
@@ -30,9 +33,27 @@ const files = new Map([
 ])
 let activeContactRun = false
 const workspace = createWorkspace(outputs)
-const agentApi = createAgentApi(workspace, {audit: entry => console.info('[agent-api]', JSON.stringify(entry))})
-process.on("exit", () => workspace.close())
-process.on("SIGTERM", () => { workspace.close(); server.close(); process.exit(0) })
+const agentApi = createAgentApi(workspace, {
+  audit: entry => console.info('[agent-api]', JSON.stringify(entry)),
+  allowOrigin: origin => origins.has(origin),
+  // This directory lives in per-user Application Support in signed V2;
+  // credentials survive app updates and are never packed into the web bundle.
+  keyStorePath: path.join(outputs, 'agent-keys.json'),
+})
+// Collaboration uses the existing revocable, scoped local-agent credentials.
+// Browser Origin alone is never an identity or permission grant.
+const collaborationKeys = createAgentKeyStore(path.join(outputs, 'agent-keys.json'))
+const collaborationApi = createCollaborationApi({
+  directory: path.join(outputs, 'collaboration'),
+  allowOrigin: origin => origins.has(origin),
+  authenticate: async token => {
+    const identity = collaborationKeys.authenticate(token)
+    return identity?.scopes?.includes('read') ? {userId: identity.id, scopes:identity.scopes} : null
+  },
+})
+const appleVisionHand=createAppleVisionHand()
+process.on("exit", () => {appleVisionHand.close();workspace.close()})
+process.on("SIGTERM", () => { appleVisionHand.close(); collaborationApi.close(); workspace.close(); server.close(); process.exit(0) })
 
 function send(res, code, payload, origin = '') {
   const content = JSON.stringify(payload)
@@ -82,12 +103,30 @@ const server = http.createServer(async (req, res) => {
   if (origin && !origins.has(origin)) return send(res, 403, { error: 'Origin not allowed' })
   if (req.method === 'OPTIONS') {
     if (!origins.has(origin)) return send(res, 403, { error: 'Origin not allowed' })
+    // Agent clients may use the RFC 6750 bearer credential or the legacy
+    // ClothCraft header. Other native routes keep their existing header list.
+    const agentRequest=req.url?.split('?')[0]?.startsWith('/agent/v1/')
+    const collabRequest=req.url?.split('?')[0]?.startsWith('/collab/v1/')
+    const authorizedHeaders=collabRequest ? 'Content-Type, Authorization' : agentRequest
+      ? 'Content-Type, Authorization, X-ClothCraft-Token'
+      : 'Content-Type'
     res.writeHead(204, { 'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '600' })
+      'Access-Control-Allow-Methods': collabRequest ? 'GET,POST,PUT,DELETE,OPTIONS' : agentRequest ? 'GET,POST,DELETE,OPTIONS' : 'GET,POST,OPTIONS',
+      'Access-Control-Allow-Headers': authorizedHeaders,
+      'Access-Control-Max-Age': '600', 'Vary': 'Origin' })
     return res.end()
   }
   if (await agentApi.handle(req, res)) return
+  if (await collaborationApi.handle(req, res)) return
+  if (req.method==='GET'&&req.url==='/vision/hand/status')return send(res,200,{ok:true,...appleVisionHand.status()},origin)
+  if (req.method==='POST'&&req.url==='/vision/hand'){
+    try{
+      if(!appleVisionHand.status().available)return send(res,503,{ok:false,error:'Apple Vision hand detector is unavailable'},origin)
+      const body=await readBody(req)
+      const frame=await appleVisionHand.detect(body?.image)
+      return send(res,200,{ok:true,...frame},origin)
+    }catch(error){return send(res,422,{ok:false,error:error.message},origin)}
+  }
   if (req.method === 'POST' && req.url === '/workspace') {
     try { const result = await workspace.request(await readBody(req)); return send(res, result.ok ? 200 : 422, result, origin) }
     catch (error) { return send(res, 422, {ok:false,error:error.message}, origin) }
@@ -97,6 +136,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, backend: 'clothcraft-exo-local',
       nativeReady: fs.existsSync(config.cli), rustCheckoutReady: Boolean(config.upstream),
       ogcBackend: Boolean(config.rustFit && fs.existsSync(config.rustFit)),
+      nativeSession:workspace.status(),
       contactBusy: activeContactRun, fitCertified: false }, origin)
   }
   if (req.method === 'GET' && req.url?.startsWith('/runs/')) {

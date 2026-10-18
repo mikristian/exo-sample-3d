@@ -37,7 +37,9 @@ try{
  assert.equal(result.active,true)
  assert.equal(result.loadedWasm,true,'Browser must fetch the real WASM asset')
  assert.ok(Math.abs(result.u-.5)<1e-12 && Math.abs(result.v-.42)<1e-12)
- assert.ok(Math.abs(result.physicalWidthUV-.25)<1e-12 && Math.abs(result.physicalY-.54)<1e-12)
+ // positionMm is the graphic's TOP-LEFT; physical UV placement translates
+ // the actual ink center by half the independently sized width and height.
+ assert.ok(Math.abs(result.physicalWidthUV-.25)<1e-12 && Math.abs(result.physicalY-.49)<1e-12)
  assert.deepEqual(errors,[],'App page must have no uncaught JS errors')
  console.log(JSON.stringify({pass:true,source:'isolated Chromium + Vite',rustWasmLoaded:true,results:result},null,2))
 }finally{

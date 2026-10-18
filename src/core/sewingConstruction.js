@@ -1,4 +1,5 @@
 import { edgeRangeLength, seamLengthReport } from './project.js'
+import {rustSeamIntervalValid,rustSeamIntervalsOverlap} from './rustSeamIntervalKernel.js'
 
 // Both Segment Sewing (complete edge) and Free Sewing (fractional cutline)
 // use the same source-topology rules. This runs before changing a garment and
@@ -6,7 +7,7 @@ import { edgeRangeLength, seamLengthReport } from './project.js'
 export function seamEndpointInterval(endpoint) {
   const start = Number(endpoint?.startT ?? 0)
   const end = Number(endpoint?.endT ?? 1)
-  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end > 1 || start >= end) return null
+  if (!rustSeamIntervalValid(start, end)) return null
   return { start, end }
 }
 
@@ -18,7 +19,7 @@ export function seamEndpointOverlap(a, b, epsilon = 1e-5) {
   if (endpointIdentity(a) !== endpointIdentity(b)) return false
   const ar = seamEndpointInterval(a)
   const br = seamEndpointInterval(b)
-  return Boolean(ar && br && Math.min(ar.end, br.end) - Math.max(ar.start, br.start) > epsilon)
+  return Boolean(ar && br && rustSeamIntervalsOverlap(ar.start, ar.end, br.start, br.end, epsilon))
 }
 
 export function validateNewSeam(project, proposed, { allowOverlappingLayers = false, excludeSeamId = null } = {}) {
@@ -95,7 +96,7 @@ export function auditSewingConstruction(project, { maxExamples = 12 } = {}) {
     ranges.sort((a, b) => a.start - b.start)
     for (let i = 0; i < ranges.length; i++) {
       for (let j = i + 1; j < ranges.length && ranges[j].start < ranges[i].end; j++) {
-        if (ranges[i].seamId !== ranges[j].seamId && Math.min(ranges[i].end, ranges[j].end) - ranges[j].start > 1e-5) {
+        if (ranges[i].seamId !== ranges[j].seamId && rustSeamIntervalsOverlap(ranges[i].start, ranges[i].end, ranges[j].start, ranges[j].end, 1e-5)) {
           add('overlappingRanges', ranges[j].seamId, `Conflict on ${key} with ${ranges[i].seamId}`)
         }
       }

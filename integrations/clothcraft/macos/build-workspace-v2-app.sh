@@ -50,6 +50,16 @@ if [[ -e research/oss/clothcraft/src/bin/exo-session.rs ]] && \
 fi
 cp integrations/clothcraft/exo-session.rs research/oss/clothcraft/src/bin/exo-session.rs
 (cd research/oss/clothcraft && cargo build --locked -j 2 --bin exo-session)
+# Build the small Rust metadata validator independently of the cloth solver.
+cargo build --locked --offline --manifest-path integrations/clothcraft/rust-service/Cargo.toml --bin exo-metadata-validation
+test -x integrations/clothcraft/rust-service/target/debug/exo-metadata-validation
+cargo build --locked --offline --manifest-path integrations/clothcraft/rust-agent-api/Cargo.toml --bin exo-agent-validator
+test -x integrations/clothcraft/rust-agent-api/target/debug/exo-agent-validator
+cargo build --locked --offline --manifest-path integrations/clothcraft/rust-static-host/Cargo.toml --bin exo-rust-static-host
+test -x integrations/clothcraft/rust-static-host/target/debug/exo-rust-static-host
+# Swift explicitly requests GPU mode at every launch. A CPU-only engineering
+# artifact must never be packaged into that release (it blanks both viewports).
+node scripts/qa-exo-v2-desktop-gpu-binary.mjs
 export EXO_DESKTOP_SWIFT_SOURCE=integrations/clothcraft/macos/EXOClothCraftWorkspaceV2.swift
 export EXO_BUILD_BRIDGE_URL=http://127.0.0.1:5385
 bash integrations/clothcraft/macos/build.sh

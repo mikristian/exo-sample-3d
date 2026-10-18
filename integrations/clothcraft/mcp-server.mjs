@@ -19,6 +19,9 @@ const tools=[
  definition('exo_capabilities','Inspect the exact native EXO agent capabilities and limitations.'),
  definition('exo_status','Read the local native garment session status.'),
  definition('exo_project_summary','Read panel, material and sewing summaries from the current Rust project.'),
+ definition('exo_workspace_save','Save the currently loaded native garment after checking its revision.',{expectedRevision:revision},['expectedRevision'],false),
+ definition('exo_workspace_undo','Undo one native authoring action at the current revision.',{expectedRevision:revision},['expectedRevision'],false),
+ definition('exo_workspace_redo','Redo one native authoring action at the current revision.',{expectedRevision:revision},['expectedRevision'],false),
  definition('exo_line_inspect','Measure a named edge in real 2D and 3D geometry.',{panel:str,edge:str},['panel','edge']),
  definition('exo_step_simulation','Advance the actual Rust cloth solver 1–4 steps; requires the current revision and EXO_MCP_ALLOW_EDITS=1.',{expectedRevision:revision,steps:{type:'integer',minimum:1,maximum:4}},['expectedRevision','steps'],false),
  definition('exo_pause_simulation','Pause the native solver at a verified revision; requires EXO_MCP_ALLOW_EDITS=1.',{expectedRevision:revision},['expectedRevision'],false),
@@ -29,9 +32,13 @@ const route={
  exo_step_simulation:'simulation.step',
  exo_pause_simulation:'simulation.pause',
  exo_set_line_target:'line.setTargetSpecification',
+ exo_workspace_save:'workspace.save',
+ exo_workspace_undo:'workspace.undo',
+ exo_workspace_redo:'workspace.redo',
 }
 async function request(path,body){
- const options={method:body?'POST':'GET',signal:AbortSignal.timeout(20000),headers:{Accept:'application/json',...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})}
+ const token=process.env.EXO_CLOTHCRAFT_AGENT_KEY || process.env.EXO_AGENT_API_TOKEN
+ const options={method:body?'POST':'GET',signal:AbortSignal.timeout(20000),headers:{Accept:'application/json',...(token?{Authorization:`Bearer ${token}`}:{}) ,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})}
  const response=await fetch(bridge+path,options)
  let payload
  try{payload=await response.json()}catch{throw Error('EXO bridge returned invalid JSON')}
@@ -55,7 +62,7 @@ async function call(name,args={}){
  let result
  if(name==='exo_capabilities')result=await request('/agent/v1/capabilities')
  else if(name==='exo_status')result=await request('/agent/v1/status')
- else if(name==='exo_project_summary')result=summarize(await request('/agent/v1/actions',{action:'workspace.snapshot'}))
+ else if(name==='exo_project_summary')result=await request('/agent/v1/actions',{action:'workspace.summary'})
  else result=await request('/agent/v1/actions',{action:route[name],...args})
  return {content:[{type:'text',text:JSON.stringify(result)}],isError:false}
 }

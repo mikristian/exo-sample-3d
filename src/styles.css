@@ -536,21 +536,44 @@ button:disabled {
   cursor: default;
 }
 
-.tool-sew .edge-hit {
-  cursor: crosshair;
-}
-
-.tool-split .edge-hit {
-  cursor: copy;
-}
-
-.tool-pin .pattern-fill {
-  cursor: cell;
-}
-
-.tool-measure .pattern-fill {
-  cursor: crosshair;
-}
+/* Tool cursors cover the drafting surface, pattern fills, and clickable edges.
+   Free Sewing shares 'sew' with segment sewing (Shift marks partial edges). */
+.pattern-canvas.tool-sew,
+.pattern-canvas.tool-sew .pattern-fill,
+.pattern-canvas.tool-sew .edge-hit { cursor: url('/cursors/sewing-machine.svg') 5 3, crosshair; }
+.pattern-canvas.tool-internal,
+.pattern-canvas.tool-internal .pattern-fill,
+.pattern-canvas.tool-internal .edge-hit { cursor: url('/cursors/cad-pen.svg') 5 3, crosshair; }
+.pattern-canvas.tool-draw,
+.pattern-canvas.tool-draw .pattern-fill,
+.pattern-canvas.tool-draw .edge-hit { cursor: url('/cursors/cad-pen.svg') 5 3, crosshair; }
+.pattern-canvas.tool-curve,
+.pattern-canvas.tool-curve .pattern-fill,
+.pattern-canvas.tool-curve .edge-hit { cursor: url('/cursors/cad-curve.svg') 5 3, crosshair; }
+.pattern-canvas.tool-point,
+.pattern-canvas.tool-point .pattern-fill,
+.pattern-canvas.tool-point .edge-hit { cursor: url('/cursors/cad-points.svg') 5 3, crosshair; }
+.pattern-canvas.tool-split,
+.pattern-canvas.tool-split .pattern-fill,
+.pattern-canvas.tool-split .edge-hit { cursor: url('/cursors/cad-split.svg') 5 3, crosshair; }
+.pattern-canvas.tool-notch,
+.pattern-canvas.tool-notch .pattern-fill,
+.pattern-canvas.tool-notch .edge-hit { cursor: url('/cursors/cad-notch.svg') 5 3, crosshair; }
+.pattern-canvas.tool-measure,
+.pattern-canvas.tool-measure .pattern-fill,
+.pattern-canvas.tool-measure .edge-hit { cursor: url('/cursors/cad-measure.svg') 5 3, crosshair; }
+.pattern-canvas.tool-allowance,
+.pattern-canvas.tool-allowance .pattern-fill,
+.pattern-canvas.tool-allowance .edge-hit { cursor: url('/cursors/cad-allowance.svg') 5 3, crosshair; }
+.pattern-canvas.tool-pin,
+.pattern-canvas.tool-pin .pattern-fill,
+.pattern-canvas.tool-pin .edge-hit { cursor: url('/cursors/cad-pin.svg') 5 3, crosshair; }
+.pattern-canvas.tool-fastener,
+.pattern-canvas.tool-fastener .pattern-fill,
+.pattern-canvas.tool-fastener .edge-hit { cursor: url('/cursors/sewing-machine.svg') 5 3, crosshair; }
+.pattern-canvas.is-panning,
+.pattern-canvas.is-panning .pattern-fill,
+.pattern-canvas.is-panning .edge-hit { cursor: grabbing !important; }
 
 .pattern-measurement {
   pointer-events: none;
@@ -606,10 +629,6 @@ button:disabled {
   pointer-events: none;
 }
 
-.tool-notch .edge-hit {
-  cursor: crosshair;
-}
-
 .notch-tool-symbol {
   font-size: 11px;
   font-weight: 850;
@@ -631,6 +650,43 @@ button:disabled {
   opacity: .72;
 }
 
+/* Reference-shirt drafting courses: geometry comes from the actual pattern's
+   intersection stations. These are display-only POM/construction guides, not
+   new seam constraints or additional editable cut boundaries. */
+.clo-bodice-drafting-guides .bodice-center-guide {
+  stroke:#656ac4;
+  stroke-width:.72;
+  stroke-dasharray:3.5 1.5;
+  opacity:.9;
+  vector-effect:non-scaling-stroke;
+}
+.clo-bodice-drafting-guides .clo-pom-station>line {
+  stroke:#6b70c6;
+  stroke-width:.78;
+  vector-effect:non-scaling-stroke;
+  opacity:.9;
+}
+.clo-bodice-drafting-guides .clo-pom-station>circle {
+  fill:#f4f4ef;
+  stroke:#626abb;
+  stroke-width:.48;
+  vector-effect:non-scaling-stroke;
+}
+.clo-bodice-drafting-guides .clo-pom-station>path {
+  stroke:#656ac4;
+  stroke-width:.46;
+  fill:none;
+  vector-effect:non-scaling-stroke;
+}
+.clo-bodice-drafting-guides .clo-pom-measurement-label {
+  fill:#555eae;
+  font-size:2.6px;
+  font-weight:600;
+  paint-order:stroke;
+  stroke:#fff;
+  stroke-width:.9px;
+}
+
 .pattern-piece.selected .grainline {
   color: #a7b0ec;
   opacity: .9;
@@ -644,8 +700,8 @@ button:disabled {
 }
 
 .pattern-notch.matched line {
-  stroke: #9fb0ff;
-  stroke-width: 1;
+  stroke: #e94845;
+  stroke-width: 1.35;
 }
 
 .pattern-topstitch polyline {
@@ -655,6 +711,12 @@ button:disabled {
   vector-effect: non-scaling-stroke;
   pointer-events: none;
   opacity: .9;
+}
+
+.pattern-topstitch[data-draft-hem-stitch] polyline {
+  stroke-width:.68;
+  opacity:.98;
+  stroke-dasharray:none;
 }
 
 .pattern-graphic {
@@ -706,10 +768,6 @@ button:disabled {
   fill: #d9d9d9;
   stroke: none;
   pointer-events: none;
-}
-
-.tool-internal .pattern-fill {
-  cursor: crosshair;
 }
 
 .internal-line {
@@ -3343,4 +3401,42 @@ input[type="range"]::-webkit-slider-thumb {
   .desktop-workspace .main-layout { grid-template-columns: 140px 43px minmax(0, 1fr) 255px; }
   .desktop-workspace .topbar { grid-template-columns: 178px minmax(380px,1fr) 208px; }
   .desktop-workspace .section-tabs button { font-size: 10px; }
+}
+.exo-reorderable-toolbar { will-change: transform; }
+.exo-reorderable-toolbar .exo-toolbar-move-grip {
+  position: absolute;
+  z-index: 15;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  width: 34px;
+  height: 18px;
+  border: 1px solid #555d67;
+  border-radius: 5px 5px 0 0;
+  background: #30353c;
+  color: #cbd3dc;
+  font-size: 16px;
+  line-height: 12px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.exo-reorderable-toolbar .exo-toolbar-move-grip:active { cursor: grabbing; }
+.exo-reorderable-toolbar[data-toolbar-edit="true"] button[data-clo-slot] { cursor: grab; }
+.exo-reorderable-toolbar[data-toolbar-edit="true"] button[data-clo-slot]:active { cursor: grabbing; }
+.exo-reorderable-toolbar[data-toolbar-dock="top"] .exo-toolbar-move-grip,
+.exo-reorderable-toolbar[data-toolbar-dock="bottom"] .exo-toolbar-move-grip,
+.exo-reorderable-toolbar[data-toolbar-dock="floating"] .exo-toolbar-move-grip,
+.exo-reorderable-toolbar[data-toolbar-dock="right"].clo-left-3d-double-bars .exo-toolbar-move-grip,
+.exo-reorderable-toolbar[data-toolbar-dock="left"].clo-right-tool-palette .exo-toolbar-move-grip {
+  top:2px;left:50%;transform:translateX(-50%);
+}
+.clo-left-3d-double-bars.exo-reorderable-toolbar:not([data-toolbar-dock="left"]) > .clo-left-3d-column {
+  margin-top:22px;
+}
+.clo-right-tool-palette.exo-reorderable-toolbar:not([data-toolbar-dock="right"]) > .clo-palette-scroll {
+  overflow-y:auto;min-height:0;
+}
+.clo-right-tool-palette.exo-reorderable-toolbar:not([data-toolbar-dock="right"]) > .clo-palette-workflows {
+  margin-top:21px;
 }

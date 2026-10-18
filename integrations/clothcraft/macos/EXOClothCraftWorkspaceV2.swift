@@ -4,7 +4,7 @@ import WebKit
 
 /// Native AppKit application window. Its interface and tools are bundled inside
 /// the signed app, not opened in Safari, Chrome, or an external browser window.
-final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKDownloadDelegate {
+final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKDownloadDelegate, WKUIDelegate {
     private var window: NSWindow!
     private var webView: WKWebView!
     private var processes: [Process] = []
@@ -51,6 +51,7 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = self
+        webView.uiDelegate = self
         webView.underPageBackgroundColor = NSColor(calibratedWhite: 0.10, alpha: 1)
         if #available(macOS 13.3, *) { webView.isInspectable = true }
         root.addSubview(webView)
@@ -115,12 +116,12 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         let template = clothCraft.appendingPathComponent("target/debug/cloth-template")
         let fitting = clothCraft.appendingPathComponent("target/debug/cloth-fit")
         let native = resources.appendingPathComponent("native_cpp/build-cmake/garment_cad_cli")
+        let rustStaticHost = scripts.appendingPathComponent("rust-static-host/target/debug/exo-rust-static-host")
         // Keep this list in sync with the server's local imports. An earlier
         // V2 bundle omitted agent-api.mjs; the window opened but its project
         // service crashed with ERR_MODULE_NOT_FOUND before a garment loaded.
-        for required in [node, template, fitting, native,
+        for required in [node, template, fitting, native, rustStaticHost,
                          resources.appendingPathComponent("web/index.html"),
-                         scripts.appendingPathComponent("static.mjs"),
                          scripts.appendingPathComponent("server.mjs"),
                          scripts.appendingPathComponent("workspace.mjs"),
                          scripts.appendingPathComponent("agent-api.mjs")] {
@@ -141,14 +142,14 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         }
         logs = try FileHandle(forWritingTo: log)
         try logs?.seekToEnd()
-        let configurations: [(String, [String: String])] = [
-            ("static.mjs", ["EXO_WEB_PORT": "5386"]),
-            ("server.mjs", ["EXO_CLOTHCRAFT_PORT": "5385"]),
+        let configurations: [(URL, [String], [String: String])] = [
+            (rustStaticHost, ["--web-root", resources.appendingPathComponent("web").path], ["EXO_WEB_PORT": "5386"]),
+            (node, [scripts.appendingPathComponent("server.mjs").path], ["EXO_CLOTHCRAFT_PORT": "5385"]),
         ]
-        for (script, extra) in configurations {
+        for (executable, arguments, extra) in configurations {
             let p = Process()
-            p.executableURL = node
-            p.arguments = [scripts.appendingPathComponent(script).path]
+            p.executableURL = executable
+            p.arguments = arguments
             p.currentDirectoryURL = resources
             var environment = ProcessInfo.processInfo.environment
             environment["EXO_CLOTHCRAFT_REPO"] = clothCraft.path
@@ -189,6 +190,16 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         startupLabel.removeFromSuperview()
         window.title = "EXO ClothCraft Studio V2"
+    }
+
+    @available(macOS 12.0, *)
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
+                 decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        // Camera capture is requested by Camera Fabric Hand after an explicit
+        // user click. Never grant microphone access or other web origins.
+        let localApp = origin.protocol == "http" && origin.host == "127.0.0.1" && origin.port == 5386
+        decisionHandler(localApp && type == .camera ? .grant : .deny)
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,

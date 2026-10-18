@@ -1,6 +1,7 @@
 // Analytic drafting geometry in centimeters. No numerical sampling, no eval,
 // no implicit rounding and no writes to the original pattern document.
 import { assertDraftCoordinate, precisePointEdit } from './draftingPrecision.js'
+import { rustConstructionIntersection, rustConstructionProjection, rustConstructionAlong, rustConstructionMirror } from './rustConstructionKernel.js'
 
 const epsilon=1e-10
 
@@ -18,16 +19,14 @@ export function lineIntersection(a,b,c,d) {
   const v={x:d.x-c.x,y:d.y-c.y}
   const cross=u.x*v.y-u.y*v.x
   if (Math.abs(cross)<epsilon) throw new Error('Construction lines are parallel or coincident')
-  const t=((c.x-a.x)*v.y-(c.y-a.y)*v.x)/cross
-  return {x:a.x+t*u.x,y:a.y+t*u.y}
+  return rustConstructionIntersection(a,b,c,d)
 }
 
 export function projectOntoLine(point,a,b) {
   const u={x:b.x-a.x,y:b.y-a.y}
   const norm=u.x*u.x+u.y*u.y
   if (norm<epsilon*epsilon) throw new Error('Construction reference line has zero length')
-  const t=((point.x-a.x)*u.x+(point.y-a.y)*u.y)/norm
-  return {x:a.x+t*u.x,y:a.y+t*u.y}
+  return rustConstructionProjection(point,a,b)
 }
 
 export function pointAlongLine(a,b,distanceCm,{perpendicular=false}={}) {
@@ -35,15 +34,13 @@ export function pointAlongLine(a,b,distanceCm,{perpendicular=false}={}) {
   const norm=Math.hypot(delta.x,delta.y)
   if (norm<epsilon) throw new Error('Construction reference line has zero length')
   const distance=assertDraftCoordinate(distanceCm,'Construction offset')
-  const unit=perpendicular
-    ? {x:-delta.y/norm,y:delta.x/norm}
-    : {x:delta.x/norm,y:delta.y/norm}
-  return {x:a.x+unit.x*distance,y:a.y+unit.y*distance}
+  return rustConstructionAlong(a,b,distance,perpendicular)
 }
 
 export function mirrorPointAcrossLine(point,a,b) {
-  const foot=projectOntoLine(point,a,b)
-  return {x:foot.x*2-point.x,y:foot.y*2-point.y}
+  // Keep the original zero-length validation and error message.
+  projectOntoLine(point,a,b)
+  return rustConstructionMirror(point,a,b)
 }
 
 export const DRAFT_CONSTRUCTION_MODES=Object.freeze({

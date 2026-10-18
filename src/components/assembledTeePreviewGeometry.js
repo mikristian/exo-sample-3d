@@ -44,7 +44,7 @@ export function buildAssembledTee(project, fabric, resources) {
       })
     }
     for (const stitch of piece.topstitches || []) {
-      const count = Math.max(1, Math.min(3, stitch.rows || 1))
+      const count = Math.max(1, Math.min(8, stitch.rows || 1))
       for (let row = 0; row < count; row += 1) {
         addPatternThread(group, inwardOffsetEdge(piece, stitch.edgeIndex, Number(stitch.offsetCm || .7) + row * Number(stitch.rowGapCm || .45)), pose, resources, {
           layer: 'sewing', color: '#a8a9a5', radius: .0037, lift: .029,

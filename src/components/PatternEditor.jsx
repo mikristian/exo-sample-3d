@@ -3,11 +3,15 @@ import { createPortal } from 'react-dom'
 import { closestEdgeFraction, edgeLength, edgePointAt, getEdgeSeamAllowance, sampleEdge, samplePieceBoundary, seamAllowanceBoundary, seamLengthReport, pieceArea } from '../core/project.js'
 import { offsetEdgePath, topstitchPaths, zipperPaths } from '../core/trims.js'
 import ViewportQuickTools from './ViewportQuickTools.jsx'
+import ClothCraftContextMenu from './ClothCraftContextMenu.jsx'
+import {PatternReferenceImageLayer, PatternReferenceImageControls, usePatternReferenceImage} from './PatternReferenceImage.jsx'
 import FlatAvatarSilhouette from './FlatAvatarSilhouette.jsx'
 import { polarFromPoints, precisePointEdit, preciseCurveEdit, curveChordCoordinates } from '../core/draftingPrecision.js'
 import { DRAFT_CONSTRUCTION_MODES, preciseConstructionEdit } from '../core/draftingConstructions.js'
 import { constrainDraftAxis, snapDraftGrid, snapDraftPattern } from '../core/draftingSnapping.js'
 import { draftingSplitFractions, SPLIT_MODES } from '../core/draftingSplit.js'
+import {snapControlAngle} from '../core/vectorPatternBezier.js'
+import {initializeRustPomKernel, rustPomKernelReady, rustPomLabelAnchor, rustPomHorizontalCrossing} from '../core/rustPomKernel.js'
 
 const VIEWBOX = { width: 330, height: 170 }
 const snapStorageKey = () => {
@@ -75,7 +79,7 @@ function horizontalSpanAt(piece, y) {
       if (Math.abs(y-a.y)<.01) xs.push(a.x,b.x)
       continue
     }
-    if (y>=Math.min(a.y,b.y) && y<=Math.max(a.y,b.y)) xs.push(a.x+(b.x-a.x)*(y-a.y)/(b.y-a.y))
+    if (y>=Math.min(a.y,b.y) && y<=Math.max(a.y,b.y)) xs.push(rustPomHorizontalCrossing(a,b,y) ?? (a.x+(b.x-a.x)*(y-a.y)/(b.y-a.y)))
   }
   return xs.length>=2 ? { left:Math.min(...xs), right:Math.max(...xs), width:Math.max(...xs)-Math.min(...xs) } : null
 }
@@ -96,6 +100,7 @@ export default function PatternEditor({
   onSelectPiece,
   onSelectedEdgeChange,
   onMovePiece,
+  onMoveFoamPadding,
   onMovePoint,
   onSetPoint,
   onMoveCurve,
@@ -105,6 +110,7 @@ export default function PatternEditor({
   onSplitEdgePrecise,
   onUnfoldEdge,
   onDeletePoint,
+  onDeletePiece,
   onCreatePin,
   onRemovePin,
   onCreateInternalLine,
@@ -116,6 +122,7 @@ export default function PatternEditor({
   onEndGesture,
 }) {
   const svgRef = useRef(null)
+  const reference = usePatternReferenceImage(`draft:${project?.id || project?.templateId || project?.name || 'default'}`)
   const dragRef = useRef(null)
   const [pendingEdge, setPendingEdge] = useState(null)
   const [pendingSewStart, setPendingSewStart] = useState(null)
@@ -147,7 +154,17 @@ export default function PatternEditor({
   const [pointError, setPointError] = useState('')
   const [edgeAllowanceDraft, setEdgeAllowanceDraft] = useState('')
   const [view, setView] = useState({ x: 0, y: 0, width: VIEWBOX.width, height: VIEWBOX.height })
+  const [referenceContextMenu,setReferenceContextMenu]=useState(null)
+  const [pieceContextMenu,setPieceContextMenu]=useState(null)
   const panRef = useRef(null)
+  const [pomRustReady,setPomRustReady] = useState(rustPomKernelReady)
+  useEffect(() => {
+    let mounted = true
+    void initializeRustPomKernel().then(ready => {
+      if (mounted && ready) setPomRustReady(true)
+    })
+    return () => { mounted = false }
+  }, [])
   useEffect(() => {
     try { window.localStorage.setItem(snapStorageKey(), JSON.stringify(snapSettings)) }
     catch { /* Saving UI preferences must never block drafting. */ }
@@ -510,6 +527,17 @@ export default function PatternEditor({
     svgRef.current?.setPointerCapture?.(event.pointerId)
   }
 
+  const beginFoamPadDrag=(event,piece,pad)=>{
+    if(event.button!==0||tool!=='select'||piece.locked||pad.locked||!onMoveFoamPadding)return
+    event.preventDefault()
+    event.stopPropagation()
+    onSelectPiece(piece.id)
+    onBeginGesture?.()
+    dragRef.current={kind:'foam-pad',pointerId:event.pointerId,pieceId:piece.id,padId:pad.id,
+      start:clientToSvg(event),origin:{x:Number(pad.x)||0,y:Number(pad.y)||0}}
+    svgRef.current?.setPointerCapture?.(event.pointerId)
+  }
+
   const beginPointDrag = (event, piece, pointIndex) => {
     if (tool !== 'point' || piece.locked) return
     event.preventDefault()
@@ -639,6 +667,11 @@ export default function PatternEditor({
       const snapped = snapGlobal(destination, event, { allowPattern: false })
       setSnapGuide(snapped.guide)
       onMovePiece(drag.pieceId, snapped.point)
+    } else if (drag.kind === 'foam-pad') {
+      onMoveFoamPadding?.(drag.pieceId,drag.padId,{
+        x:Math.round((drag.origin.x+dx)*1000)/1000,
+        y:Math.round((drag.origin.y-dy)*1000)/1000,
+      })
     } else if (drag.kind === 'point') {
       const piece = project.pieces.find(item => item.id === drag.pieceId)
       if (!piece) return
@@ -656,8 +689,17 @@ export default function PatternEditor({
       })
     } else if (drag.kind === 'curve') {
       let destination = { x: drag.origin.x + dx, y: drag.origin.y - dy }
-      if (event.shiftKey) destination = constrainDraftAxis(drag.origin, destination)
       const curvePiece = project.pieces.find(item => item.id === drag.pieceId)
+      if(!curvePiece)return
+      if(event.shiftKey){
+        // Use VectorCraft's 45° handle constraint without rewriting the
+        // legacy quadratic-curve representation or its factory exports.
+        const a=curvePiece.points[drag.edgeIndex]
+        const b=curvePiece.points[(drag.edgeIndex+1)%curvePiece.points.length]
+        const midpoint=[(a.x+b.x)/2,(a.y+b.y)/2]
+        const snapped=snapControlAngle(midpoint,[destination.x,destination.y])
+        destination={x:snapped[0],y:snapped[1]}
+      }
       const global = svgPoint(destination, curvePiece.layout2d)
       const grid = snapGlobal(global, event, { allowPattern: false })
       const snapped = { x: grid.point.x - curvePiece.layout2d.x,
@@ -707,7 +749,13 @@ export default function PatternEditor({
       beginPieceDrag(event, piece)
       return
     }
-    if (tool === 'point' || tool === 'curve') {
+    if (tool === 'curve') {
+      event.preventDefault()
+      event.stopPropagation()
+      selectDraftCurve(piece,edgeIndex)
+      return
+    }
+    if (tool === 'point') {
       event.preventDefault()
       event.stopPropagation()
       selectDraftEdge(piece,edgeIndex)
@@ -808,7 +856,7 @@ export default function PatternEditor({
           {tool === 'split' && (splitMode === 'numeric'
             ? 'Select an edge, then enter precise split divisions in Properties'
             : 'Click an edge to insert a new pattern point')}
-          {tool === 'curve' && 'Drag an edge handle to shape a curve · double-click to straighten'}
+          {tool === 'curve' && 'Click a pattern edge to reveal its curve point · drag the handle · Shift snaps to 45° · double-click to straighten'}
           {tool === 'internal' && 'Drag inside a pattern to create a construction line · classify it as fold or dart in the inspector'}
           {tool === 'pin' && 'Click inside the pattern to add a manual 3D pin · click a pin to remove it'}
           {tool === 'notch' && 'Click a pattern edge to place a production notch at that exact curve position'}
@@ -821,6 +869,30 @@ export default function PatternEditor({
           {tool === 'measure' && (pendingMeasurement ? 'Click the second measurement point on this pattern' : 'Click the first measurement point')}
         </div>
       </div>
+      <PatternReferenceImageControls {...reference} unitsPerCm={1} menuOnly editorScope="draft"
+        viewBounds={[view.x,view.y,view.width,view.height]}/>
+      <ClothCraftContextMenu context={pieceContextMenu&&{...pieceContextMenu,dimension:'2d',hit:{panel:pieceContextMenu.pieceId}}}
+        items={[{id:'select',label:'Select Pattern'}, {separator:true}, {id:'delete',label:'Delete Pattern',shortcut:'⌫',danger:true}]}
+        onClose={()=>setPieceContextMenu(null)}
+        onChoose={(action,context)=>{
+          const id=context?.pieceId
+          if(!project.pieces.some(piece=>piece.id===id))return
+          if(action==='delete')onDeletePiece?.(id)
+          if(action==='select')onSelectPiece(id)
+          setPieceContextMenu(null)
+        }}/>
+      <ClothCraftContextMenu context={referenceContextMenu&&{...referenceContextMenu,dimension:'2d',hit:null}}
+        items={reference.image ? [
+          {id:'format',label:'Format 2D Background…'},
+          {id:'replace',label:'Replace Background Image…'},
+          {separator:true},
+          {id:'remove',label:'Remove Background Image',danger:true},
+        ] : [{id:'add',label:'Add Background Image…'}]}
+        onClose={()=>setReferenceContextMenu(null)}
+        onChoose={action=>{
+          window.dispatchEvent(new CustomEvent('exo-open-2d-background-image',{detail:{editor:'draft',action}}))
+          setReferenceContextMenu(null)
+        }}/>
       <svg
         ref={svgRef}
         className={`pattern-canvas tool-${tool}`}
@@ -830,9 +902,20 @@ export default function PatternEditor({
         viewBox={`${view.x} ${view.y} ${view.width} ${view.height}`}
         onWheel={onCanvasWheel}
         onKeyDown={onCanvasKeyDown}
-        // macOS trackpads can synthesize a secondary-click/contextmenu while
-        // moving a pattern. Never open a menu above the 2D drafting surface.
-        onContextMenu={(event) => event.preventDefault()}
+        // Resolve the piece directly under the secondary click. Selection can
+        // lag React's next render, so Delete Pattern receives the hit ID.
+        onContextMenu={(event) => {
+          event.preventDefault()
+          const hitId=event.target?.closest?.('[data-piece-id]')?.getAttribute('data-piece-id')
+          if(hitId&&project.pieces.some(piece=>piece.id===hitId)){
+            setReferenceContextMenu(null)
+            setPieceContextMenu({x:event.clientX,y:event.clientY,pieceId:hitId})
+            onSelectPiece(hitId)
+          }else{
+            setPieceContextMenu(null)
+            setReferenceContextMenu({x:event.clientX,y:event.clientY})
+          }
+        }}
         onPointerMove={(event) => {
           if (panRef.current?.pointerId === event.pointerId) {
             const bounds = svgRef.current.getBoundingClientRect()
@@ -843,11 +926,12 @@ export default function PatternEditor({
             panRef.current.y = event.clientY
           } else handlePointerMove(event)
         }}
-        onPointerUp={(event) => { if (panRef.current?.pointerId === event.pointerId) panRef.current = null; else endDrag(event) }}
-        onPointerCancel={(event) => { panRef.current = null; endDrag(event) }}
+        onPointerUp={(event) => { if (panRef.current?.pointerId === event.pointerId) { panRef.current = null; event.currentTarget.classList.remove('is-panning') } else endDrag(event) }}
+        onPointerCancel={(event) => { panRef.current = null; event.currentTarget.classList.remove('is-panning'); endDrag(event) }}
         onPointerDown={(event) => {
           if (event.button === 1 || (event.button === 0 && event.altKey && event.target === event.currentTarget)) {
             panRef.current = { pointerId: event.pointerId, x: event.clientX, y: event.clientY }
+            event.currentTarget.classList.add('is-panning')
             event.currentTarget.setPointerCapture(event.pointerId)
             event.preventDefault()
             return
@@ -895,6 +979,8 @@ export default function PatternEditor({
         {/* Overscan the SVG camera's visible rectangle. Grid coverage is
             continuous even during rapid cursor-centric zoom and panning. */}
         {showGrid && <rect x={view.x-view.width} y={view.y-view.height} width={view.width*3} height={view.height*3} fill="url(#major-grid)" pointerEvents="none" data-grid-coverage="overscanned"/>}
+        <PatternReferenceImageLayer image={reference.image} setImage={reference.setImage} unitsPerCm={1}
+          interactive={tool === 'select' || reference.image?.calibrating === true}/>
         {/* World-space drafting origin is aligned with the center of the guide
             figure. Unlike an HTML overlay, it pans and zooms with the patterns.
             The reference figure never intercepts pattern selection or sewing. */}
@@ -978,6 +1064,29 @@ export default function PatternEditor({
                   />
                 )
               })}
+              {(piece.foamPads || []).map(pad => {
+                if(!pad.points?.length)return null
+                const xs=pad.points.map(p=>p.x),ys=pad.points.map(p=>p.y)
+                const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys)
+                const sourceWidth=Math.max(.0001,maxX-minX),sourceHeight=Math.max(.0001,maxY-minY)
+                const scaleX=(Number(pad.widthCm)||sourceWidth)/sourceWidth
+                const scaleY=(Number(pad.heightCm)||sourceHeight)/sourceHeight
+                const theta=(Number(pad.rotationDeg)||0)*Math.PI/180
+                const cos=Math.cos(theta),sin=Math.sin(theta)
+                const cx=(minX+maxX)*.5,cy=(minY+maxY)*.5
+                const points=pad.points.map(p=>{
+                  const x=(p.x-cx)*scaleX,y=(p.y-cy)*scaleY
+                  return svgPoint({x:(Number(pad.x)||0)+x*cos-y*sin,y:(Number(pad.y)||0)+x*sin+y*cos},piece.layout2d)
+                })
+                const d=points.map((p,i)=>`${i?'L':'M'}${p.x} ${p.y}`).join(' ')+' Z'
+                return <path key={pad.id} d={d} clipPath={`url(#pattern-clip-${piece.id})`}
+                  fill="rgba(124,173,199,0.24)" stroke="#58a8cd" strokeWidth=".55"
+                  strokeDasharray={pad.sewn?'none':'1.8 1.2'}
+                  style={{cursor:tool==='select'&&!piece.locked&&!pad.locked?'move':'default'}}
+                  onPointerDown={event=>beginFoamPadDrag(event,piece,pad)}>
+                  <title>{pad.name||'Foam padding'} · {Number(pad.depthCm||0).toFixed(1)} cm raised · drag to position</title>
+                </path>
+              })}
               {(piece.pins || []).map((pin) => {
                 const rendered = svgPoint(pin, piece.layout2d)
                 return (
@@ -998,7 +1107,7 @@ export default function PatternEditor({
                   </g>
                 )
               })}
-              {(project.fasteners || []).flatMap((fastener) => {
+              {(project.fasteners || []).filter(item=>item.visible!==false).flatMap((fastener) => {
                 const markers = []
                 for (const [role, endpoint] of [['a', fastener.a], ['b', fastener.b]]) {
                   if (endpoint?.pieceId !== piece.id) continue
@@ -1094,18 +1203,24 @@ export default function PatternEditor({
                 const a=svgPoint({x:cx,y:minY+2},piece.layout2d),b=svgPoint({x:cx,y:maxY-2},piece.layout2d)
                 const chest=horizontalSpanAt(piece,chestY), stomach=horizontalSpanAt(piece,stomachY)
                 const center=svgPoint({x:cx,y:chestY},piece.layout2d)
-                return <g className="clo-bodice-drafting-guides" pointerEvents="none" clipPath={`url(#pattern-clip-${piece.id})`}>
+                return <g className="clo-bodice-drafting-guides" data-draft-center-guide={piece.id} pointerEvents="none" clipPath={`url(#pattern-clip-${piece.id})`}>
                   <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className="bodice-center-guide"/>
                   {[[chest,chestY,'bodice-chest-guide','CHEST'],[stomach,stomachY,'bodice-stomach-guide','STOMACH']].map(([span,y,klass,label])=> span && (()=>{
                     const left=svgPoint({x:span.left+.6,y},piece.layout2d)
                     const right=svgPoint({x:span.right-.6,y},piece.layout2d)
                     const mid=svgPoint({x:cx,y},piece.layout2d)
-                    return <g key={label} className={`clo-pom-station ${klass}`} data-pom={label.toLowerCase()}>
+                    const labelFallback={x:mid.x+3.9,y:mid.y-1.8}
+                    const labelAnchor=pomRustReady ? rustPomLabelAnchor(left,right,{
+                      dx:labelFallback.x-(left.x+right.x)*0.5,
+                      dy:labelFallback.y-(left.y+right.y)*0.5,
+                    }) : null
+                    const labelPosition=labelAnchor ?? labelFallback
+                    return <g key={label} className={`clo-pom-station ${klass}`} data-pom={label.toLowerCase()} data-pom-backend={labelAnchor ? 'rust-wasm' : 'javascript-fallback'} data-draft-measure-guide={`${piece.id}-${label.toLowerCase()}`}>
                       <line x1={left.x} x2={right.x} y1={left.y} y2={right.y}/>
                       <circle cx={left.x} cy={left.y} r=".95"/><circle cx={right.x} cy={right.y} r=".95"/>
                       <circle cx={mid.x} cy={mid.y} r="1.35"/>
                       <path d={`M${mid.x-2.8} ${mid.y}h5.6M${mid.x} ${mid.y-2.8}v5.6`} />
-                      {selected && <text x={mid.x+3.9} y={mid.y-1.8} className="clo-pom-measurement-label">{label} {span.width.toFixed(1)} CM</text>}
+                      {selected && <text x={labelPosition.x} y={labelPosition.y} className="clo-pom-measurement-label">{label} {span.width.toFixed(1)} CM</text>}
                     </g>
                   })())}
                   <circle cx={center.x} cy={center.y} r=".85"/>
@@ -1118,7 +1233,7 @@ export default function PatternEditor({
                   ? [Math.max(0.01, (notch.t ?? 0.5) - gap), Math.min(0.99, (notch.t ?? 0.5) + gap)]
                   : [notch.t ?? 0.5]
                 return (
-                  <g key={notch.id} className={`pattern-notch ${notch.matchGroupId ? 'matched' : ''}`}>
+                  <g key={notch.id} className={`pattern-notch ${notch.matchGroupId ? 'matched' : ''}`} data-draft-armhole-notch={notch.matchGroupId?notch.id:undefined}>
                     {fractions.map((fraction, notchIndex) => {
                       const located = edgePointAt(piece, notch.edgeIndex, fraction, 48)
                       if (!located) return null
@@ -1130,8 +1245,8 @@ export default function PatternEditor({
                   </g>
                 )
               })}
-              {(piece.topstitches || []).map((stitch) => (
-                <g key={stitch.id} className="pattern-topstitch">
+              {(piece.topstitches || []).filter(item=>item.visible!==false).map((stitch) => (
+                <g key={stitch.id} className="pattern-topstitch" data-draft-hem-stitch={stitch.rows >= 2 && project.templateId==='tee'?piece.id:undefined} data-draft-hem-rows={stitch.rows}>
                   {topstitchPaths(piece, stitch).map((path, rowIndex) => (
                     <polyline
                       key={`${stitch.id}-${rowIndex}`}
@@ -1139,12 +1254,13 @@ export default function PatternEditor({
                         const rendered = svgPoint(point, piece.layout2d)
                         return `${rendered.x},${rendered.y}`
                       }).join(' ')}
-                      style={{ stroke: stitch.color || '#8d8d8d' }}
+                      style={{ stroke:project.templateId==='tee' && (stitch.color||'#8d8d8d').toLowerCase()==='#8d8d8d'
+                        ? '#6e71c4' : stitch.color || '#8d8d8d' }}
                     />
                   ))}
                 </g>
               ))}
-              {(piece.bindings || []).map((binding) => {
+              {(piece.bindings || []).filter(item=>item.visible!==false).map((binding) => {
                 const path = offsetEdgePath(piece, binding.edgeIndex, Number(binding.widthCm ?? 1.8) * 0.45, 32)
                 return (
                   <polyline
@@ -1158,7 +1274,7 @@ export default function PatternEditor({
                   />
                 )
               })}
-              {(piece.zippers || []).map((zipper) => {
+              {(piece.zippers || []).filter(item=>item.visible!==false).map((zipper) => {
                 const rails = zipperPaths(piece, zipper)
                 const centerPath = sampleEdge(piece, zipper.edgeIndex, 32)
                 return (
@@ -1176,7 +1292,7 @@ export default function PatternEditor({
                   </g>
                 )
               })}
-              {(piece.buttons || []).map((button) => {
+              {(piece.buttons || []).filter(item=>item.visible!==false).map((button) => {
                 const center = svgPoint(button, piece.layout2d)
                 const radius = Math.max(0.35, Number(button.diameterCm ?? 1.8) * 0.5)
                 return (
@@ -1187,7 +1303,7 @@ export default function PatternEditor({
                   </g>
                 )
               })}
-              {(piece.buttonholes || []).map((buttonhole) => {
+              {(piece.buttonholes || []).filter(item=>item.visible!==false).map((buttonhole) => {
                 const center = svgPoint(buttonhole, piece.layout2d)
                 const halfLength = Math.max(0.3, Number(buttonhole.lengthCm ?? 2.4) * 0.5)
                 const angle = (Number(buttonhole.orientationDeg || 0) * Math.PI) / 180
@@ -1256,11 +1372,22 @@ export default function PatternEditor({
                         <circle cx={position.x} cy={position.y} r="4" fill="none" stroke="#f3b970" strokeWidth="0.5" strokeDasharray="1 1" />
                       </g>
                     })()}
-                    {selected && !['sew', 'notch'].includes(tool) && edgeIndex % 2 === 0 && (
-                      <text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 1.5} className="edge-measure">
+                    {selected && !['sew', 'notch'].includes(tool) && (() => {
+                      // CLO's selected cutline readout follows each individual
+                      // segment. A curved edge's midpoint is its true arc
+                      // midpoint, not the chord between its two end points.
+                      const midpoint = edgePointAt(piece, edgeIndex, 0.5)
+                      if (!midpoint) return null
+                      const position = svgPoint(midpoint.point, piece.layout2d)
+                      return <text
+                        x={position.x + midpoint.normal.x * 1.5}
+                        y={position.y - midpoint.normal.y * 1.5}
+                        className="edge-measure"
+                        aria-label={`Edge ${edgeIndex + 1}: ${edgeLength(piece, edgeIndex).toFixed(2)} cm`}
+                      >
                         {edgeLength(piece, edgeIndex).toFixed(1)}
                       </text>
-                    )}
+                    })()}
                   </g>
                 )
               })}
@@ -1293,7 +1420,13 @@ export default function PatternEditor({
                       if (tool !== 'point') return
                       event.preventDefault()
                       event.stopPropagation()
-                      onDeletePoint?.(piece.id, pointIndex)
+                      // Edit Pattern in CLO uses a double-click to select the
+                      // containing pattern. Point deletion is a distinct,
+                      // intentional Option/Alt-click command.
+                      onSelectPiece(piece.id)
+                      setSelectedPoint(null)
+                      setSelectedEdge(null)
+                      setSelectedCurve(null)
                     }}
                   />
                 )
@@ -1301,6 +1434,8 @@ export default function PatternEditor({
               {selected && tool === 'curve' && piece.points.map((point, edgeIndex) => {
                 const next = piece.points[(edgeIndex + 1) % piece.points.length]
                 const curve = piece.curves?.[edgeIndex]
+                const focused=activeCurve?.pieceId===piece.id&&activeCurve.edgeIndex===edgeIndex
+                if(!curve&&!focused)return null
                 const controlLocal = curve
                   ? { x: curve.cx, y: curve.cy }
                   : { x: (point.x + next.x) * 0.5, y: (point.y + next.y) * 0.5 }
@@ -1308,12 +1443,14 @@ export default function PatternEditor({
                 const a = svgPoint(point, piece.layout2d)
                 const b = svgPoint(next, piece.layout2d)
                 return (
-                  <g key={`${piece.id}-curve-${edgeIndex}`} className={`curve-control ${curve ? 'active' : ''}`}>
+                  <g key={`${piece.id}-curve-${edgeIndex}`} data-pattern-curve-control={`${piece.id}:${edgeIndex}`}
+                    className={`curve-control ${curve ? 'active' : ''} ${focused?'selected':''}`}>
                     {curve && <><line x1={a.x} y1={a.y} x2={control.x} y2={control.y} /><line x1={b.x} y1={b.y} x2={control.x} y2={control.y} /></>}
                     <circle
                       cx={control.x}
                       cy={control.y}
-                      r={1.55}
+                      r={focused?2.1:1.55}
+                      title="VectorCraft-style quadratic control · Shift snaps at 45° · double-click to straighten"
                       onPointerDown={(event) => beginCurveDrag(event, piece, edgeIndex)}
                       onDoubleClick={(event) => { event.stopPropagation(); if (!piece.locked) onSetCurve?.(piece.id, edgeIndex, null) }}
                     />

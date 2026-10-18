@@ -9,10 +9,10 @@ const clamp=(a,lo,hi)=>Math.max(lo,Math.min(hi,a));
 export function mountProjectHomepage(container,{projects,onOpen,onExplore,onMarketplace}={}){
  if(!container||!Array.isArray(projects)||!projects.length)return {destroy(){}};
  // Show the whole archive, not a backdrop plus a few decorative thumbnails.
- const first=['atelier-01','cathedral-03','garment-02','studio-09','world-10','exterior-11','nyc-07'];
+ const first=['stage-EXO01','garment-nike','stage-R02','stage-R03','stage-S01','stage-S10'];
  const slides=[...first.map(id=>projects.find(p=>p.id===id)).filter(Boolean),...projects.filter(p=>!first.includes(p.id))];
  // Prefer the six strongest original project images to unfinished UI captures.
- const curated=['cathedral-03','garment-02','studio-09','atelier-01','nyc-07','world-10']
+ const curated=['stage-EXO01','garment-nike','stage-R02','stage-R03','stage-S01','stage-S10']
    .map(id=>projects.find(p=>p.id===id)).filter(Boolean);
  const denimStory=projects.find(p=>p.id==='garment-02');
  const storyAngles=(Array.isArray(denimStory?.gallery)?denimStory.gallery:[]).filter(v=>v?.src&&v?.label).slice(0,5);
