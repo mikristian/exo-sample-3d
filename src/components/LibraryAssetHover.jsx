@@ -8,7 +8,9 @@ import './LibraryAssetHover.css'
  * Geometry/WebGL previews are mounted only after the user's hover delay.
  */
 export default function LibraryAssetHover({category,id,title,description='',details=[],source='',preview,children}) {
-  const garmentDisplay = category === 'Garment' || category === 'Patterns'
+  const garmentDisplay = category === 'Garment'
+  const patternDisplay = category === 'Patterns'
+  const templateDisplay = garmentDisplay || patternDisplay
   const fabricDisplay = category === 'Fabric'
   const [open,setOpen]=useState(false)
   const [position,setPosition]=useState({left:12,top:12})
@@ -37,11 +39,11 @@ export default function LibraryAssetHover({category,id,title,description='',deta
     tileRef.current=target
     const rect=target.getBoundingClientRect()
     const viewport=visibleViewport()
-    const width=Math.min(garmentDisplay ? 760 : fabricDisplay ? 740 : 400,viewport.width-24)
+    const width=Math.min(garmentDisplay ? 760 : patternDisplay ? 720 : fabricDisplay ? 740 : 400,viewport.width-24)
     const beside=rect.right+14+width<viewport.left+viewport.width-12
     setPosition({
       left:beside?rect.right+14:Math.max(viewport.left+12,rect.left-width-14),
-      top:Math.max(viewport.top+12,Math.min(rect.top,viewport.top+viewport.height-(garmentDisplay ? 625 : fabricDisplay ? 690 : 490))),
+      top:Math.max(viewport.top+12,Math.min(rect.top,viewport.top+viewport.height-(garmentDisplay ? 625 : patternDisplay ? 550 : fabricDisplay ? 690 : 490))),
     })
     timer.current=window.setTimeout(()=>setOpen(true),delay)
   }
@@ -93,15 +95,15 @@ export default function LibraryAssetHover({category,id,title,description='',deta
   const child=React.Children.only(children)
   const tile=React.cloneElement(child,{
     'data-library-hover-id':`${category}:${id}`,
-    'aria-description':garmentDisplay
-      ? 'Tap the preview label to inspect without applying. Activate the rest of the tile to load the garment.'
+    'aria-description':templateDisplay
+      ? `Tap the preview label to inspect the ${patternDisplay ? 'flat 2D pattern' : '3D garment'} without applying. Activate the rest of the tile to load the template.`
       : child.props['aria-description'],
     onPointerEnter:e=>{child.props.onPointerEnter?.(e);if(e.pointerType==='mouse'||e.pointerType==='pen')show(e.currentTarget)},
     onPointerLeave:e=>{child.props.onPointerLeave?.(e);close(170)},
     onFocus:e=>{
       child.props.onFocus?.(e)
       if(suppressFocus.current){suppressFocus.current=false;return}
-      if(garmentDisplay||e.currentTarget.matches(':focus-visible'))show(e.currentTarget,0)
+      if(templateDisplay||e.currentTarget.matches(':focus-visible'))show(e.currentTarget,0)
     },
     onBlur:e=>{
       child.props.onBlur?.(e)
@@ -111,13 +113,13 @@ export default function LibraryAssetHover({category,id,title,description='',deta
       child.props.onKeyDown?.(e)
       if(e.defaultPrevented)return
       if(e.key==='Escape'&&open){e.preventDefault();close();return}
-      if(e.key==='Tab'&&!e.shiftKey&&open&&garmentDisplay){
+      if(e.key==='Tab'&&!e.shiftKey&&open&&templateDisplay){
         const control=popupRef.current?.querySelector('button:not([disabled])')
         if(control){e.preventDefault();control.focus()}
       }
     },
     onClick:e=>{
-      if(garmentDisplay&&e.target?.closest?.('[data-library-preview-touch]')){
+      if(templateDisplay&&e.target?.closest?.('[data-library-preview-touch]')){
         e.preventDefault()
         e.stopPropagation()
         show(e.currentTarget,0)
@@ -126,8 +128,8 @@ export default function LibraryAssetHover({category,id,title,description='',deta
       close()
       child.props.onClick?.(e)
     },
-    ...(garmentDisplay?{
-      children:<>{child.props.children}<span className="exo-library-preview-touch-hint" data-library-preview-touch aria-hidden="true">PREVIEW 3D ↗</span></>,
+    ...(templateDisplay?{
+      children:<>{child.props.children}<span className="exo-library-preview-touch-hint" data-library-preview-touch aria-hidden="true">{patternDisplay?'PREVIEW 2D ↗':'PREVIEW 3D ↗'}</span></>,
     }:{}),
   })
   return <>
@@ -142,7 +144,7 @@ export default function LibraryAssetHover({category,id,title,description='',deta
           event.preventDefault()
           tileRef.current?.focus({preventScroll:true})
         }
-      }} role="dialog" aria-modal="false" className={`exo-library-asset-hover ${garmentDisplay ? 'exo-library-asset-hover--garment' : fabricDisplay ? 'exo-library-asset-hover--fabric' : ''}`} data-library-preview={`${category}:${id}`} aria-label={`${title} enlarged preview`} style={position}>
+      }} role="dialog" aria-modal="false" className={`exo-library-asset-hover ${garmentDisplay ? 'exo-library-asset-hover--garment' : patternDisplay ? 'exo-library-asset-hover--pattern' : fabricDisplay ? 'exo-library-asset-hover--fabric' : ''}`} data-library-preview={`${category}:${id}`} aria-label={`${title} enlarged preview`} style={position}>
       <div className="exo-library-asset-hover-media">{preview || <div className="exo-library-asset-hover-unavailable">No preview available</div>}</div>
       <div className="exo-library-asset-hover-information">
         <span className="exo-library-asset-hover-eyebrow">{category.toUpperCase()} · LIBRARY PREVIEW</span>

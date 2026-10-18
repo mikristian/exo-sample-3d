@@ -4,6 +4,37 @@ import { samplePieceBoundary } from './project.js'
 // Source drafting is the authority for panel contours, curves, edge numbers and topstitches.
 // The pose is a deterministic illustration of sewing orientation; it is not a physics solve.
 export function garmentPreviewPose(piece, templateId, panelIndex, total) {
+  // Pants drafting pieces carry explicit anatomical wrap roles. Present their
+  // original contours as four curved paper panels surrounding two leg volumes.
+  // This only changes the library illustration; pattern and seam coordinates
+  // remain in their authored 2D frame.
+  const wrap = String(piece.arrangement3d?.wrap || '')
+  const legRole = /^(left|right)-leg-(front|back)$/.exec(wrap)
+    || /^(?:pants|jeans|trousers?)-(left|right)-(front|back)$/.exec(String(piece.id || ''))
+  if (legRole) {
+    const points = samplePieceBoundary(piece, 7).points
+    if (points.length >= 3) {
+      const xs = points.map(point => point.x)
+      const ys = points.map(point => point.y)
+      const minX = Math.min(...xs), maxX = Math.max(...xs)
+      const minY = Math.min(...ys), maxY = Math.max(...ys)
+      const halfWidth = Math.max((maxX - minX) / 2, .001)
+      const halfHeight = Math.max((maxY - minY) / 2, .001)
+      const side = legRole[1] === 'left' ? -1 : 1
+      const face = legRole[2] === 'front' ? 1 : -1
+      return point => {
+        // Mirrored leg panels put the respective inseams toward the center.
+        const lateral = (point.x - (minX + maxX) / 2) / halfWidth
+        const angle = lateral * 1.02
+        const spread = .45
+        return new THREE.Vector3(
+          side * spread - side * .32 * Math.sin(angle),
+          ((point.y - (minY + maxY) / 2) / halfHeight) * 1.17,
+          face * (.30 + .11 * Math.cos(angle)) + face * .015 * Math.sin(point.y * .085),
+        )
+      }
+    }
+  }
   if (templateId === 'tee-exploded') {
     // IMG_6936: unsewn panels arranged around a torso volume, not a flat grid.
     // Preserve source contours; this is a read-only arrangement illustration.

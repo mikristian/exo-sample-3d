@@ -8,6 +8,38 @@ const native='http://127.0.0.1:5385'
 const health=await fetch(native+'/health',{signal:AbortSignal.timeout(6000)}).then(r=>r.json())
 assert.equal(health.ok,true,'Signed EXO native bridge must be healthy')
 assert.equal(health.nativeReady,true,'EXO native Rust backend must be ready')
+// Checking only for an executable on disk missed a real release regression:
+// the Swift app launched --gpu against a CPU-only Rust binary, giving a healthy
+// /health endpoint but zero 2D and 3D garment geometry. Require a *usable*
+// saved native GPU session before checking browser viewport construction.
+const snapshotResponse=await fetch(native+'/workspace',{
+  method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({op:'snapshot'}),signal:AbortSignal.timeout(30000),
+})
+const snapshot=await snapshotResponse.json()
+assert.equal(snapshotResponse.status,200,'Native saved garment startup failed: '+snapshot.error)
+assert.equal(snapshot.ok,true,snapshot.error||'Native saved garment unavailable')
+assert.match(snapshot.data?.backend||'',/GPU VBD/,
+  'Signed desktop EXO V2 must start the GPU-enabled Rust solver')
+assert.ok((snapshot.data?.panels||[]).length>=2,
+  'Signed V2 must restore both authored 2D pattern panels')
+assert.ok((snapshot.data?.triangles||[]).length>0,
+  'Signed V2 must restore 3D garment triangles')
+// Reject a web-only release that forgot the native-compatible Rust WASM asset.
+const wasmResponse=await fetch(base+'/wasm/exo_fabric_kernel.wasm',
+  {signal:AbortSignal.timeout(6000)})
+assert.equal(wasmResponse.status,200,'Compiled Rust fabric WASM must ship with signed app')
+const moduleResult=await WebAssembly.instantiate(await wasmResponse.arrayBuffer(),{})
+assert.equal(moduleResult.instance.exports.exo_fabric_kernel_abi_version(),1,
+  'Signed app must ship EXO Rust fabric ABI v1')
+const geometryResponse=await fetch(base+'/wasm/exo_geometry_kernel.wasm',
+  {signal:AbortSignal.timeout(6000)})
+assert.equal(geometryResponse.status,200,'Signed EXO app must include compiled Rust CAD geometry')
+const geometry=await WebAssembly.instantiate(await geometryResponse.arrayBuffer(),{})
+assert.equal(geometry.instance.exports.exo_geometry_abi_version(),1,
+  'Signed app must ship geometry ABI version 1')
+assert.equal(geometry.instance.exports.exo_nearest_segment_t(2.5,3,0,0,10,0),.25,
+  'Signed app must execute Rust CAD segment projection')
 
 const browser=await chromium.launch({
   headless:true,
@@ -25,8 +57,18 @@ try{
     if(message.text().includes('Texture marked for update but no image data found'))warnings.push(message.text())
   })
   await page.goto(base+'/?desktop=1&engine=clothcraft&testSession=signed-native-bridge-smoke',
-    {waitUntil:'domcontentloaded',timeout:18000})
-  await page.locator('.cc-board [data-panel]').first().waitFor({state:'visible',timeout:20000})
+    {waitUntil:'domcontentloaded',timeout:30000})
+  // A cold, signed macOS Rust/WebGL startup can take longer than the warm
+  // development test; continue demanding real pattern geometry and no errors.
+  await page.locator('.cc-board [data-panel]').first().waitFor({state:'visible',timeout:45000})
+  const sceneCanvas=page.locator('.cc-scene canvas').first()
+  await sceneCanvas.waitFor({state:'visible',timeout:45000})
+  const sceneDimensions=await sceneCanvas.evaluate(canvas=>({
+    width:canvas.width,height:canvas.height,
+    clientWidth:canvas.clientWidth,clientHeight:canvas.clientHeight,
+  }))
+  assert.ok(Object.values(sceneDimensions).every(value=>value>0),
+    '3D viewport canvas must have a real onscreen rendering surface')
   const panels=await page.locator('.cc-board [data-panel]').count()
   const editor=await page.locator('body').innerText()
   assert.ok(panels>=1,'Native pattern board should show at least one panel')
@@ -34,7 +76,10 @@ try{
   assert.deepEqual(errors,[])
   assert.deepEqual(badPorts,[])
   assert.deepEqual(warnings,[])
-  console.log(JSON.stringify({pass:true,nativeReady:true,panels,badPorts:0,pageErrors:0,textureWarnings:0}))
+  console.log(JSON.stringify({pass:true,nativeReady:true,gpuSimulation:true,rustFabricWasmAbi:1,
+    rustGeometryWasmAbi:1,panels,triangles:snapshot.data.triangles.length,
+    sceneCanvas:sceneDimensions,
+    badPorts:0,pageErrors:0,textureWarnings:0}))
 }finally{
   await browser.close()
 }

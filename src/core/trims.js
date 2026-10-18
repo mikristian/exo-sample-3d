@@ -21,7 +21,7 @@ export function offsetEdgePath(piece, edgeIndex, offsetCm = 0, segments = 28) {
 }
 
 export function topstitchPaths(piece, topstitch) {
-  const rows = Math.max(1, Math.min(3, Number(topstitch.rows || 1)))
+  const rows = Math.max(1, Math.min(8, Number(topstitch.rows || 1)))
   const baseOffset = Number(topstitch.offsetCm ?? 0.7)
   const rowGap = Number(topstitch.rowGapCm ?? 0.45)
   return Array.from({ length: rows }, (_, index) => (

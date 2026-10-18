@@ -11,6 +11,13 @@
 .exo-garment-mini-fallback small{font-size:11px;color:#b0bbc0;line-height:1.55}
 .exo-garment-mini-view-labels{height:27px;flex:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:center;padding:0 13px 2px;text-align:center;color:#dde2e3;font-size:9px;font-weight:600;letter-spacing:.15em}
 .exo-garment-mini-view-labels span+span{border-left:1px solid #59616a66}
+.exo-garment-mini-source-parts{height:27px;flex:none;display:flex;align-items:center;justify-content:center;gap:11px;padding:0 8px;color:#dfe4e4;font-size:9px;font-weight:650;letter-spacing:.08em;text-align:center}
+.exo-garment-mini-source-parts span{color:#9eafb8}
+.exo-garment-mini-source-controls{display:flex;align-items:center;justify-content:center;gap:6px;padding:5px 9px 1px;min-height:36px;flex:none}
+.exo-garment-mini-source-controls button{padding:5px 9px;min-height:26px;border:1px solid #505b65;border-radius:4px;color:#d3dbe0;background:#252d35;cursor:pointer;font-size:10px}
+.exo-garment-mini-source-controls button[aria-pressed=true]{background:#d4dde0;color:#17212b;border-color:#d4dde0}
+.exo-garment-mini-source-controls button:focus-visible{outline:2px solid #b9e0eb;outline-offset:2px}
+.exo-garment-mini-source-controls button[aria-label^="Rotate"]{font-size:18px;padding:1px 10px}
 .exo-garment-mini-caption{height:23px;flex:none;display:flex;align-items:center;justify-content:center;gap:10px;text-align:center;color:#9faab0;font-size:9px;letter-spacing:.11em}
 .exo-garment-mini-caption span{height:3px;width:3px;border-radius:50%;background:#64727d}
 .exo-garment-mini-note{height:23px;flex:none;display:flex;align-items:center;justify-content:center;color:#9da9ae;font-size:9px;letter-spacing:.12em}
@@ -25,6 +32,7 @@
 .exo-garment-mini-switches button[aria-pressed=true]{background:#d6dedf;color:#172029;border-color:#d6dedf}
 .exo-garment-mini-switches button:focus-visible{outline:2px solid #b9e0eb;outline-offset:2px}
 @media(max-width:480px){.exo-garment-mini-topline{padding:0 10px}.exo-garment-mini-switches{gap:4px}.exo-garment-mini-switches button{padding:6px}.exo-garment-mini-caption{font-size:8px;gap:7px}.exo-garment-mini-view-labels{font-size:8px;letter-spacing:.06em;gap:1px;padding-inline:4px}.exo-garment-mini-note{font-size:8px;letter-spacing:.04em}}
+@media(max-width:480px){.exo-garment-mini-source-parts{font-size:8px;gap:7px;letter-spacing:0}.exo-garment-mini-source-controls{gap:4px}.exo-garment-mini-source-controls button{padding:5px 6px}}
 .exo-garment-mini-views{display:flex;justify-content:center;gap:5px;margin:4px auto;position:relative;z-index:2;max-width:100%}.exo-garment-mini-views button{background:#20252b;color:#cbd0d4;border:1px solid #5c6369;border-radius:4px;font-size:9px;padding:6px 9px;cursor:pointer}.exo-garment-mini-views button[aria-pressed=true]{background:#e5e7e7;color:#1a1d21;border-color:#e5e7e7}
 /* The universal asset portal stays click-through, while this deliberately
    interactive garment inspector must receive pointer events above the 3D stage. */

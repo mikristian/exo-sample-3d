@@ -14,6 +14,17 @@ mkdir -p "$RES/bin" "$RES/integrations/clothcraft" "$RES/native_cpp/build-cmake"
 STAGED_WEB="$(mktemp -d "$ROOT/integrations/clothcraft/output/release-v2-web-XXXXXXXX")"
 trap 'rm -rf "$STAGED_WEB"' EXIT
 EXPECTED_BRIDGE="${EXO_BUILD_BRIDGE_URL:-http://127.0.0.1:5283}"
+node scripts/build-rust-grading-kernel.mjs
+node scripts/build-rust-sewing-kernel.mjs
+node scripts/build-rust-foam-kernel.mjs
+node scripts/build-rust-vector-fit-kernel.mjs
+node scripts/build-rust-construction-kernel.mjs
+node scripts/build-rust-free-sewing-kernel.mjs
+node scripts/build-rust-strain-kernel.mjs
+node scripts/build-rust-mesh-selection-kernel.mjs
+node rust/exo_fabric_cost_kernel/build.mjs
+node scripts/build-rust-selection-metrics-kernel.mjs
+node rust/exo_measurement_kernel/build.mjs
 VITE_CLOTHCRAFT_BRIDGE_URL="$EXPECTED_BRIDGE" npm run build -- --outDir "$STAGED_WEB"
 test -s "$STAGED_WEB/index.html"
 if ! grep -rlq --fixed-strings "$EXPECTED_BRIDGE" "$STAGED_WEB/assets"; then
@@ -21,7 +32,13 @@ if ! grep -rlq --fixed-strings "$EXPECTED_BRIDGE" "$STAGED_WEB/assets"; then
   exit 1
 fi
 rsync -a --delete "$STAGED_WEB/" "$RES/web/"
-for required in index.html fabric-scans/denim_fabric_06/color.jpg \
+for required in index.html wasm/exo_ui_kernel.wasm wasm/exo_grading_kernel.wasm \
+  wasm/exo_sewing_kernel.wasm wasm/exo_foam_kernel.wasm wasm/exo_vector_fit_kernel.wasm \
+  wasm/exo_construction_kernel.wasm wasm/exo_free_sewing_kernel.wasm \
+  wasm/exo_strain_kernel.wasm wasm/exo_mesh_selection_kernel.wasm \
+  wasm/exo_fabric_cost_kernel.wasm wasm/exo_selection_metrics_kernel.wasm \
+  wasm/exo_measurement_kernel.wasm \
+  fabric-scans/denim_fabric_06/color.jpg \
   hardware-thumbnails/four-hole-shirt-button.png \
   library-3d/MIKRISTIAN_Cathedral_House.glb \
   avatars/preview/clo-thomas.glb \
@@ -78,6 +95,35 @@ chmod 755 "$RES/bin/node"
 for file in bridge.mjs server.mjs contact_run.mjs workspace.mjs static.mjs agent-api.mjs mcp-server.mjs; do
   cp "integrations/clothcraft/$file" "$RES/integrations/clothcraft/$file"
 done
+# The workspace imports this adapter; its relative binary lookup is preserved
+# inside Contents/Resources so future installed builds use actual Rust.
+VALIDATOR_SRC="integrations/clothcraft/rust-service"
+VALIDATOR_DEST="$RES/integrations/clothcraft/rust-service"
+test -s "$VALIDATOR_SRC/validator-client.mjs"
+test -x "$VALIDATOR_SRC/target/debug/exo-metadata-validation"
+mkdir -p "$VALIDATOR_DEST/target/debug"
+cp "$VALIDATOR_SRC/validator-client.mjs" "$VALIDATOR_DEST/validator-client.mjs"
+cp "$VALIDATOR_SRC/target/debug/exo-metadata-validation" "$VALIDATOR_DEST/target/debug/exo-metadata-validation"
+chmod 755 "$VALIDATOR_DEST/target/debug/exo-metadata-validation"
+test -s "$RES/integrations/clothcraft/workspace.mjs"
+test -s "$VALIDATOR_DEST/validator-client.mjs"
+test -x "$VALIDATOR_DEST/target/debug/exo-metadata-validation"
+AGENT_SRC="integrations/clothcraft/rust-agent-api"
+AGENT_DEST="$RES/integrations/clothcraft/rust-agent-api"
+test -s "$AGENT_SRC/client.mjs"
+test -x "$AGENT_SRC/target/debug/exo-agent-validator"
+mkdir -p "$AGENT_DEST/target/debug"
+cp "$AGENT_SRC/client.mjs" "$AGENT_DEST/client.mjs"
+cp "$AGENT_SRC/target/debug/exo-agent-validator" "$AGENT_DEST/target/debug/exo-agent-validator"
+chmod 755 "$AGENT_DEST/target/debug/exo-agent-validator"
+test -x "$AGENT_DEST/target/debug/exo-agent-validator"
+STATIC_HOST_SRC="integrations/clothcraft/rust-static-host/target/debug/exo-rust-static-host"
+STATIC_HOST_DEST="$RES/integrations/clothcraft/rust-static-host/target/debug/exo-rust-static-host"
+test -x "$STATIC_HOST_SRC"
+mkdir -p "$(dirname "$STATIC_HOST_DEST")"
+cp "$STATIC_HOST_SRC" "$STATIC_HOST_DEST"
+chmod 755 "$STATIC_HOST_DEST"
+test -x "$STATIC_HOST_DEST"
 cp native_cpp/build-cmake/garment_cad_cli "$RES/native_cpp/build-cmake/garment_cad_cli"
 for binary in cloth-template cloth-fit exo-session; do
   cp "research/oss/clothcraft/target/debug/$binary" "$RES/research/oss/clothcraft/target/debug/$binary"
@@ -103,6 +149,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSCameraUsageDescription</key><string>Camera Fabric Hand uses your camera locally to track pinch gestures and move simulated cloth. Camera video is not saved.</string>
   <key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict>
 </dict></plist>
 PLIST

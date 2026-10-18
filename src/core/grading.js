@@ -1,4 +1,5 @@
 import { cloneProject, edgeLength } from './project.js'
+import { gradeAutomaticCoordinates } from './rustGradingKernel.js'
 
 export const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 
@@ -16,18 +17,7 @@ export function gradePointForPiece(piece, grading, size, point) {
   const widthPerSize = Number(grading?.widthPerSizeCm ?? 3)
   const lengthPerSize = Number(grading?.lengthPerSizeCm ?? 1.2)
   const pieceBounds = bounds(piece.points)
-  const centerX = (pieceBounds.minX + pieceBounds.maxX) * 0.5
-  const height = Math.max(1, pieceBounds.maxY - pieceBounds.minY)
-  const halfWidthDelta = (widthPerSize * offset) * 0.5
-  const lengthDelta = lengthPerSize * offset
-  const side = Math.sign(point.x - centerX)
-  const normalizedY = (point.y - pieceBounds.minY) / height
-  const widthInfluence = 0.55 + 0.45 * (1 - normalizedY)
-  const lengthInfluence = 1 - normalizedY
-  const automatic = {
-    x: point.x + side * halfWidthDelta * widthInfluence,
-    y: point.y - lengthDelta * lengthInfluence,
-  }
+  const automatic = gradeAutomaticCoordinates(point, pieceBounds, offset, widthPerSize, lengthPerSize)
   const rule = point.gradeRule
   if (!rule?.enabled) return automatic
   return {

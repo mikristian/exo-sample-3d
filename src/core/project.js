@@ -164,6 +164,14 @@ export function edgeLength(piece, edgeIndex) {
 export function edgeRangeLength(piece, edgeIndex, startT = 0, endT = 1) {
   const start = Math.max(0, Math.min(1, Number(startT ?? 0)))
   const end = Math.max(0, Math.min(1, Number(endT ?? 1)))
+  const a = piece?.points?.[edgeIndex]
+  const b = piece?.points?.[(edgeIndex + 1) % piece?.points?.length]
+  if (!a || !b) return 0
+  const curve = piece.curves?.[edgeIndex]
+  // Sewing intervals are stored in Bezier parameter space (startT/endT).
+  // Curve speed is generally nonuniform, so parameter fraction is not a
+  // physical arclength fraction. Measure the actual trimmed curve instead.
+  if (curve) return quadraticArcLength(a, {x:curve.cx,y:curve.cy}, b, start, end)
   return edgeLength(piece, edgeIndex) * Math.abs(end - start)
 }
 

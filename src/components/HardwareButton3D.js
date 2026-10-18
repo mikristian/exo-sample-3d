@@ -78,6 +78,16 @@ export function createHardwareButton3D(button = {}, preset = null) {
     steps: 1, curveSegments: 36,
   })
   body.translate(0, 0, -thickness / 2 + bevel)
+  if(shape === 'domed-round') {
+    const positions=body.getAttribute('position')
+    for(let i=0;i<positions.count;i++) {
+      const radius=Math.min(1,Math.hypot(positions.getX(i)/(width/2),positions.getY(i)/(height/2)))
+      if(positions.getZ(i)>0)positions.setZ(i,positions.getZ(i)+thickness*.35*(1-radius*radius))
+    }
+    positions.needsUpdate=true
+    body.computeVertexNormals()
+  }
+
   addMesh(group, body, material, 'drilled-button-body')
 
   if (shape === 'rimmed-round') {

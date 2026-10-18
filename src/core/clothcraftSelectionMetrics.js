@@ -1,6 +1,9 @@
 /** Native ClothCraft selection dimensions, measured from the exact active
  * VBD mesh (3D) and authored UV pattern (2D), never from the unrelated EXO
  * draft. Mesh positions and UV are metres, return values are centimetres. */
+import {rustSegmentLength2D,rustSegmentLength3D} from './rustGeometryKernel.js'
+import {initializeRustSelectionMetricsKernel,rustMeasuredSewingInterval} from './rustSelectionMetricsKernel.js'
+if(typeof window!=='undefined' && typeof fetch==='function')void initializeRustSelectionMetricsKernel()
 const finitePoint = (p, dimensions) => Array.isArray(p) && p.length >= dimensions && p.slice(0, dimensions).every(Number.isFinite)
 
 export function boundaryLength(indices, points, dimensions = 3) {
@@ -9,7 +12,9 @@ export function boundaryLength(indices, points, dimensions = 3) {
   for (let i = 1; i < indices.length; i++) {
     const a = points[indices[i - 1]], b = points[indices[i]]
     if (!finitePoint(a, dimensions) || !finitePoint(b, dimensions)) return null
-    length += Math.hypot(...a.slice(0, dimensions).map((v, d) => v - b[d]))
+    length += dimensions===2?rustSegmentLength2D(a,b):
+      dimensions===3?rustSegmentLength3D(a,b):
+      Math.hypot(...a.slice(0, dimensions).map((v,d)=>v-b[d]))
   }
   return Number.isFinite(length) ? length * 100 : null
 }
@@ -26,6 +31,8 @@ function measuredSewingInterval(snapshot,side){
     range.some(n=>!Number.isFinite(n))||range[0]<0||range[1]>1||range[0]>=range[1])return null
   const uv=indices.map(i=>snapshot.uv?.[i]),live=indices.map(i=>snapshot.positions?.[i])
   if(uv.some(p=>!finitePoint(p,2))||live.some(p=>!finitePoint(p,3)))return null
+  const wasmResult=rustMeasuredSewingInterval(uv,live,range)
+  if(wasmResult)return wasmResult
   const segments=uv.slice(1).map((p,i)=>Math.hypot(p[0]-uv[i][0],p[1]-uv[i][1]))
   const total=segments.reduce((a,b)=>a+b,0)
   if(!(total>0))return null

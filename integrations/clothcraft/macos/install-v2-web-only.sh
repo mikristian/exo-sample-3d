@@ -19,6 +19,8 @@ trap cleanup EXIT
 cd "$ROOT"
 VITE_CLOTHCRAFT_BRIDGE_URL='http://127.0.0.1:5385' npm run build -- --outDir "$STAGED_WEB"
 [[ -s "$STAGED_WEB/index.html" ]]
+[[ -s "$STAGED_WEB/stage-scenes/EXO01.glb" ]] || { echo 'Stage 01 3D room is missing from release' >&2; exit 1; }
+[[ -s "$STAGED_WEB/stage-posters/EXO01.png" ]] || { echo 'Stage 01 catalog preview is missing from release' >&2; exit 1; }
 grep -rlqF 'http://127.0.0.1:5385' "$STAGED_WEB/assets" || {
   echo 'V2 web bundle has incorrect Rust bridge URL' >&2; exit 1;
 }

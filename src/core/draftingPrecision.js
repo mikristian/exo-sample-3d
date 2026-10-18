@@ -1,5 +1,6 @@
 // Precision drafting operations in centimeters. These are independent of
 // React, the renderer, simulation, and any private Seamly/CLO implementation.
+import {rustQuadraticArcLength} from './rustGeometryKernel.js'
 const EPSILON = 1e-9
 
 export function assertDraftCoordinate(value, label = 'coordinate') {
@@ -99,6 +100,8 @@ export function quadraticArcLength(a, control, b, start = 0, end = 1, tolerance 
   // properties. Only validate the six geometric components, never the whole
   // vertex object, or precision reports fail on correctly annotated patterns.
   if (![a?.x, a?.y, control?.x, control?.y, b?.x, b?.y, start, end].every(Number.isFinite)) throw new Error('Non-finite Bézier curve')
+  const rustValue=rustQuadraticArcLength(a,control,b,start,end,tolerance)
+  if(rustValue!==null)return rustValue
   const begin = Math.max(0, Math.min(1, start))
   const finish = Math.max(0, Math.min(1, end))
   if (Math.abs(finish - begin) <= EPSILON) return 0

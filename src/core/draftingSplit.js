@@ -3,6 +3,7 @@
 // Split by length / ratio / uniform divisions on true straight or curved arcs.
 import { edgeLength } from './project.js'
 import { quadraticAtLengthFraction } from './draftingPrecision.js'
+import { rustSplitUniformFractions, rustSplitSingleFraction, rustSplitQuadraticParameter } from './rustSplitKernel.js'
 
 export const SPLIT_MODES = Object.freeze({
   uniform: 'Equal length divisions',
@@ -22,17 +23,17 @@ export function draftingSplitFractions(piece, edgeIndex, {
     if (!Number.isInteger(number) || number < 2 || number > 12) {
       throw new Error('Use 2 to 12 equal-length segments')
     }
-    return Array.from({ length: number - 1 }, (_, index) => (index + 1) / number)
+    return rustSplitUniformFractions(number) ?? Array.from({ length: number - 1 }, (_, index) => (index + 1) / number)
   }
   let fraction
   if (method === 'length') {
     const distance = Number(lengthCm)
     if (lengthCm === '' || !Number.isFinite(distance)) throw new Error('Enter a finite edge distance in centimeters')
-    fraction = distance / length
+    fraction = rustSplitSingleFraction('length',distance,length) ?? distance / length
   } else if (method === 'ratio') {
     const ratio = Number(ratioPercent)
     if (ratioPercent === '' || !Number.isFinite(ratio)) throw new Error('Enter a finite edge percentage')
-    fraction = ratio / 100
+    fraction = rustSplitSingleFraction('ratio',ratio,length) ?? ratio / 100
   } else throw new Error('Unknown split mode')
   // Existing project topology split maintains a five-percent minimum per
   // subdivision to prevent degenerate manufacturing and seam edges.
@@ -51,5 +52,6 @@ export function splitParameterAtArcFraction(piece, edgeIndex, fraction) {
   if (!control) return fraction
   const a = piece.points[edgeIndex]
   const b = piece.points[(edgeIndex + 1) % piece.points.length]
-  return quadraticAtLengthFraction(a, { x: control.cx, y: control.cy }, b, fraction).parameter
+  const handle = { x: control.cx, y: control.cy }
+  return rustSplitQuadraticParameter(a,handle,b,fraction) ?? quadraticAtLengthFraction(a,handle,b,fraction).parameter
 }

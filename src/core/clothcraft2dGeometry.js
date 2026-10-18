@@ -1,4 +1,5 @@
 /** Geometry helpers for the EXO V2 2D pattern board. All coordinates are metres. */
+import {rustPatternSpanIntersection} from './rustGeometryKernel.js'
 export function getBounds(points) {
   if (!points?.length) return null
   const xs = points.map(p => p[0]), ys = points.map(p => p[1])
@@ -107,7 +108,9 @@ export function horizontalPatternSpans(boundaries, uv, y) {
     for (let i = 1; i < indices.length; i++) {
       const a = uv[indices[i-1]], b = uv[indices[i]]
       if (!a || !b || ![...a, ...b].every(Number.isFinite)) continue
-      if ((a[1] <= y && y < b[1]) || (b[1] <= y && y < a[1]))
+      const rustX=rustPatternSpanIntersection(a,b,y,true)
+      if(rustX!==null){if(Number.isFinite(rustX))intersections.push(rustX)}
+      else if ((a[1] <= y && y < b[1]) || (b[1] <= y && y < a[1]))
         intersections.push(a[0] + (y - a[1]) * (b[0] - a[0]) / (b[1] - a[1]))
     }
   }
@@ -129,7 +132,9 @@ export function verticalPatternSpans(boundaries, uv, x) {
     for (let i=1;i<indices.length;i++) {
       const a=uv[indices[i-1]], b=uv[indices[i]]
       if (!a || !b || ![...a,...b].every(Number.isFinite)) continue
-      if ((a[0]<=x && x<b[0]) || (b[0]<=x && x<a[0]))
+      const rustY=rustPatternSpanIntersection(a,b,x,false)
+      if(rustY!==null){if(Number.isFinite(rustY))intersections.push(rustY)}
+      else if ((a[0]<=x && x<b[0]) || (b[0]<=x && x<a[0]))
         intersections.push(a[1]+(x-a[0])*(b[1]-a[1])/(b[0]-a[0]))
     }
   }

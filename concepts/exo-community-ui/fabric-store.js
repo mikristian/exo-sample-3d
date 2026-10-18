@@ -151,7 +151,7 @@ export function mountFabricStore(container, config={}) {
     if(state.sort==='new')arr.sort((a,b)=>Number(b.id.includes('__'))-Number(a.id.includes('__')));
     return arr;
   }
-  const specimen = (r,extra='')=>`<div class="exfs-swatch ${esc(r.group.toLowerCase().replace(/[^a-z]+/g,'-'))}" style="${swatchCss(r)}"><span class="exfs-fabric-plane"></span><span class="exfs-fabric-weave"></span><span class="exfs-fabric-light"></span><span class="exfs-fabric-fold"></span>${extra}</div>`;
+  const specimen = (r,extra='')=>`<div class="exfs-swatch ${esc(r.group.toLowerCase().replace(/[^a-z]+/g,'-'))} ${r.photo?'exfs-photographed':''} ${r.ball?'exfs-ball-preview':''}" style="${swatchCss(r)}">${r.photo?`<img class="exfs-real-scan" src="${esc(r.photo)}" alt="${r.ball?'EXO drape over ball optical sample':'Photographed reference surface'} for ${esc(r.family)}" loading="lazy" decoding="async">`:'<span class="exfs-fabric-plane"></span><span class="exfs-fabric-weave"></span>'}<span class="exfs-fabric-light"></span><span class="exfs-fabric-fold"></span>${extra}</div>`;
   const materialCharacter = r => {
     if(r.group==='Denim')return 'DIAGONAL TWILL / SURFACE STUDY';
     if(r.group==='Knits')return 'LOOPED YARN / SURFACE STUDY';
@@ -256,10 +256,10 @@ export function mountFabricStore(container, config={}) {
   container.addEventListener('click',handleClick);container.addEventListener('change',handleChange);container.addEventListener('input',handleInput);container.addEventListener('pointermove',inspectSurface,{passive:true});document.addEventListener('keydown',onKey);
   renderFilters();
   state.items=normalized(fallback);renderList();
-  fetch('./fabric-index.json',{cache:'no-store'}).then(async res=>{if(!res.ok)throw Error('Local library unavailable');return res.json();}).then(data=>{
+  Promise.all([fetch('./fabric-index.json',{cache:'no-store'}).then(res=>{if(!res.ok)throw Error('Local library unavailable');return res.json();}),fetch('./market-media.json',{cache:'no-store'}).then(res=>res.ok?res.json():{fabrics:{}})]).then(([data,media])=>{
     if(!alive)return;
     const fabrics=Array.isArray(data)?data:Array.isArray(data.fabrics)?data.fabrics:Array.isArray(data.records)?data.records:[];
-    if(fabrics.length){state.items=normalized(fabrics);q('#exfs-total').textContent=String(fabrics.length);state.page=1;renderFilters();renderList();if(pendingSelection){detail(pendingSelection);pendingSelection=null;}}
+    if(fabrics.length){state.items=normalized(fabrics).map((record,i)=>{const showBall=Boolean(media.fabricBalls?.[record.familyId])&&(record.id===record.familyId||i%3!==0);return {...record,ball:showBall,photo:(showBall?media.fabricBalls[record.familyId]:media.fabrics?.[record.familyId])||''}});q('#exfs-total').textContent=String(fabrics.length);state.page=1;renderFilters();renderList();if(pendingSelection){detail(pendingSelection);pendingSelection=null;}}
   }).catch(()=>{if(alive){q('#exfs-total').textContent='06';q('.exfs-hero-bottom span:last-child').textContent='FALLBACK MATERIAL STUDIES';}});
   let pendingSelection=null;
   return {select(id){if(state.items.some(item=>item.id===id)){detail(id);}else{pendingSelection=id;const check=()=>{if(!alive)return;if(state.items.some(item=>item.id===id))detail(id);};setTimeout(check,240);}},destroy(){alive=false;showcase.destroy();state.study?.destroy?.();document.removeEventListener('keydown',onKey);container.removeEventListener('click',handleClick);container.removeEventListener('change',handleChange);container.removeEventListener('input',handleInput);container.removeEventListener('pointermove',inspectSurface);document.body.classList.remove('exfs-modal-open');container.replaceChildren();},refresh(){renderList();},close};

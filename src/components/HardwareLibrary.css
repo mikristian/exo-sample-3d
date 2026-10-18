@@ -1,4 +1,5 @@
 .exo-hardware-library{width:100%;min-width:0;display:flex;flex-direction:column;gap:8px;color:#d5d8dc}
+.exo-hardware-import-summary{color:#aabac7;font-size:10px;line-height:1.35;padding:0 7px 5px;border-bottom:1px solid #42474d}
 .exo-hardware-library-summary{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:7px 1px 10px;border-bottom:1px solid #43464b;color:#d5e3ed;font-size:11px}
 .exo-hardware-library-summary small{flex:0 0 100%;font-size:10px;color:#99a3ac}
 .exo-hardware-show-all{margin-left:auto;border:1px solid #66727d;background:#222930;color:#e5edf4;border-radius:4px;padding:5px 8px;font-size:10px;cursor:pointer}

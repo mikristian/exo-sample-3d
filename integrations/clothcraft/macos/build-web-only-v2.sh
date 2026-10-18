@@ -20,25 +20,58 @@ fi
 mkdir -p "$ROOT/integrations/clothcraft/output"
 BUILD="$(mktemp -d "$ROOT/integrations/clothcraft/output/web-only-v2-XXXXXXXX")"
 trap 'rm -rf "$BUILD"' EXIT
+echo 'Compiling the shared Rust fabric math to WebAssembly'
+node scripts/build-rust-fabric-kernel.mjs
+echo 'Compiling the shared Rust drafting and measurement geometry to WebAssembly'
+node scripts/build-rust-geometry-kernel.mjs
+echo 'Compiling Rust multi-size garment grading to WebAssembly'
+node scripts/build-rust-grading-kernel.mjs
+echo 'Compiling Rust native sewing length diagnostics to WebAssembly'
+node scripts/build-rust-sewing-kernel.mjs
+echo 'Compiling Rust foam preview physics to WebAssembly'
+node scripts/build-rust-foam-kernel.mjs
+echo 'Compiling Rust freehand drafting geometry to WebAssembly'
+node scripts/build-rust-vector-fit-kernel.mjs
+echo 'Compiling Rust analytic drafting constructions to WebAssembly'
+node scripts/build-rust-construction-kernel.mjs
+echo 'Compiling Rust Free Sewing material cutline geometry to WebAssembly'
+node scripts/build-rust-free-sewing-kernel.mjs
+echo 'Compiling Rust 3D principal strain visualization to WebAssembly'
+node scripts/build-rust-strain-kernel.mjs
+echo 'Compiling Rust 3D mesh face selection to WebAssembly'
+node scripts/build-rust-mesh-selection-kernel.mjs
+echo 'Compiling Rust manufacturing marker cost totals to WebAssembly'
+node rust/exo_fabric_cost_kernel/build.mjs
+echo 'Compiling Rust native sewing interval measurements to WebAssembly'
+node scripts/build-rust-selection-metrics-kernel.mjs
+echo 'Compiling Rust manufacturing POM span calculations to WebAssembly'
+node rust/exo_measurement_kernel/build.mjs
 echo 'Compiling independent EXO V2 web bundle, keeping the native session unchanged'
 VITE_CLOTHCRAFT_BRIDGE_URL=http://127.0.0.1:5385 npm run build -- --outDir "$BUILD"
 
 required_assets=(
   index.html
-  stage-scenes/R02.glb
-  stage-scenes/R03.glb
-  stage-scenes/S01.glb
-  stage-scenes/S10.glb
-  stage-posters/cathedral.png
-  stage-posters/R02.png
-  stage-posters/R03.png
-  stage-posters/S01.png
-  stage-posters/S10.png
+  stage-scenes/EXO01.glb
+  stage-posters/EXO01.png
   library-3d/MIKRISTIAN_Cathedral_House.glb
   hardware-thumbnails/four-hole-shirt-button.png
   fabric-scans/denim_fabric_06/color.jpg
   fabric-scans/crepe_satin/color.jpg
   avatars/preview/clo-thomas.glb
+  wasm/exo_fabric_kernel.wasm
+  wasm/exo_geometry_kernel.wasm
+  wasm/exo_ui_kernel.wasm
+  wasm/exo_grading_kernel.wasm
+  wasm/exo_sewing_kernel.wasm
+  wasm/exo_foam_kernel.wasm
+  wasm/exo_vector_fit_kernel.wasm
+  wasm/exo_construction_kernel.wasm
+  wasm/exo_free_sewing_kernel.wasm
+  wasm/exo_strain_kernel.wasm
+  wasm/exo_mesh_selection_kernel.wasm
+  wasm/exo_fabric_cost_kernel.wasm
+  wasm/exo_selection_metrics_kernel.wasm
+  wasm/exo_measurement_kernel.wasm
 )
 for required in "${required_assets[@]}";do
   if [[ ! -s "$BUILD/$required" ]];then
@@ -46,6 +79,8 @@ for required in "${required_assets[@]}";do
     exit 1
   fi
 done
+echo 'Verifying all private CLO hardware meshes, thumbnails and source references are in the staged app'
+node scripts/verify-clo-imported-hardware-bundle.mjs "$BUILD"
 if ! grep -rlq --fixed-strings 'http://127.0.0.1:5385' "$BUILD/assets" ||
    ! grep -rlq --fixed-strings 'FLAT TEXTURE' "$BUILD/assets" ||
    ! grep -rlq --fixed-strings '3D DRAPE' "$BUILD/assets";then
@@ -68,7 +103,8 @@ fi
 echo 'Installing verified web UI without modifying Rust/Swift executables'
 rsync -a --delete "$BUILD/" "$RES/web/"
 test -s "$RES/web/index.html"
-test -s "$RES/web/stage-scenes/R02.glb"
+test -s "$RES/web/stage-scenes/EXO01.glb"
+node scripts/verify-clo-imported-hardware-bundle.mjs "$RES/web"
 /usr/bin/codesign --force --deep --sign - "$APP"
 /usr/bin/codesign --verify --deep --strict "$APP"
 echo 'Verifying signed EXO V2 native bridge and actual 2D pattern editor'

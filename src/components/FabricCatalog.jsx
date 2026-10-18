@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect,useMemo, useState } from 'react'
 import { fabricSwatchStyle } from '../core/fabricSwatchStyle.js'
 import LibraryAssetHover from './LibraryAssetHover.jsx'
 import FabricDrapeBallPreview from './FabricDrapeBallPreview.jsx'
@@ -6,12 +6,17 @@ import FabricScanFlatPreview from './FabricScanFlatPreview.jsx'
 import './FabricCatalog.css'
 
 /** One catalog shared by the EXO draft and ClothCraft native workspaces. */
-export default function FabricCatalog({ groups, projectFabrics, search, coverage, nativeMode, onApplyPreset, onActivatePreset, onAssignFabric, onInspectDraft }) {
+export default function FabricCatalog({ groups, projectFabrics, search, folderFilter='all', coverage, nativeMode, onApplyPreset, onActivatePreset, onAssignFabric, onInspectDraft }) {
   const [family, setFamily] = useState('All')
+  useEffect(()=>setFamily('All'),[folderFilter])
   const [inspected, setInspected] = useState(null)
   const catalog = useMemo(() => groups.flatMap(([category, entries]) => entries.map(([id, fabric]) => ({ id, fabric, category }))), [groups])
   const availableGroups = useMemo(() => groups.map(([name]) => name), [groups])
-  const filtered = useMemo(() => catalog.filter(({fabric,category}) => (family === 'All' || category === family) && `${fabric.name} ${category} ${fabric.texture?.scanSource || ''}`.toLowerCase().includes(search.trim().toLowerCase())), [catalog, family, search])
+  const filtered = useMemo(() => catalog.filter(({fabric,category}) =>
+    (folderFilter==='all'||folderFilter===category) &&
+    (family === 'All' || category === family) &&
+    `${fabric.name} ${category} ${fabric.texture?.scanSource || ''}`.toLowerCase().includes(search.trim().toLowerCase())
+  ), [catalog, family, folderFilter,search])
   const detail = inspected && catalog.find(entry => entry.id === inspected)
   const activate = (id, options={}) => (onActivatePreset || (nativeMode ? onInspectDraft : onApplyPreset))?.(id, options)
   return <div className="exo-fabric-catalog" aria-label="Fabric preset catalog">
@@ -22,7 +27,7 @@ export default function FabricCatalog({ groups, projectFabrics, search, coverage
       {availableGroups.map(group => <option key={group} value={group}>{group}</option>)}
     </select>
     <p className="exo-fabric-gesture-hint">Double-click to apply · Shift + double-click for all pieces</p>
-    {!nativeMode && Object.keys(projectFabrics || {}).length > 0 && <section className="exo-fabric-project" aria-label="Project fabric swatches">
+    {!nativeMode && folderFilter==='all' && Object.keys(projectFabrics || {}).length > 0 && <section className="exo-fabric-project" aria-label="Project fabric swatches">
       <h4>Project swatches</h4>
       {Object.entries(projectFabrics).filter(([, fabric]) => (fabric.name || '').toLowerCase().includes(search.toLowerCase())).map(([id, fabric]) => <LibraryAssetHover key={id} category="Fabric" id={`project-${id}`} title={fabric.name || 'Project fabric'} description="Project material swatch; click to assign it to the selected garment pattern." details={[["Weight",Number.isFinite(fabric.gsm)?`${fabric.gsm} GSM (estimated)`:'Not calibrated'],["Roughness",Number.isFinite(fabric.roughness)?fabric.roughness.toFixed(2):'Unspecified']]} source="The enlarged swatch shows the selected project material's actual color or linked texture." preview={<div className="exo-fabric-preview-image" style={fabricSwatchStyle(fabric)}>{fabric.texture?.src && /^\/fabric-scans(?:-ambientcg)?\//.test(fabric.texture.src) && <img src={fabric.texture.src} alt={`${fabric.name} project fabric texture`}/>}</div>}><button type="button" onClick={() => onAssignFabric(id)} title={`Apply ${fabric.name} to selected pattern`}><span className="exo-fabric-chip" style={fabricSwatchStyle(fabric)} aria-hidden="true"/><span>{fabric.name}</span><small>Apply</small></button></LibraryAssetHover>)}
     </section>}

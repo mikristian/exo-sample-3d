@@ -1,64 +1,26 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import CadToolIcon from './CadToolIcon.jsx'
 import { RotateCcw } from 'lucide-react'
 import {CLO7_2D_A,CLO7_2D_B} from '../data/clo7ToolbarOrder.js'
 import {getClo7NativeCapability} from '../core/clo7NativeToolCapabilities.js'
+import {RIGHT_PALETTE_TOOLS,EXO_RIGHT_EXTRA_TOOLS,EXO_RIGHT_REFERENCE_ACTION_IDS} from '../core/exoExtraToolCatalog.js'
 
 // Original EXO workspace actions plus a 2D polygon creation shortcut. This inventory is not a claim
 // that the proprietary CLO toolbar contains exactly these controls, nor that
 // unfinished features work. Planned commands are explicitly disabled.
-export const RIGHT_PALETTE_TOOLS = [
-  ['select-3d','Select and transform 3D fabric','transform'],
-  ['move-3d','Move 3D fabric','move'],
-  ['rotate-3d','Rotate 3D fabric','rotate'],
-  ['hand','Fabric hand','hand'],
-  ['surface','Surface / strain view','analysis'],
-  ['wireframe','Toggle mesh wireframe','wireframe'],
-  ['seam-links','3D sewing correspondence','seams'],
-  ['select-2d','2D pattern select','select'],
-  ['points','Edit pattern points','point'],
-  ['split','Split pattern edge','split'],
-  ['curve','Adjust pattern curve','curve'],
-  ['internal','Internal line / dart','internal'],
-  ['notch','Pattern notch','notch'],
-  ['seam-allowance','Seam allowance cutting guide','allowance'],
-  ['measure','Tape measure / ruler','measure'],
-  ['pin','Cloth pin','pin'],
-  ['sew','Free sewing','sew'],
-  ['fastener','Button or snap fastener','fastener'],
-  ['fabric','Fabric browser','Fabric'],
-  ['graphics','Graphic browser','Graphic'],
-  ['buttons','Button browser','Button'],
-  ['buttonholes','Buttonhole browser','Buttonhole'],
-  ['topstitch','Topstitch browser','Topstitch'],
-  ['trim','Trims / zipper','Trim'],
-  ['grading','Grading browser','Grading'],
-  ['pom','Points of measure','POM'],
-  ['scene','Scene hierarchy','Scene'],
-  ['material','Fabric physical properties','fabric-edit'],
-  ['fit','Fit analysis','fit'],
-  ['simulate','Simulate / pause','simulate'],
-  ['reset','Reset flat arrangement','reset'],
-  ['camera','Fit 3D view','camera'],
-  ['mirror','Create mirrored pattern copy','mirror-pattern'],
-  ['export','Export garment file','export'],
-  ['seam-weld','Physical seam-closure tool',null],
-  ['polygon-tool','Create polygon pattern','create-polygon'],
-  ['annotation-add','Add persistent pattern annotation','annotation-add'],
-  ['annotation-edit','Edit persistent pattern annotation','annotation-edit'],
-]
+export {RIGHT_PALETTE_TOOLS}
 
 // Workflows affect the *layout*, not the underlying editing actions. Every
 // original command remains accessible in All tools, including planned/disabled
 // functionality. An action appears in exactly one group within a workflow.
 const FOCUSED_GROUPS = {
   Pattern: [
-    ['DRAFT', ['select-2d','points','split','curve','internal','annotation-add','annotation-edit','notch','seam-allowance','measure','mirror']],
+    ['DRAFT', ['select-2d','points','split','curve','internal','foam-padding','annotation-add','annotation-edit','notch','seam-allowance','measure','mirror']],
     ['ON BODY', ['select-3d','move-3d','rotate-3d','hand','camera']],
     ['DISPLAY', ['scene','seam-links','surface','wireframe']],
   ],
   Sewing: [
-    ['SEW & ATTACH', ['sew','seam-links','pin','fastener','buttons','buttonholes','topstitch','trim']],
+    ['SEW & ATTACH', ['sew','seam-links','pin','fastener','buttons','buttonholes','topstitch','trim','foam-padding']],
     ['PATTERN', ['select-2d','points','notch','seam-allowance','measure','scene']],
     ['SIMULATION', ['simulate','reset','camera']],
   ],
@@ -90,7 +52,7 @@ const FOCUSED_GROUPS = {
 const ALL_GROUPS = [
   ['3D GARMENT', ['select-3d','move-3d','rotate-3d','hand','surface','wireframe','seam-links']],
   ['2D PATTERN', ['select-2d','points','split','curve','internal','annotation-add','annotation-edit','notch','seam-allowance','measure','pin','mirror']],
-  ['SEWING', ['sew','fastener','buttons','buttonholes','topstitch','trim','seam-weld']],
+  ['SEWING', ['sew','fastener','buttons','buttonholes','topstitch','trim','foam-padding','seam-weld']],
   ['BROWSERS', ['fabric','graphics','grading','pom','scene','material','fit']],
   ['RUN & EXPORT', ['simulate','reset','camera','export']],
 ]
@@ -109,9 +71,7 @@ export const CLO_REFERENCE_RIGHT_COLUMN = [
 // Exclude only actions genuinely present in the rendered reference map.
 // Old column arrays listed Split/Curve although the new CLO inventory did not,
 // which made those working EXO actions disappear from All tools entirely.
-const REFERENCE_NATIVE_ACTION_IDS = new Set(['select-2d','points','polygon-tool','internal','notch','seam-allowance','sew'])
-const EXO_EXTRA_TOOL_IDS = RIGHT_PALETTE_TOOLS.map(([id])=>id)
-  .filter(id=>!REFERENCE_NATIVE_ACTION_IDS.has(id))
+const EXO_EXTRA_TOOL_IDS = EXO_RIGHT_EXTRA_TOOLS.map(tool=>tool.id)
 export const EXO_EXTRA_LEFT_COLUMN = EXO_EXTRA_TOOL_IDS.filter((_,i)=>i%2===0)
 export const EXO_EXTRA_RIGHT_COLUMN = EXO_EXTRA_TOOL_IDS.filter((_,i)=>i%2===1)
 const TOOL_BY_ID = new Map(RIGHT_PALETTE_TOOLS.map(item => [item[0], item]))
@@ -143,6 +103,7 @@ const EXTRA_ICON_ALIASES = Object.freeze({
   'seam-allowance':'internal',
   'annotation-add':'pattern-properties',
   'annotation-edit':'pattern-properties',
+  'foam-padding':'surface',
 })
 const nativeExtraCapability = action => NATIVE_EXTRA_CAPABILITIES[action]
   ? getClo7NativeCapability('2d', NATIVE_EXTRA_CAPABILITIES[action]) : null
@@ -154,19 +115,99 @@ const NATIVE_SELECTED_TOOLS = Object.freeze({
   'annotation-edit':'annotation-edit', 'allowance':'allowance',
 })
 const NATIVE_SLOT_SELECTED_TOOLS = Object.freeze({
-  A01:'select', A02:'point', A04:'polygon', A05:'internal', A06:'base-polygon',
-  A07:'trace', A08:'notch', A09:'allowance', A13:'annotation-edit',
-  A14:'annotation', B02:'sew', B03:'sew',
+  A01:'select', A02:'point', A03:'fullness', A04:'polygon', A05:'internal', A06:'base-polygon',
+  A07:'trace', A08:'notch', A09:'allowance', A10:'walk-seam', A11:'measure-edit', A12:'measure',
+  A13:'annotation-edit', A14:'annotation', A15:'pleat-guides', A16:'grading-edit', A17:'grading-auto',
+  B01:'seam-edit', B02:'segment-sew', B03:'free-sew', B04:'seam-measure', B15:'fill-panel',
 })
 
-export default function RightToolPalette({ activeSection, viewportTool, tool, setViewportTool, setTool, setActiveSection, setObjectTab, onRevealBrowser, showSewingGuides, setShowSewingGuides, wireframe, setWireframe, analysisMode, setAnalysisMode, toggleSimulation, resetSimulation, onReset2d, exportProject, onFitCamera, onMirrorSelected, onCreatePolygon, onCloTool, nativeClothcraft=false, running }) {
+// Navigate the two observed columns by physical row. CLO's columns have
+// different numbers of controls, so horizontal arrows find the nearest row.
+const handleReferenceKeyDown = event => {
+  if (!['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return
+  const current = event.target.closest?.('button[data-clo-slot]')
+  if (!current || !event.currentTarget.contains(current)) return
+  const buttons = [...event.currentTarget.querySelectorAll('button[data-clo-slot]')]
+  const slot = [...CLO7_2D_A,...CLO7_2D_B].find(item => `2d:${item.id}` === current.dataset.cloSlot)
+  if (!slot) return
+  const sameColumn = slot.id.startsWith('A') ? CLO7_2D_A : CLO7_2D_B
+  const otherColumn = slot.id.startsWith('A') ? CLO7_2D_B : CLO7_2D_A
+  const index = sameColumn.findIndex(item => item.id === slot.id)
+  let next
+  if (event.key === 'Home') next = sameColumn[0]
+  else if (event.key === 'End') next = sameColumn[sameColumn.length-1]
+  else if (event.key === 'ArrowUp') next = sameColumn[(index-1+sameColumn.length)%sameColumn.length]
+  else if (event.key === 'ArrowDown') next = sameColumn[(index+1)%sameColumn.length]
+  else next = otherColumn.reduce((best,item) => Math.abs(item.observedY-slot.observedY) < Math.abs(best.observedY-slot.observedY) ? item : best)
+  const target = buttons.find(button => button.dataset.cloSlot === `2d:${next.id}`)
+  if (target) { event.preventDefault(); target.focus() }
+}
+
+export default function RightToolPalette({ activeSection, viewportTool, tool, setViewportTool, setTool, setActiveSection, setObjectTab, onRevealBrowser, showSewingGuides, setShowSewingGuides, wireframe, setWireframe, analysisMode, setAnalysisMode, toggleSimulation, resetSimulation, onReset2d, exportProject, onFitCamera, onMirrorSelected, onCreatePolygon, onCloTool, activeFinishingTool=null, onOtherToolSelect, nativeClothcraft=false, running, toolbarDock='right', toolbarPosition=null, onToolbarPositionChange, toolbarOrder=null, onToolbarOrderChange, onToolbarDockChange, toolbarEditMode=false, extraToolIds=[] }) {
+  const [localDock,setLocalDock]=useState({x:0,y:0})
+  const [localOrder,setLocalOrder]=useState([])
+  const dock=toolbarPosition||localDock
+  const order=toolbarOrder||localOrder
+  const visible=column=>!Array.isArray(toolbarOrder)?column:column.filter(slot=>order.includes(`2d:${slot.id}`))
+  const gripDrag=useRef(null)
+  const dragSlot=useRef(null)
+  const rootRef=useRef(null)
+  const alternativeDock=toolbarDock!=='right'
+  const floatStyle=alternativeDock?{
+    position:'fixed',zIndex:60,top:toolbarDock==='bottom'?'auto':toolbarDock==='top'?48:72,
+    bottom:toolbarDock==='bottom'?12:'auto',
+    left:toolbarDock==='left'?12:toolbarDock==='top'?190:'auto',
+    right:toolbarDock==='right'?12:toolbarDock==='floating'||toolbarDock==='bottom'?12:'auto',
+    width:78,maxHeight:'calc(100dvh - 105px)',overflow:'hidden'
+  }:{}
+  const ordered=column=>{
+    const ids=visible(column).map(slot=>`2d:${slot.id}`)
+    return [...ids].sort((a,b)=>{
+      const ai=order.indexOf(a),bi=order.indexOf(b)
+      return (ai<0?ids.indexOf(a)+1000:ai)-(bi<0?ids.indexOf(b)+1000:bi)
+    }).map(id=>visible(column).find(slot=>`2d:${slot.id}`===id))
+  }
+  const reorder=(source,target)=>{
+    if(!toolbarEditMode)return
+    if(!source||source===target||source.slice(3,4)!==target.slice(3,4))return
+    const all=[...ordered(CLO7_2D_A),...ordered(CLO7_2D_B)].map(s=>`2d:${s.id}`)
+    const from=all.indexOf(source),to=all.indexOf(target)
+    if(from<0||to<0)return
+    all.splice(from,1);all.splice(to,0,source)
+    if(onToolbarOrderChange)onToolbarOrderChange(all)
+    else setLocalOrder(all)
+  }
+  const beginMove=e=>{
+    if(!toolbarEditMode||e.button!==0)return
+    e.preventDefault()
+    const rect=rootRef.current?.getBoundingClientRect()
+    gripDrag.current={x:e.clientX,y:e.clientY,initialX:dock.x||0,initialY:dock.y||0,left:rect?.left??0,top:rect?.top??0}
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+  const move=e=>{
+    if(!toolbarEditMode||!gripDrag.current)return
+    const next={x:gripDrag.current.initialX+e.clientX-gripDrag.current.x,y:gripDrag.current.initialY+e.clientY-gripDrag.current.y}
+    setLocalDock(next)
+    onToolbarPositionChange?.(next)
+  }
+  const finishMove=e=>{
+    if(!toolbarEditMode||!gripDrag.current)return
+    const drag=gripDrag.current
+    const next={x:drag.initialX+e.clientX-drag.x,y:drag.initialY+e.clientY-drag.y}
+    setLocalDock(next)
+    const floated={x:drag.left+(e.clientX-drag.x)-(window.innerWidth-12-(rootRef.current?.offsetWidth||78)),
+      y:drag.top+(e.clientY-drag.y)-72}
+    onToolbarPositionChange?.(floated)
+    setLocalDock(floated)
+    onToolbarDockChange?.('floating')
+    gripDrag.current=null
+  }
   const [showAll, setShowAll] = useState(() => {
     try { return localStorage.getItem(MODE_KEY) !== 'focused' } catch { return true }
   })
-  // Match the observed dual CLO strip without collapsing unimplemented slots
-  // and shifting the remaining icons into misleading row positions.
-  const [showExtras, setShowExtras] = useState(true)
-  const [feedback, setFeedback] = useState('')
+  // Settings retains the saved extra-tool selection, but the side palette
+  // exposes only its original reference tools in both display modes.
+  const visibleAction=id=>EXO_RIGHT_REFERENCE_ACTION_IDS.has(id)
   useEffect(() => {
     try { localStorage.setItem(MODE_KEY, showAll ? 'all' : 'focused') } catch { /* private mode */ }
   }, [showAll])
@@ -176,17 +217,21 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     onRevealBrowser?.()
   }
   const click = (action) => {
-    setFeedback('')
+    onOtherToolSelect?.()
+    if (action === 'foam-padding') {
+      setActiveSection('Pattern')
+      if (nativeClothcraft) window.dispatchEvent(new Event('exo-clothcraft-open-foam-padding'))
+      else document.querySelector('[aria-label="Foam padding and trapunto tool"]')?.scrollIntoView({block:'nearest',behavior:'smooth'})
+      return
+    }
     if (nativeClothcraft && NATIVE_EXTRA_CAPABILITIES[action] && typeof onCloTool === 'function') {
       const position=NATIVE_EXTRA_CAPABILITIES[action]
       const capability=nativeExtraCapability(action)
       if (canInvokeNativeCapability(capability))
         return onCloTool(NATIVE_2D_SLOT_BY_ID.get(position),'2d')
-      setFeedback(`${capability?.label||action} is unavailable in the native editor.`)
       return
     }
     if (nativeClothcraft && ['notch','allowance'].includes(action)) {
-      setFeedback('This native tool requires the CLO 2D command handler.')
       return
     }
     if (nativeClothcraft && (action === 'split' || action === 'curve')) {
@@ -197,7 +242,6 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     }
     if (action === 'mirror-pattern') return onMirrorSelected?.()
     if (nativeClothcraft && UNSUPPORTED_NATIVE_ACTIONS.has(action)) {
-      setFeedback(`${RIGHT_PALETTE_TOOLS.find(item => item[2] === action)?.[1] || action} is not yet supported by the native V2 editor.`)
       return
     }
     if (action === 'create-polygon') return onCreatePolygon?.()
@@ -226,11 +270,12 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     if (action === 'export') return exportProject()
     if (action === 'camera') return onFitCamera?.()
   }
-  const active = (action) => Boolean(action) && ((action === viewportTool) || ((nativeClothcraft ? NATIVE_SELECTED_TOOLS[action] || action : action) === tool && (activeSection === 'Pattern' || activeSection === 'Sewing')) || (action === 'wireframe' && wireframe) || (action === 'seams' && showSewingGuides) || (action === 'analysis' && analysisMode === 'strain') || (action === 'simulate' && running))
+  const active = (action) => Boolean(action) && ((action === viewportTool) || ((nativeClothcraft ? NATIVE_SELECTED_TOOLS[action] || action : action) === tool && ['Pattern','Sewing','Production','Fabric'].includes(activeSection)) || (action === 'wireframe' && wireframe) || (action === 'seams' && showSewingGuides) || (action === 'analysis' && analysisMode === 'strain') || (action === 'simulate' && running))
   // Only advertise actions with a command or a functioning native workspace
   // callback. Planned tooling stays in the source inventory for future releases.
   const availableAction = (action) => {
     if (!action) return false
+    if (action==='foam-padding') return true
     if (nativeClothcraft && UNSUPPORTED_NATIVE_ACTIONS.has(action)) return false
     if (nativeClothcraft && NATIVE_EXTRA_CAPABILITIES[action]) {
       return typeof onCloTool==='function' && canInvokeNativeCapability(nativeExtraCapability(action))
@@ -274,10 +319,9 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     : mappedReferenceAction(slot)
   const visibleReferenceCount = [...CLO7_2D_A,...CLO7_2D_B]
     .filter(supportedReference).length
-  const availableExtraCount=EXO_EXTRA_TOOL_IDS.filter(id=>availableAction(TOOL_BY_ID.get(id)?.[2])).length
   const visibleCount = showAll
-    ? visibleReferenceCount + (showExtras?availableExtraCount:0)
-    : groups.reduce((count, [, ids]) => count + ids.filter(id=>availableAction(TOOL_BY_ID.get(id)?.[2])).length, 0)
+    ? visibleReferenceCount
+    : groups.reduce((count, [, ids]) => count + ids.filter(id=>visibleAction(id)&&availableAction(TOOL_BY_ID.get(id)?.[2])).length, 0)
   const referenceTotal = CLO7_2D_A.length+CLO7_2D_B.length
   const totalCount = showAll?visibleCount:RIGHT_PALETTE_TOOLS.filter(([, ,action])=>availableAction(action)).length
   const renderCloReference = slot => {
@@ -290,52 +334,74 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     const inspect=nativeClothcraft && capability?.mode==='inspect'
     const unavailableReason=capability?.mode==='unavailable'?'Native tool unavailable':!handlerAvailable&&nativeClothcraft?'Native handler unavailable':'Tool unavailable'
     const pressedAction=nativeClothcraft ? NATIVE_SLOT_SELECTED_TOOLS[slot.id] : slot.action
-    const slotActive=Boolean(supported && !inspect && pressedAction && active(pressedAction))
+    // Temporary measurement and seam inspection are real selectable EXO
+    // workflows, even though their native capability remains inspect-only.
+    const selectableInspect=nativeClothcraft&&inspect&&['A11','A12','B04'].includes(slot.id)
+    const isFinishingTool=slot.id==='B04'||slot.id==='B05'
+    const slotActive=isFinishingTool
+      ? activeFinishingTool===(slot.id==='B04'?'sewing':'steam')
+      : Boolean((supported||selectableInspect)&&pressedAction&&active(pressedAction))
+    const inlineToolAvailable=isFinishingTool&&handlerAvailable
+    const clickable=supported||inlineToolAvailable
+    const orderedColumn=slot.id[0]==='A'?CLO7_2D_A:CLO7_2D_B
+    const slotIndex=Number(slot.id.slice(1))-1
+    const nextSlot=orderedColumn[slotIndex+1]
+    const observedDivider=Boolean(nextSlot && nextSlot.observedY-slot.observedY>=40)
+    // Each column is independently positioned from the actual CLO AX top
+    // coordinates. A compacted flex list drifts after the first group divider
+    // and places unrelated A/B tools on the same horizontal row.
     return <button key={slot.id} data-clo-slot={`2d:${slot.id}`}
-      type="button" aria-label={inspect?`Inspect ${slot.label}`:slot.label}
-      title={`${slot.label} · ${supported?(inspect?'Open related EXO inspector (CLO command unavailable)':capability?.reason||'Run EXO action'):`${unavailableReason}: ${capability?.reason||'No supported command'}`}`}
-      disabled={!supported}
-      aria-disabled={!supported}
+      onKeyDown={e=>{
+        if(!toolbarEditMode||!e.altKey||!['ArrowUp','ArrowDown'].includes(e.key))return
+        const slots=ordered(orderedColumn)
+        const index=slots.findIndex(item=>item.id===slot.id)
+        const adjacent=slots[index+(e.key==='ArrowUp'?-1:1)]
+        if(adjacent){e.preventDefault();e.stopPropagation();reorder(`2d:${slot.id}`,`2d:${adjacent.id}`)}
+      }}
+      type="button" aria-label={slot.label}
+      title={inlineToolAvailable?`${slot.label} · Activate tool`: `${slot.label} · ${supported?(inspect?'Inspect related properties':capability?.reason||'Activate EXO action'):`${unavailableReason}: ${capability?.reason||'No native operation yet'}`}`}
+      aria-disabled={!clickable}
       data-clo-operational={supported&&(!nativeClothcraft||capability?.mode==='native')?'true':'false'}
       aria-description={supported?(capability?.reason||'Run tool'): `${unavailableReason}. ${capability?.reason||'No supported command.'}`}
       data-clo-details-only={inspect?'true':'false'}
-      data-clo-implementation={capability?.mode||'unavailable'}
+      data-clo-implementation={inlineToolAvailable?'inline':capability?.mode||'unavailable'}
+      data-clo-divider-after={observedDivider?'true':undefined}
       aria-pressed={slotActive}
-      className={`${supported?'clo-supported-tool':'clo-tool-inquire'} ${slotActive?'active':''}`}
-      style={slot.after?{marginBottom:9}:undefined}
-      onClick={supported?(handlerAvailable?()=>onCloTool(slot,'2d'):()=>click(slot.action)):undefined}>
+      className={`${supported||inlineToolAvailable?'clo-supported-tool':'clo-tool-inquire'} ${slotActive?'active':''}`}
+      // Keep each icon's identity/action, but place it at its reordered row.
+      // Indexing the sorted array here is an identity lookup and incorrectly
+      // leaves every icon at its original Y after the user rearranges it.
+      style={{top:orderedColumn[ordered(orderedColumn).findIndex(item=>item.id===slot.id)].observedY-CLO7_2D_A[0].observedY}}
+      draggable={toolbarEditMode} onDragStart={e=>{if(!toolbarEditMode){e.preventDefault();return}dragSlot.current=`2d:${slot.id}`;e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain',dragSlot.current)}}
+      onDragOver={e=>{if(toolbarEditMode&&dragSlot.current?.slice(3,4)===slot.id[0])e.preventDefault()}}
+      onDrop={e=>{if(!toolbarEditMode)return;e.preventDefault();reorder(dragSlot.current,`2d:${slot.id}`);dragSlot.current=null}}
+      onDragEnd={()=>{dragSlot.current=null}}
+      onClick={() => {if(!clickable)return; handlerAvailable ? onCloTool(slot,'2d') : supported && slot.action ? click(slot.action) : undefined}}>
       <CadToolIcon id={slot.icon} size={20}/>
     </button>
   }
-  return <nav className={`clo-right-tool-palette ${showAll ? 'all-tools' : 'focused-tools'}`} aria-label="Right workspace tools">
+  return <nav ref={rootRef} className={`clo-right-tool-palette exo-reorderable-toolbar ${showAll ? 'all-tools' : 'focused-tools'}`} data-toolbar-dock={toolbarDock} data-toolbar-edit={String(toolbarEditMode)} style={{...floatStyle,transform:`translate(${dock.x||0}px, ${dock.y||0}px)`}} aria-label="Right workspace tools">
+    {toolbarEditMode&&<button type="button" className="exo-toolbar-move-grip" aria-label="Move 2D toolbar" title="Drag to move 2D toolbar" onPointerDown={beginMove} onPointerMove={move} onPointerUp={finishMove} onPointerCancel={()=>{gripDrag.current=null}}>⠿</button>}
     <div className="clo-palette-workflows" aria-label="Quick workflow switching">
       {WORKFLOW_TABS.map(([section, iconId]) => <button key={section} type="button" aria-label={`Switch to ${section} tools`} aria-pressed={activeSection === section} title={`${section} tools`} className={activeSection === section ? 'active' : ''} onClick={() => activateWorkflow(section)}><CadToolIcon id={iconId} size={19}/></button>)}
     </div>
     <div className="clo-palette-scroll" aria-live="off">
       {showAll ? <>
         <div className="clo-tool-palette-group-divider" aria-label="CLO version 7 two-column pattern reference">2D TOOLS</div>
-        <div className="clo-reference-dual-bars" aria-label="CLO-inspired independent drafting and sewing tool columns">
-        <div className="clo-reference-column clo-right-tool-grid" aria-label="CLO 2D column A">{CLO7_2D_A.map(renderCloReference)}</div>
-        <div className="clo-reference-column clo-right-tool-grid" aria-label="CLO 2D column B">{CLO7_2D_B.map(renderCloReference)}</div>
+        <div className="clo-reference-dual-bars clo-observed-bars" aria-label="CLO 7 verified drafting and sewing tool columns" data-toolbar-complete="true" onKeyDown={handleReferenceKeyDown}>
+        <div className="clo-reference-column clo-right-tool-grid clo-observed-column" role="toolbar" aria-orientation="vertical" aria-label="CLO 2D column A">{visible(CLO7_2D_A).map(renderCloReference)}</div>
+        <div className="clo-reference-column clo-right-tool-grid clo-observed-column" role="toolbar" aria-orientation="vertical" aria-label="CLO 2D column B">{visible(CLO7_2D_B).map(renderCloReference)}</div>
         </div>
-        <button type="button" className="clo-tool-palette-group-divider clo-extra-group-toggle"
-          aria-label={showExtras?'Collapse additional EXO tools':'Expand additional EXO tools'}
-          aria-expanded={showExtras}
-          onClick={()=>setShowExtras(value=>!value)}>EXO TOOLS {showExtras?'▾':'▸'}</button>
-        {showExtras && <div className="clo-reference-dual-bars" aria-label="Additional EXO tools not assigned to the CLO 7 2D reference strips">
-          <div className="clo-reference-column clo-right-tool-grid" aria-label="EXO additional column A">{EXO_EXTRA_LEFT_COLUMN.map(renderAction)}</div>
-          <div className="clo-reference-column clo-right-tool-grid" aria-label="EXO additional column B">{EXO_EXTRA_RIGHT_COLUMN.map(renderAction)}</div>
-        </div>}
-      </> : groups.map(([name, ids]) => <div className="clo-palette-group" key={name}>
+      </> : groups.map(([name, ids])=>[name,ids.filter(visibleAction)]).filter(([,ids])=>ids.length).map(([name, ids]) => <div className="clo-palette-group" key={name}>
         <div className="clo-palette-group-label" title={name}>{name}</div>
         <div className="clo-right-tool-grid">{ids.map(renderAction)}</div>
       </div>)}
     </div>
-    {feedback && <div role="status" className="clo-palette-feedback" style={{fontSize:10,lineHeight:1.35,padding:'6px 5px',color:'#c7cad1'}}>{feedback}</div>}
     <button type="button" className="clo-reset-fabric-panels" disabled={typeof resetSimulation!=='function'} aria-disabled={typeof resetSimulation!=='function'} aria-label={nativeClothcraft?'Reset 3D fabric arrangement':'Reset fabric panels'} title={nativeClothcraft?'Reset the 3D fabric arrangement to its initial pose; preserve authored patterns, sewing and materials':'Reset fabric panels to their initial arrangement; preserve patterns, sewing and materials'} onClick={typeof resetSimulation==='function'?resetSimulation:undefined} style={{alignSelf:"flex-end",margin:"6px 3px",padding:"6px 2px",fontSize:8,width:"calc(100% - 6px)",minHeight:54,display:"flex",flexDirection:"column",alignItems:"center",gap:4,background:"#32373d",color:"#e6edf3"}}><RotateCcw size={18}/><span>RESET<br/>{nativeClothcraft?'3D':'PANELS'}</span></button>
+    <button type="button" className="clo-foam-padding-launch" aria-label="Foam Padding / Trapunto" title="Foam Padding / Trapunto · import SVG raised foam shapes" data-exo-action="foam-padding" onClick={()=>click('foam-padding')}><CadToolIcon id="surface" size={19}/><span>FOAM</span></button>
     <div className="clo-palette-count"
       title={showAll?
-        `${visibleReferenceCount} actionable CLO reference positions of ${referenceTotal}, including related inspectors; unsupported slots remain visible and disabled. ${showExtras?availableExtraCount:0} additional EXO buttons available.`:
+        `${visibleReferenceCount} operational or inspectable CLO reference positions of ${referenceTotal}; selecting a tool activates it without opening an information panel.`:
         `${visibleCount} operational buttons in this focused workspace group, ${totalCount} available EXO actions.`}>
       {visibleCount}<span>/{totalCount}</span>
     </div>

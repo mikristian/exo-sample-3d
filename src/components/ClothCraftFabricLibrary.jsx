@@ -3,6 +3,7 @@ import {CLOTHCRAFT_FABRICS,FABRIC_FIELDS,presetProperties,presetForFabric,validF
 import {fabricSwatchStyle} from '../core/fabricSwatchStyle.js'
 import {estimateTensileStiffness} from '../core/fabricCalibration.js'
 import FabricDrapeBallPreview from './FabricDrapeBallPreview.jsx'
+import PantoneColorLibrary from './PantoneColorLibrary.jsx'
 import './ClothCraftFabricLibrary.css'
 
 const OPTICAL_FIELDS=[
@@ -131,16 +132,16 @@ export default function ClothCraftFabricLibrary({snapshot,panel,busy,onEdit,show
     <div className="cc-fabric-specimen-heading"><strong>{inspectedPreset.name}</strong><span>{activeName}</span></div>
     <div className="cc-fabric-showcase" aria-label={`Side by side flat swatch and draped sample: ${inspectedPreset.name}`}>
       <div className="cc-fabric-flat" style={flatStyle}><span>FLAT SWATCH</span></div>
-      <div className="cc-fabric-fold"><FabricDrapeBallPreview fabric={previewFabric} compact height={212}/><span>OVER THE BALL · DRAG</span></div>
+      <div className="cc-fabric-fold"><FabricDrapeBallPreview fabric={previewFabric} compact height={showPresets?212:142}/><span>OVER THE BALL · DRAG</span></div>
     </div>
     <p className="cc-fabric-sample-note">{appearance.weave} construction · {inspectedPreset.gsm.toFixed(1)} g/m² · {inspectedPreset.thicknessMm.toFixed(3)} mm. The draped sheet uses a deterministic fold model informed by estimated bend and mass. The garment uses the native solver.</p>
-    <div className="cc-fabric-optics" aria-label="Specimen optical finish controls">
+    <details className="cc-fabric-optics cc-fabric-accordion" aria-label="Specimen optical finish controls" open><summary>Appearance <small>Preview only</small></summary>
       <h4>Appearance study <small>Preview only</small></h4>
       <label className="cc-fabric-color-control"><span>Color</span><input aria-label="Preview fabric color" type="color" value={isColor(previewFabric.color)?previewFabric.color:'#777777'} onChange={event=>setOptical(current=>({...current,color:event.target.value}))}/><output>{previewFabric.color}</output></label>
       {OPTICAL_FIELDS.map(([key,label,min,max,step])=><NumericControl key={`${inspectedPreset.id}:${key}`} label={label} value={previewFabric[key]} min={min} max={max} step={step} onCommit={value=>setOptical(current=>({...current,[key]:value}))}/>)}
       <button type="button" className="cc-fabric-reset-optics" onClick={()=>setOptical({})} disabled={!Object.keys(optical).length}>Reset preview finish</button>
       <p className="cc-fabric-optical-note">Color, roughness, sheen and reflectivity here adjust the inspection sample. Native garment shading comes from its assigned material preset; these optical adjustments are not saved into the Rust fabric.</p>
-    </div>
+    </details>
     <details className="cc-fabric-source" open={!showPresets}>
       <summary>Material specification and provenance</summary>
       <dl>
@@ -158,16 +159,22 @@ export default function ClothCraftFabricLibrary({snapshot,panel,busy,onEdit,show
     </details>
     {fabric&&<>
       <div className="cc-fabric-assigned-heading"><h4>Native assigned fabric</h4><span>{fabric.name}</span></div>
-      <div className="cc-fabric-metadata" aria-label="Editable native fabric records">
+      <details className="cc-fabric-metadata cc-fabric-accordion" aria-label="Editable native fabric records"><summary>Manufacturing record <small>Project metadata</small></summary>
         <h4>Manufacturing record <small>Saved in project metadata</small></h4>
         {['construction','supplier','owner'].map(field=><MetadataControl key={`${fabric.id}:${field}`} fabricId={fabric.id} field={field} label={field[0].toUpperCase()+field.slice(1)} value={metadata[field]||''} disabled={busy||showPresets}/>)}
+        <h4>Manufacturer color reference <small>Pantone specification</small></h4>
+        <p>For garment fabric and thread, specify the Pantone FHI TCX textile standard. Check the exact color against a physical Pantone swatch before approving dye production.</p>
+        {['pantoneCode','pantoneSystem','pantoneSource','pantoneApproval'].map((field)=><MetadataControl key={`${fabric.id}:${field}`} fabricId={fabric.id} field={field} label={{pantoneCode:'Pantone code',pantoneSystem:'System',pantoneSource:'Swatch/source',pantoneApproval:'Approval status'}[field]} value={metadata[field]||''} disabled={busy||showPresets}/>)}
+        <a href="https://www.pantone.com/pantone-connect" target="_blank" rel="noreferrer">Find official Pantone colors in Pantone Connect</a>
+        <p>Example format: 19-4052 TCX. A typed code is a supplier reference, not verification of color identity or a licensed digital swatch. Screen preview is approximate; record the approved lab dip and swatch source above.</p>
+        <PantoneColorLibrary key={fabric.id} fabricId={fabric.id} metadata={metadata} disabled={busy||showPresets}/>
         <p>Composition: {inspectedPreset.composition||'Not verified'}. Native project metadata currently stores construction, supplier and owner; composition is catalog reference information.</p>
-      </div>
-      <div className="cc-fabric-physics" aria-label="Editable native cloth physics">
+      </details>
+      <details className="cc-fabric-physics cc-fabric-accordion" aria-label="Editable native cloth physics" open><summary>Physical simulation <small>Native Rust</small></summary>
         <h4>Physical simulation <small>Live native Rust material</small></h4>
         {FABRIC_FIELDS.map(([key,label,unit,scale])=><NumericControl key={`${fabric.id}:${key}`} label={label} unit={unit} value={numeric(fabric.properties[key])*scale} min={RANGES[key][0]} max={RANGES[key][1]} step={RANGES[key][2]} disabled={busy} onCommit={value=>apply(fabric.name,{...fabric.properties,[key]:value/scale})}/>)}
         <p>These seven coefficients are saved in the native project and drive the garment simulation. Surface mass and thickness are not optical roughness or collision offset.</p>
-      </div>
+      </details>
       <details className="cc-fabric-calibration"><summary>Force / extension swatch calibration</summary>
         <p>Measure two strips independently in warp and weft. This linear approximation does not replace calibrated cloth tests.</p>
         {[
