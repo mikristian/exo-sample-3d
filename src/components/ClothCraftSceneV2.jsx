@@ -115,7 +115,7 @@ export default function ClothCraftSceneV2({
   snapshot, active, selected, mode = 'edit', seamEditing=false, onPick, onHover, onPlace,
   graphics = [], importedHardware = [], foamPads = [],
   onChangeMode = () => {}, toolsDisabled = false,
-  showAvatar = true, showSeams = true, wireframe = false, analysisMode = 'surface',
+  showAvatar = true, showSeams = true, sewingToolsActive = false, wireframe = false, analysisMode = 'surface',
   showBoundingBox = false, showContactDots = true, spread = 0,
   onStretchDrag, onStretchStart, onStretchCancel, environmentPreset = 'studio', stageId = 'none', showFloor = true,
   cameraSettings = null, sceneLight = null, sceneLight2 = null, exposure = 1.1, studioAppearance = null, studioPreferences = null, stageSettings = null,
@@ -130,7 +130,7 @@ export default function ClothCraftSceneV2({
   const [showConstructionGuides, setShowConstructionGuides] = useState(false)
   const propsRef = useRef({})
   propsRef.current = {snapshot, active, selected, mode, seamEditing, onPick, onHover, onPlace, showAvatar,
-    showSeams, wireframe, showBoundingBox, showContactDots, spread, onStretchDrag, onStretchStart, onStretchCancel, environmentPreset, stageId, showFloor,
+    showSeams, sewingToolsActive, wireframe, showBoundingBox, showContactDots, spread, onStretchDrag, onStretchStart, onStretchCancel, environmentPreset, stageId, showFloor,
     onContextMenuRequest, onCanvasActivate, onFoamSelect}
 
   useEffect(() => {
@@ -1329,8 +1329,16 @@ export default function ClothCraftSceneV2({
       state.markerCounts = SEAM_COLORS.map(() => 0)
       setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, false)
       state.renderer.domElement.dataset.native3dPanelMeshCount = '0'
+      state.renderer.domElement.dataset.native3dMeshRevision = ''
+      state.renderer.domElement.dataset.native3dMeshTriangles = '0'
       return
     }
+    // Explicit proof that the Three.js cloth was rebuilt from the same
+    // committed Rust Shape snapshot as the 2D pattern. A staged yellow
+    // proposal never falsely reports a committed 3D fabric change.
+    state.renderer.domElement.dataset.native3dMeshRevision=String(snapshot.revision??'')
+    state.renderer.domElement.dataset.native3dMeshTriangles=String(snapshot.triangles?.length||0)
+    state.renderer.domElement.dataset.native3dMeshVertices=String(snapshot.positions?.length||0)
     const world = preDrapeDisplayPositions(snapshot)
     const previewCurved = world !== snapshot.positions
     state.renderer.domElement.dataset.nativePreDrapeCurved = String(previewCurved)
@@ -1473,7 +1481,7 @@ export default function ClothCraftSceneV2({
     ;(snapshot.seams || []).forEach((seam, index) => {
       const colorIndex = index % SEAM_COLORS.length
       const spec = snapshot.template?.seams?.find(item => item.id === seam.id)
-      const highlighted = !!active && [spec?.a, spec?.b].some(side => side?.panel === active.panel && (!active.edge || side.edge === active.edge))
+      const highlighted = !!active?.edge && [spec?.a, spec?.b].some(side => side?.panel === active.panel && side.edge === active.edge)
       ;(seam.guides || []).forEach((pair, pairIndex) => {
         if (!Array.isArray(pair) || pair.length !== 2) return
         const ends = pair.map((weights, sideIndex) => {
@@ -1481,12 +1489,12 @@ export default function ClothCraftSceneV2({
           const panelId = sideIndex ? spec?.b?.panel : spec?.a?.panel
           return value.add(panelOffsets.get(panelId) || new THREE.Vector3())
         })
-        if (showSeams && (highlighted || pairIndex % 3 === 0)) {
+        if (showSeams && highlighted) {
           const guide=line(ends[0], ends[1], highlighted ? '#f07847' : SEAM_COLORS[colorIndex], highlighted ? 1 : .62)
           guide.userData={links:[spec?.a?.panel,spec?.b?.panel],basePoints:ends.map(point=>point.clone())}
           seams.add(guide)
         }
-        if (showSeams && showContactDots && (highlighted || pairIndex % 2 === 0))
+        if (showSeams && showContactDots && highlighted)
           dotPositions[colorIndex].push({point:ends[0].clone(),panel:spec?.a?.panel},{point:ends[1].clone(),panel:spec?.b?.panel})
       })
     })
@@ -1507,7 +1515,7 @@ export default function ClothCraftSceneV2({
       dots.add(mesh)
     })
     state.markerCounts = dotPositions.map(positions => positions.length)
-    setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, showSeams && showContactDots)
+    setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, showSeams && sewingToolsActive && showContactDots)
     dotGeometry.dispose()
     if (snapshot.avatar?.positions?.length && snapshot.avatar?.triangles?.length) {
       const bodyMesh=buildIndexedMesh(snapshot.avatar.positions, snapshot.avatar.triangles, '#555b64')
@@ -1545,9 +1553,9 @@ export default function ClothCraftSceneV2({
     avatar.visible = showAvatar
     state.renderer.domElement.dataset.constructionGuidesVisible=String(showAvatar && showConstructionGuides && avatar.children.some(child=>child.name==='avatar-construction-guides'))
     state.renderer.domElement.dataset.avatarVisible = String(showAvatar && avatar.children.length > 0)
-    boundaries.visible = showSeams
-    seams.visible = showSeams
-    dots.visible = showSeams && showContactDots
+    boundaries.visible = sewingToolsActive
+    seams.visible = showSeams && sewingToolsActive
+    dots.visible = showSeams && sewingToolsActive && showContactDots
     state.renderer.domElement.dataset.fabricPresets=JSON.stringify([...panelMeshes.values()].map(m=>m.material.userData.fabricPreset))
     state.renderer.domElement.dataset.nativeFabricAppearances=JSON.stringify([...panelMeshes.values()].map(mesh=>{
       const back=mesh.children.find(child=>child.name==='native-cloth-back-face')?.material
@@ -1675,9 +1683,9 @@ export default function ClothCraftSceneV2({
     if (!state) return
     state.avatar.visible = showAvatar
     state.renderer.domElement.dataset.avatarVisible = String(showAvatar && state.avatar.children.length > 0)
-    state.boundaries.visible = showSeams
-    state.seams.visible = showSeams
-    state.dots.visible = showSeams && showContactDots
+    state.boundaries.visible = sewingToolsActive
+    state.seams.visible = showSeams && sewingToolsActive
+    state.dots.visible = showSeams && sewingToolsActive && showContactDots
     setMarkerDiagnostics(state.renderer.domElement, state.markerCounts || SEAM_COLORS.map(() => 0), state.dots.visible)
     for (const mesh of state.panelMeshes.values()) {
       mesh.material.wireframe = wireframe
@@ -1694,11 +1702,17 @@ export default function ClothCraftSceneV2({
         child.material.emissiveIntensity=hover?.24:0
       }
     }
+    let highlightedEdges=0
     for (const boundary of state.boundaries.children) {
-      const highlighted = boundary.userData.panel === active?.panel && (!active.edge || active.edge === boundary.userData.edge)
-      boundary.material.color.set(highlighted ? '#f0794c' : '#566875')
+      const highlighted = sewingToolsActive && !!active?.edge && boundary.userData.panel === active.panel && active.edge === boundary.userData.edge
+      boundary.material.color.set(highlighted ? '#ff9b3d' : '#566875')
       boundary.material.opacity = highlighted ? 1 : .76
+      boundary.renderOrder=highlighted?96:0
+      boundary.material.depthTest=!highlighted
+      if(highlighted)highlightedEdges++
     }
+    state.renderer.domElement.dataset.sewingHoverEdge=sewingToolsActive&&active?.edge?`${active.panel}:${active.edge}`:''
+    state.renderer.domElement.dataset.sewingHighlighted3dEdgeCount=String(highlightedEdges)
     replaceChildren(state.boxes)
     if (showBoundingBox && currentPanel && state.panelMeshes.has(currentPanel)) {
       const bounds = new THREE.Box3().setFromObject(state.panelMeshes.get(currentPanel))
@@ -1726,7 +1740,7 @@ export default function ClothCraftSceneV2({
       state.renderer.domElement.dataset.gizmoVisible='false'
     }
   }, [snapshot, active?.panel, active?.edge, selected?.panel, mode, showAvatar, showConstructionGuides,
-    showSeams, wireframe, showBoundingBox, showContactDots, spread, analysisMode])
+    showSeams, sewingToolsActive, wireframe, showBoundingBox, showContactDots, spread, analysisMode])
 
   useEffect(()=>{if(mode!=='stretch3d')sceneRef.current?.cancelStretch?.()},[mode])
   useEffect(()=>{if(sceneRef.current)sceneRef.current.rotationHoverAxis=null;sceneRef.current?.updateToolCursor?.()},[mode,seamEditing])

@@ -279,7 +279,7 @@ export default function CloPropertyEditorAccordion({
           <Readout label="2D Line Length" value={length(nativeLine?.length2DCm)}/>
           <Readout label="3D Line Length" value={length(nativeLine?.length3DCm)}/>
           <Readout label="3D Stretch" value={nativeLine?.elongationPercent!=null?`${nativeLine.elongationPercent>=0?'+':''}${nativeLine.elongationPercent.toFixed(2)}%`:'—'}/>
-          <Readout label="Sewing Links" value={nativeLine?nativeLine.seamIds.join(', ')||'None':selectedSeams}/>
+          <Readout label="Sewing Links" value={nativeLine?(Array.isArray(nativeLine.seamIds)?nativeLine.seamIds.join(', ')||'None':'—'):selectedSeams}/>
           {nativeLine&&<form className="clo-pe-line-target" onSubmit={event=>{event.preventDefault();const value=toCentimetresValue(Number(event.currentTarget.elements.namedItem('targetLength')?.value),lengthUnit);if(Number.isFinite(value)&&value>=0.01&&value<=1000&&nativeLine.source==='rust')onSetLineTarget?.(nativeLine.panelId,nativeLine.edgeId,value)}}>
             <label htmlFor="clo-pe-target-length">Target 2D length ({lengthUnit})</label>
             <input id="clo-pe-target-length" key={`${nativeLine.panelId}:${nativeLine.edgeId}:${nativeLine.revision}:${lengthUnit}`} name="targetLength" type="number" min={fromCentimetres(.01,lengthUnit)} max={fromCentimetres(1000,lengthUnit)} step="any" defaultValue={fromCentimetres(nativeLine.targetLengthCm??nativeLine.length2DCm,lengthUnit)?.toFixed(lengthUnit==='in'?3:lengthUnit==='mm'?1:2)||''} disabled={nativeLine.source!=='rust'||!onSetLineTarget}/>
@@ -543,11 +543,6 @@ export default function CloPropertyEditorAccordion({
             value={`${(Number(selectedPiece.arrangement3d?.[`stagingOffset${axis}`]||0)*100).toFixed(1)} cm`}/>)}
           {activeSection!=='Pattern'&&<button className="clo-pe-action" onClick={()=>onSwitchSection('Pattern')}>OPEN PATTERN ARRANGEMENT</button>}
           <p className="clo-pe-note">Use the Move tool in 3D to reposition a draped panel; reset to arrange the starting pattern.</p>
-          {/* PatternEditor portals precision controls here. Its target must
-              remain the SAME DOM node as workspaces change or accordions
-              collapse, or the drafting controls would become detached. */}
-          <div id="clo-pattern-properties-host" className="clo-pattern-properties-host"
-            hidden={!['Pattern','Sewing','Production'].includes(activeSection)}/>
         </>
       case 'miscellaneous':
         return <>
@@ -571,18 +566,16 @@ export default function CloPropertyEditorAccordion({
     }
   }
 
-  // Native graphic records have their own editable, Rust-persisted mm and
-  // material inspector. Keep it directly beneath the Object Browser rather
-  // than nesting it under unrelated draft-fabric accordion groups.
-  if(clothcraftHybrid&&objectTab==='Graphic'){
-    const graphic=clothcraftLive?.graphicRefs?.find(item=>item.id===clothcraftLive?.selectedGraphicId)||clothcraftLive?.graphicRefs?.[0]
-    return <>
-      <div className="inspector-head clo-pe-header" data-property-editor-design="neutral-gray"><span>Property Editor</span><strong title={graphic?.name||'Graphic'}>{graphic?.name||'Graphic'}</strong></div>
-      <div id="cc-native-graphic-editor" className="clo-native-graphic-host" aria-label="Selected graphic measurements and materials"/>
-    </>
-  }
+  // All Object Browser contexts share one scroll panel and one drafting portal
+  // node. Switching to the special graphic inspector must not replace the
+  // portal target retained by PatternEditor while a draft edit is in progress.
+  const showNativeGraphic=clothcraftHybrid&&objectTab==='Graphic'
+  const selectedGraphic=showNativeGraphic
+    ?clothcraftLive?.graphicRefs?.find(item=>item.id===clothcraftLive?.selectedGraphicId)||clothcraftLive?.graphicRefs?.[0]
+    :null
   return <>
-    <div className="inspector-head clo-pe-header" data-property-editor-design="neutral-gray"><span>Property Editor</span><strong title={propertySubject}>{propertySubject}</strong></div>
+    <div className="inspector-head clo-pe-header" data-property-editor-design="neutral-gray"><span>Property Editor</span><strong title={showNativeGraphic?(selectedGraphic?.name||'Graphic'):propertySubject}>{showNativeGraphic?(selectedGraphic?.name||'Graphic'):propertySubject}</strong></div>
+    {!showNativeGraphic&&<>
     {(selectedObjectKind==='fabric'||(activeSection==='Fabric'&&objectTab==='Fabric'))&&<FabricFileToolbar kind={clothcraftHybrid&&!selectedDraftAccessory?'native':'draft'}
       fabric={clothcraftHybrid&&!selectedDraftAccessory?(nativeObject||clothcraftLive?.fabricRefs?.[0]):(draftObject||fabric)}
       options={clothcraftHybrid&&!selectedDraftAccessory?(clothcraftLive?.fabricRefs||[]):Object.entries(project?.fabrics||{}).map(([id,item])=>({...item,id}))}
@@ -601,7 +594,9 @@ export default function CloPropertyEditorAccordion({
           {clothcraftLive.seamRefs.map(ref=><option key={ref.id} value={ref.id}>{ref.id} · {ref.first} ↔ {ref.second}</option>)}
         </select>
       </label>}
-    <div className="clo-pe-list" aria-label="Property Editor sections" data-property-context={selectedObjectKind}>
+    </>}
+    <div className="clo-pe-list" aria-label="Property Editor sections" data-property-context={showNativeGraphic?'graphic':selectedObjectKind}>
+      {showNativeGraphic?<div id="cc-native-graphic-editor" className="clo-native-graphic-host" aria-label="Selected graphic measurements and materials"/>:<>
       {selectedObjectKind==='none'&&<div className="clo-pe-empty" role="status">
         Select a pattern in the 2D or 3D viewport, or select a fabric in Object Browser, to edit its properties.
       </div>}
@@ -620,7 +615,13 @@ export default function CloPropertyEditorAccordion({
           </div>
         </section>
       })}
+      </>}
+      {/* PatternEditor creates its controls in this DOM node via a React portal.
+          Keep its DOM identity across every Object Browser selection, including
+          Graphic, and do not bury controls in the collapsed Arrange group. */}
+      <div id="clo-pattern-properties-host" className="clo-pattern-properties-host clo-pe-persistent-drafting"
+        role="region" aria-label="2D drafting precision properties"
+        hidden={showNativeGraphic||!['Pattern','Sewing','Production'].includes(activeSection)}/>
     </div>
-    {!visibleGroups.some(([id])=>id==='arrange')&&<div id="clo-pattern-properties-host" className="clo-pattern-properties-host" hidden/>}
   </>
 }

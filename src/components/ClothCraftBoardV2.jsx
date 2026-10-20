@@ -6,9 +6,10 @@ import ClothCraftStudioSilhouette from './ClothCraftStudioSilhouette.jsx'
 import './ClothCraftSegmentSewing.css'
 import {cursorForTool} from '../core/toolCursors.js'
 import {freeSewingPointAtFraction, freeSewingRangePoints, projectFreeSewingPoint} from '../core/freeSewingGeometry.js'
-import {getBounds, frontAvatarRegistration, horizontalPatternSpans, verticalPatternSpans, previewPoint, rotatedLayoutAroundCenter, trianglePath, boundarySegments} from '../core/clothcraft2dGeometry.js'
+import {getBounds, frontAvatarRegistration, horizontalPatternSpans, previewPoint, rotatedLayoutAroundCenter, trianglePath, boundarySegments} from '../core/clothcraft2dGeometry.js'
+import {horizontalGuideTracks,verticalGuideTracks,sharedTorsoGuideX,patternGuideLocalFrame,armpitChestReference} from '../core/patternGuideTracks.js'
 import {sampleInternalCurve,initialInternalTangents} from './nativeInternalCurve.js'
-import {cubicLength,editPatternBezierHandle,previewPatternAnchorMove} from '../core/vectorPatternBezier.js'
+import {cubicLength,editPatternBezierHandle,previewPatternAnchorMove,patternEditingControls,visibleTangent} from '../core/vectorPatternBezier.js'
 import {addNativeFreeCurvePoint,closestFreeCurveParameter,evaluateFreeCurve,moveNativeFreeCurvePoint,editNativeFreeCurveTangent,cubicDerivativeAt,freeCurveBase,removeNativeFreeCurvePoint,arclengthToFreeCurvePoint} from '../core/nativeFreeCurvePoints.js'
 import {fitPencilStroke,pathCubicControls} from '../core/vectorFreehandFit.js'
 import {teeBalanceNotchCommands} from '../core/patternSewingNotches.js'
@@ -16,16 +17,25 @@ import {shapePoints} from './FoamPaddingNativeOverlay.jsx'
 import {measureNativeSelection} from '../core/clothcraftSelectionMetrics.js'
 import {freeTangentDragDelta} from '../core/freeTangentDrag.js'
 import {sewingLengthDiagnostic} from '../core/sewingLengthDiagnostics.js'
+import {samplePatternSewingGuideIndices} from '../core/patternSewingGuideSampling.js'
+import {seamAllowancePreviewPoints} from '../core/patternAllowancePreview.js'
+import {placePatternLabel} from '../core/patternLabelPlacement.js'
+import {sideCurveStation,torsoSideCurveStations,curveDraftDimensions} from '../core/patternCurveDrafting.js'
+import {sampleGuideHalfCurve} from '../core/patternGuideHalfCurves.js'
+import {vectorcraftAnchorKind} from '../core/vectorcraftAnchorPort.js'
+import './PatternAuditRefinements.css'
+import {PATTERN_VISUAL,PATTERN_METRICS,pointRadiusInView,patternCutlinePresentation,patternPointGlyph,patternSemanticStroke} from '../core/patternVisualTokens.js'
 
 const COLORS = ['#527e91', '#d29465', '#7a9e79', '#a889b2', '#c3ab5d', '#76a5a4']
 const SEAM_COLORS = ['#eb775e', '#55aecd', '#dbb44c', '#8dc575', '#a98cd9', '#dd91b9']
+const CLO_HOVER_BLUE = '#009dff'
+const CLO_CURVE_ACTIVE_YELLOW = '#ffe600'
 // Solid CAD control-point fills must contrast with light/white fabric.
 // Vertex, curve and seam correspondence dots have distinct visual roles.
-const POINT_COLORS = {vertex:'#2276a9',selectedVertex:'#f08326',curve:'#8051bd',outline:'#fdfdfc'}
+const POINT_COLORS = {vertex:PATTERN_VISUAL.vertex,selectedVertex:PATTERN_VISUAL.selectedVertex,curve:PATTERN_VISUAL.curveControlOutline,outline:PATTERN_VISUAL.vertexOutline}
 // CLO-style drafting hierarchy; presentation never modifies the pattern UVs.
 // CLO-inspired drafting contrast: neutral pattern paper, dark stitch contours,
 // and a distinct amber active selection without changing native geometry.
-const PATTERN_VISUAL = {paper:'#fdfdfc',selectedPaper:'#fff5cb',outline:'#33383d',selectedOutline:'#d4a126',activeEdge:'#f08326'}
 const INITIAL_VIEW = [-1.1, -.24, 2.2, 2]
 const finite = value => Number.isFinite(value)
 const formatCm = metres => `${(metres * 100).toFixed(1)} cm`
@@ -78,20 +88,69 @@ function weighted(weights, values) {
   return result
 }
 
+// A yellow handle alone is not a real CLO-style shape preview. Build the
+// temporarily filled pattern outline directly from the same canonical cubic
+// and free-point evaluator Rust compiles. Only native Shape success changes
+// the saved mesh; until Apply, this is explicitly a visual proposal.
+function proposedPaperOutline(panel,range,polygon,preview=null) {
+  if(!polygon?.edges?.length||!Array.isArray(polygon.points)||
+    polygon.edges.length!==polygon.points.length)return null
+  const points=[]
+  for(const edge of polygon.edges){
+    for(let sample=0;sample<24;sample++){
+      const local=evaluateFreeCurve(polygon,edge,sample/24)
+      if(!Array.isArray(local)||local.some(v=>!Number.isFinite(v)))return null
+      const global=previewPoint(transform(panel,range,local),preview)
+      if(global?.length!==2||global.some(v=>!Number.isFinite(v)))return null
+      points.push(global)
+    }
+  }
+  return points.length>=3?`M${points.map(p=>p.join(',')).join('L')}Z`:null
+}
+
 // Each visible interval owns its own hit target; shared nodes are drawn once
 // per connected guide. They follow model-space vertices at any camera zoom.
-function GuideSegment({panelId,kind,id,a,b,color='#918fae',dashed=false,nativeLineId=null,selectedGuide,hoveredGuideId,onSelectGuide}) {
+function GuideSegment({panelId,kind,id,a,b,color='#918fae',dashed=false,nativeLineId=null,selectedGuide,hoveredGuideId,onSelectGuide,screenUnit=1,curveOffset=null,curveAngle=0,curveMode=false,curveDragging=false}) {
   const active=selectedGuide?.id===id
   const hot=hoveredGuideId===id
   const lengthMetres=Math.hypot(b[0]-a[0],b[1]-a[1])
+  // Real CLO-style guide strokes run all the way between the actual dots.
+  // Previous midpoint shortening created false, floating visual endpoints.
+  // Individual half IDs still select and color only their own line.
   const selected={id,panelId,kind,lengthMetres,points:[a,b]}
+  const editable=curveMode&&['chest','belly'].includes(kind)
+  const bent=Array.isArray(curveOffset)&&Math.hypot(...curveOffset)>.000025
+  const guideCurve=editable||bent?sampleGuideHalfCurve(a,b,curveOffset||[0,0],curveAngle):null
+  const pathPoints=guideCurve?.points.map(p=>p.join(',')).join(' ')
+  const stroke=curveDragging||editable&&active?CLO_CURVE_ACTIVE_YELLOW:
+    hot?CLO_HOVER_BLUE:active?'#ed9d26':color
   return <g data-2d-construction={kind} data-guide-id={id} data-guide-kind={kind}
     data-guide-panel={panelId} data-guide-segment={id} data-hovered={String(hot)}
     data-native-line-id={nativeLineId||undefined}>
+    {guideCurve?<polyline data-guide-curve="true" data-curvable-guide-half={id}
+      points={pathPoints} fill="none"
+      {...patternSemanticStroke('guide',{selected:active,hovered:hot})}
+      stroke={stroke} strokeWidth={curveDragging||active&&editable?2.75:hot?3:1.15}
+      strokeLinejoin="round" pointerEvents="none"/>:
     <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
-      stroke={active?'#ed9d26':hot?'#ecab45':color}
-      strokeWidth={active||hot?'.0046':'.0021'}
-      strokeDasharray={dashed?'.004 .009':undefined} strokeLinecap="round" pointerEvents="none"/>
+      {...patternSemanticStroke('guide',{selected:active,hovered:hot})}
+      stroke={stroke}
+      strokeWidth={hot?3:dashed?2.5:1.15}
+      // Non-scaling strokes use CSS-pixel dash lengths, not material metres.
+      // Previous dash lengths multiplied by screenUnit became microscopic
+      // and could look like a faint solid or disappear completely.
+      strokeDasharray={dashed?'6 4':undefined} pointerEvents="none"/>}
+    {editable&&(hot||active||curveDragging)&&guideCurve&&
+      <g data-guide-half-curve-knob={id} pointerEvents="none">
+        <line x1={guideCurve.middle[0]} y1={guideCurve.middle[1]}
+          x2={guideCurve.control[0]} y2={guideCurve.control[1]}
+          stroke={CLO_CURVE_ACTIVE_YELLOW} strokeWidth="1.25"
+          vectorEffect="non-scaling-stroke"/>
+        <circle cx={guideCurve.points[Math.floor(guideCurve.points.length/2)][0]}
+          cy={guideCurve.points[Math.floor(guideCurve.points.length/2)][1]}
+          r={3*screenUnit} fill="#fff8b4" stroke={CLO_CURVE_ACTIVE_YELLOW}
+          strokeWidth="1.25" vectorEffect="non-scaling-stroke"/>
+      </g>}
     {/* Hit testing belongs to the parent SVG in screen pixels. Overlapping
         3mm hem references must not steal each other's mouse target. */}
     {onSelectGuide&&<line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="transparent"
@@ -99,19 +158,36 @@ function GuideSegment({panelId,kind,id,a,b,color='#918fae',dashed=false,nativeLi
   </g>
 }
 
-function GuideNodes({panelId,kind,points,selectedGuide}) {
+function GuideNodes({panelId,kind,points,selectedGuide,hoveredGuideId=null,screenUnit=1,reuseNativeEndpoints=false}) {
   const active=selectedGuide?.kind===kind||
     (selectedGuide?.nativeLineId&&kind===`native:${selectedGuide.nativeLineId}`)
   return <g data-2d-shared-nodes={kind} pointerEvents="none">
-    {points.map((p,i)=><circle key={i} data-2d-shared-node={`${panelId}:${kind}:${i}`}
-      cx={p[0]} cy={p[1]} r={active?'.0051':'.0038'} fill={active?'#fff1d5':'#f7f8f7'}
-      stroke={active?'#e49a37':'#8c9296'} strokeWidth={active?'.0024':'.0015'}/>)}
+    {points.map((p,i)=>{
+      // The real authored armpit corner dot already exists at each chest end.
+      // Never draw a second guide dot on the exact same pixel.
+      if(reuseNativeEndpoints&&(i===0||i===points.length-1))return null
+      const onLeft=hoveredGuideId?.endsWith(':left'),onRight=hoveredGuideId?.endsWith(':right')
+      const sameTrack=hoveredGuideId?.startsWith(panelId+':'+kind+':')
+      // The midpoint belongs to BOTH half segments: keep it neutral so a
+      // hover never appears to tint the opposite half through the shared dot.
+      const hot=sameTrack&&((i===0&&onLeft)||(i===points.length-1&&onRight))
+      const selectedHere=active&&(!selectedGuide?.id||
+        (i===0&&selectedGuide.id.endsWith(':left'))||
+        (i===points.length-1&&selectedGuide.id.endsWith(':right'))||
+        (i>0&&i<points.length-1))
+      return <circle key={i} data-2d-shared-node={`${panelId}:${kind}:${i}`}
+        data-guide-node-hovered={String(Boolean(hot))}
+        cx={p[0]} cy={p[1]} r={(selectedHere?3:2.25)*screenUnit}
+        fill={hot?'#eefaff':selectedHere?'#fff1d5':'#f7f8f7'}
+        stroke={hot?CLO_HOVER_BLUE:selectedHere?'#e49a37':'#8c9296'}
+        strokeWidth={hot?1.6:selectedHere?1.1:.8} vectorEffect="non-scaling-stroke"/>
+    })}
   </g>
 }
 
 // Physically authored Rust InternalLines render on any garment panel and keep
 // stable per-line IDs, independently of the illustrative drafting references.
-function NativeInternalLines({panel,range,preview,onSelectGuide,selectedGuide,hoveredGuideId,
+function NativeInternalLines({panel,range,preview,onSelectGuide,selectedGuide,hoveredGuideId,screenUnit=1,
   activeInternalLine,curveMode,onSelectCurve,onStartTangent,handlePreview}) {
   return <g data-native-internal-lines-panel={panel.id}>
     {(panel.polygon?.lines||[]).map(line=>{
@@ -119,42 +195,52 @@ function NativeInternalLines({panel,range,preview,onSelectGuide,selectedGuide,ho
       if(points.length<2)return null
       return <g key={line.id} data-native-internal-line={`${panel.id}:${line.id}`}>
         {points.slice(1).map((pt,i)=>{
+          const liveTangent=index=>{
+            const tangent=line.tangents?.[index]||[0,0]
+            const moved=handlePreview?.panelId===panel.id&&
+              handlePreview.anchor===`l:${line.id}:${index}`
+            return moved?tangent.map((v,j)=>v+(handlePreview.delta?.[j]||0)):tangent
+          }
           const sampled=sampleInternalCurve(line.points[i],line.points[i+1],
-            line.tangents?.[i],line.tangents?.[i+1])
+            liveTangent(i),liveTangent(i+1))
             .map(p=>previewPoint(transform(panel,range,p),preview))
           const id=`${panel.id}:native:${line.id}:${i}`
           const active=selectedGuide?.id===id
           const hot=hoveredGuideId===id
-          const stroke=active?'#ed9d26':hot?'#ecab45':'#7c5bad'
+          const stroke=hot?CLO_HOVER_BLUE:active?'#ed9d26':'#7c5bad'
           const shape=sampled.map(p=>p.join(',')).join(' ')
           return <g key={i} data-2d-construction="native-internal-line"
             data-guide-id={id} data-guide-kind="native-internal-line"
             data-guide-panel={panel.id} data-guide-segment={id}
             data-native-line-id={line.id} data-hovered={String(hot)}>
-            <polyline data-guide-curve="true" points={shape} stroke={stroke} strokeWidth={active||hot?'.0055':'.0028'}
+            <polyline data-guide-curve="true" points={shape} {...patternSemanticStroke('internal',{selected:active,hovered:hot})}
+              stroke={handlePreview?.panelId===panel.id&&handlePreview.anchor?.startsWith(`l:${line.id}:`)
+                ?'#facc15':stroke}
               strokeLinecap="round" strokeLinejoin="round" fill="none" pointerEvents="none"/>
             {curveMode&&<polyline data-internal-curve-hit={`${panel.id}:${line.id}:${i}`}
-              points={shape} stroke="transparent" strokeWidth=".025" fill="none"
+              points={shape} stroke="transparent" strokeWidth="10" vectorEffect="non-scaling-stroke" fill="none"
               pointerEvents="stroke" style={{cursor:'pointer'}}
               title="Click to edit curve · Option-click to straighten"
               onPointerDown={event=>event.stopPropagation()}
               onClick={event=>{event.stopPropagation();onSelectCurve?.(panel,line,event.altKey)}}/>}
           </g>
         })}
-        <GuideNodes panelId={panel.id} kind={`native:${line.id}`} points={points} selectedGuide={selectedGuide}/>
+        <GuideNodes panelId={panel.id} kind={`native:${line.id}`} points={points} selectedGuide={selectedGuide} screenUnit={screenUnit}/>
         {curveMode&&activeInternalLine?.panel===panel.id&&activeInternalLine?.line===line.id&&
           points.map((p,i)=>{
             const tangent=line.tangents?.[i]||[0,0]
+            const activeHandle=handlePreview?.panelId===panel.id&&handlePreview.anchor===`l:${line.id}:${i}`
             const moved=handlePreview?.panelId===panel.id&&handlePreview.anchor===`l:${line.id}:${i}`
               ?handlePreview.delta:[0,0]
             const endUV=line.points[i].map((n,j)=>n+tangent[j]+moved[j])
             const handle=previewPoint(transform(panel,range,endUV),preview)
             return <g key={i} data-internal-control-group={`${panel.id}:${line.id}:${i}`}>
               <line x1={p[0]} y1={p[1]} x2={handle[0]} y2={handle[1]}
-                stroke="#537d96" strokeWidth=".002" pointerEvents="none"/>
-              <circle cx={handle[0]} cy={handle[1]} r=".011"
+                stroke={activeHandle?'#facc15':PATTERN_VISUAL.curveArm} strokeWidth={activeHandle?2:1} vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+              <circle cx={handle[0]} cy={handle[1]} r={PATTERN_METRICS.curvePointRadius*screenUnit}
                 data-internal-curve-handle={`${panel.id}:${line.id}:${i}`}
-                data-control-point="internal-curve" fill="#7959b7" stroke="#203449" strokeWidth=".002"
+                data-control-point="internal-curve" data-active-curve-handle={String(Boolean(activeHandle))}
+                fill={activeHandle?'#fef08a':PATTERN_VISUAL.curveControlFill} stroke={activeHandle?'#eab308':PATTERN_VISUAL.curveControlOutline} strokeWidth={activeHandle?1.6:.8} vectorEffect="non-scaling-stroke"
                 style={{cursor:'crosshair'}}
                 onPointerDown={event=>onStartTangent?.(event,panel,`l:${line.id}:${i}`)}/>
             </g>
@@ -194,18 +280,16 @@ function guideGeometryAt(group,svg,clientX,clientY) {
 
 // Decorative drafting marks remain distinct from physically authored Rust
 // notches/seam allowances/internal lines until the user creates native data.
-function ConstructionGuides({panel, boundaries, uv, clipId, preview, onSelectGuide, selectedGuide, hoveredGuideId, showNotchReferences=true, onCreateGuideLine}) {
+function ConstructionGuides({panel, range, boundaries, uv, triangles, clipId, preview, onSelectGuide, selectedGuide, hoveredGuideId, showNotchReferences=true, onCreateGuideLine,screenUnit=1,nativeCornerNodesVisible=false,editableSideStations=false,curveMode=false,curveOffsets=null,curveDraft=null}) {
   const identity=`${panel?.id || ''} ${panel?.name || ''}`
   const torso=/front|back|bodice|torso/i.test(identity)
-  const sleeve=/sleeve/i.test(identity)
   if (!uv?.length) return null
   const angle=((panel.layout_rotation_degrees||0)*Math.PI/180)+(preview?.kind==='rotate'?preview.angle:0)
-  const c=Math.cos(angle),s=Math.sin(angle)
-  const local=uv.map(p=>p&&[p[0]*c+p[1]*s,-p[0]*s+p[1]*c])
+  const origin=previewPoint(transform(panel,range,[0,0]),preview)
+  const {local,toWorld}=patternGuideLocalFrame(uv,origin,angle)
   const outline=Object.values(boundaries||{}).flat().map(i=>local[i]).filter(Boolean)
   const bounds=getBounds(outline)
   if (!bounds||bounds.width<.12||bounds.height<.10) return null
-  const toWorld=([x,y])=>[x*c-y*s,x*s+y*c]
   const blue='#8f91ae',red='#b18a8d'
   const torsoSides=boundaries?.['side-left']&&boundaries?.['side-right']
     ? {'side-left':boundaries['side-left'],'side-right':boundaries['side-right']} : null
@@ -215,41 +299,62 @@ function ConstructionGuides({panel, boundaries, uv, clipId, preview, onSelectGui
     const span=[...(sideSpans.length===1?sideSpans:fullSpans)].sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]))[0]
     return span?(span[0]+span[1])/2:bounds.cx
   }
+  const underarms=torso?armpitChestReference(panel.polygon):null
+  const chestY=underarms?.y??bounds.minY+bounds.height*.46
+  const waistY=bounds.minY+bounds.height*.64
+  // The visually required center axis is not optional just because a very
+  // concave edited panel has no column shared at two stations. Fall back to
+  // its physical chest-side center and keep each visible material interval
+  // separately clipped rather than drawing through empty cloth.
+  const centerX=torso?(sharedTorsoGuideX(triangles,local,chestY,waistY,centerAtY(chestY))
+    ??centerAtY(chestY)):null
   const segment=(kind,id,p,q,dashed=false,color=blue)=><GuideSegment key={id}
     panelId={panel.id} kind={kind} id={id} a={p} b={q} dashed={dashed}
     color={color} onSelectGuide={onSelectGuide} selectedGuide={selectedGuide}
-    hoveredGuideId={hoveredGuideId}/>
+    hoveredGuideId={hoveredGuideId} screenUnit={screenUnit}
+    curveMode={curveMode} curveAngle={angle}
+    curveOffset={curveDraft?.id===id?curveDraft.offset:curveOffsets?.[id]}
+    curveDragging={curveDraft?.id===id}/>
   const horizontal=(fraction,kind)=>{
-    const y=bounds.minY+bounds.height*fraction
-    const shape=horizontalPatternSpans(boundaries,local,y)
-    const inside=torsoSides?horizontalPatternSpans(torsoSides,local,y):[]
-    const spans=inside.length===1&&shape.some(([a,b])=>inside[0][0]>=a-.001&&inside[0][1]<=b+.001)?inside:shape
-    return spans.filter(([a,b])=>b-a>.025).map(([a,b],i)=>{
-      const mid=Math.max(a+.001,Math.min(b-.001,centerAtY(y)))
-      const pts=[toWorld([a,y]),toWorld([mid,y]),toWorld([b,y])]
-      return <g key={`${kind}:${i}`} data-2d-guide-track={kind}>
+    const y=kind==='chest'&&underarms?chestY:bounds.minY+bounds.height*fraction
+    const bellySides=kind==='belly'
+      ?[sideCurveStation(panel.polygon,'side-left',y),sideCurveStation(panel.polygon,'side-right',y)]:null
+    const stations=kind==='belly'&&bellySides?.every(Boolean)&&Number.isFinite(centerX)&&
+      centerX>bellySides[0].position[0]+.001&&centerX<bellySides[1].position[0]-.001
+      ?[[bellySides[0].position,[centerX,y],bellySides[1].position]]
+      :kind==='chest'&&underarms&&Number.isFinite(centerX)&&
+      centerX>underarms.left[0]+.001&&centerX<underarms.right[0]-.001
+      ?[[underarms.left,[centerX,chestY],underarms.right]]
+      :horizontalGuideTracks(boundaries,local,y,centerX,torsoSides,triangles,true)
+    return stations.map((localPts,i)=>{
+      const pts=localPts.map(toWorld)
+      return <g key={`${kind}:${i}`} data-2d-guide-track={kind}
+        data-chest-anatomical-endpoints={kind==='chest'&&Boolean(underarms)?'underarm-side-corners':undefined}>
         {segment(kind,`${panel.id}:${kind}:${i}:left`,pts[0],pts[1])}
         {segment(kind,`${panel.id}:${kind}:${i}:right`,pts[1],pts[2])}
-        <GuideNodes panelId={panel.id} kind={kind} points={pts} selectedGuide={selectedGuide}/>
+        <GuideNodes panelId={panel.id} kind={kind} points={pts} selectedGuide={selectedGuide}
+          hoveredGuideId={hoveredGuideId} screenUnit={screenUnit}
+          reuseNativeEndpoints={kind==='chest'&&Boolean(underarms)&&nativeCornerNodesVisible||
+            kind==='belly'&&editableSideStations&&Boolean(bellySides?.every(Boolean))}/>
       </g>
     })
   }
   const center=()=>{
-    const chestY=bounds.minY+bounds.height*.46
-    const x=centerAtY(chestY)
-    const spans=verticalPatternSpans(boundaries,local,x)
-    const longest=[...spans].sort((a,b)=>(b[1]-b[0])-(a[1]-a[0]))[0]
-    if (!longest||longest[1]-longest[0]<.14)return null
-    // Center nodes and transverse intersections are calculated from the same
-    // centerAtY function. There is no second offset orange/yellow 'ghost' dot.
-    const levels=[longest[0]+.006,...(torso?[.46,.64,.965,.975].map(f=>bounds.minY+bounds.height*f):[]),longest[1]-.006]
-      .filter(y=>y>=longest[0]+.005&&y<=longest[1]-.005).sort((a,b)=>a-b)
-    const pts=levels.map(y=>toWorld([centerAtY(y),y]))
+    const levels=torso?[chestY,waistY,bounds.minY+bounds.height*.965,bounds.minY+bounds.height*.975]:[]
+    const tracks=verticalGuideTracks(boundaries,local,centerX,levels,triangles)
+    if(!tracks.length)return null
+    // All occupied cutline intervals share one straight garment-local axis.
+    // Physical gaps stay empty; chest/waist rings intersect a drawn interval.
     const kind=/back/i.test(identity)?'center-back':'center-front'
-    return <g data-2d-guide-track={kind}>
-      {pts.slice(1).map((p,i)=>segment(kind,`${panel.id}:${kind}:${i}`,pts[i],p,true,'#293b4d'))}
-      {/* Transverse levels draw their one shared dot. Only center endpoints are unique. */}
-      <GuideNodes panelId={panel.id} kind={kind} points={[pts[0],pts.at(-1)]} selectedGuide={selectedGuide}/>
+    return <g data-2d-guide-track={kind} data-center-vertical-dotted="true">
+      {tracks.map((straight,trackIndex)=>{
+        const pts=straight.map(toWorld)
+        return <g key={trackIndex} data-center-guide-interval={trackIndex}>
+          {pts.slice(1).map((p,i)=>segment(kind,`${panel.id}:${kind}:${trackIndex}:${i}`,pts[i],p,true,'#0e2634'))}
+          {/* Transverse levels draw one shared ring; interval endpoints get dots. */}
+          <GuideNodes panelId={panel.id} kind={kind} points={[pts[0],pts.at(-1)]} selectedGuide={selectedGuide} screenUnit={screenUnit}/>
+        </g>
+      })}
     </g>
   }
   const shoulderOffsets=torso?Object.entries(boundaries||{}).flatMap(([name,indices])=>{
@@ -272,10 +377,10 @@ function ConstructionGuides({panel, boundaries, uv, clipId, preview, onSelectGui
       <g data-2d-construction={kind} data-guide-id={id} data-guide-kind={kind}
         data-guide-panel={panel.id} data-guide-segment={id} data-hovered={String(hot)}>
         <polyline data-guide-curve="true" points={offset.map(p=>p.join(',')).join(' ')}
-          stroke={active?'#ed9d26':hot?'#ecab45':'#8277c5'}
+          stroke={hot?CLO_HOVER_BLUE:active?'#ed9d26':'#8277c5'}
           strokeWidth={active||hot?'.0055':'.0028'} fill="none" pointerEvents="none"/>
       </g>
-      <GuideNodes panelId={panel.id} kind={name} points={[offset[0],offset.at(-1)]}
+      <GuideNodes panelId={panel.id} kind={name} points={[offset[0],offset.at(-1)]} screenUnit={screenUnit}
         selectedGuide={selectedGuide}/>
     </g>]
   }):[]
@@ -317,7 +422,7 @@ function ConstructionGuides({panel, boundaries, uv, clipId, preview, onSelectGui
     })
   }):[]
   return <g data-2d-guide-panel={panel.id} clipPath={`url(#${clipId})`}>
-    {center()}
+    {torso&&center()}
     {torso&&<>{horizontal(.46,'chest')}{horizontal(.64,'belly')}
       {horizontal(.965,'hem-upper')}{horizontal(.975,'hem-lower')}</>}
     {shoulderOffsets}
@@ -325,61 +430,65 @@ function ConstructionGuides({panel, boundaries, uv, clipId, preview, onSelectGui
   </g>
 }
 
-function Dimensions({points, selected, panel, boundaries, uv, clipId, preview}) {
+function Dimensions({points, selected, panel, boundaries, uv, clipId, preview,screenUnit=1}) {
   if (points.length < 3) return null
   const xs = points.map(p => p[0]), ys = points.map(p => p[1])
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
   const width = maxX - minX, height = maxY - minY
   if (!(width > .015 && height > .015)) return null
   const line = '#67767b', offset = .045, arrow = .009
+  const measureStroke={stroke:line,strokeWidth:.75,vectorEffect:'non-scaling-stroke'}
+  const faintStroke={stroke:line,strokeWidth:.55,vectorEffect:'non-scaling-stroke'}
   const y = maxY + offset, x = maxX + offset
   const font = {fontSize: '.019', fill: '#55656a', textAnchor: 'middle', paintOrder: 'stroke', stroke: '#eef0ef', strokeWidth: '.008'}
   return <g pointerEvents="none" opacity={selected ? .95 : .65}>
-    <line x1={minX} x2={maxX} y1={y} y2={y} stroke={line} strokeWidth=".002"/>
-    <path d={`M${minX + arrow},${y - arrow / 2}L${minX},${y}L${minX + arrow},${y + arrow / 2} M${maxX - arrow},${y - arrow / 2}L${maxX},${y}L${maxX - arrow},${y + arrow / 2}`} stroke={line} fill="none" strokeWidth=".002"/>
-    <line x1={minX} x2={minX} y1={maxY + .012} y2={y + .012} stroke={line} strokeWidth=".001"/>
-    <line x1={maxX} x2={maxX} y1={maxY + .012} y2={y + .012} stroke={line} strokeWidth=".001"/>
+    <line x1={minX} x2={maxX} y1={y} y2={y} {...measureStroke}/>
+    <path d={`M${minX + arrow},${y - arrow / 2}L${minX},${y}L${minX + arrow},${y + arrow / 2} M${maxX - arrow},${y - arrow / 2}L${maxX},${y}L${maxX - arrow},${y + arrow / 2}`} {...measureStroke} fill="none"/>
+    <line x1={minX} x2={minX} y1={maxY + .012} y2={y + .012} {...faintStroke}/>
+    <line x1={maxX} x2={maxX} y1={maxY + .012} y2={y + .012} {...faintStroke}/>
     <text x={(minX + maxX) / 2} y={y - .009} {...font}>{formatCm(width)}</text>
-    <line x1={x} x2={x} y1={minY} y2={maxY} stroke={line} strokeWidth=".002"/>
-    <path d={`M${x - arrow / 2},${minY + arrow}L${x},${minY}L${x + arrow / 2},${minY + arrow} M${x - arrow / 2},${maxY - arrow}L${x},${maxY}L${x + arrow / 2},${maxY - arrow}`} stroke={line} fill="none" strokeWidth=".002"/>
-    <line x1={maxX + .012} x2={x + .012} y1={minY} y2={minY} stroke={line} strokeWidth=".001"/>
-    <line x1={maxX + .012} x2={x + .012} y1={maxY} y2={maxY} stroke={line} strokeWidth=".001"/>
+    <line x1={x} x2={x} y1={minY} y2={maxY} {...measureStroke}/>
+    <path d={`M${x - arrow / 2},${minY + arrow}L${x},${minY}L${x + arrow / 2},${minY + arrow} M${x - arrow / 2},${maxY - arrow}L${x},${maxY}L${x + arrow / 2},${maxY - arrow}`} {...measureStroke} fill="none"/>
+    <line x1={maxX + .012} x2={x + .012} y1={minY} y2={minY} {...faintStroke}/>
+    <line x1={maxX + .012} x2={x + .012} y1={maxY} y2={maxY} {...faintStroke}/>
     <text x={x + .014} y={(minY + maxY) / 2} fontSize=".019" fill="#55656a" paintOrder="stroke" stroke="#eef0ef" strokeWidth=".008">{formatCm(height)}</text>
   </g>
 }
 
-function SelectionMarquee2D({points, panel, onStart, disabled}) {
+function SelectionMarquee2D({points, panel, onStart, disabled, screenUnit}) {
   const b = getBounds(points)
   if (!b || b.width < .02 || b.height < .02) return null
   const handles = [[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]]
   const x = sign => sign===-1?b.minX:sign===1?b.maxX:b.cx
   const y = sign => sign===-1?b.minY:sign===1?b.maxY:b.cy
-  const rotationY=b.minY-.07
+  const rotationY=b.minY-32*screenUnit
+  const lineColor='#526873',handleSize=7*screenUnit
   return <g data-2d-marquee={panel.id} aria-label={`2D transform selection: ${panel.name}`}>
     <rect x={b.minX} y={b.minY} width={b.width} height={b.height}
-      fill="none" stroke="#2d646f" strokeWidth=".0025" strokeDasharray=".009 .006" pointerEvents="none"/>
+      fill="none" stroke={lineColor} strokeWidth=".9" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
     <rect data-2d-marquee-move={panel.id} x={b.minX} y={b.minY}
-      width={b.width} height={b.height} fill="none" stroke="transparent" strokeWidth=".022"
+      width={b.width} height={b.height} fill="none" stroke="transparent" strokeWidth="10" vectorEffect="non-scaling-stroke"
       style={{cursor:disabled?'default':'move'}} pointerEvents="stroke"
       onPointerDown={e => onStart(e,panel,undefined,'move')}/>
     <line x1={b.cx} y1={b.minY} x2={b.cx} y2={rotationY}
-      stroke="#2d646f" strokeWidth=".002" pointerEvents="none"/>
-    <circle data-2d-rotate={panel.id} cx={b.cx} cy={rotationY} r=".012"
-      fill="#fff" stroke="#2d646f" strokeWidth=".003" style={{cursor:'grab'}}
+      stroke={lineColor} strokeWidth=".9" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+    <circle data-2d-rotate={panel.id} cx={b.cx} cy={rotationY} r={5*screenUnit}
+      fill="#fff" stroke={lineColor} strokeWidth="1" vectorEffect="non-scaling-stroke" style={{cursor:'grab'}}
       onPointerDown={e => onStart(e,panel,undefined,'rotate')}/>
     {handles.map(([hx,hy]) => <rect key={`${hx},${hy}`} data-2d-scale-guide={`${hx},${hy}`}
-      x={x(hx)-.008} y={y(hy)-.008} width=".016" height=".016"
-      fill="#fff" stroke="#2d646f" strokeWidth=".0027" pointerEvents="none"/>)}
-    <circle cx={b.cx} cy={b.cy} r=".007" stroke="#2d646f" strokeWidth=".002"
+      x={x(hx)-handleSize/2} y={y(hy)-handleSize/2} width={handleSize} height={handleSize}
+      fill="#fff" stroke={lineColor} strokeWidth="1" vectorEffect="non-scaling-stroke" pointerEvents="none"/>)}
+    <circle cx={b.cx} cy={b.cy} r={3.5*screenUnit} stroke={lineColor} strokeWidth=".8" vectorEffect="non-scaling-stroke"
       fill="#fff" pointerEvents="none"/>
-    <path d={`M${b.cx-.012} ${b.cy}h.024 M${b.cx} ${b.cy-.012}v.024`}
-      stroke="#2d646f" strokeWidth=".0017" pointerEvents="none"/>
+    <path d={`M${b.cx-6*screenUnit} ${b.cy}h${12*screenUnit} M${b.cx} ${b.cy-6*screenUnit}v${12*screenUnit}`}
+      stroke={lineColor} strokeWidth=".8" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
   </g>
 }
 
-function GraphicMeasurementBox({id, x, y, width, height, enabled, viewWidth}) {
-  const line='#1486b7', tick=.008, extension=.018, labelStyle={fontSize:Math.max(.019,viewWidth/48),fontWeight:650,
-    fill:'#095d82',stroke:'#f7f8f7',strokeWidth:'.006',paintOrder:'stroke'}
+function GraphicMeasurementBox({id, x, y, width, height, enabled, screenUnit}) {
+  const line='#1486b7', tick=5*screenUnit, extension=12*screenUnit
+  const labelStyle={fontSize:11*screenUnit,fontWeight:600,
+    fill:'#095d82',stroke:'#fff',strokeWidth:2*screenUnit,paintOrder:'stroke'}
   return <g data-2d-graphic-measure-box={id} data-measurements-visible={String(enabled)}
     data-graphic-width-mm={(width*1000).toFixed(2)} data-graphic-height-mm={(height*1000).toFixed(2)}
     pointerEvents="none">
@@ -387,22 +496,22 @@ function GraphicMeasurementBox({id, x, y, width, height, enabled, viewWidth}) {
       <rect x={x} y={y} width={width} height={height} fill="none" stroke={line}
         strokeWidth="1.5" vectorEffect="non-scaling-stroke" strokeDasharray="4 3"/>
       <line x1={x} x2={x+width} y1={y-extension} y2={y-extension}
-        stroke={line} strokeWidth=".002"/>
+        stroke={line} strokeWidth=".75" vectorEffect="non-scaling-stroke"/>
       <path d={`M${x} ${y-extension-tick}v${tick*2} M${x+width} ${y-extension-tick}v${tick*2}
-        M${x} ${y-.004}v${-extension+.004} M${x+width} ${y-.004}v${-extension+.004}`}
-        fill="none" stroke={line} strokeWidth=".002"/>
-      <text x={x+width/2} y={y-extension-.008} textAnchor="middle" {...labelStyle}>
+        M${x} ${y-3*screenUnit}v${-extension+3*screenUnit} M${x+width} ${y-3*screenUnit}v${-extension+3*screenUnit}`}
+        fill="none" stroke={line} strokeWidth=".75" vectorEffect="non-scaling-stroke"/>
+      <text x={x+width/2} y={y-extension-5*screenUnit} textAnchor="middle" {...labelStyle}>
         {(width*1000).toFixed(1)} mm
       </text>
       <line x1={x+width+extension} x2={x+width+extension} y1={y} y2={y+height}
-        stroke={line} strokeWidth=".002"/>
+        stroke={line} strokeWidth=".75" vectorEffect="non-scaling-stroke"/>
       <path d={`M${x+width+extension-tick} ${y}h${tick*2}
         M${x+width+extension-tick} ${y+height}h${tick*2}
-        M${x+width+.004} ${y}h${extension-.004}
-        M${x+width+.004} ${y+height}h${extension-.004}`}
-        fill="none" stroke={line} strokeWidth=".002"/>
-      <text x={x+width+extension+.012} y={y+height/2} textAnchor="middle"
-        transform={`rotate(90 ${x+width+extension+.012} ${y+height/2})`} {...labelStyle}>
+        M${x+width+3*screenUnit} ${y}h${extension-3*screenUnit}
+        M${x+width+3*screenUnit} ${y+height}h${extension-3*screenUnit}`}
+        fill="none" stroke={line} strokeWidth=".75" vectorEffect="non-scaling-stroke"/>
+      <text x={x+width+extension+8*screenUnit} y={y+height/2} textAnchor="middle"
+        transform={`rotate(90 ${x+width+extension+8*screenUnit} ${y+height/2})`} {...labelStyle}>
         {(height*1000).toFixed(1)} mm
       </text>
     </>}
@@ -420,6 +529,7 @@ function GraphicMeasurementBox({id, x, y, width, height, enabled, viewWidth}) {
 export default function ClothCraftBoardV2({
   s, active, selection, pick = () => {}, hover = () => {}, edit = () => {},
   onCreateInternalLine = null,
+  onEnableCurveSeamEase = null,
   mode = 'edit', busy = false, onPolygon = () => {},
   graphics = [],
   foamPads = [], onMoveFoamPad = () => {},
@@ -436,10 +546,25 @@ export default function ClothCraftBoardV2({
   const svg = useRef(null), drag = useRef(null), tapeDrag = useRef(null), graphicDrag = useRef(null),
     previousMeasureTool = useRef(false), [view, setView] = useState(INITIAL_VIEW), [draft, setDraft] = useState([])
   const [preview, setPreview] = useState(null)
+  const [canvasSize,setCanvasSize] = useState([800,800])
+  useEffect(()=>{
+    if(!svg.current)return
+    const observer=new ResizeObserver(([entry])=>setCanvasSize([entry.contentRect.width,entry.contentRect.height]))
+    observer.observe(svg.current)
+    return ()=>observer.disconnect()
+  },[])
+  // SVG uses meet scaling: controls remain the same screen size at any zoom.
+  const screenUnit=Math.max(view[2]/Math.max(1,canvasSize[0]),view[3]/Math.max(1,canvasSize[1]))
+
   const foamDrag=useRef(null)
   const [foamPreview,setFoamPreview]=useState(null)
   const [handlePreview,setHandlePreview] = useState(null)
-  const [mirrorFreeCurve,setMirrorFreeCurve] = useState(false)
+  // A sewn edge edit must not be thrown away when strict native seam matching
+  // is enabled. Retain the actual proposed polygon until the user explicitly
+  // accepts easing; clicking Accept commits THAT curve, no second drag needed.
+  const [pendingCurveCommit,setPendingCurveCommit] = useState(null)
+  const [mirrorFreeCurve,setMirrorFreeCurve] = useState(true)
+  const [showRedDartGuides,setShowRedDartGuides] = useState(true)
   const [freeCurveStatus,setFreeCurveStatus] = useState('')
   const [hoveredSplitMirrorGroup,setHoveredSplitMirrorGroup] = useState(null)
   const [vectorTangents,setVectorTangents] = useState([])
@@ -452,10 +577,35 @@ export default function ClothCraftBoardV2({
   const [activeInternalLine,setActiveInternalLine] = useState(null)
   useEffect(()=>setActiveInternalLine(null),[s?.template?.id,s?.template?.name])
   const [hoveredGuideId,setHoveredGuideId] = useState(null)
+  const [hoveredGuideGeometry,setHoveredGuideGeometry] = useState(null)
+  // A curved drafting reference is NOT a native sewn edge. Store its
+  // independent half-interval control in the local editor, scoped to the
+  // material template; leave the Rust garment and the cutline untouched.
+  const halfCurveKey=`exo-v2-half-curves:${s?.template?.id||s?.template?.name||'unnamed'}`
+  const [guideHalfCurves,setGuideHalfCurves]=useState({})
+  const [guideHalfCurveDraft,setGuideHalfCurveDraft]=useState(null)
+  const guideHalfCurveDrag=useRef(null)
+  useEffect(()=>{
+    let restored={}
+    try{
+      const parsed=JSON.parse(localStorage.getItem(halfCurveKey)||'{}')
+      if(parsed&&typeof parsed==='object'&&!Array.isArray(parsed))
+        restored=Object.fromEntries(Object.entries(parsed).filter(([id,p])=>
+          /:(chest|belly):\d+:(left|right)$/.test(id)&&
+          Array.isArray(p)&&p.length===2&&p.every(v=>Number.isFinite(v)&&Math.abs(v)<.5)))
+    }catch{}
+    setGuideHalfCurves(restored)
+    setGuideHalfCurveDraft(null)
+    guideHalfCurveDrag.current=null
+  },[halfCurveKey])
   const [showReferenceGuides, setShowReferenceGuides] = useState(true)
   const [showInternalLines,setShowInternalLines] = useState(true)
   const [showNativeNotches, setShowNativeNotches] = useState(true)
   const [showNativeAllowances, setShowNativeAllowances] = useState(true)
+  const [precisionDrafting,setPrecisionDrafting]=useState(true)
+  const [autoFocusDrafting,setAutoFocusDrafting]=useState(true)
+  const [editPatternHintDismissed,setEditPatternHintDismissed]=useState(false)
+  const [contextNodesInEdit,setContextNodesInEdit]=useState(true)
   const [allowanceWidthMm, setAllowanceWidthMm] = useState(10)
   const displayLayers={reference:showReferenceGuides,internal:showInternalLines,notches:showNativeNotches,allowances:showNativeAllowances}
   const toggleDisplayLayer=name=>{
@@ -484,6 +634,13 @@ export default function ClothCraftBoardV2({
   // Both Edit Points and Edit Curves share the upstream 'edit' mode, but
   // neither should receive the 2D pattern-transform marquee.
   const [tool2d, setTool2d] = useState('select')
+  // A hover acquired in Select mode must never survive into sewing, notch,
+  // allowance, point or free-drawing tools and steal their next click.
+  useEffect(()=>{
+    setHoveredGuideId(null)
+    setHoveredGuideGeometry(null)
+  },[tool2d,mode,busy,showReferenceGuides,showInternalLines])
+  const curveEditing = ['point','curve'].includes(tool2d)
   const drawingPanel = useRef(null)
   useEffect(() => {
     const receiveTool = event => {
@@ -538,20 +695,30 @@ export default function ClothCraftBoardV2({
   // fine SVG construction line is visible. Resolve guide proximity in screen
   // pixels so selecting a line is stable at any board zoom or resolution.
   const findGuideUnderPointer = event => {
-    if(busy || mode!=='edit' || tool2d!=='select' || !(showReferenceGuides||showInternalLines))return null
+    if(busy || mode!=='edit' || !['select','point','curve'].includes(tool2d) ||
+      !(showReferenceGuides||showInternalLines))return null
     // Lower hem references can lie within the broad native boundary hit
     // stroke. Give the precise nearby guide priority in Select mode; active
     // Notch/Seam Allowance/Sew tools still own boundary editing.
-    if(event.target?.closest?.('[data-2d-graphic-hit],[data-control-point],[data-2d-marquee-move],[data-2d-rotate],[data-2d-graphic-item]'))return null
+    // Graphic print hit boxes often overlap chest/belly construction guides.
+    // They own CLICK/DRAG, but their transparent rect must not suppress the
+    // underlying guide's independent blue HOVER.
+    if(event.target?.closest?.('[data-control-point],[data-2d-marquee-move],[data-2d-rotate]'))return null
     const canvas=svg.current
     if(!canvas)return null
+    // Reference strokes have a deliberately generous screen-pixel search
+    // radius. Never let a guide on an underlying/hidden pattern win through
+    // the topmost real fabric at the cursor, or select off-paper ghost lines.
+    const location=point(event)
+    const visiblePanel=location&&panelAt(location)
+    if(!visiblePanel)return null
     let best=null,smallest=7
     for(const group of canvas.querySelectorAll('[data-guide-id]')){
-      const geom=guideGeometryAt(group,canvas,event.clientX,event.clientY)
-      if(!geom)continue
       const id=group.getAttribute('data-guide-id')
       const panelId=group.getAttribute('data-guide-panel')
-      if(!id||!panelId)continue
+      if(!id||panelId!==visiblePanel)continue
+      const geom=guideGeometryAt(group,canvas,event.clientX,event.clientY)
+      if(!geom)continue
       const {distance,lengthMetres,points}=geom
       if(!Number.isFinite(lengthMetres)||lengthMetres<.001)continue
       const kind=group.getAttribute('data-guide-kind') || id.split(':').at(-2)
@@ -564,11 +731,74 @@ export default function ClothCraftBoardV2({
     }
     return best
   }
+  const beginGuideHalfCurve = event => {
+    if(busy||event.button!==0||mode!=='edit'||tool2d!=='curve')return false
+    if(event.target?.closest?.('[data-control-point],[data-side-edit-station],[data-2d-edge-hit],[data-internal-curve-hit],[data-native-pom]'))return false
+    const guide=findGuideUnderPointer(event)
+    if(!guide||!['chest','belly'].includes(guide.kind)||guide.points?.length!==2)return false
+    const group=[...(svg.current?.querySelectorAll('[data-guide-id]')||[])]
+      .find(e=>e.getAttribute('data-guide-id')===guide.id)
+    const line=group?.querySelector('polyline[data-guide-curve],line')
+    const matrix=line?.getScreenCTM()
+    if(!matrix)return false
+    const endpoints=guide.points.map(([x,y])=>{
+      const p=svg.current.createSVGPoint();p.x=x;p.y=y
+      return p.matrixTransform(matrix)
+    })
+    // Shared midpoint and physical side anchors remain owned by the actual
+    // pattern point/side-curve tools, never by a fake guide control.
+    if(endpoints.some(p=>Math.hypot(p.x-event.clientX,p.y-event.clientY)<10))return false
+    const start=point(event)
+    const panel=s?.template?.panels?.find(p=>p.id===guide.panelId)
+    if(!start||!panel)return false
+    const angle=(panel.layout_rotation_degrees||0)*Math.PI/180
+    const initial=guideHalfCurves[guide.id]||[0,0]
+    guideHalfCurveDrag.current={id:guide.id,initial,start,angle,pointerId:event.pointerId}
+    setGuideHalfCurveDraft({id:guide.id,offset:initial})
+    setSelectedGuide(guide)
+    pick({panel:guide.panelId})
+    event.preventDefault();event.stopPropagation()
+    svg.current?.setPointerCapture(event.pointerId)
+    return true
+  }
+  const moveGuideHalfCurve = event => {
+    const d=guideHalfCurveDrag.current
+    if(!d||d.pointerId!==event.pointerId)return false
+    const q=point(event)
+    if(!q)return true
+    const dx=q[0]-d.start[0],dy=q[1]-d.start[1],c=Math.cos(d.angle),s=Math.sin(d.angle)
+    const offset=[d.initial[0]+dx*c+dy*s,d.initial[1]-dx*s+dy*c]
+      .map(v=>Math.max(-.2,Math.min(.2,v)))
+    setGuideHalfCurveDraft({id:d.id,offset})
+    return true
+  }
+  const finishGuideHalfCurve = (event,cancelled=false) => {
+    const d=guideHalfCurveDrag.current
+    if(!d||event.pointerId!==d.pointerId)return false
+    guideHalfCurveDrag.current=null
+    if(!cancelled){
+      const proposed=guideHalfCurveDraft?.id===d.id?guideHalfCurveDraft.offset:d.initial
+      const next={...guideHalfCurves,[d.id]:proposed}
+      setGuideHalfCurves(next)
+      try{localStorage.setItem(halfCurveKey,JSON.stringify(next))}catch{}
+    }
+    setGuideHalfCurveDraft(null)
+    try{svg.current?.releasePointerCapture(event.pointerId)}catch{}
+    return true
+  }
   const selectGuideUnderPointer = event => {
+    if(busy||mode!=='edit'||tool2d!=='select'||!(showReferenceGuides||showInternalLines))
+      return false
+    // Unlike hover, clicking the transparent graphic bounds must continue to
+    // select/drag that print rather than hijacking the click for a guide.
+    if(event.target?.closest?.('[data-2d-graphic-hit],[data-2d-graphic-item]'))return false
     // Keep click identity consistent with the segment already highlighted on
     // hover. Native hem outlines often overlap both reference hit ranges.
+    const location=point(event)
+    const visiblePanel=location&&panelAt(location)
     const hoveredGroup=hoveredGuideId&&[...(svg.current?.querySelectorAll('[data-guide-id]')||[])]
-      .find(group=>group.getAttribute('data-guide-id')===hoveredGuideId)
+      .find(group=>group.getAttribute('data-guide-id')===hoveredGuideId&&
+        group.getAttribute('data-guide-panel')===visiblePanel)
     const hoveredGeometry=hoveredGroup&&guideGeometryAt(hoveredGroup,svg.current,event.clientX,event.clientY)
     const best=hoveredGeometry?.distance<7?{id:hoveredGuideId,panelId:hoveredGroup.getAttribute('data-guide-panel'),
       kind:hoveredGroup.getAttribute('data-guide-kind'),points:hoveredGeometry.points,
@@ -633,6 +863,7 @@ export default function ClothCraftBoardV2({
   const segmentSewing = mode === 'sew' && tool2d === 'sew' && sewingVariant === 'segment'
   const freeSewing = mode === 'sew' && tool2d === 'sew' && sewingVariant !== 'segment'
   const sewingActive = segmentSewing || freeSewing
+  const sewingOverlayVisible = sewingActive || editSewingActive
   useEffect(()=>{if(!freeSewing)setFreeHover(null)},[freeSewing])
   const [viewPreset, setViewPreset] = useState('FRONT')
   // At overview scale a 1cm grid aliases into a flat gray surface; use the
@@ -712,7 +943,7 @@ export default function ClothCraftBoardV2({
   // by actual front shoulders. Never resize its shape to a pattern bounding box.
   const avatarAnchorX = originalAlignment.current?.avatarX ?? 0
   const avatarAnchorY = originalAlignment.current?.avatarY ?? .95
-  const avatarVisible = showAvatar && showSilhouette && viewPreset === 'FRONT' && s?.avatar?.positions?.length > 0
+  const avatarVisible = !precisionDrafting && showAvatar && showSilhouette && viewPreset === 'FRONT' && s?.avatar?.positions?.length > 0
   const focus = (onlySelected=false) => {
     let b=displayed
     if(onlySelected && (selection?.panel || active?.panel)){
@@ -727,23 +958,29 @@ export default function ClothCraftBoardV2({
       b={minX:Math.min(b.minX,avatarAnchorX-.56),maxX:Math.max(b.maxX,avatarAnchorX+.56),
         minY:Math.min(b.minY,avatarAnchorY-.875),maxY:Math.max(b.maxY,avatarAnchorY+.875)}
     }
-    const pad=.22
-    const w=Math.max(.9,b.maxX-b.minX+pad*2),h=Math.max(.9,b.maxY-b.minY+pad*2)
-    const width=Math.max(w,h*1.1)
-    setView([(b.minX+b.maxX-width)/2,(b.minY+b.maxY-width/1.1)/2,width,width/1.1])
+    const pad=precisionDrafting?.065:.22
+    const w=Math.max(precisionDrafting?.32:.9,b.maxX-b.minX+pad*2),h=Math.max(precisionDrafting?.32:.9,b.maxY-b.minY+pad*2)
+    const aspect=canvasSize[0]/Math.max(1,canvasSize[1])
+    const width=Math.max(w,h*aspect),height=width/aspect
+    setView([(b.minX+b.maxX-width)/2,(b.minY+b.maxY-height)/2,width,height])
   }
+  const previousEditingTool=useRef(null)
+  useEffect(()=>{
+    if(previousEditingTool.current!==tool2d&&['point','curve'].includes(tool2d)&&precisionDrafting)
+      setAutoFocusDrafting(true)
+    previousEditingTool.current=tool2d
+  },[tool2d,precisionDrafting])
   const initialized = useRef(null)
+  useEffect(()=>{
+    if(!autoFocusDrafting||!precisionDrafting||!panels.length)return
+    focus(Boolean(selection?.panel))
+    setAutoFocusDrafting(false)
+  },[autoFocusDrafting,precisionDrafting,canvasSize[0],canvasSize[1],panels.length])
   useEffect(()=>{
     const key=s?.template?.id ?? s?.template?.name ?? null
     if(key !== initialized.current && panels.length){
       initialized.current=key
-      // FRONT keeps x=0 centered on the visible figure; extend both sides
-      // enough to retain the complete neighboring back panel, rather than
-      // clipping its sleeve at the right edge of a split viewport.
-      const largestExtent = Math.max(Math.abs(displayed.minX),Math.abs(displayed.maxX))
-      const w=Math.max(2.15,2*(largestExtent+.17),(spanY+.65)*1.1,
-        avatarAnchorY>0 ? (Math.max(displayed.maxY,avatarAnchorY+.875)-Math.min(displayed.minY,avatarAnchorY-.875)+.22)*1.1 : 0)
-      setView([-w/2,avatarAnchorY-w/2.2,w,w/1.1])
+      focus()
     }
   },[s?.template?.id,s?.template?.name,panels.length,spanX,spanY])
   const point = e => {
@@ -837,6 +1074,46 @@ export default function ClothCraftBoardV2({
     if (text?.trim()) { pick({panel:panel.id}); void edit({kind:'Annotation',panel:panel.id,text:text.trim(),position}) }
     return true
   }
+  const editingPolygon = panel => {
+    const polygon=panel.polygon
+    const n=polygon?.edges?.length||0
+    const anchor=selection?.panel===panel.id&&Number.isInteger(selection?.anchor)?selection.anchor:null
+    const edges=anchor!==null?[polygon.edges[anchor],polygon.edges[(anchor+n-1)%n]]:
+      selection?.panel===panel.id&&selection?.edge?[selection.edge]:[]
+    return patternEditingControls(polygon,edges)
+  }
+  // Rust validates sewn arclengths for EVERY contour changed by a gesture.
+  // New knots and dragged physical vertices must use the same explicit
+  // Shape + seam-ease workflow as cubic handles (previously they bypassed it
+  // and silently snapped back at sides/shoulders).
+  const applyOrStagePatternCurve = async (panel,polygon,primaryEdge) => {
+    if(!polygon||!panel?.polygon)return false
+    const original=panel.polygon,n=original.edges?.length||0
+    const changedEdges=new Set([primaryEdge].filter(Boolean))
+    for(let i=0;i<n;i++){
+      const edge=original.edges[i],next=(i+1)%n
+      if(JSON.stringify(original.curves?.[edge])!==JSON.stringify(polygon.curves?.[edge])||
+        JSON.stringify(original.free_curve_points?.[edge])!==JSON.stringify(polygon.free_curve_points?.[edge])||
+        JSON.stringify(original.points?.[i])!==JSON.stringify(polygon.points?.[i])||
+        JSON.stringify(original.points?.[next])!==JSON.stringify(polygon.points?.[next]))
+        changedEdges.add(edge)
+    }
+    const strict=(s?.template?.seams||[]).filter(seam=>!seam.allow_ease&&
+      [seam.a,seam.b].some(b=>b?.panel===panel.id&&changedEdges.has(b.edge)))
+    if(strict.length&&onEnableCurveSeamEase){
+      setPendingCurveCommit({panelId:panel.id,edge:primaryEdge,polygon,
+        affectedEdges:[...changedEdges],revision:s.revision,
+        strictSeams:strict.map(seam=>seam.id)})
+      setHandlePreview({panelId:panel.id,anchor:`proposal:${primaryEdge}`,polygon})
+      setFreeCurveStatus('The yellow paper shape is a pending proposal, not yet sewn. Click Apply this curve to update the required sewing relationships and rebuild the actual pattern.')
+      return false
+    }
+    const ok=await edit({kind:'Shape',panel:panel.id,polygon})
+    setHandlePreview(null)
+    setPendingCurveCommit(null)
+    setFreeCurveStatus(ok?'':'Native Rust rejected the shape; original fabric retained. Inspect sewn edges or adjust the curve.')
+    return Boolean(ok)
+  }
   const start = (e, panel, anchor, kind='move', handle=null) => {
     if (busy || ['sew', 'pen', 'line'].includes(mode) || e.button !== 0) return
     if (anchor === undefined && !transform2d) {
@@ -845,21 +1122,27 @@ export default function ClothCraftBoardV2({
       pick({panel: panel.id})
       return
     }
+    if(typeof anchor==='string'&&anchor.startsWith('c:'))panel={...panel,polygon:editingPolygon(panel)}
     const startPoint = point(e)
     if (!startPoint) return
     // Own the pointer gesture; browser text/image drag can cancel pointerup
     // after selection changes between consecutive curve-handle edits.
     e.preventDefault()
     e.stopPropagation()
+    setPendingCurveCommit(null)
+    setHandlePreview(null)
     svg.current.setPointerCapture(e.pointerId)
     const entry=panels.find(item => item.panel.id===panel.id)
     const b=getBounds(entry?.points)
     drag.current = {panel, anchor, start: startPoint, kind, handle, bounds:b,
-      breakTangents:e.altKey, snapAngle:e.shiftKey}
+      breakTangents:e.altKey, snapAngle:e.shiftKey, controlScale:Number(e.currentTarget.dataset.controlScale)||1}
     setPreview(null)
     pick({panel: panel.id,...(typeof anchor==='string'&&(anchor.startsWith('c:')||anchor.startsWith('f:')||anchor.startsWith('ft:'))
       ?{edge:anchor.split(':')[1]}:
-      Number.isInteger(anchor)&&tool2d==='curve'?{edge:panel.polygon?.edges?.[anchor]}:{}),
+      Number.isInteger(anchor)&&curveEditing?{edge:panel.polygon?.edges?.[anchor]}:{}),
+      // An old numeric vertex selection must not override a newly pressed
+      // Bézier handle on another edge. That stale anchor caused side/hem
+      // handles to disappear while the geometry was being dragged.
       ...(anchor !== undefined ? {anchor} : {})})
   }
   const updatePreview = (e, d) => {
@@ -890,7 +1173,7 @@ export default function ClothCraftBoardV2({
       if(q){
         const a=-(d.panel.layout_rotation_degrees||0)*Math.PI/180
         const dx=q[0]-d.start[0],dy=q[1]-d.start[1]
-        const delta=[dx*Math.cos(a)-dy*Math.sin(a),dx*Math.sin(a)+dy*Math.cos(a)]
+        const delta=[dx*Math.cos(a)-dy*Math.sin(a),dx*Math.sin(a)+dy*Math.cos(a)].map(v=>v/(d.controlScale||1))
         const polygon=d.anchor.startsWith('ft:')?(()=>{
           const [,edge,id]=d.anchor.split(':')
           const side=d.anchor.split(':')[3]||'out'
@@ -901,18 +1184,19 @@ export default function ClothCraftBoardV2({
         })():d.anchor.startsWith('c:')?(()=>{
           const [,edge,index]=d.anchor.split(':')
           return editPatternBezierHandle(d.panel.polygon,edge,Number(index),delta,
-            {breakTangents:e.altKey,snapAngle:e.shiftKey})
+            {breakTangents:e.altKey,snapAngle:e.shiftKey,mirrorTangents:false,
+              mirrorAcrossPattern:mirrorFreeCurve})
         })():null
         setHandlePreview({panelId:d.panel.id,anchor:d.anchor,delta,polygon})
       }
       return
     }
-    if(Number.isInteger(d.anchor)&&tool2d==='curve'){
+    if(Number.isInteger(d.anchor)&&curveEditing){
       const q=point(e)
       if(q){
         const a=-(d.panel.layout_rotation_degrees||0)*Math.PI/180
         const dx=q[0]-d.start[0],dy=q[1]-d.start[1]
-        const delta=[dx*Math.cos(a)-dy*Math.sin(a),dx*Math.sin(a)+dy*Math.cos(a)]
+        const delta=[dx*Math.cos(a)-dy*Math.sin(a),dx*Math.sin(a)+dy*Math.cos(a)].map(v=>v/(d.controlScale||1))
         setHandlePreview({panelId:d.panel.id,anchorIndex:d.anchor,
           polygon:previewPatternAnchorMove(d.panel.polygon,d.anchor,delta)})
       }
@@ -923,17 +1207,23 @@ export default function ClothCraftBoardV2({
     d.lastPreview=next
     setPreview(next)
   }
-  const up = e => {
+  const up = async e => {
     const d = drag.current
     drag.current = null
     setPreview(null)
-    setHandlePreview(null)
+    const shapeGesture=typeof d?.anchor==='string'&&/^(c|f|ft|l):/.test(d.anchor)
+    if(!shapeGesture)setHandlePreview(null)
     if (!d) return
     const q = point(e)
-    if (!q) return
+    if (!q){setHandlePreview(null);return}
     const delta = q.map((n, i) => n - d.start[i])
     if (Math.hypot(...delta) < .002) {
       if (d.pan && d.background) pick(null)
+      if(d.stationDraft){
+        // A click creates the side's actual free-knot geometry at exactly the
+        // belly/intermediate guide intersection; the next drag edits it.
+        await applyOrStagePatternCurve(d.originalPanel,d.panel.polygon,d.stationEdge)
+      }else setHandlePreview(null)
       return
     }
     if (d.pan) {
@@ -953,7 +1243,7 @@ export default function ClothCraftBoardV2({
     }
     if (d.anchor !== undefined) {
       const a = -(d.panel.layout_rotation_degrees || 0) * Math.PI / 180
-      const local = [delta[0] * Math.cos(a) - delta[1] * Math.sin(a), delta[0] * Math.sin(a) + delta[1] * Math.cos(a)]
+      const local = [delta[0] * Math.cos(a) - delta[1] * Math.sin(a), delta[0] * Math.sin(a) + delta[1] * Math.cos(a)].map(v=>v/(d.controlScale||1))
       if (typeof d.anchor === 'string') {
         let polygon = structuredClone(d.panel.polygon)
         const [, identifier, index] = d.anchor.split(':')
@@ -970,13 +1260,18 @@ export default function ClothCraftBoardV2({
           line.tangents[Number(index)]=line.tangents[Number(index)].map((n,i)=>n+local[i])
         }else{
           polygon=editPatternBezierHandle(d.panel.polygon,identifier,Number(index),local,
-            {breakTangents:e.altKey,snapAngle:e.shiftKey})
+            {breakTangents:e.altKey,snapAngle:e.shiftKey,mirrorTangents:false,
+              mirrorAcrossPattern:mirrorFreeCurve})
           if(!polygon)return
         }
-        edit({kind: 'Shape', panel: d.panel.id, polygon})
+        await applyOrStagePatternCurve(d.originalPanel||d.panel,polygon,identifier)
       } else {
         const origin = d.panel.polygon?.points?.[d.anchor]
-        if (origin) edit({kind: 'Anchor', panel: d.panel.id, anchor: d.anchor, position: origin.map((n, i) => n + local[i])})
+        if(origin&&curveEditing){
+          const polygon=previewPatternAnchorMove(d.panel.polygon,d.anchor,local)
+          if(polygon)await applyOrStagePatternCurve(d.panel,polygon,d.panel.polygon.edges[d.anchor])
+        }else if(origin)edit({kind:'Anchor',panel:d.panel.id,anchor:d.anchor,
+          position:origin.map((n,i)=>n+local[i])})
       }
     } else {
       const p=updatePreview(e,d)
@@ -1046,7 +1341,7 @@ export default function ClothCraftBoardV2({
   },[isDrawing,mode,tool2d,draft,vectorTangents,busy,onPolygon,panels,boardUV])
   const measuring = mode === 'edit' && ['measure','measure-edit'].includes(tool2d)
   const editingTape = measuring && tool2d === 'measure-edit'
-  const nativeCursor = busy ? 'default' : sewingActive || editSewingActive ? SEWING_CURSOR :
+  const nativeCursor = busy ? 'default' : mode==='edit' && tool2d==='point' ? 'default' : sewingActive || editSewingActive ? SEWING_CURSOR :
     mode === 'pen' ? cursorForTool('polygon') :
     mode === 'line' ? cursorForTool('internal') :
     mode === 'edit' && tool2d === 'pleat' ? PLEAT_CURSOR :
@@ -1224,7 +1519,8 @@ export default function ClothCraftBoardV2({
     data-internal-lines-visible={String(showInternalLines)}
     data-native-notches-visible={String(showNativeNotches)}
     data-seam-allowances-visible={String(showNativeAllowances)}
-    style={{position: 'relative', background: '#c6c7c9'}}>
+    data-precision-drafting={String(precisionDrafting)}
+    style={{position: 'relative', background: PATTERN_VISUAL.canvas}}>
     <ClothCraftCornerTools dimension="2d" mode={mode} activeTool={tool2d} onChangeMode={onChangeMode}
       displayLayers={displayLayers} onToggleDisplayLayer={toggleDisplayLayer}
       allowanceWidthMm={allowanceWidthMm} onChangeAllowanceWidth={width=>{
@@ -1235,12 +1531,46 @@ export default function ClothCraftBoardV2({
       onClearGuide={()=>setSelectedGuide(null)}
       onChangeTool={name => {setTool2d(name);setDraft([]);drawingPanel.current=null;setTape([])}} disabled={busy}/>
     <PatternReferenceImageControls {...reference} unitsPerCm={.01} viewBounds={view} menuOnly editorScope="native"/>
+    {mode==='edit'&&tool2d==='point'&&!precisionDrafting&&!editPatternHintDismissed&&<div className="cc-native-free-curve-guide cc-pattern-compact-hint" data-edit-pattern-guide="true">
+      <strong>Edit Pattern</strong>
+      <span>Click a point: incoming + outgoing handles appear automatically. Drag either endpoint to curve the pattern. Option-drag breaks tangents; Shift snaps angles.</span>
+      <button type="button" aria-label="Dismiss Edit Pattern hint" onClick={()=>setEditPatternHintDismissed(true)}>×</button>
+    </div>}
     {mode==='edit'&&tool2d==='curve'&&<div className="cc-native-free-curve-guide" data-free-curve-tool-guide="true">
       <strong>Edit Curve Point</strong>
-      <span>Click a cutline to add · Drag orange knots · Drag purple incoming/outgoing handles · Option-drag a handle to break tangents · Shift snaps angles · Option-click orange to remove</span>
+      <span>Drag either half of the chest or belly guide to curve ONLY that point-to-point construction interval (saved locally, not sewn) · Drag coral side dots or orange knots to reshape the actual cutline · Apply sewn cutlines to update 3D · Live edge lengths appear during curve edits</span>
       <label><input type="checkbox" checked={mirrorFreeCurve}
-        onChange={event=>{setMirrorFreeCurve(event.target.checked);setFreeCurveStatus('')}}/>
+        onChange={event=>{setMirrorFreeCurve(event.target.checked);setPendingCurveCommit(null);setHandlePreview(null);setFreeCurveStatus('')}}/>
         Link mirrored points on symmetric edges</label>
+      <label><input type="checkbox" checked={showRedDartGuides}
+        onChange={event=>setShowRedDartGuides(event.target.checked)}/>
+        Red short point markers (construction only)</label>
+      {selection?.panel&&selection?.edge&&(()=>{
+        const staged=pendingCurveCommit?.panelId===selection.panel&&
+          pendingCurveCommit.edge===selection.edge?pendingCurveCommit:null
+        const strict=(s?.template?.seams||[]).filter(seam=>!seam.allow_ease&&(
+          staged?staged.strictSeams.includes(seam.id):
+          [seam.a,seam.b].some(boundary=>boundary?.panel===selection.panel&&boundary?.edge===selection.edge)))
+        if(!strict.length)return null
+        return <div data-curve-strict-seams={strict.map(seam=>seam.id).join(' ')}>
+          <small>Attached sewn edge: {strict.map(seam=>seam.id).join(', ')}. A reshaped curve can change the seam length, which Rust normally rejects.</small>
+          {onEnableCurveSeamEase&&<button type="button" disabled={busy}
+            data-enable-curve-seam-ease={selection.panel+':'+selection.edge}
+            onClick={async()=>{
+              const ok=await onEnableCurveSeamEase({panelId:selection.panel,edge:selection.edge,
+                mirror:staged?.mirror??mirrorFreeCurve,
+                polygon:staged?.polygon,expectedRevision:staged?.revision,
+                affectedEdges:staged?.affectedEdges})
+              if(ok){setPendingCurveCommit(null);setHandlePreview(null)}
+              setFreeCurveStatus(ok
+                ?staged?'Native Rust committed this curve and enabled seam easing. Save/reopen will preserve the reshaped cutline. Undo is available.'
+                  :'Seam easing explicitly enabled for this sewn boundary. You can now drag its curves.'
+                :'The sewing permission or curve commit was not accepted. The shape was not saved; check the error and retry or Undo any sewing changes.')
+            }}>{pendingCurveCommit?.panelId===selection.panel&&pendingCurveCommit.edge===selection.edge
+              ?'Apply this yellow curve and allow seam easing'
+              :'Allow different sewn-edge lengths so this curve can be edited'}</button>}
+        </div>
+      })()}
       {freeCurveStatus&&<small role="status">{freeCurveStatus}</small>}
     </div>}
     {mode==='edit'&&tool2d==='split'&&<div className="cc-native-free-curve-guide" data-mirrored-split-guide="true">
@@ -1293,6 +1623,8 @@ export default function ClothCraftBoardV2({
       <span className="cc-board-orientation-divider" aria-hidden="true"/>
       <button type="button" aria-label="Frame all" title="Frame all patterns and full avatar" onClick={() => focus()}>F</button>
       <button type="button" aria-label="Focus selected" title="Focus selected pattern" onClick={() => focus(true)}>S</button>
+      <button type="button" aria-label="Precision drafting" title="Enlarge pattern drawing, remove avatar and reduce clutter" aria-pressed={precisionDrafting} className={precisionDrafting?'active':''} onClick={()=>{setPrecisionDrafting(value=>!value);setAutoFocusDrafting(!precisionDrafting);setEditPatternHintDismissed(true)}}>CAD</button>
+      <button type="button" aria-label="Show contextual pattern nodes" title="Show compact geometry knots on non-selected patterns while editing" aria-pressed={contextNodesInEdit} className={contextNodesInEdit?'active':''} onClick={()=>setContextNodesInEdit(value=>!value)}>PTS</button>
       <button type="button" aria-label="Center axis" title="Center on the 2D front axis" onClick={() => setView(v=>[-v[2]/2,avatarAnchorY-v[3]/2,v[2],v[3]])}>C</button>
     </div>
     {showGraphicMeasurementToggle&&graphics.some(graphic=>graphic.visible!==false)&&<div className="cc-v2-graphic-dimension-toggle"
@@ -1307,11 +1639,18 @@ export default function ClothCraftBoardV2({
       </button>
     </div>}
     <svg ref={svg} viewBox={view.join(' ')} preserveAspectRatio="xMidYMid meet"
-      style={{background: '#c6c7c9',cursor:nativeCursor||undefined}}
+      style={{background: PATTERN_VISUAL.canvas,cursor:nativeCursor||undefined}}
       aria-label="Metric 2D pattern board with linked sewing and measurements" data-native-tool={tool2d}
-      onPointerDownCapture={markCanvas}
-      onPointerMoveCapture={event=>setHoveredGuideId(findGuideUnderPointer(event)?.id||null)}
-      onPointerLeave={()=>setHoveredGuideId(null)}
+      onPointerDownCapture={event=>{
+        markCanvas(event)
+        beginGuideHalfCurve(event)
+      }}
+      onPointerMoveCapture={event=>{
+        const guide=findGuideUnderPointer(event)
+        setHoveredGuideId(guide?.id||null)
+        setHoveredGuideGeometry(guide&&['chest','belly'].includes(guide.kind)?guide:null)
+      }}
+      onPointerLeave={()=>{setHoveredGuideId(null);setHoveredGuideGeometry(null)}}
       onClickCapture={e=>{
         if(selectGuideUnderPointer(e))return
         if(busy||tool2d!=='pleat'||mode!=='edit')return
@@ -1320,11 +1659,13 @@ export default function ClothCraftBoardV2({
         if(panelId){pick({panel:panelId});window.dispatchEvent(new CustomEvent('exo-clothcraft-pleat-target',{detail:{panelId}}))}
       }}
       onDoubleClickCapture={e=>{
+        if(tool2d!=='select'||mode!=='edit')return
         const guide=findGuideUnderPointer(e)
         if(guide){e.stopPropagation();void createNativeLineFromGuide(guide);setSelectedGuide(null)}
       }}
       onClick={e => {if (!busy && (isDrawing || measuring)) e.stopPropagation()}}
       onPointerMove={e=>{
+        if(moveGuideHalfCurve(e))return
         if(moveFoamDrag(e))return
         if(vectorDrag.current?.pointerId===e.pointerId){
           const drag=vectorDrag.current,p=point(e)
@@ -1346,6 +1687,7 @@ export default function ClothCraftBoardV2({
         if(tapeDrag.current){const p=point(e);if(p)setTape(old=>old.map((v,i)=>i===tapeDrag.current.index?p:v));return}
         move(e)
       }} onPointerUp={e=>{
+        if(finishGuideHalfCurve(e))return
         if(endFoamDrag(e))return
         if(vectorDrag.current?.pointerId===e.pointerId){
           const drag=vectorDrag.current
@@ -1377,7 +1719,7 @@ export default function ClothCraftBoardV2({
         if(endGraphicDrag(e)){try{svg.current?.releasePointerCapture(e.pointerId)}catch{};return}
         if(tapeDrag.current){tapeDrag.current=null;try{svg.current?.releasePointerCapture(e.pointerId)}catch{};return}
         up(e)
-      }} onPointerCancel={() => {foamDrag.current=null;setFoamPreview(null);vectorDrag.current=null;setPencilSamples([]);graphicDrag.current=null;setGraphicPreview(null);tapeDrag.current=null;drag.current = null;setPreview(null);setHandlePreview(null)}}
+      }} onPointerCancel={e => {finishGuideHalfCurve(e,true);foamDrag.current=null;setFoamPreview(null);vectorDrag.current=null;setPencilSamples([]);graphicDrag.current=null;setGraphicPreview(null);tapeDrag.current=null;drag.current = null;setPreview(null);setHandlePreview(null)}}
       onContextMenu={e => {
         e.preventDefault()
         const element = e.target.closest?.('[data-edit-seam-guide], [data-edge], [data-panel]')
@@ -1405,24 +1747,24 @@ export default function ClothCraftBoardV2({
       <defs>
         <pattern id={`${uid}-minor`} width={gridMinorStep} height={gridMinorStep} patternUnits="userSpaceOnUse">
           <path d={`M ${gridMinorStep} 0 L 0 0 0 ${gridMinorStep}`} fill="none"
-            stroke="rgba(72,76,81,.19)" strokeWidth=".0018"/>
+            stroke={PATTERN_VISUAL.gridMinor} strokeWidth=".45" vectorEffect="non-scaling-stroke"/>
         </pattern>
         <pattern id={`${uid}-major`} width={gridMajorStep} height={gridMajorStep} patternUnits="userSpaceOnUse">
           <path d={`M ${gridMajorStep} 0 L 0 0 0 ${gridMajorStep}`} fill="none"
-            stroke="rgba(70,74,79,.25)" strokeWidth=".0026"/>
+            stroke={PATTERN_VISUAL.gridMajor} strokeWidth=".65" vectorEffect="non-scaling-stroke"/>
         </pattern>
       </defs>
-      <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill="#c6c7c9" pointerEvents="none"/>
+      <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={PATTERN_VISUAL.canvas} pointerEvents="none"/>
       {showGrid&&<rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-minor)`} opacity={viewPreset==='GRID'?1:.6} pointerEvents="none"/>}
       {showGrid&&<rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-major)`} opacity={viewPreset==='GRID'?1:.65} pointerEvents="none"/>}
       <PatternReferenceImageLayer image={reference.image} setImage={reference.setImage} unitsPerCm={.01}
         interactive={!busy && tool2d === 'select' && mode === 'edit'}/>
-      <line x1={view[0]-view[2]} x2={view[0]+view[2]*2} y1=".76" y2=".76" stroke="#9aaeb3" strokeWidth=".002" pointerEvents="none"/>
-      <line x1="0" x2="0" y1={view[1]-view[3]} y2={view[1]+view[3]*2} stroke="#424b4f" strokeWidth=".006" pointerEvents="none"/>
-      <g pointerEvents="none" fontSize=".022" fill="#6c8188">
+      {!precisionDrafting&&<line x1={view[0]-view[2]} x2={view[0]+view[2]*2} y1=".76" y2=".76" stroke="#9aaeb3" strokeWidth=".6" opacity=".5" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
+      {!precisionDrafting&&<line x1="0" x2="0" y1={view[1]-view[3]} y2={view[1]+view[3]*2} stroke="#424b4f" strokeWidth=".8" opacity=".4" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
+      {!precisionDrafting&&<g pointerEvents="none" fontSize=".022" fill="#6c8188">
         <text x=".02" y=".745">X</text><text x=".015" y=".805">Y</text>
-      </g>
-      {avatarVisible && s?.avatar?.triangles?.length > 0 && <g opacity=".66" transform={`translate(${avatarAnchorX} ${avatarAnchorY})`} aria-label="Centered front avatar silhouette"
+      </g>}
+      {avatarVisible && s?.avatar?.triangles?.length > 0 && <g opacity=".42" transform={`translate(${avatarAnchorX} ${avatarAnchorY})`} aria-label="Centered front avatar silhouette"
         data-registered-shoulder-y={originalAlignment.current?.shoulderY} data-avatar-anchor-x={avatarAnchorX} data-avatar-anchor-y={avatarAnchorY}>
         <ClothCraftStudioSilhouette avatar={s.avatar}
           onPick={!busy&&!['pen','line','sew'].includes(mode)?onAvatarPick:undefined}/>
@@ -1432,20 +1774,49 @@ export default function ClothCraftBoardV2({
         const selected = selection !== undefined ? selection?.panel === panel.id : active?.panel === panel.id
         const currentPreview=preview?.panelId===panel.id ? preview : null
         const livePoints=points.map(p=>previewPoint(p,currentPreview))
-        const shapePath=trianglePath((s.triangles || []).slice(...range.triangles),boardUV)
+        const nativePaperPath=trianglePath((s.triangles || []).slice(...range.triangles),boardUV)
+        const editablePreview=handlePreview?.panelId===panel.id&&handlePreview.polygon
+          ||pendingCurveCommit?.panelId===panel.id&&pendingCurveCommit.polygon||null
+        const shapePath=editablePreview?proposedPaperOutline(panel,range,editablePreview,currentPreview)||nativePaperPath:nativePaperPath
         const clipId=`${uid}-pattern-${panelIndex}`
-        const label=previewPoint(range.layout,currentPreview)
+        const labelBounds=getBounds(livePoints)
+        const label=[labelBounds.cx,labelBounds.maxY+16*screenUnit]
         return <g key={panel.id} data-2d-pattern-piece={panel.id} data-2d-pattern-selected={String(selected)}
           onPointerEnter={() => hover({panel: panel.id})} onPointerLeave={() => hover(null)}>
           <defs><clipPath id={clipId}><path d={shapePath}/></clipPath></defs>
           {/* CLO drafting paper: a soft selected surface and an opaque white
               unselected surface, independent of physical fabric tint. */}
-          <path data-panel={panel.id} data-pattern-surface="drafting-paper" d={shapePath}
+          <path data-panel={panel.id} data-pattern-surface="drafting-paper"
+            data-paper-preview-state={editablePreview?'uncommitted-curve':'native-mesh'} d={shapePath}
             fill={selected?PATTERN_VISUAL.selectedPaper:PATTERN_VISUAL.paper}
             fillOpacity={reference.image?.visible===false||!reference.image?1:.26}
             style={{cursor:busy?'default':nativeCursor||(transform2d?cursorForTool('move'):'default')}}
             onPointerDown={e => {if (tool2d === 'annotation'||editSewingActive) e.stopPropagation(); else start(e, panel)}}
-            onClick={e => {if(editSewingActive){e.stopPropagation();return}if (!createAnnotation(e,panel,range)) {e.stopPropagation(); pick({panel: panel.id})}}}/>
+            onClick={e => {if(editSewingActive){e.stopPropagation();return}if (!createAnnotation(e,panel,range)) {e.stopPropagation();
+              if(mode==='edit'&&tool2d==='point'&&panel.polygon?.points?.length){
+                const click=point(e),vertices=panel.polygon.points.map(uv=>transform(panel,range,uv))
+                const index=click?vertices.findIndex(uv=>Math.hypot(uv[0]-click[0],uv[1]-click[1])<=13*screenUnit):-1
+                pick({panel:panel.id,...(index>=0?{anchor:index,edge:panel.polygon.edges[index]}:{})})
+              }else pick({panel: panel.id})}}}/>
+          {/* Drafting references are a PAPER underlay. The authored cutline,
+              notch marks and native entities later in this panel must retain
+              visual priority. Reference hits are resolved at the SVG root,
+              not by overpainting or intercepting native boundary clicks. */}
+          {(showReferenceGuides||mode==='edit') && <g data-2d-reference-layer={panel.id} opacity={selected?.97:.86}>
+            <ConstructionGuides panel={panel} range={range} boundaries={range.boundaries}
+              uv={boardUV} triangles={(s.triangles||[]).slice(...range.triangles)}
+              clipId={clipId} preview={currentPreview}
+              showNotchReferences={showNativeNotches}
+              onSelectGuide={!busy&&mode==='edit'&&tool2d==='select'?selectConstructionGuide:null}
+              onCreateGuideLine={!busy&&mode==='edit'&&tool2d==='select'?createNativeLineFromGuide:null}
+              screenUnit={screenUnit} selectedGuide={selectedGuide} hoveredGuideId={hoveredGuideId}
+              curveMode={mode==='edit'&&tool2d==='curve'}
+              curveOffsets={guideHalfCurves} curveDraft={guideHalfCurveDraft}
+              nativeCornerNodesVisible={tool2d==='select'||
+                (mode==='edit'&&['point','curve'].includes(tool2d)&&
+                  (selected||contextNodesInEdit))}
+              editableSideStations={tool2d==='curve'&&mode==='edit'}/>
+          </g>}
           {foamPads.filter(pad=>pad.panel===panel.id&&pad.points?.length>=3).map(pad=>{
             const shift=foamPreview?.id===pad.id?foamPreview:pad
             const moved={...pad,x:shift.x,y:shift.y}
@@ -1493,7 +1864,7 @@ export default function ClothCraftBoardV2({
                   onPointerDown={event=>startGraphicDrag(event,g,panel)}
                   onClick={event=>{if(!selectable)return;event.stopPropagation();onSelectGraphic(g.id)}}/>
                 {selectedGraphic&&<GraphicMeasurementBox id={g.id} x={topLeft[0]} y={topLeft[1]}
-                  width={w} height={h} enabled={showGraphicMeasurements} viewWidth={view[2]}/>}
+                  width={w} height={h} enabled={showGraphicMeasurements} screenUnit={screenUnit}/>}
               </g>
             </g>
           })}
@@ -1511,18 +1882,18 @@ export default function ClothCraftBoardV2({
                 const text=window.prompt('Edit annotation (Alt-click to delete)',note.text)
                 if(text!==null&&text.trim())void edit({kind:'Annotation',panel:panel.id,id:note.id,text:text.trim(),position:note.position})
               }} style={{cursor:tool2d==='annotation'||tool2d==='editAnnotation'?'text':'pointer'}}>
-              <rect x={tx-.009} y={ty-.026} width={Math.max(.06,note.text.length*.009)} height=".038" rx=".005" fill="#fffaf0" stroke="#916e3f" strokeWidth=".0015"/>
-              <text x={tx} y={ty} fontSize=".018" fill="#5c4023" pointerEvents="none">{note.text}</text>
+              <rect data-annotation-background="true" x={tx-5*screenUnit} y={ty-13*screenUnit} width={Math.max(30,note.text.length*6.6+10)*screenUnit} height={19*screenUnit} rx={2*screenUnit} fill="#ffffff" fillOpacity=".92" stroke="#b5b9bd" strokeWidth=".65" vectorEffect="non-scaling-stroke"/>
+              <text x={tx} y={ty} fontSize={11*screenUnit} fontFamily="Arial,sans-serif" fill="#42484f" pointerEvents="none">{note.text}</text>
             </g>
           })}
           {selected && transform2d && <SelectionMarquee2D
-            points={livePoints} panel={panel} onStart={start} disabled={busy}/>}
+            points={livePoints} panel={panel} onStart={start} disabled={busy} screenUnit={screenUnit}/>}
           {Object.entries(range.boundaries || {}).map(([edge, indices]) => {
             const linkedSeams=(s?.template?.seams||[]).filter(seam=>[seam.a,seam.b].some(side=>side?.panel===panel.id&&side.edge===edge))
             const editingSeam=editSewingActive&&linkedSeams.length>0
             const selectedSeamEdge=editSewingActive&&linkedSeams.some(seam=>seam.id===selection?.seamId)
             const paths=boundarySegments(indices,boardUV).map(points=>points.map(p=>p.join(',')).join(' '))
-            const selectedEdge=selected && active?.edge === edge
+            const selectedEdge=selected && selection?.edge === edge
             const firstSewEdge=segmentSewing&&sewingFirstEdge?.panel===panel.id&&sewingFirstEdge?.edge===edge
             const hoverSewEdge=sewingActive&&active?.panel===panel.id&&active?.edge===edge
             const edgeClick=e => {
@@ -1544,10 +1915,16 @@ export default function ClothCraftBoardV2({
                 return
               }
               if(mode==='edit'&&tool2d==='curve'&&!busy){
-                // CLO-style free curve points are independently persistent
-                // controls, attached to the stable boundary ID. Inserting a
-                // point on a straight edge preserves its original shape.
+                // Select an actual named cutline before inserting material
+                // knots. Previously EVERY click inserted a new free knot,
+                // repeatedly rebuilding side panels when the user only meant
+                // to choose an edge or its existing Bézier handles.
+                const alreadySelected=selection?.panel===panel.id&&selection?.edge===edge
                 pick({panel:panel.id,edge})
+                if(!alreadySelected&&!e.shiftKey){
+                  setFreeCurveStatus('Edge selected. Drag its yellow handles, or click the same edge again to insert a curve point.')
+                  return
+                }
                 const xy=point(e)
                 if(!xy||!panel.polygon)return
                 const angle=(panel.layout_rotation_degrees||0)*Math.PI/180
@@ -1555,30 +1932,42 @@ export default function ClothCraftBoardV2({
                 const local=[dx*Math.cos(angle)+dy*Math.sin(angle),-dx*Math.sin(angle)+dy*Math.cos(angle)]
                 const nearest=closestFreeCurveParameter(panel.polygon,edge,local)
                 if(!nearest)return
-                const added=addNativeFreeCurvePoint(panel.polygon,edge,nearest.t,{mirror:mirrorFreeCurve})
+                if(nearest.distance>Math.max(.003,10*screenUnit)){
+                  setFreeCurveStatus('Add points on the actual cutline, not on nearby material or an old preview.')
+                  return
+                }
+                const mirrored=mirrorFreeCurve?addNativeFreeCurvePoint(panel.polygon,edge,nearest.t,{mirror:true}):null
+                // Center seams, asymmetric cuts and many independent collars
+                // have no mirrored edge. Editing must still work there.
+                const added=mirrored||addNativeFreeCurvePoint(panel.polygon,edge,nearest.t,{mirror:false})
                 if(added){
-                  setFreeCurveStatus('')
-                  void edit({kind:'Shape',panel:panel.id,polygon:added.polygon})
-                }else setFreeCurveStatus(mirrorFreeCurve
-                  ?'No matching symmetric edge here, or a curve point is too close. Turn off Mirror for an independent point.'
-                  :'Choose a different position on the edge; existing points need room.')
+                  setFreeCurveStatus(mirrorFreeCurve&&!mirrored?'No symmetric partner for this edge; curve point added independently.':'')
+                  void applyOrStagePatternCurve(panel,added.polygon,edge)
+                }else setFreeCurveStatus('Choose another position on the edge; a nearby point may already exist.')
                 return
               }
               if(!editConstructionEdge(e,panel,edge,indices)&&!splitBoundary(e,panel,edge,indices))pick({panel:panel.id,edge})
             }
             return <g key={edge}>
-              {paths.map((path,i)=><polyline key={i} points={path} fill="none" pointerEvents="none"
-                stroke={selectedSeamEdge?PATTERN_VISUAL.activeEdge:firstSewEdge?'#1464ac':hoverSewEdge?'#03a7e7':sewingActive?'#3d9bbf':selectedEdge ? PATTERN_VISUAL.activeEdge : selected ? PATTERN_VISUAL.selectedOutline : PATTERN_VISUAL.outline}
-                strokeWidth={selectedSeamEdge?2.8:firstSewEdge||hoverSewEdge?2.8:sewingActive?1.9:selectedEdge?2.8:selected?1.9:1.45}
-                vectorEffect="non-scaling-stroke" strokeLinejoin="round"
-                strokeDasharray={firstSewEdge?'6 4':undefined}
-                data-sew-edge-state={sewingActive?(firstSewEdge?'first':hoverSewEdge?'hover':'eligible'):undefined}/>)}
+              {paths.map((path,i)=>{
+                const hovered=active?.panel===panel.id&&active?.edge===edge
+                const curveFocused=mode==='edit'&&curveEditing&&selectedEdge
+                const curveHovered=mode==='edit'&&tool2d==='curve'&&hovered
+                const presentation=patternCutlinePresentation({selected,selectedEdge:selectedEdge||selectedSeamEdge,hovered,expressive:firstSewEdge})
+                return <polyline key={i} points={path} fill="none" pointerEvents="none"
+                  {...presentation}
+                  stroke={curveFocused||curveHovered?CLO_CURVE_ACTIVE_YELLOW:hovered?CLO_HOVER_BLUE:presentation.stroke}
+                  strokeWidth={curveFocused||curveHovered?2.5:hovered?2.2:presentation.strokeWidth}
+                  data-active-curve-edge={String(Boolean(curveFocused||curveHovered))}
+                  data-cutline-hover-blue={String(Boolean(hovered&&!curveFocused&&!curveHovered))}
+                  data-sew-edge-state={sewingActive?(firstSewEdge?'first':hoverSewEdge?'hover':'eligible'):undefined}/>
+              })}
               {paths.map((path,i)=><polyline key={i} data-edge={`${panel.id}:${edge}`} data-2d-edge-hit={`${panel.id}:${edge}`}
                 data-segment-sew-candidate={segmentSewing?'true':undefined} data-free-sew-candidate={freeSewing?'true':undefined}
                 data-edit-sew-candidate={editSewingActive?'true':undefined}
                 data-seam-link={editingSeam?linkedSeams.map(item=>item.id).join(' '):undefined}
                 points={path} fill="none" stroke="transparent"
-                strokeWidth={Math.max(.016,view[2]*.012)} pointerEvents="stroke"
+                strokeWidth="10" vectorEffect="non-scaling-stroke" pointerEvents="stroke"
                 style={{cursor:busy?'default':(sewingActive||editSewingActive)&&!sewingCommitting?SEWING_CURSOR:nativeCursor||'pointer'}}
                 onPointerDown={e => e.stopPropagation()}
                 onPointerEnter={e => {e.stopPropagation();hover({panel:panel.id,edge})}}
@@ -1592,15 +1981,24 @@ export default function ClothCraftBoardV2({
               {selectedEdge&&!sewingActive&&(()=>{
                 const readout=boundaryDisplayLength(indices,boardUV)
                 if(!readout)return null
-                const fontSize=view[2]*.022
-                const x=readout.midpoint[0]+readout.normal[0]*view[2]*.018
-                const y=readout.midpoint[1]+readout.normal[1]*view[2]*.018
+                const fontSize=11*screenUnit
+                const text=`≈ ${(readout.length*100).toFixed(2)} cm`
+                const obstacles=(panel.polygon?.points||[]).map(uv=>previewPoint(transform(panel,range,uv),currentPreview))
+                for(const [edgeName,controls] of Object.entries(editingPolygon(panel)?.curves||{})){
+                  const k=panel.polygon.edges.indexOf(edgeName)
+                  controls.forEach((uv,j)=>{
+                    const origin=previewPoint(transform(panel,range,panel.polygon.points[(k+j)%panel.polygon.points.length]),currentPreview)
+                    obstacles.push(visibleTangent(origin,previewPoint(transform(panel,range,uv),currentPreview),screenUnit).point)
+                  })
+                }
+                const {x,y}=placePatternLabel(readout.midpoint,readout.normal,text,screenUnit,obstacles,
+                  [view[0]-offset[0],view[1]-offset[1],view[2],view[3]])
                 return <text data-2d-boundary-readout={`${panel.id}:${edge}`}
                   data-2d-readout-approx-cm={(readout.length*100).toFixed(3)}
                   x={x} y={y} textAnchor="middle" fontSize={fontSize}
-                  fill="#744514" stroke="#fffbed" strokeWidth={fontSize*.29}
-                  paintOrder="stroke" fontWeight="600" pointerEvents="none">
-                  ≈ {(readout.length*100).toFixed(2)} cm
+                  fill="#343b40" stroke="#ffffff" strokeWidth={1.8*screenUnit}
+                  paintOrder="stroke" fontWeight="400" pointerEvents="none">
+                  {text}
                 </text>
               })()}
               {freeSewing&&(()=>{
@@ -1629,7 +2027,7 @@ export default function ClothCraftBoardV2({
                   {onEdge.map((marker,i)=>{
                     const p=freeSewingPointAtFraction(indices,boardUV,marker.fraction)
                     return p&&<circle key={i} data-free-sew-marker={String(freeSewPoints.indexOf(marker))}
-                      cx={p[0]} cy={p[1]} r=".011" stroke="#fff" strokeWidth=".003"
+                      cx={p[0]} cy={p[1]} r={3.5*screenUnit} stroke="#fff" strokeWidth=".8" vectorEffect="non-scaling-stroke"
                       fill={freeSewPoints.indexOf(marker)<2?'#1579bd':'#eb953b'}/>
                   })}
                 </g>
@@ -1645,49 +2043,172 @@ export default function ClothCraftBoardV2({
                 x1={location.p[0]} y1={location.p[1]}
                 x2={location.p[0]+location.normal[0]*mark.depth_m}
                 y2={location.p[1]+location.normal[1]*mark.depth_m}
-                stroke="#df3842" strokeWidth=".0038" strokeLinecap="round"
+                {...patternSemanticStroke('notch')} data-pattern-role="notch"
                 pointerEvents="none"/>
             })
           })}
           {showNativeAllowances && Object.entries(panel.polygon?.seam_allowances||{}).flatMap(([edge,width])=>{
             const indices=range.boundaries?.[edge]||[]
-            const path=indices.map(i=>boardUV[i]).filter(Boolean)
-            if(!Number.isFinite(width)||width<=0||path.length<2)return []
-            const guide=path.map((p,i)=>{
-              const a=path[Math.max(0,i-1)],b=path[Math.min(path.length-1,i+1)]
-              const dx=b[0]-a[0],dy=b[1]-a[1],length=Math.hypot(dx,dy)||1
-              return [p[0]+dy/length*width,p[1]-dx/length*width]
+            if(!Number.isFinite(width)||width<=0)return []
+            // Split incomplete cutlines instead of bridging a missing vertex.
+            // Corner miters are bounded in preview geometry; Rust owns the
+            // actual allowance width and production pattern data.
+            return boundarySegments(indices,boardUV).flatMap((run,runIndex)=>{
+              const guide=seamAllowancePreviewPoints(run,width)
+              if(guide.length<2)return []
+              return [<polyline key={`allowance:${edge}:${runIndex}`}
+                data-native-allowance={`${panel.id}:${edge}`}
+                data-seam-allowance-preview="true"
+                points={guide.map(p=>p.join(',')).join(' ')}
+                {...patternSemanticStroke('seam-allowance')} data-pattern-role="seam-allowance"
+                pointerEvents="none"/>]
             })
-            return [<polyline key={`allowance:${edge}`} data-native-allowance={`${panel.id}:${edge}`}
-              points={guide.map(p=>p.join(',')).join(' ')}
-              fill="none" stroke="#9ca0a7" strokeWidth=".0034" strokeDasharray=".014 .01"
-              pointerEvents="none"/>]
           })}
-          <text data-pattern-piece-label={panel.id} x={label[0]} y={label[1] - .028} fontSize=".016" fill={selected?'#47404a':'#697076'}
-            fontWeight={selected?650:500} paintOrder="stroke" stroke="#fbfaf5" strokeWidth=".003" strokeLinejoin="round"
+          <text data-pattern-piece-label={panel.id} x={label[0]} y={label[1]} textAnchor="middle" fontSize={10*screenUnit} fill={selected?'#47404a':'#697076'}
+            fontWeight="400" paintOrder="stroke" stroke="#fff" strokeWidth={1.5*screenUnit} strokeLinejoin="round"
             opacity={selected?1:.85} pointerEvents="none">{panel.name}</text>
-          {showReferenceGuides && <g data-2d-reference-layer={panel.id} opacity={selected?.82:.4}>
-            <ConstructionGuides panel={panel} boundaries={range.boundaries}
-            uv={boardUV} clipId={clipId} preview={currentPreview}
-            showNotchReferences={showNativeNotches}
-            onSelectGuide={!busy&&mode==='edit'&&tool2d==='select'?selectConstructionGuide:null}
-            onCreateGuideLine={!busy&&mode==='edit'&&tool2d==='select'?createNativeLineFromGuide:null}
-            selectedGuide={selectedGuide} hoveredGuideId={hoveredGuideId}/>
-          </g>}
-          {showInternalLines&&<NativeInternalLines panel={panel} range={range} preview={currentPreview}
+          {showInternalLines&&<NativeInternalLines panel={panel} range={range} preview={currentPreview} screenUnit={screenUnit}
             onSelectGuide={!busy&&mode==='edit'&&tool2d==='select'?selectConstructionGuide:null}
             selectedGuide={selectedGuide} hoveredGuideId={hoveredGuideId}
             curveMode={!busy&&mode==='edit'&&tool2d==='curve'}
             activeInternalLine={activeInternalLine} onSelectCurve={selectNativeCurve}
             onStartTangent={(event,source,anchor)=>start(event,source,anchor)}
             handlePreview={handlePreview}/>}
+          {/* Selected guide halves remain visually above prints and their
+              transparent graphic-hit rectangles. This is paint only:
+              no duplicate hit target and no native internal-line creation. */}
+          {hoveredGuideGeometry?.panelId===panel.id&&
+            hoveredGuideGeometry.points?.length===2&&
+            (()=>{
+              const offset=guideHalfCurveDraft?.id===hoveredGuideGeometry.id
+                ?guideHalfCurveDraft.offset:guideHalfCurves[hoveredGuideGeometry.id]
+              const curve=sampleGuideHalfCurve(...hoveredGuideGeometry.points,offset||[0,0],
+                ((panel.layout_rotation_degrees||0)*Math.PI/180)+
+                  (currentPreview?.kind==='rotate'?currentPreview.angle:0))
+              if(!curve)return null
+              const yellow=tool2d==='curve'&&(guideHalfCurveDraft?.id===hoveredGuideGeometry.id||
+                selectedGuide?.id===hoveredGuideGeometry.id)
+              return <polyline data-frontmost-half-hover={hoveredGuideGeometry.id}
+                data-frontmost-hover-curve="true" points={curve.points.map(p=>p.join(',')).join(' ')}
+                fill="none" stroke={yellow?CLO_CURVE_ACTIVE_YELLOW:CLO_HOVER_BLUE}
+                strokeWidth="3" vectorEffect="non-scaling-stroke"
+                strokeLinecap="butt" pointerEvents="none"/>
+            })()}
           {showMeasurements && <Dimensions points={livePoints} selected={selected}
-            panel={panel} boundaries={range.boundaries} uv={boardUV} clipId={clipId} preview={currentPreview}/>}
+            panel={panel} boundaries={range.boundaries} uv={boardUV} clipId={clipId} preview={currentPreview} screenUnit={screenUnit}/>}
+          {selected&&mode==='edit'&&curveEditing&&(()=>{
+            // CLO-like per-edge measurements appear while an edge is being
+            // curved. These are material-space lengths of the exact authored
+            // spline proposal, not straight-line chord estimates.
+            const livePolygon=editablePreview||panel.polygon
+            const rows=curveDraftDimensions(livePolygon)
+            const cornerBounds=getBounds(rows.flatMap(row=>[
+              [row.bounds.minX,row.bounds.minY],[row.bounds.maxX,row.bounds.maxY]]))
+            if(!cornerBounds||!rows.length)return null
+            const total=rows.reduce((sum,item)=>sum+item.length,0)
+            return <g data-curve-pattern-measurements={panel.id}
+              data-measured-native-state={editablePreview?'uncommitted-curve':'native-mesh'}
+              data-total-perimeter-cm={(total*100).toFixed(3)} pointerEvents="none">
+              {rows.map(row=>{
+                const toward=[row.midpoint[0]-cornerBounds.cx,row.midpoint[1]-cornerBounds.cy]
+                const span=Math.hypot(...toward)||1
+                const projected=[row.midpoint[0]+.013*toward[0]/span,row.midpoint[1]+.013*toward[1]/span]
+                const p=previewPoint(transform(panel,range,projected),currentPreview)
+                return <text key={row.edge} data-curve-measured-edge={row.edge}
+                  data-curve-measured-length-cm={(row.length*100).toFixed(3)}
+                  x={p[0]} y={p[1]} fontSize={10*screenUnit}
+                  textAnchor="middle" fill="#5c4315" stroke="#fff8db"
+                  strokeWidth={3.1*screenUnit} paintOrder="stroke"
+                  fontWeight="650">{(row.length*100).toFixed(2)} cm</text>
+              })}
+              {(()=>{
+                const top=previewPoint(transform(panel,range,[cornerBounds.cx,cornerBounds.minY-.044]),currentPreview)
+                const base=previewPoint(transform(panel,range,[cornerBounds.cx,cornerBounds.maxY+.048]),currentPreview)
+                return <>
+                  <text data-curve-width-cm={(cornerBounds.width*100).toFixed(3)}
+                    x={top[0]} y={top[1]} textAnchor="middle" fontSize={12*screenUnit}
+                    fill="#6c4b18" stroke="#fff7da" strokeWidth={4*screenUnit}
+                    paintOrder="stroke" fontWeight="700">
+                    Width {(cornerBounds.width*100).toFixed(1)} cm · Height {(cornerBounds.height*100).toFixed(1)} cm
+                  </text>
+                  <text data-curve-perimeter-cm={(total*100).toFixed(3)}
+                    x={base[0]} y={base[1]} textAnchor="middle" fontSize={11*screenUnit}
+                    fill="#6c4b18" stroke="#fff7da" strokeWidth={4*screenUnit}
+                    paintOrder="stroke">Outline {(total*100).toFixed(2)} cm · 2D cutline</text>
+                </>
+              })()}
+            </g>
+          })()}
+          {mode==='edit'&&tool2d==='curve'&&/front|back|torso|bodice/i.test(panel.id+' '+panel.name)&&(()=>{
+            const angle=(panel.layout_rotation_degrees||0)*Math.PI/180+
+              (currentPreview?.kind==='rotate'?currentPreview.angle:0)
+            const {local}=patternGuideLocalFrame(boardUV,
+              previewPoint(transform(panel,range,[0,0]),currentPreview),angle)
+            const outline=Object.values(range.boundaries||{}).flat().map(i=>local[i]).filter(Boolean)
+            const b=getBounds(outline)
+            if(!b)return null
+            const chest=armpitChestReference(panel.polygon)?.y??b.minY+b.height*.46
+            const belly=b.minY+b.height*.64
+            const stations=torsoSideCurveStations(panel.polygon,chest,belly)
+            return <g data-editable-side-stations={panel.id}>
+              {stations.map(item=>{
+                const p=previewPoint(transform(panel,range,item.position),currentPreview)
+                return <g key={item.edge+':'+item.level}
+                  data-side-edit-station={panel.id+':'+item.edge+':'+item.level}
+                  data-side-edit-station-t={item.t.toFixed(8)}>
+                  <circle cx={p[0]} cy={p[1]} r={7.5*screenUnit}
+                    fill="transparent" stroke="none" style={{cursor:'crosshair'}}
+                    aria-label={item.level==='belly'
+                      ?'Add and drag real curve point at belly guide endpoint'
+                      :'Add and drag real curve point between chest and belly'}
+                    onPointerDown={event=>{
+                      if(busy||event.button!==0)return
+                      const paired=mirrorFreeCurve
+                        ?addNativeFreeCurvePoint(panel.polygon,item.edge,item.t,{mirror:true}):null
+                      const added=paired||addNativeFreeCurvePoint(panel.polygon,item.edge,item.t,{mirror:false})
+                      if(!added?.mark){setFreeCurveStatus('A curve point already exists nearby, or this side cannot accept another point.');return}
+                      start(event,{...panel,polygon:added.polygon},`f:${item.edge}:${added.mark.id}`)
+                      if(drag.current){drag.current.stationDraft=true;drag.current.stationEdge=item.edge;drag.current.originalPanel=panel}
+                    }}/>
+                  <circle cx={p[0]} cy={p[1]} r={4*screenUnit}
+                    fill="#fff8db" stroke="#e25532" strokeWidth={1.65}
+                    vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+                </g>
+              })}
+            </g>
+          })()}
+          {mode==='edit'&&showRedDartGuides&&/front|back|torso|bodice/i.test(panel.id+' '+panel.name)&&(()=>{
+            // The supplied CLO reference has SHORT RED TICKS extending inward
+            // from actual upper-side construction vertices. It does NOT show
+            // floating red triangles at arbitrary points across the belly.
+            // Use the authored underarm vertices shared by the chest bar.
+            const polygon=editablePreview||panel.polygon
+            const edges=polygon?.edges||[]
+            const left=edges.indexOf('side-left'),right=edges.indexOf('side-right')
+            if(left<0||right<0)return null
+            const positions=[
+              {edge:'side-left',uv:polygon.points[(left+1)%edges.length],direction:1},
+              {edge:'side-right',uv:polygon.points[right],direction:-1},
+            ]
+            if(positions.some(item=>!Array.isArray(item.uv)||item.uv.some(n=>!Number.isFinite(n))))return null
+            return <g data-red-dart-guides={panel.id} data-dart-kind="construction"
+              data-dart-physical="false" data-dart-style="short-point-tick" pointerEvents="none">
+              {positions.map(({edge,uv,direction})=>{
+                const a=previewPoint(transform(panel,range,uv),currentPreview)
+                const b=previewPoint(transform(panel,range,[uv[0]+direction*.042,uv[1]-.002]),currentPreview)
+                return <line key={edge} data-red-dart={panel.id+':'+edge}
+                  data-red-dart-anchor-edge={edge}
+                  x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
+                  stroke="#e03c42" strokeWidth="2.75"
+                  vectorEffect="non-scaling-stroke" strokeLinecap="round"/>
+              })}
+            </g>
+          })()}
           {/* CLO also leaves context knots visible on unselected pattern
               pieces. Show real authored corners or native boundary endpoints
               in muted grey; selected corners stay dark. These dots never
               acquire pointer events or modify editable geometry. */}
-          {tool2d==='select' && (()=>{
+          {(tool2d==='select'||(contextNodesInEdit&&mode==='edit'&&['point','curve'].includes(tool2d)&&!selected)) && (()=>{
             const corners=panel.polygon?.points?.length
               ?panel.polygon.points.map(uv=>previewPoint(transform(panel,range,uv),currentPreview))
               :Object.values(range.boundaries||{}).flatMap(indices=>[
@@ -1696,19 +2217,26 @@ export default function ClothCraftBoardV2({
             const unique=corners.filter((p,i)=>corners.findIndex(q=>Math.hypot(p[0]-q[0],p[1]-q[1])<.0005)===i)
             // Keep visible corner marks stable on screen while zooming,
             // rather than allowing them to overwhelm small pieces.
-            const radius=Math.max(.003,Math.min(.012,view[2]*.0035))
+            const radius=pointRadiusInView(selected?PATTERN_METRICS.contextPointRadius:PATTERN_METRICS.inactivePointRadius,screenUnit)
+            const appearance=patternPointGlyph('boundary-corner',{state:selected?'normal':'inactive'})
             return unique.map((p,n)=><circle key={n} data-2d-visible-corner={`${panel.id}:${n}`}
-              cx={p[0]} cy={p[1]} r={radius} fill={selected?'#33383b':'#94999c'}
-              stroke="#f9f9f7" strokeWidth="1" vectorEffect="non-scaling-stroke"
-              opacity={selected?1:.85} pointerEvents="none"/>)
+              cx={p[0]} cy={p[1]} r={radius} fill={appearance.fill}
+              stroke={appearance.stroke} strokeWidth={appearance.strokeWidth} vectorEffect="non-scaling-stroke"
+              opacity={appearance.opacity} pointerEvents="none"/>)
           })()}
           {selected && mode === 'edit' && ['point','curve'].includes(tool2d) && panel.polygon?.points?.map((uv, n) => {
-            const p = previewPoint(transform(panel, range, uv),currentPreview)
-            return <circle key={n} data-control-point="vertex" data-panel-id={panel.id}
+            const livePolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||panel.polygon
+            const livePoint=livePolygon.points?.[n]||uv
+            const p = previewPoint(transform(panel, range, livePoint),currentPreview)
+            const inControl=livePolygon.curves?.[panel.polygon.edges[(n+panel.polygon.points.length-1)%panel.polygon.points.length]]?.[1]||livePoint
+            const outControl=livePolygon.curves?.[panel.polygon.edges[n]]?.[0]||livePoint
+            const role=vectorcraftAnchorKind(livePoint,inControl,outControl)==='smooth'?'smooth-curve':'boundary-corner'
+            const appearance=patternPointGlyph(role,{state:selection?.panel===panel.id&&selection?.anchor===n?'selected':active?.anchor===n?'hovered':'normal'})
+            return <circle key={n} data-control-point="vertex" data-pattern-point-role={role} data-panel-id={panel.id}
               data-promoted-vertex-id={panel.polygon?.vertex_ids?.[panel.polygon?.edges?.[n]]||undefined}
-              cx={p[0]} cy={p[1]} r={Math.max(.004,Math.min(.012,view[2]*.004))}
-              fill={active?.anchor===n ? POINT_COLORS.selectedVertex : POINT_COLORS.vertex}
-              stroke={POINT_COLORS.outline} strokeWidth=".003" style={{cursor:nativeCursor||'pointer'}}
+              cx={p[0]} cy={p[1]} r={pointRadiusInView(selection?.panel===panel.id&&selection?.anchor===n?PATTERN_METRICS.selectedPointRadius:PATTERN_METRICS.editPointRadius,screenUnit)}
+              fill={appearance.fill}
+              stroke={appearance.stroke} strokeWidth={appearance.strokeWidth} vectorEffect="non-scaling-stroke" style={{cursor:'default'}}
               title={tool2d==='curve'?'Drag pattern anchor to reshape curve · Option-click to make a sharp corner':'Drag pattern anchor'}
               onPointerDown={e => {
                 if(tool2d==='curve'&&e.altKey){
@@ -1719,38 +2247,49 @@ export default function ClothCraftBoardV2({
                 start(e,panel,n)
               }}/>
           })}
-          {selected&&tool2d==='curve'&&handlePreview?.panelId===panel.id&&Number.isInteger(handlePreview.anchorIndex)&&
+          {selected&&curveEditing&&handlePreview?.panelId===panel.id&&Number.isInteger(handlePreview.anchorIndex)&&
             (()=>{const polygon=handlePreview.polygon,index=handlePreview.anchorIndex
               const uv=polygon?.points?.[index]
               if(!uv)return null
               const p=previewPoint(transform(panel,range,uv),currentPreview)
               return <circle data-pattern-vertex-preview={`${panel.id}:${index}`}
-                cx={p[0]} cy={p[1]} r=".013" stroke="#7549a2" strokeWidth=".003"
+                cx={p[0]} cy={p[1]} r={4*screenUnit} stroke="#7549a2" strokeWidth="1" vectorEffect="non-scaling-stroke"
                 fill="#f6d77c" pointerEvents="none"/>
             })()}
           {/* Live native curve preview: dragging a VectorCraft-style handle
               changes the displayed contour immediately, without waiting for
               the next Rust triangulation. Measurements are in material cm. */}
-          {selected&&mode==='edit'&&tool2d==='curve'&&selection?.edge&&(()=>{
-            const edge=selection.edge,polygon=panel.polygon
-            const index=polygon?.edges?.indexOf(edge)??-1
-            const previewPolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||polygon
-            const handles=previewPolygon?.curves?.[edge]
-            if(index<0||!Array.isArray(handles)||handles.length!==2)return null
-            const [a,b]=[previewPolygon.points[index],previewPolygon.points[(index+1)%previewPolygon.points.length]]
-            if(![a,b,...handles].every(v=>Array.isArray(v)&&v.length===2&&v.every(Number.isFinite)))return null
-            const [start,c1,c2,end]=[a,handles[0],handles[1],b]
-              .map(uv=>previewPoint(transform(panel,range,uv),currentPreview))
-            const measured=cubicLength(a,handles[0],handles[1],b)
-            return <g data-native-cubic-preview={`${panel.id}:${edge}`} pointerEvents="none">
-              <path d={`M ${start[0]} ${start[1]} C ${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${end[0]} ${end[1]}`}
-                fill="none" stroke="#7a56be" strokeWidth=".0045" strokeDasharray=".012 .004"/>
-              {Number.isFinite(measured)&&<text x={(start[0]+end[0])/2} y={(start[1]+end[1])/2-.016}
-                data-native-cubic-length-cm={(measured*100).toFixed(3)}
-                textAnchor="middle" fill="#61459c" stroke="#fff" strokeWidth=".0014"
-                paintOrder="stroke" fontSize=".014">{(measured*100).toFixed(2)} cm</text>}
-            </g>
-          })()}
+          {selected&&mode==='edit'&&curveEditing&&
+            handlePreview?.panelId===panel.id&&handlePreview.anchor?.startsWith('c:')&&
+            handlePreview.polygon&&(()=>{
+              const polygon=handlePreview.polygon
+              const editedEdge=handlePreview.anchor.split(':')[1]
+              const baseline=editingPolygon(panel)
+              return <g data-native-cubic-preview={panel.id} pointerEvents="none">
+                {Object.entries(polygon.curves||{})
+                  .filter(([edge,controls])=>edge===editedEdge||
+                    JSON.stringify(controls)!==JSON.stringify(baseline.curves?.[edge]))
+                  .map(([edge,handles])=>{
+                    const index=polygon.edges?.indexOf(edge)??-1
+                    if(index<0||!Array.isArray(handles)||handles.length!==2)return null
+                    const a=polygon.points[index],b=polygon.points[(index+1)%polygon.points.length]
+                    if(![a,b,...handles].every(v=>Array.isArray(v)&&v.length===2&&v.every(Number.isFinite)))return null
+                    const [start,c1,c2,end]=[a,handles[0],handles[1],b]
+                      .map(uv=>previewPoint(transform(panel,range,uv),currentPreview))
+                    const measured=cubicLength(a,handles[0],handles[1],b)
+                    return <g key={edge} data-preview-curve-edge={edge}>
+                      <path data-active-bezier-contour={`${panel.id}:${edge}`}
+                        d={`M ${start[0]} ${start[1]} C ${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${end[0]} ${end[1]}`}
+                        fill="none" stroke={CLO_CURVE_ACTIVE_YELLOW} strokeWidth="2.25"
+                        strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
+                      {Number.isFinite(measured)&&<text x={(start[0]+end[0])/2} y={(start[1]+end[1])/2-12*screenUnit}
+                        data-native-cubic-length-cm={(measured*100).toFixed(3)}
+                        textAnchor="middle" fill="#5a4612" stroke="#fff" strokeWidth={2*screenUnit}
+                        paintOrder="stroke" fontSize={11*screenUnit}>{(measured*100).toFixed(2)} cm</text>}
+                    </g>
+                  })}
+              </g>
+            })()}
           {/* Free curve points remain attached to their original named edge,
               independent of the topological corner points and Bézier handles. */}
           {mode==='edit'&&tool2d==='split'&&Object.values(panel.polygon?.free_curve_points||{})
@@ -1771,13 +2310,22 @@ export default function ClothCraftBoardV2({
                     data-mirrored-split-edges={items.map(item=>item.edge).join('|')}
                     x1={positions[0][0]} y1={positions[0][1]} x2={positions[1][0]} y2={positions[1][1]}
                     stroke={hoveredSplitMirrorGroup===group?'#a94a29':'#b3775e'}
-                    strokeWidth={hoveredSplitMirrorGroup===group?'.006':'.0035'}
-                    strokeDasharray=".012 .008" opacity={hoveredSplitMirrorGroup===group?1:.7}/>
+                    strokeWidth={hoveredSplitMirrorGroup===group?1.1:.75} vectorEffect="non-scaling-stroke"
+                    strokeDasharray="4 3" opacity={hoveredSplitMirrorGroup===group?1:.7}/>
                 })}
               </g>
             })()}
-          {mode==='edit'&&['curve','split'].includes(tool2d)&&Object.entries(panel.polygon?.free_curve_points||{})
-            .filter(([edge])=>tool2d==='split'||(selected&&selection?.edge===edge))
+          {mode==='edit'&&['point','curve','split'].includes(tool2d)&&Object.entries(
+            handlePreview?.panelId===panel.id&&handlePreview.polygon?.free_curve_points
+              ?handlePreview.polygon.free_curve_points:panel.polygon?.free_curve_points||{})
+            .filter(([edge])=>tool2d==='split'||(selected&&selection?.edge===edge)||
+              (selected&&handlePreview?.panelId===panel.id&&
+                /^(f|ft):/.test(handlePreview.anchor||'')&&
+                (handlePreview.anchor.split(':')[1]===edge||
+                  (handlePreview.polygon?.free_curve_points?.[edge]||[]).some(mark=>
+                    mark.mirror_group&&mark.mirror_group===
+                    handlePreview.polygon?.free_curve_points?.[handlePreview.anchor.split(':')[1]]
+                      ?.find(item=>item.id===handlePreview.anchor.split(':')[2])?.mirror_group))))
             .flatMap(([edge,marks])=>marks.map(mark=>{
               const shown=handlePreview?.panelId===panel.id&&handlePreview.polygon?.free_curve_points?.[edge]
                 ?.find(candidate=>candidate.id===mark.id)?.position||mark.position
@@ -1792,7 +2340,9 @@ export default function ClothCraftBoardV2({
                 const sign=side==='in'?-1:1
                 const end=vector?.map((value,i)=>shown[i]+sign*value*.18)
                 const point=end?.every(Number.isFinite)?previewPoint(transform(panel,range,end),currentPreview):null
-                return {side,point}
+                const key=`ft:${edge}:${mark.id}:${side}`
+                const visual=point?visibleTangent(p,point,screenUnit,drag.current?.anchor===key?drag.current.controlScale:null):null
+                return {side,point:visual?.point,scale:visual?.scale}
               })
               return <g key={`free:${edge}:${mark.id}`} data-control-point="free-curve"
                 data-free-curve-point={`${panel.id}:${edge}:${mark.id}`}
@@ -1825,21 +2375,28 @@ export default function ClothCraftBoardV2({
                   }
                   start(event,panel,`f:${edge}:${mark.id}`)
                 }} onClick={event=>event.stopPropagation()}>
-                <circle cx={p[0]} cy={p[1]} r={Math.max(.018,view[2]*.02)}
+                <circle cx={p[0]} cy={p[1]} r={10*screenUnit}
                   fill="transparent" stroke="none" aria-hidden="true"/>
-                {tool2d==='split'&&mark.mirror_group&&<circle cx={p[0]} cy={p[1]} r=".019"
-                  fill="none" stroke="#ae6a40" strokeWidth=".0025" strokeDasharray=".005 .004"
+                {tool2d==='split'&&mark.mirror_group&&<circle cx={p[0]} cy={p[1]} r={7*screenUnit}
+                  fill="none" stroke="#ae6a40" strokeWidth=".8" vectorEffect="non-scaling-stroke" strokeDasharray="2 2"
                   opacity={hoveredSplitMirrorGroup===mark.mirror_group?1:.8} pointerEvents="none" aria-hidden="true"/>}
-                <circle cx={p[0]} cy={p[1]} r=".0125"
+                <circle cx={p[0]} cy={p[1]} r={3.5*screenUnit}
                   fill={tool2d==='split'&&mark.mirror_group?'#fce5ab':'#fceae0'}
-                  stroke={hoveredSplitMirrorGroup===mark.mirror_group?'#a43924':'#d45632'}
-                  strokeWidth={hoveredSplitMirrorGroup===mark.mirror_group?'.005':'.0035'} pointerEvents="none" aria-hidden="true"/>
-                {tool2d==='curve'&&<g data-free-curve-tangent={`${panel.id}:${edge}:${mark.id}`}>
-                  {tangents.filter(item=>item.point).map(({side,point:tangent})=><g key={side}>
+                  stroke={mark.mirror_group&&hoveredSplitMirrorGroup===mark.mirror_group?'#a43924':'#d45632'}
+                  strokeWidth={mark.mirror_group&&hoveredSplitMirrorGroup===mark.mirror_group?1.25:.9} vectorEffect="non-scaling-stroke" pointerEvents="none" aria-hidden="true"/>
+                {curveEditing&&<g data-free-curve-tangent={`${panel.id}:${edge}:${mark.id}`}>
+                  {tangents.filter(item=>item.point).map(({side,point:tangent,scale})=><g key={side}>
+                    {/* A live tangent owns its own arm. Opposite arms remain
+                        independently addressable and never both glow by hover. */}
                     <line x1={p[0]} y1={p[1]} x2={tangent[0]} y2={tangent[1]}
-                      stroke="#7654ac" strokeWidth=".0025" pointerEvents="none"/>
-                    <circle cx={tangent[0]} cy={tangent[1]} r=".012"
-                      fill={side==='in'?'#a883d2':'#8253bd'} stroke="#fff" strokeWidth=".0025"
+                      stroke={handlePreview?.anchor===`ft:${edge}:${mark.id}:${side}`?CLO_CURVE_ACTIVE_YELLOW:PATTERN_VISUAL.curveArm}
+                      strokeWidth={handlePreview?.anchor===`ft:${edge}:${mark.id}:${side}`?2:PATTERN_METRICS.curveArm}
+                      vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+                    <circle cx={tangent[0]} cy={tangent[1]} r={PATTERN_METRICS.curvePointRadius*screenUnit} data-control-scale={scale}
+                      data-active-curve-handle={String(handlePreview?.anchor===`ft:${edge}:${mark.id}:${side}`)}
+                      fill={handlePreview?.anchor===`ft:${edge}:${mark.id}:${side}`?'#fef08a':PATTERN_VISUAL.curveControlFill}
+                      stroke={handlePreview?.anchor===`ft:${edge}:${mark.id}:${side}`?CLO_CURVE_ACTIVE_YELLOW:PATTERN_VISUAL.curveControlOutline}
+                      strokeWidth="1.15" vectorEffect="non-scaling-stroke"
                       style={{cursor:'crosshair'}}
                       aria-label={`Drag ${side==='in'?'incoming':'outgoing'} curve tangent · Option breaks smooth link · Shift snaps to 45 degrees`}
                       data-free-curve-tangent-handle={`${panel.id}:${edge}:${mark.id}:${side}`}
@@ -1851,13 +2408,13 @@ export default function ClothCraftBoardV2({
                 </g>}
               </g>
             }))}
-          {selected&&mode==='edit'&&tool2d==='curve'&&selection?.edge&&
-            handlePreview?.panelId===panel.id&&handlePreview.anchor?.startsWith('f:')&&(()=>{
+          {selected&&mode==='edit'&&curveEditing&&
+            handlePreview?.panelId===panel.id&&
+            (handlePreview.anchor?.startsWith('f:')||handlePreview.anchor?.startsWith('ft:'))&&(()=>{
               const polygon=handlePreview.polygon
-              const edge=selection.edge
+              const [,edge,anchorId]=handlePreview.anchor.split(':')
               if(!polygon?.free_curve_points?.[edge]?.length)return null
-              const [,anchorEdge,anchorId]=handlePreview.anchor.split(':')
-              const group=polygon.free_curve_points[anchorEdge]?.find(item=>item.id===anchorId)?.mirror_group
+              const group=polygon.free_curve_points[edge]?.find(item=>item.id===anchorId)?.mirror_group
               const shownEdges=group?Object.entries(polygon.free_curve_points)
                 .filter(([_,marks])=>marks.some(mark=>mark.mirror_group===group)).map(([edge])=>edge):[edge]
               return <g data-native-free-curve-preview={`${panel.id}:${edge}`} pointerEvents="none">
@@ -1868,39 +2425,59 @@ export default function ClothCraftBoardV2({
                   const length=points.slice(1).reduce((sum,p,i)=>sum+Math.hypot(p[0]-points[i][0],p[1]-points[i][1]),0)
                   const midpoint=points[Math.floor(points.length/2)]
                   return <g key={shownEdge} data-preview-curve-edge={shownEdge}>
-                    <polyline points={points.map(p=>p.join(',')).join(' ')} fill="none" stroke="#cc533c"
-                      strokeWidth=".005" strokeDasharray=".011 .004"/>
-                    <text x={midpoint[0]} y={midpoint[1]-.02} textAnchor="middle"
-                      fill="#9c3729" stroke="#fff" strokeWidth=".0014" paintOrder="stroke"
-                      fontSize=".015" data-native-free-curve-length-cm={(length*100).toFixed(3)}>
+                    <polyline points={points.map(p=>p.join(',')).join(' ')} fill="none"
+                      stroke={CLO_CURVE_ACTIVE_YELLOW} strokeWidth="2.25" vectorEffect="non-scaling-stroke"/>
+                    <text x={midpoint[0]} y={midpoint[1]-12*screenUnit} textAnchor="middle"
+                      fill="#46536b" stroke="#fff" strokeWidth={2*screenUnit} paintOrder="stroke"
+                      fontSize={11*screenUnit} data-native-free-curve-length-cm={(length*100).toFixed(3)}>
                       {(length*100).toFixed(2)} cm
                     </text>
                   </g>
                 })}
               </g>
             })()}
-          {selected && mode === 'edit' && tool2d === 'curve' && Object.entries(panel.polygon?.curves || {})
-            .filter(([edge])=>selection?.edge===edge)
+          {selected && mode === 'edit' && curveEditing &&
+            Object.entries(handlePreview?.panelId===panel.id&&handlePreview.polygon?.curves
+              ?handlePreview.polygon.curves:editingPolygon(panel)?.curves || {})
+            .filter(([edge])=>Number.isInteger(selection?.anchor)
+              ?[panel.polygon.edges[selection.anchor],panel.polygon.edges[(selection.anchor+panel.polygon.edges.length-1)%panel.polygon.edges.length]].includes(edge)
+              :selection?.edge===edge||
+                (handlePreview?.anchor?.startsWith('c:')&&
+                  JSON.stringify(handlePreview.polygon?.curves?.[edge])!==JSON.stringify(panel.polygon.curves?.[edge])))
             .flatMap(([edge, controls]) => controls.map((uv, index) => {
-            const moved=handlePreview?.panelId===panel.id
-              ?handlePreview.polygon?.curves?.[edge]?.[index]||uv:uv
-            const p = previewPoint(transform(panel, range, moved),currentPreview)
-            const edgeIndex = panel.polygon.edges.indexOf(edge)
-            const original = panel.polygon.points[(edgeIndex + index) % panel.polygon.points.length]
-            if (!original) return null
-            const anchor = previewPoint(transform(panel, range, original),currentPreview)
-            return <g key={`${edge}-${index}`}>
-              <line x1={anchor[0]} y1={anchor[1]} x2={p[0]} y2={p[1]} stroke="#6f6690" strokeWidth="1.2" vectorEffect="non-scaling-stroke"/>
+            const edgeIndex=panel.polygon.edges.indexOf(edge)
+            const vertex=(edgeIndex+index)%panel.polygon.points.length
+            if(Number.isInteger(selection?.anchor)&&vertex!==selection.anchor)return null
+            const moved=handlePreview?.panelId===panel.id?handlePreview.polygon?.curves?.[edge]?.[index]||uv:uv
+            const original=handlePreview?.panelId===panel.id&&handlePreview.polygon?.points?.[vertex]||
+              panel.polygon.points[vertex]
+            if(!original)return null
+            const anchor=previewPoint(transform(panel,range,original),currentPreview)
+            const control=previewPoint(transform(panel,range,moved),currentPreview)
+            const key=`c:${edge}:${index}`
+            const activeHandle=handlePreview?.panelId===panel.id&&handlePreview.anchor===key
+            const selectedEdgeHandle=selection?.edge===edge
+            const shown=visibleTangent(anchor,control,screenUnit,drag.current?.anchor===key?drag.current.controlScale:null)
+            const p=shown.point
+            return <g key={`${edge}-${index}`} data-bezier-arm={`${panel.id}:${edge}:${index}`}>
+              <line data-bezier-tangent-line="true" x1={anchor[0]} y1={anchor[1]} x2={p[0]} y2={p[1]}
+                stroke={activeHandle||selectedEdgeHandle?CLO_CURVE_ACTIVE_YELLOW:PATTERN_VISUAL.curveArm}
+                strokeWidth={activeHandle?2:PATTERN_METRICS.curveArm} vectorEffect="non-scaling-stroke" pointerEvents="none"/>
               <circle data-control-point="curve" data-curve-handle={`${panel.id}:${edge}:${index}`}
-                data-panel-id={panel.id} cx={p[0]} cy={p[1]} r={Math.max(.004,Math.min(.012,view[2]*.004))}
-                fill={POINT_COLORS.curve} stroke={POINT_COLORS.outline} strokeWidth=".002" style={{cursor:nativeCursor||'pointer'}}
-                aria-label="Bézier handle · Shift for angle snap · Option to break tangent"
-                onPointerDown={e => start(e, panel, `c:${edge}:${index}`)}/>
+                data-active-curve-handle={String(Boolean(activeHandle))}
+                data-control-scale={shown.scale} data-bezier-anchor-index={vertex}
+                data-panel-id={panel.id} cx={p[0]} cy={p[1]} r={pointRadiusInView(PATTERN_METRICS.curvePointRadius,screenUnit)}
+                fill={activeHandle?'#fef08a':PATTERN_VISUAL.curveControlFill}
+                stroke={activeHandle||selectedEdgeHandle?CLO_CURVE_ACTIVE_YELLOW:PATTERN_VISUAL.curveControlOutline}
+                strokeWidth={activeHandle?1.8:1.2} vectorEffect="non-scaling-stroke"
+                style={{cursor:'default'}} aria-label={`${index===0?'Outgoing':'Incoming'} Bézier handle · Option to break tangent · Shift to snap`}
+                onClick={e=>e.stopPropagation()}
+                onPointerDown={e=>start(e,panel,key)}/>
             </g>
           }))}
         </g>
       })}
-      {(s?.seams || []).flatMap((seam, i) => {
+      {sewingOverlayVisible && (s?.seams || []).flatMap((seam, i) => {
         const spec = s.template?.seams?.find(item => item.id === seam.id)
         if (!spec) return []
         // A selected *piece* should not flood the board with hundreds of
@@ -1909,19 +2486,25 @@ export default function ClothCraftBoardV2({
         const chosen=editSewingActive&&selection?.seamId===seam.id
         const emphasized = chosen || (!!active?.edge && [spec.a, spec.b].some(b => b?.panel === active.panel && b.edge === active.edge))
         const color = SEAM_COLORS[i % SEAM_COLORS.length]
-        return (seam.guides || []).filter((_, j) => j % (emphasized ? 3 : 16) === 0).flatMap((pair, j) => {
+        const pairs=seam.guides||[]
+        // In normal sewing mode show the eligible cutline, not a net of
+        // cross-garment threads. The correspondence is a contextual preview
+        // of one hovered/selected seam; Edit Sewing can inspect the others.
+        if (!emphasized) return []
+        return samplePatternSewingGuideIndices(pairs.length,{emphasized}).flatMap(j => {
+          const pair=pairs[j]
           const a = weighted(pair[0], boardUV), b = weighted(pair[1], boardUV)
           if (!a || !b) return []
-          return <g key={`${seam.id}-${j}`} pointerEvents="none">
+          return <g key={`${seam.id}-${j}`} data-sewing-guide-index={j} pointerEvents="none">
             <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={emphasized ? '#ef6339' : color}
-              strokeWidth={emphasized ? '.003' : '.00125'} strokeDasharray=".01 .012" opacity={emphasized ? 1 : .42}/>
+              strokeWidth={emphasized?1:.65} vectorEffect="non-scaling-stroke" strokeDasharray="4 5" opacity={emphasized ? 1 : .42}/>
             {editSewingActive&&<line data-edit-seam-guide={seam.id} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
               fill="none" stroke="transparent" strokeWidth=".013" pointerEvents="stroke"
               style={{cursor:SEWING_CURSOR}} onPointerDown={event=>event.stopPropagation()}
               onClick={event=>{event.stopPropagation();onSelectSewingSeam(seam.id)}}/>}
             {showSeamDots && <>
-              <circle data-control-point="seam" cx={a[0]} cy={a[1]} r={emphasized ? '.008' : '.006'} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".0015"/>
-              <circle data-control-point="seam" cx={b[0]} cy={b[1]} r={emphasized ? '.008' : '.006'} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".0015"/>
+              <circle data-control-point="seam" cx={a[0]} cy={a[1]} r={(emphasized?2.5:1.9)*screenUnit} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".7" vectorEffect="non-scaling-stroke"/>
+              <circle data-control-point="seam" cx={b[0]} cy={b[1]} r={(emphasized?2.5:1.9)*screenUnit} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".7" vectorEffect="non-scaling-stroke"/>
             </>}
           </g>
         })
@@ -1938,30 +2521,30 @@ export default function ClothCraftBoardV2({
         })
         if(locations.some(p=>!p))return null
         return <g data-native-walk-overlay={walkSeamId} pointerEvents="none">
-          <line x1={locations[0][0]} y1={locations[0][1]} x2={locations[1][0]} y2={locations[1][1]} stroke="#b05b26" strokeWidth=".003" strokeDasharray=".012 .006"/>
+          <line x1={locations[0][0]} y1={locations[0][1]} x2={locations[1][0]} y2={locations[1][1]} stroke="#b05b26" strokeWidth="1" vectorEffect="non-scaling-stroke" strokeDasharray="5 3"/>
           {locations.map((p,i)=><g key={i} data-native-walk-marker={i}>
-            <circle cx={p[0]} cy={p[1]} r=".013" fill={i?'#f1c874':'#49a8be'} stroke="#27313a" strokeWidth=".003"/>
-            <text x={p[0]} y={p[1]-.019} fontSize=".022" textAnchor="middle" fontWeight="700" fill="#27313a" paintOrder="stroke" stroke="#f4eee7" strokeWidth=".006">{i?'B':'A'}</text>
+            <circle cx={p[0]} cy={p[1]} r={4*screenUnit} fill={i?'#f1c874':'#49a8be'} stroke="#27313a" strokeWidth=".8" vectorEffect="non-scaling-stroke"/>
+            <text x={p[0]} y={p[1]-9*screenUnit} fontSize={11*screenUnit} textAnchor="middle" fontWeight="700" fill="#27313a" paintOrder="stroke" stroke="#f4eee7" strokeWidth={2*screenUnit}>{i?'B':'A'}</text>
           </g>)}
         </g>
       })()}
       {(draft.length > 0||pencilSamples.length>0) && <polyline data-vector-draft={tool2d==='vector-pencil'?'pencil':tool2d==='vector-pen'?'pen':'pattern'}
         points={(pencilSamples.length?pencilSamples:draft).map(p => p.join(',')).join(' ')}
-        fill="none" stroke="#ef6339" strokeWidth=".005" pointerEvents="none"/>}
+        fill="none" stroke="#6888bf" strokeWidth="1.2" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
       {tool2d==='vector-pen'&&draft.map((p,i)=>{const t=vectorTangents[i]||[0,0];return <g key={i} data-vector-pen-anchor={i} pointerEvents="none">
-        <circle cx={p[0]} cy={p[1]} r=".008" fill="#fff" stroke="#7854be" strokeWidth=".002"/>
-        {Math.hypot(...t)>.001&&<><line x1={p[0]-t[0]} y1={p[1]-t[1]} x2={p[0]+t[0]} y2={p[1]+t[1]} stroke="#7758bd" strokeDasharray=".005 .003" strokeWidth=".002"/>
-          <circle cx={p[0]+t[0]} cy={p[1]+t[1]} r=".006" fill="#795aba"/></>}
+        <circle cx={p[0]} cy={p[1]} r={3*screenUnit} fill="#fff" stroke="#6888bf" strokeWidth=".8" vectorEffect="non-scaling-stroke"/>
+        {Math.hypot(...t)>.001&&<><line x1={p[0]-t[0]} y1={p[1]-t[1]} x2={p[0]+t[0]} y2={p[1]+t[1]} stroke="#6888bf" strokeDasharray="4 3" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
+          <circle cx={p[0]+t[0]} cy={p[1]+t[1]} r={3.5*screenUnit} fill="#fff" stroke="#6888bf" strokeWidth=".8" vectorEffect="non-scaling-stroke"/></>}
       </g>})}
-      {measuring && tape.map((p,i)=><circle key={i} data-tape-point={i} aria-label={`Measurement endpoint ${i+1}`} cx={p[0]} cy={p[1]} r={editingTape?'.014':'.010'} fill="#fff" stroke="#166478" strokeWidth=".003" pointerEvents={editingTape?'all':'none'} style={{cursor:editingTape?'move':'default'}} onPointerDown={e=>{
+      {measuring && tape.map((p,i)=><circle key={i} data-tape-point={i} aria-label={`Measurement endpoint ${i+1}`} cx={p[0]} cy={p[1]} r={(editingTape?4:3)*screenUnit} fill="#fff" stroke="#166478" strokeWidth=".8" vectorEffect="non-scaling-stroke" pointerEvents={editingTape?'all':'none'} style={{cursor:editingTape?'move':'default'}} onPointerDown={e=>{
         if(!editingTape||busy)return
         e.stopPropagation();e.preventDefault()
         tapeDrag.current={index:i}
         svg.current?.setPointerCapture(e.pointerId)
       }}/>)}
       {measuring && tape.length===2 && <g data-tape-measurement="true" pointerEvents="none">
-        <line x1={tape[0][0]} y1={tape[0][1]} x2={tape[1][0]} y2={tape[1][1]} stroke="#166478" strokeWidth=".004" strokeDasharray=".012 .007"/>
-        <text x={(tape[0][0]+tape[1][0])/2} y={(tape[0][1]+tape[1][1])/2-.025} textAnchor="middle" fontSize=".029" fontWeight="600" fill="#164654" stroke="#eaf0f0" strokeWidth=".008" paintOrder="stroke">{formatCm(Math.hypot(tape[1][0]-tape[0][0],tape[1][1]-tape[0][1]))}</text>
+        <line x1={tape[0][0]} y1={tape[0][1]} x2={tape[1][0]} y2={tape[1][1]} stroke="#166478" strokeWidth="1" vectorEffect="non-scaling-stroke" strokeDasharray="5 3"/>
+        <text x={(tape[0][0]+tape[1][0])/2} y={(tape[0][1]+tape[1][1])/2-10*screenUnit} textAnchor="middle" fontSize={11*screenUnit} fontWeight="500" fill="#37464d" stroke="#fff" strokeWidth={2*screenUnit} paintOrder="stroke">{formatCm(Math.hypot(tape[1][0]-tape[0][0],tape[1][1]-tape[0][1]))}</text>
       </g>}
       {panels.flatMap(({panel,range})=>(panel.polygon?.measurements||[]).map(measurement=>{
         const a=boundaryMark(range.boundaries?.[measurement.a?.edge]||[],measurement.a?.t)?.p
@@ -1969,9 +2552,9 @@ export default function ClothCraftBoardV2({
         if(!a||!b)return null
         const isSelected=selectedPom?.panel===panel.id&&selectedPom?.id===measurement.id
         return <g key={`${panel.id}:${measurement.id}`} data-native-pom={measurement.id} data-native-pom-panel={panel.id} pointerEvents="none">
-          <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={isSelected?'#f68c35':'#126c79'} strokeWidth={isSelected?'.006':'.004'} strokeDasharray=".012 .005"/>
-          {[a,b].map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r=".007" fill="#fff" stroke="#126c79" strokeWidth=".003"/>)}
-          <text x={(a[0]+b[0])/2} y={(a[1]+b[1])/2-.019} textAnchor="middle" fontSize=".020" fill="#164654" stroke="#f8faf8" strokeWidth=".006" paintOrder="stroke">{measurement.label}: {formatCm(Math.hypot(b[0]-a[0],b[1]-a[1]))}</text>
+          <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={isSelected?'#f68c35':'#126c79'} strokeWidth={isSelected?1.2:.8} vectorEffect="non-scaling-stroke" strokeDasharray="5 3"/>
+          {[a,b].map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r={2.5*screenUnit} fill="#fff" stroke="#126c79" strokeWidth=".8" vectorEffect="non-scaling-stroke"/>)}
+          <text x={(a[0]+b[0])/2} y={(a[1]+b[1])/2-10*screenUnit} textAnchor="middle" fontSize={11*screenUnit} fill="#37464d" stroke="#fff" strokeWidth={2*screenUnit} paintOrder="stroke">{measurement.label}: {formatCm(Math.hypot(b[0]-a[0],b[1]-a[1]))}</text>
         </g>
       }))}
       </g>

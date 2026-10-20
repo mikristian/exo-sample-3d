@@ -367,8 +367,6 @@
 .clo-tool-palette-label { height:27px; flex:0 0 27px; display:flex; align-items:center; justify-content:center; gap:8px; font-size:9px; font-weight:750; color:#a6b9ca; letter-spacing:.06em; background:#262d36; }
 .clo-tool-palette-label span { color:#83c7ed; }
 .clo-right-tool-grid { display:grid; grid-template-columns:repeat(2,32px); justify-content:center; align-content:start; gap:3px; padding:6px 1px 20px; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; }
-.clo-right-tool-palette .clo-foam-padding-launch{align-self:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:calc(100% - 8px);min-height:43px;margin:4px;padding:4px 2px;color:#d7edf8;background:#303f4a;border:1px solid #526879;border-radius:5px;cursor:pointer;font-size:9px;font-weight:700;letter-spacing:.045em}
-.clo-right-tool-palette .clo-foam-padding-launch:hover,.clo-right-tool-palette .clo-foam-padding-launch:focus-visible{color:#fff;background:#38586a;border-color:#77adca}
 .clo-right-tool-grid button { width:32px; height:32px; border:1px solid transparent; border-radius:4px; color:#b1bdcc; background:#272e37; display:grid; place-items:center; cursor:pointer; }
 .clo-right-tool-grid button:hover:not(:disabled) { color:#e0f6ff; border-color:#719dc3; background:#344a5d; }
 .clo-right-tool-grid button.active { color:#c0edff; border-color:#64c3ec; background:#25516a; }

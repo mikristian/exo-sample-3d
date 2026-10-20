@@ -118,6 +118,13 @@
   display:flex;
   flex-direction:row;
 }
+/* The shared hover/focus rule above the Pattern Display rules otherwise
+   reopens this menu immediately after Escape while the trigger still has focus.
+   A dismissed or genuinely closed menu must stay out of the canvas and tab flow. */
+.cc-corner-tool-host .clo-corner-toolkit.exo-viewport-inline-tools .cc-2d-display-host[data-open="false"] > .cc-2d-display-menu,
+.cc-corner-tool-host .clo-corner-toolkit.exo-viewport-inline-tools .cc-2d-display-host[data-dismissed="true"] > .cc-2d-display-menu {
+  display:none;
+}
 .cc-corner-tool-host .clo-corner-toolkit.exo-viewport-inline-tools .cc-2d-display-menu > button {
   flex:0 0 30px;
   width:30px;
@@ -156,4 +163,76 @@
 .cc-2d-display-selection button:disabled {opacity:.4;cursor:not-allowed}
 @media(prefers-reduced-transparency:reduce){
   .cc-2d-display-host .cc-2d-display-details {background:#34414b;backdrop-filter:none;-webkit-backdrop-filter:none}
+}
+
+/* The left 3D toolbar is a single glass sheet. The upper-right 2D toolbar
+   has an additional palette/scroll/workflow hierarchy; keep those inner
+   wrappers optically clear so its chrome matches the left rail. */
+.app-shell[data-studio-liquid-glass="true"][data-studio-customized="true"]:not([data-glass-toolbars="false"]) .clo-right-tool-palette {
+  background:linear-gradient(140deg,rgba(242,253,255,.10),rgba(224,239,255,.025) 34%,rgba(4,13,23,.045) 85%),color-mix(in srgb,var(--studio-panel) var(--studio-glass-fill,51%),transparent)!important;
+  border-color:var(--studio-glass-rim)!important;
+  border-radius:10px;
+  backdrop-filter:blur(var(--studio-glass-blur,17px)) saturate(148%)!important;
+  -webkit-backdrop-filter:blur(var(--studio-glass-blur,17px)) saturate(148%)!important;
+  box-shadow:inset 0 1px 0 rgba(245,252,255,.19),0 5px 18px rgba(4,10,18,.15)!important;
+}
+.app-shell[data-studio-liquid-glass="true"][data-studio-customized="true"]:not([data-glass-toolbars="false"]) .clo-right-tool-palette :is(.clo-palette-scroll,.clo-palette-workflows,.clo-reference-dual-bars,.clo-reference-column,.clo-right-tool-grid,.clo-tool-palette-group-divider) {
+  background:transparent!important;
+  background-color:transparent!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+.app-shell[data-studio-liquid-glass="true"][data-studio-customized="true"]:not([data-glass-toolbars="false"]) .clo-right-tool-palette :is(.clo-reference-column,.clo-palette-workflows) button:not(:hover):not(:focus-visible):not(.active):not([aria-pressed="true"]) {
+  background:transparent!important;
+  border-color:transparent!important;
+  box-shadow:none!important;
+}
+@media(prefers-reduced-transparency:reduce){
+  .app-shell[data-studio-liquid-glass="true"][data-studio-customized="true"] .clo-right-tool-palette {
+    background:var(--studio-panel)!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+}
+
+/* Both fixed side rails should keep the same liquid-glass lens even if the
+   overall Studio material is Solid. This is deliberately scoped to toolbars;
+   changing their appearance must not switch the Library or Property Editor
+   away from a user's chosen opaque theme. */
+.app-shell[data-studio-customized="true"][data-studio-liquid-glass="false"]
+  :is(.tool-rail,.clo-left-3d-double-bars,.clo-right-tool-palette) {
+  background:linear-gradient(140deg,rgba(242,253,255,.10),rgba(224,239,255,.03) 34%,rgba(4,13,23,.05) 85%),
+    color-mix(in srgb,var(--studio-sidebar) 60%,transparent)!important;
+  /* Other Studio theme rules set the longhand background-image to none;
+     asserting both parts individually ensures the glass actually looks
+     translucent rather than just reporting a blur in computed styles. */
+  background-image:linear-gradient(140deg,rgba(242,253,255,.10),rgba(224,239,255,.03) 34%,rgba(4,13,23,.05) 85%)!important;
+  background-color:color-mix(in srgb,var(--studio-sidebar) 60%,transparent)!important;
+  border-color:color-mix(in srgb,var(--studio-border) 70%,rgba(236,249,255,.58))!important;
+  backdrop-filter:blur(17px) saturate(148%)!important;
+  -webkit-backdrop-filter:blur(17px) saturate(148%)!important;
+  box-shadow:inset 0 1px 0 rgba(245,252,255,.18),0 5px 18px rgba(4,10,18,.15)!important;
+}
+.app-shell[data-studio-customized="true"][data-studio-liquid-glass="false"]
+  :is(.clo-right-tool-palette,.clo-left-3d-double-bars)
+  :is(.clo-palette-scroll,.clo-palette-workflows,.clo-reference-dual-bars,.clo-reference-column,.clo-right-tool-grid,.clo-left-3d-column,.clo-tool-palette-group-divider) {
+  background:transparent!important;
+  background-color:transparent!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+.app-shell[data-studio-liquid-glass="true"][data-studio-customized="true"]:not([data-glass-toolbars="false"])
+  .clo-right-tool-palette {
+  background-image:linear-gradient(140deg,rgba(242,253,255,.10),rgba(224,239,255,.025) 34%,rgba(4,13,23,.045) 85%)!important;
+  background-color:color-mix(in srgb,var(--studio-panel) var(--studio-glass-fill,51%),transparent)!important;
+}
+@media(prefers-reduced-transparency:reduce){
+  .app-shell[data-studio-customized="true"][data-studio-liquid-glass="false"]
+    :is(.tool-rail,.clo-left-3d-double-bars,.clo-right-tool-palette) {
+    background:var(--studio-sidebar)!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
 }

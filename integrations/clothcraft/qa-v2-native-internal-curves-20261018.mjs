@@ -1,5 +1,7 @@
 // Real native Rust + browser; all edits happen inside a disposable workspace.
 import assert from 'node:assert/strict'
+import {PATTERN_VISUAL} from '../../src/core/patternVisualTokens.js'
+import {createServer} from 'node:net'
 import {spawn} from 'node:child_process'
 import {mkdtempSync,mkdirSync} from 'node:fs'
 import {tmpdir} from 'node:os'
@@ -32,6 +34,9 @@ async function command(body){
 }
 let browser,page
 try{
+  for(const checkPort of [port,webPort]){
+    const probe=createServer(); await new Promise((resolve,reject)=>{probe.once('error',reject);probe.listen(checkPort,'127.0.0.1',resolve)}); await new Promise(resolve=>probe.close(resolve))
+  }
   launch(process.execPath,['integrations/clothcraft/server.mjs'],{
     EXO_CLOTHCRAFT_PORT:String(port),EXO_CLOTHCRAFT_OUTPUT_DIR:output,EXO_CLOTHCRAFT_GPU:'0',
     EXO_CLOTHCRAFT_REPO:path.join(root,'research/oss/clothcraft'),
@@ -113,7 +118,7 @@ try{
   await page.mouse.move(pick.x,pick.y)
   await page.waitForFunction(()=>document.querySelector('[data-guide-id="front:native:line_1:0"]')?.getAttribute('data-hovered')==='true',{},{timeout:5000})
   await page.mouse.click(pick.x,pick.y)
-  await page.waitForFunction(()=>document.querySelector('[data-guide-id="front:native:line_1:0"] polyline')?.getAttribute('stroke')==='#ed9d26',{},{timeout:5000})
+  await page.waitForFunction(expected=>document.querySelector('[data-guide-id="front:native:line_1:0"] polyline')?.getAttribute('stroke')===expected,PATTERN_VISUAL.selectedInternalLine,{timeout:5000})
   assert.equal(errors.length,0,'Browser page errors')
   assert.equal(failures.length,0,'Workspace HTTP errors')
   const screenshot=path.join(output,'native-internal-curve.png')
