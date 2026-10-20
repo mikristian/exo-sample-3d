@@ -1339,6 +1339,13 @@ export default function ClothCraftSceneV2({
     state.renderer.domElement.dataset.native3dMeshRevision=String(snapshot.revision??'')
     state.renderer.domElement.dataset.native3dMeshTriangles=String(snapshot.triangles?.length||0)
     state.renderer.domElement.dataset.native3dMeshVertices=String(snapshot.positions?.length||0)
+    // Keep 3D scene QA tied to the exact Rust seam samples of the rendered
+    // snapshot. A visible stitched dart is not proof of physical closure.
+    state.renderer.domElement.dataset.nativeDartCount=String(snapshot.dartFit?.length||0)
+    state.renderer.domElement.dataset.nativeDartMaxGapMm=String(
+      Math.max(0,...(snapshot.dartFit||[]).map(item=>Number(item.maxGapMm)||0)))
+    state.renderer.domElement.dataset.nativeDartProvisionalClosure=String(
+      Boolean(snapshot.dartFit?.length)&&snapshot.dartFit.every(item=>item.withinProvisional2mm))
     const world = preDrapeDisplayPositions(snapshot)
     const previewCurved = world !== snapshot.positions
     state.renderer.domElement.dataset.nativePreDrapeCurved = String(previewCurved)

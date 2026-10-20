@@ -26,12 +26,12 @@ export default function NativePatternAuditPanel({audit,revision,onClose,onRefres
     {cutlines.revision!==revision&&<p role="status">Outdated cutting geometry; refresh before downloading.</p>}
     <ul>{cutlines.panels.map(panel=><li key={panel.panelId}>
       <strong>{panel.name}</strong>: {panel.ok?
-        <>{panel.pointCount} vertices · {mm(panel.perimeterMm)} perimeter · {Number(panel.areaMm2).toFixed(0)} mm² · {panel.notchMarkCount||0} projected notch marks
+        <>{panel.pointCount} vertices · {mm(panel.perimeterMm)} perimeter · {Number(panel.areaMm2).toFixed(0)} mm² · {panel.notchMarkCount||0} projected notch marks · {panel.pomMarksMm?.length||0} physical POMs · {panel.stitchLayer?'separate stitch contour':'no stitch contour'}
          <button type="button" disabled={disabled||cutlines.revision!==revision||!panel.svg} onClick={()=>onDownloadCutline(panel,'svg')} aria-label={`Download ${panel.name} Rust engineering SVG`}>Download metric SVG proof</button>
          <button type="button" disabled={disabled||cutlines.revision!==revision||!panel.dxf} onClick={()=>onDownloadCutline(panel,'dxf')} aria-label={`Download ${panel.name} Rust engineering DXF`}>Download metric DXF proof</button></>:
         <>Blocked: {panel.error}</>}
     </li>)}</ul>
-    <small>These are closed engineering contours with separate metric notch marking segments. DXF is generic R2000, not graded AAMA/ASTM. Missing allowances, holes, internal lines, unsafe joins or ambiguous notches block output. Factory cutter import and real plotting accuracy still require validation.</small>
+    <small>Engineering proofs include independent cut and stitch geometry, metric notch marks, piece labels and saved POM annotations where supported. DXF is generic R2000, not graded AAMA/ASTM. Missing allowances, holes, internal lines, unsafe joins or ambiguous notches block output. Factory cutter import and physical plotting accuracy still require validation.</small>
    </section>}
    <section><strong>Factory release blocked</strong><ul>{audit.releaseBlockers.map((blocker,index)=><li key={index}>{blocker}</li>)}</ul><small>No manufacturer approval or validated offset cutline is implied by this analysis.</small></section>
   </div>

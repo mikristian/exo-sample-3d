@@ -2,6 +2,9 @@
 node_modules/
 dist/
 .npm-cache/
+.exo-build-scratch/
+build/
+rust/**/target/
 
 # Local QA captures and generated exports
 qa-*.png
@@ -9,6 +12,10 @@ qa-*.jpg
 qa-*.jpeg
 qa-*.json
 qa-*.svg
+docs/qa/
+research/clo-2d-analysis/audit-20261019/extreme-visual-loop/
+research/clo-2d-analysis/audit-20261019/jarvis-loop/
+research/clo-2d-analysis/audit-20261019/visual-parity-qa/
 replica/screens/
 replica/clone-screens/
 replica/diffs/

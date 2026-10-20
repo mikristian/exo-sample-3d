@@ -7,7 +7,7 @@ import './ClothCraftCornerTools.css'
 // Reuse Garment Studio's real CAD widget/icon system. Map only the commands
 // available in the Rust-linked ClothCraft canvas to working V2 interactions.
 const MODE_BY_TOOL = {
-  '2d': {select:'edit',point:'edit',split:'edit',curve:'edit',polygon:'pen',measure:'edit',sew:'sew',internal:'line',notch:'edit',allowance:'edit'},
+  '2d': {select:'edit',point:'edit',split:'edit',curve:'edit',dart:'edit',polygon:'pen',measure:'edit',sew:'sew',internal:'line',notch:'edit',allowance:'edit'},
   '3d': {orbit:'edit',transform:'move3d',move:'move3d',rotate:'rotate3d',hand:'stretch3d'},
 }
 const ACTIVE_TOOL = {
@@ -16,7 +16,10 @@ const ACTIVE_TOOL = {
 }
 
 export default function ClothCraftCornerTools({dimension,mode,activeTool:controlledTool,onChangeMode,onChangeTool,disabled=false,
-  displayLayers, onToggleDisplayLayer, allowanceWidthMm=10,onChangeAllowanceWidth,selectedGuide,onCreateGuideLine,onRemoveGuideLine,onClearGuide,cameraHandControl}) {
+  displayLayers, onToggleDisplayLayer, allowanceWidthMm=10,onChangeAllowanceWidth,
+  notchDepthMm=6,onChangeNotchDepth,notchPairSpacingMm=6,onChangeNotchPairSpacing,
+  dartIntakeMm=30,onChangeDartIntake,dartDepthMm=70,onChangeDartDepth,
+  selectedGuide,onCreateGuideLine,onRemoveGuideLine,onClearGuide,cameraHandControl}) {
   const tools = MODE_BY_TOOL[dimension] || {}
   const [lastTool,setLastTool] = useState(null)
   const [displayOpen,setDisplayOpen] = useState(false)
@@ -86,12 +89,36 @@ export default function ClothCraftCornerTools({dimension,mode,activeTool:control
         <Icon size={19} aria-hidden="true"/>
       </button>)}
     </div>
-    {(controlledTool==='allowance'||selectedGuide)&&<div className="cc-2d-display-details">
+    {(controlledTool==='allowance'||controlledTool==='notch'||controlledTool==='dart'||selectedGuide)&&<div className="cc-2d-display-details">
       {controlledTool==='allowance'&&<label className="cc-2d-display-width">Allowance (mm)
         <input aria-label="Seam allowance width in millimetres" type="number"
           min=".1" max="500" step=".5" value={allowanceWidthMm}
           onChange={event=>onChangeAllowanceWidth?.(Number(event.target.value))}/>
       </label>}
+      {controlledTool==='notch'&&<>
+        <label className="cc-2d-display-width">Notch depth (mm)
+          <input aria-label="Notch depth in millimetres" type="number"
+            min=".5" max="100" step=".5" value={notchDepthMm}
+            onChange={event=>onChangeNotchDepth?.(Number(event.target.value))}/>
+        </label>
+        <label className="cc-2d-display-width">Double-notch spacing (mm)
+          <input aria-label="Double notch spacing in millimetres" type="number"
+            min="1" max="200" step=".5" value={notchPairSpacingMm}
+            onChange={event=>onChangeNotchPairSpacing?.(Number(event.target.value))}/>
+        </label>
+        <small>Click once for a single notch · Shift-click for one atomic double notch · Option-click near a mark to remove. Production export requires depth no greater than the edge allowance.</small>
+      </>}
+      {controlledTool==='dart'&&<>
+        <label className="cc-2d-display-width">Dart intake (mm)
+          <input aria-label="Physical dart intake in millimetres" type="number" min="3" max="150" step="1"
+            value={dartIntakeMm} onChange={event=>onChangeDartIntake?.(Number(event.target.value))}/>
+        </label>
+        <label className="cc-2d-display-width">Dart depth (mm)
+          <input aria-label="Physical dart depth in millimetres" type="number" min="8" max="500" step="1"
+            value={dartDepthMm} onChange={event=>onChangeDartDepth?.(Number(event.target.value))}/>
+        </label>
+        <small>Click an unsewn straight cutline to create a real V-cut and sewn dart. This removes the wedge and stitches its two legs in 3D; it does not fold an uncut dart.</small>
+      </>}
       {selectedGuide&&<div className="cc-2d-display-selection">
         <span>{selectedGuide.kind.replaceAll('-',' ')} · {(selectedGuide.lengthMetres*100).toFixed(2)} cm</span>
         {selectedGuide.nativeLineId

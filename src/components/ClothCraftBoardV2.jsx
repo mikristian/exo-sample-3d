@@ -607,6 +607,10 @@ export default function ClothCraftBoardV2({
   const [editPatternHintDismissed,setEditPatternHintDismissed]=useState(false)
   const [contextNodesInEdit,setContextNodesInEdit]=useState(true)
   const [allowanceWidthMm, setAllowanceWidthMm] = useState(10)
+  const [notchDepthMm,setNotchDepthMm] = useState(6)
+  const [notchPairSpacingMm,setNotchPairSpacingMm] = useState(6)
+  const [dartIntakeMm,setDartIntakeMm] = useState(30)
+  const [dartDepthMm,setDartDepthMm] = useState(70)
   const displayLayers={reference:showReferenceGuides,internal:showInternalLines,notches:showNativeNotches,allowances:showNativeAllowances}
   const toggleDisplayLayer=name=>{
     if(name==='reference')setShowReferenceGuides(value=>!value)
@@ -645,7 +649,7 @@ export default function ClothCraftBoardV2({
   useEffect(() => {
     const receiveTool = event => {
       const tool = event?.detail?.tool
-      const modes = {select:'edit',point:'edit',curve:'edit',split:'edit',notch:'edit',allowance:'edit',annotation:'edit',editAnnotation:'edit',sew:'sew','seam-edit':'edit',internal:'line',line:'line',polygon:'pen','vector-pen':'pen','vector-pencil':'pen',pleat:'edit',measure:'edit','measure-edit':'edit'}
+      const modes = {select:'edit',point:'edit',curve:'edit',split:'edit',notch:'edit',allowance:'edit',dart:'edit',annotation:'edit',editAnnotation:'edit',sew:'sew','seam-edit':'edit',internal:'line',line:'line',polygon:'pen','vector-pen':'pen','vector-pencil':'pen',pleat:'edit',measure:'edit','measure-edit':'edit'}
       if (!Object.hasOwn(modes,tool)) return
       setTool2d(tool)
       setFreeCurveStatus('')
@@ -983,6 +987,21 @@ export default function ClothCraftBoardV2({
       focus()
     }
   },[s?.template?.id,s?.template?.name,panels.length,spanX,spanY])
+  // Selecting the other garment piece in a narrow split window can leave its
+  // physical side stations beyond the visible SVG. Browser hit testing then
+  // lands on the right inspector instead of the station. Reframe only when
+  // changing the selected piece in a point/curve workflow, never during a
+  // captured drag (which would otherwise alter the pointer-to-metre transform).
+  const previousDraftSelection=useRef(null)
+  useEffect(()=>{
+    const id=selection?.panel||null
+    const editing=mode==='edit'&&['point','curve'].includes(tool2d)&&precisionDrafting
+    if(!editing||!id){previousDraftSelection.current=null;return}
+    if(previousDraftSelection.current===id)return
+    previousDraftSelection.current=id
+    if(drag.current||!panels.some(item=>item.panel.id===id))return
+    focus(true)
+  },[selection?.panel,mode,tool2d,precisionDrafting])
   const point = e => {
     const el = svg.current
     const matrix = el?.getScreenCTM()
@@ -1074,8 +1093,16 @@ export default function ClothCraftBoardV2({
     if (text?.trim()) { pick({panel:panel.id}); void edit({kind:'Annotation',panel:panel.id,text:text.trim(),position}) }
     return true
   }
+  // A new free knot is visible as soon as its first drag produces a proposal.
+  // Fast successive gestures can begin before pointerup's staged React state
+  // has rendered. Read the currently visible polygon first, then the staged
+  // proposal, so the second pointerdown cannot accidentally revert to the
+  // original knot-free native polygon.
+  const draftPolygon = panel => handlePreview?.panelId===panel.id&&handlePreview.polygon
+    ?handlePreview.polygon:pendingCurveCommit?.panelId===panel.id
+      ?pendingCurveCommit.polygon:panel.polygon
   const editingPolygon = panel => {
-    const polygon=panel.polygon
+    const polygon=draftPolygon(panel)
     const n=polygon?.edges?.length||0
     const anchor=selection?.panel===panel.id&&Number.isInteger(selection?.anchor)?selection.anchor:null
     const edges=anchor!==null?[polygon.edges[anchor],polygon.edges[(anchor+n-1)%n]]:
@@ -1088,7 +1115,7 @@ export default function ClothCraftBoardV2({
   // and silently snapped back at sides/shoulders).
   const applyOrStagePatternCurve = async (panel,polygon,primaryEdge) => {
     if(!polygon||!panel?.polygon)return false
-    const original=panel.polygon,n=original.edges?.length||0
+    const original=s.template.panels.find(item=>item.id===panel.id)?.polygon||panel.polygon,n=original.edges?.length||0
     const changedEdges=new Set([primaryEdge].filter(Boolean))
     for(let i=0;i<n;i++){
       const edge=original.edges[i],next=(i+1)%n
@@ -1100,7 +1127,7 @@ export default function ClothCraftBoardV2({
     }
     const strict=(s?.template?.seams||[]).filter(seam=>!seam.allow_ease&&
       [seam.a,seam.b].some(b=>b?.panel===panel.id&&changedEdges.has(b.edge)))
-    if(strict.length&&onEnableCurveSeamEase){
+    if(onEnableCurveSeamEase&&(strict.length||original.edges?.includes(primaryEdge))){
       setPendingCurveCommit({panelId:panel.id,edge:primaryEdge,polygon,
         affectedEdges:[...changedEdges],revision:s.revision,
         strictSeams:strict.map(seam=>seam.id)})
@@ -1116,25 +1143,45 @@ export default function ClothCraftBoardV2({
   }
   const start = (e, panel, anchor, kind='move', handle=null) => {
     if (busy || ['sew', 'pen', 'line'].includes(mode) || e.button !== 0) return
+    if(pendingCurveCommit?.panelId===panel.id&&pendingCurveCommit.revision!==s.revision){
+      e.preventDefault();e.stopPropagation()
+      setFreeCurveStatus('This proposal is stale after another edit. Discard it before drawing again.')
+      return
+    }
     if (anchor === undefined && !transform2d) {
       // Point and curve tools select the fabric without translating it.
       e.stopPropagation()
       pick({panel: panel.id})
       return
     }
+    const originalPanel=s.template.panels.find(item=>item.id===panel.id)||panel
     if(typeof anchor==='string'&&anchor.startsWith('c:'))panel={...panel,polygon:editingPolygon(panel)}
+    else if(typeof anchor==='string'&&/^(f|ft):/.test(anchor)){
+      const [,edge,id]=anchor.split(':')
+      const proposed=draftPolygon(panel)
+      // A newly inserted station is already carried by the passed panel;
+      // existing pending knots and their tangents must use the proposal.
+      if(proposed.free_curve_points?.[edge]?.some(mark=>mark.id===id))panel={...panel,polygon:proposed}
+    }else if(Number.isInteger(anchor))panel={...panel,polygon:draftPolygon(panel)}
     const startPoint = point(e)
     if (!startPoint) return
     // Own the pointer gesture; browser text/image drag can cancel pointerup
     // after selection changes between consecutive curve-handle edits.
     e.preventDefault()
     e.stopPropagation()
-    setPendingCurveCommit(null)
-    setHandlePreview(null)
+    // Keep a just-inserted knot rendered while the next pointerdown acquires
+    // SVG capture. Removing the displayed proposal here unmounts the free-knot
+    // hit target before gotpointercapture; quick consecutive drags then lose
+    // their starting anchor and fall back to the native paper silhouette.
+    const [,freeEdge,freeId]=typeof anchor==='string'?anchor.split(':'):[]
+    const continuingVisibleFreeKnot=typeof anchor==='string'&&/^(f|ft):/.test(anchor)&&
+      handlePreview?.panelId===panel.id&&Boolean(handlePreview.polygon?.free_curve_points?.[freeEdge]
+        ?.some(mark=>mark.id===freeId))
+    if(!continuingVisibleFreeKnot)setHandlePreview(null)
     svg.current.setPointerCapture(e.pointerId)
     const entry=panels.find(item => item.panel.id===panel.id)
     const b=getBounds(entry?.points)
-    drag.current = {panel, anchor, start: startPoint, kind, handle, bounds:b,
+    drag.current = {panel, originalPanel, pointerId:e.pointerId, previousProposal:pendingCurveCommit, anchor, start: startPoint, kind, handle, bounds:b,
       breakTangents:e.altKey, snapAngle:e.shiftKey, controlScale:Number(e.currentTarget.dataset.controlScale)||1}
     setPreview(null)
     pick({panel: panel.id,...(typeof anchor==='string'&&(anchor.startsWith('c:')||anchor.startsWith('f:')||anchor.startsWith('ft:'))
@@ -1167,7 +1214,7 @@ export default function ClothCraftBoardV2({
   }
   const move = e => {
     const d=drag.current
-    if (!d || d.pan) return
+    if (!d || d.pan || (d.pointerId!==undefined&&d.pointerId!==e.pointerId)) return
     if(typeof d.anchor==='string'&&(d.anchor.startsWith('c:')||d.anchor.startsWith('l:')||d.anchor.startsWith('f:')||d.anchor.startsWith('ft:'))){
       const q=point(e)
       if(q){
@@ -1209,7 +1256,9 @@ export default function ClothCraftBoardV2({
   }
   const up = async e => {
     const d = drag.current
+    if(d?.pointerId!==undefined&&d.pointerId!==e.pointerId)return
     drag.current = null
+    try{svg.current?.releasePointerCapture(e.pointerId)}catch{}
     setPreview(null)
     const shapeGesture=typeof d?.anchor==='string'&&/^(c|f|ft|l):/.test(d.anchor)
     if(!shapeGesture)setHandlePreview(null)
@@ -1280,8 +1329,27 @@ export default function ClothCraftBoardV2({
         rotation_degrees: d.panel.layout_rotation_degrees || 0})
     }
   }
+  const cancelPatternGesture = () => {
+    const d=drag.current
+    if(!d)return
+    drag.current=null
+    setPreview(null)
+    setHandlePreview(null)
+    if(d.previousProposal!==undefined)setPendingCurveCommit(d.previousProposal)
+    try{svg.current?.releasePointerCapture(d.pointerId)}catch{}
+  }
+  useEffect(()=>{
+    const cancel=event=>{
+      if(event.key!=='Escape'||!drag.current)return
+      event.preventDefault();event.stopImmediatePropagation()
+      cancelPatternGesture()
+    }
+    window.addEventListener('keydown',cancel,true)
+    return ()=>window.removeEventListener('keydown',cancel,true)
+  },[])
   const zoom = e => {
     e.preventDefault()
+    if(drag.current)return
     const localCursor = point(e)
     if (!localCursor) return
     const cursor = [localCursor[0]+offset[0],localCursor[1]+offset[1]]
@@ -1398,20 +1466,40 @@ export default function ClothCraftBoardV2({
         if(nearest&&Math.abs(nearest.t-t)<.05)
           void edit({kind:'RemoveNotch',panel:panel.id,edge,t:nearest.t})
       }else if(e.shiftKey){
-        // Double armhole match marks remain two persisted Rust EdgeNotches.
-        // Their spacing is six physical millimetres along the source curve,
-        // rather than a screen-pixel offset that drifts with zoom.
-        const halfGap=Math.min(.02,.003/total)
-        const t1=Math.max(.002,t-halfGap),t2=Math.min(.998,t+halfGap)
-        if(t2-t1>.001){
-          void (async()=>{
-            const created=await edit({kind:'Notch',panel:panel.id,edge,t:t1,depth_m:.006})
-            if(created)await edit({kind:'Notch',panel:panel.id,edge,t:t2,depth_m:.006})
-          })()
-        }
-      }else void edit({kind:'Notch',panel:panel.id,edge,t,depth_m:.006})
+        // One physical double-notch transaction: either both marks persist
+        // at their exact arclength separation or neither is authored.
+        void edit({kind:'NotchPair',panel:panel.id,edge,center_t:t,
+          spacing_m:notchPairSpacingMm/1000,depth_m:notchDepthMm/1000})
+      }else void edit({kind:'Notch',panel:panel.id,edge,t,depth_m:notchDepthMm/1000})
       pick({panel:panel.id,edge})
     }
+    return true
+  }
+  const createPhysicalDart = (e,panel,edge) => {
+    if(busy||mode!=='edit'||tool2d!=='dart')return false
+    e.preventDefault();e.stopPropagation()
+    const polygon=panel.polygon,idx=polygon?.edges?.indexOf(edge)
+    if(idx==null||idx<0||polygon.curves?.[edge]||polygon.free_curve_points?.[edge]?.length){
+      setFreeCurveStatus('Cut-and-sewn darts currently require an unsewn straight material boundary.')
+      return true
+    }
+    const xy=point(e);if(!xy)return true
+    const a=polygon.points[idx],b=polygon.points[(idx+1)%polygon.points.length]
+    const angle=(panel.layout_rotation_degrees||0)*Math.PI/180
+    const range=s.panels.find(p=>p.id===panel.id)
+    if(!range)return true
+    const dx=xy[0]-range.layout[0],dy=xy[1]-range.layout[1]
+    const local=[dx*Math.cos(angle)+dy*Math.sin(angle),-dx*Math.sin(angle)+dy*Math.cos(angle)]
+    const delta=[b[0]-a[0],b[1]-a[1]],squared=delta[0]**2+delta[1]**2,length=Math.sqrt(squared)
+    if(length<=.02)return true
+    const center=Math.max(.001,Math.min(.999,((local[0]-a[0])*delta[0]+(local[1]-a[1])*delta[1])/squared))
+    const half=(dartIntakeMm/1000)/(2*length),left_t=center-half,right_t=center+half
+    const inward=[-delta[1]/length,delta[0]/length]
+    const midpoint=[a[0]+delta[0]*center,a[1]+delta[1]*center]
+    const apex=[midpoint[0]+inward[0]*dartDepthMm/1000,midpoint[1]+inward[1]*dartDepthMm/1000]
+    if(left_t<=.01||right_t>=.99){setFreeCurveStatus('Dart intake overlaps the boundary end. Click farther from the corner.');return true}
+    pick({panel:panel.id,edge})
+    void edit({kind:'DartCutSew',panel:panel.id,edge,left_t,right_t,apex})
     return true
   }
   const boundaryMark = (indices,t) => {
@@ -1526,6 +1614,18 @@ export default function ClothCraftBoardV2({
       allowanceWidthMm={allowanceWidthMm} onChangeAllowanceWidth={width=>{
         if(Number.isFinite(width)&&width>=.1&&width<=500)setAllowanceWidthMm(width)
       }}
+      notchDepthMm={notchDepthMm} onChangeNotchDepth={depth=>{
+        if(Number.isFinite(depth)&&depth>=.5&&depth<=100)setNotchDepthMm(depth)
+      }}
+      notchPairSpacingMm={notchPairSpacingMm} onChangeNotchPairSpacing={spacing=>{
+        if(Number.isFinite(spacing)&&spacing>=1&&spacing<=200)setNotchPairSpacingMm(spacing)
+      }}
+      dartIntakeMm={dartIntakeMm} onChangeDartIntake={value=>{
+        if(Number.isFinite(value)&&value>=3&&value<=150)setDartIntakeMm(value)
+      }}
+      dartDepthMm={dartDepthMm} onChangeDartDepth={value=>{
+        if(Number.isFinite(value)&&value>=8&&value<=500)setDartDepthMm(value)
+      }}
       selectedGuide={selectedGuide} onCreateGuideLine={()=>{void createNativeLineFromGuide(selectedGuide);setSelectedGuide(null)}}
       onRemoveGuideLine={()=>{if(selectedGuide?.nativeLineId)void edit({kind:'RemoveLine',panel:selectedGuide.panelId,line:selectedGuide.nativeLineId});setSelectedGuide(null)}}
       onClearGuide={()=>setSelectedGuide(null)}
@@ -1536,7 +1636,7 @@ export default function ClothCraftBoardV2({
       <span>Click a point: incoming + outgoing handles appear automatically. Drag either endpoint to curve the pattern. Option-drag breaks tangents; Shift snaps angles.</span>
       <button type="button" aria-label="Dismiss Edit Pattern hint" onClick={()=>setEditPatternHintDismissed(true)}>×</button>
     </div>}
-    {mode==='edit'&&tool2d==='curve'&&<div className="cc-native-free-curve-guide" data-free-curve-tool-guide="true">
+    {mode==='edit'&&(tool2d==='curve'||pendingCurveCommit)&&<div className="cc-native-free-curve-guide" data-free-curve-tool-guide="true">
       <strong>Edit Curve Point</strong>
       <span>Drag either half of the chest or belly guide to curve ONLY that point-to-point construction interval (saved locally, not sewn) · Drag coral side dots or orange knots to reshape the actual cutline · Apply sewn cutlines to update 3D · Live edge lengths appear during curve edits</span>
       <label><input type="checkbox" checked={mirrorFreeCurve}
@@ -1551,9 +1651,9 @@ export default function ClothCraftBoardV2({
         const strict=(s?.template?.seams||[]).filter(seam=>!seam.allow_ease&&(
           staged?staged.strictSeams.includes(seam.id):
           [seam.a,seam.b].some(boundary=>boundary?.panel===selection.panel&&boundary?.edge===selection.edge)))
-        if(!strict.length)return null
+        if(!strict.length&&!staged)return null
         return <div data-curve-strict-seams={strict.map(seam=>seam.id).join(' ')}>
-          <small>Attached sewn edge: {strict.map(seam=>seam.id).join(', ')}. A reshaped curve can change the seam length, which Rust normally rejects.</small>
+          {strict.length>0&&<small>Attached sewn edge: {strict.map(seam=>seam.id).join(', ')}. A reshaped curve can change the seam length, which Rust normally rejects.</small>}
           {onEnableCurveSeamEase&&<button type="button" disabled={busy}
             data-enable-curve-seam-ease={selection.panel+':'+selection.edge}
             onClick={async()=>{
@@ -1563,14 +1663,16 @@ export default function ClothCraftBoardV2({
                 affectedEdges:staged?.affectedEdges})
               if(ok){setPendingCurveCommit(null);setHandlePreview(null)}
               setFreeCurveStatus(ok
-                ?staged?'Native Rust committed this curve and enabled seam easing. Save/reopen will preserve the reshaped cutline. Undo is available.'
+                ?staged?'Native Rust committed this curve. Save/reopen will preserve the reshaped cutline. Undo is available.'
                   :'Seam easing explicitly enabled for this sewn boundary. You can now drag its curves.'
                 :'The sewing permission or curve commit was not accepted. The shape was not saved; check the error and retry or Undo any sewing changes.')
             }}>{pendingCurveCommit?.panelId===selection.panel&&pendingCurveCommit.edge===selection.edge
-              ?'Apply this yellow curve and allow seam easing'
+              ?strict.length?'Apply this yellow curve and allow seam easing':'Apply this yellow curve'
               :'Allow different sewn-edge lengths so this curve can be edited'}</button>}
         </div>
       })()}
+      {pendingCurveCommit&&<button type="button" disabled={busy} data-discard-curve-proposal="true"
+        onClick={()=>{cancelPatternGesture();setPendingCurveCommit(null);setHandlePreview(null);setFreeCurveStatus('Curve proposal discarded; native garment unchanged.')}}>Discard curve proposal</button>}
       {freeCurveStatus&&<small role="status">{freeCurveStatus}</small>}
     </div>}
     {mode==='edit'&&tool2d==='split'&&<div className="cc-native-free-curve-guide" data-mirrored-split-guide="true">
@@ -1719,7 +1821,8 @@ export default function ClothCraftBoardV2({
         if(endGraphicDrag(e)){try{svg.current?.releasePointerCapture(e.pointerId)}catch{};return}
         if(tapeDrag.current){tapeDrag.current=null;try{svg.current?.releasePointerCapture(e.pointerId)}catch{};return}
         up(e)
-      }} onPointerCancel={e => {finishGuideHalfCurve(e,true);foamDrag.current=null;setFoamPreview(null);vectorDrag.current=null;setPencilSamples([]);graphicDrag.current=null;setGraphicPreview(null);tapeDrag.current=null;drag.current = null;setPreview(null);setHandlePreview(null)}}
+      }} onPointerCancel={e => {finishGuideHalfCurve(e,true);foamDrag.current=null;setFoamPreview(null);vectorDrag.current=null;setPencilSamples([]);graphicDrag.current=null;setGraphicPreview(null);tapeDrag.current=null;cancelPatternGesture()}}
+      onLostPointerCapture={e=>{if(drag.current?.pointerId===e.pointerId)cancelPatternGesture()}}
       onContextMenu={e => {
         e.preventDefault()
         const element = e.target.closest?.('[data-edit-seam-guide], [data-edge], [data-panel]')
@@ -1946,7 +2049,7 @@ export default function ClothCraftBoardV2({
                 }else setFreeCurveStatus('Choose another position on the edge; a nearby point may already exist.')
                 return
               }
-              if(!editConstructionEdge(e,panel,edge,indices)&&!splitBoundary(e,panel,edge,indices))pick({panel:panel.id,edge})
+              if(!createPhysicalDart(e,panel,edge)&&!editConstructionEdge(e,panel,edge,indices)&&!splitBoundary(e,panel,edge,indices))pick({panel:panel.id,edge})
             }
             return <g key={edge}>
               {paths.map((path,i)=>{
@@ -2149,7 +2252,7 @@ export default function ClothCraftBoardV2({
             if(!b)return null
             const chest=armpitChestReference(panel.polygon)?.y??b.minY+b.height*.46
             const belly=b.minY+b.height*.64
-            const stations=torsoSideCurveStations(panel.polygon,chest,belly)
+            const stations=torsoSideCurveStations(draftPolygon(panel),chest,belly)
             return <g data-editable-side-stations={panel.id}>
               {stations.map(item=>{
                 const p=previewPoint(transform(panel,range,item.position),currentPreview)
@@ -2164,8 +2267,8 @@ export default function ClothCraftBoardV2({
                     onPointerDown={event=>{
                       if(busy||event.button!==0)return
                       const paired=mirrorFreeCurve
-                        ?addNativeFreeCurvePoint(panel.polygon,item.edge,item.t,{mirror:true}):null
-                      const added=paired||addNativeFreeCurvePoint(panel.polygon,item.edge,item.t,{mirror:false})
+                        ?addNativeFreeCurvePoint(draftPolygon(panel),item.edge,item.t,{mirror:true}):null
+                      const added=paired||addNativeFreeCurvePoint(draftPolygon(panel),item.edge,item.t,{mirror:false})
                       if(!added?.mark){setFreeCurveStatus('A curve point already exists nearby, or this side cannot accept another point.');return}
                       start(event,{...panel,polygon:added.polygon},`f:${item.edge}:${added.mark.id}`)
                       if(drag.current){drag.current.stationDraft=true;drag.current.stationEdge=item.edge;drag.current.originalPanel=panel}
@@ -2177,7 +2280,18 @@ export default function ClothCraftBoardV2({
               })}
             </g>
           })()}
-          {mode==='edit'&&showRedDartGuides&&/front|back|torso|bodice/i.test(panel.id+' '+panel.name)&&(()=>{
+          {(s?.template?.seams||[]).filter(seam=>seam.id.startsWith('dart_')&&seam.a.panel===panel.id&&seam.b.panel===panel.id).map(seam=>{
+            const polygon=panel.polygon,legs=[seam.a.edge,seam.b.edge].map(edge=>polygon?.edges?.indexOf(edge))
+            if(legs.some(index=>index==null||index<0))return null
+            const pts=legs.map(index=>[polygon.points[index],polygon.points[(index+1)%polygon.points.length]])
+              .map(pair=>pair.map(uv=>previewPoint(transform(panel,range,uv),currentPreview)))
+            return <g key={seam.id} data-physical-dart={seam.id} data-dart-physical="true" pointerEvents="none">
+              {pts.map(([a,b],i)=><line key={i} data-physical-dart-leg={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
+                stroke="#ac2940" strokeWidth="2.75" vectorEffect="non-scaling-stroke"/>)}
+              <circle cx={pts[0][1][0]} cy={pts[0][1][1]} r={3*screenUnit} fill="#ac2940"/>
+            </g>
+          })}
+          {mode==='edit'&&showRedDartGuides&&!(s?.template?.seams||[]).some(seam=>seam.id.startsWith('dart_')&&seam.a.panel===panel.id)&&/front|back|torso|bodice/i.test(panel.id+' '+panel.name)&&(()=>{
             // The supplied CLO reference has SHORT RED TICKS extending inward
             // from actual upper-side construction vertices. It does NOT show
             // floating red triangles at arbitrary points across the belly.
@@ -2225,7 +2339,7 @@ export default function ClothCraftBoardV2({
               opacity={appearance.opacity} pointerEvents="none"/>)
           })()}
           {selected && mode === 'edit' && ['point','curve'].includes(tool2d) && panel.polygon?.points?.map((uv, n) => {
-            const livePolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||panel.polygon
+            const livePolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||draftPolygon(panel)
             const livePoint=livePolygon.points?.[n]||uv
             const p = previewPoint(transform(panel, range, livePoint),currentPreview)
             const inControl=livePolygon.curves?.[panel.polygon.edges[(n+panel.polygon.points.length-1)%panel.polygon.points.length]]?.[1]||livePoint
@@ -2317,7 +2431,7 @@ export default function ClothCraftBoardV2({
             })()}
           {mode==='edit'&&['point','curve','split'].includes(tool2d)&&Object.entries(
             handlePreview?.panelId===panel.id&&handlePreview.polygon?.free_curve_points
-              ?handlePreview.polygon.free_curve_points:panel.polygon?.free_curve_points||{})
+              ?handlePreview.polygon.free_curve_points:draftPolygon(panel)?.free_curve_points||{})
             .filter(([edge])=>tool2d==='split'||(selected&&selection?.edge===edge)||
               (selected&&handlePreview?.panelId===panel.id&&
                 /^(f|ft):/.test(handlePreview.anchor||'')&&
@@ -2331,7 +2445,7 @@ export default function ClothCraftBoardV2({
                 ?.find(candidate=>candidate.id===mark.id)?.position||mark.position
               if(!Array.isArray(shown)||shown.some(v=>!Number.isFinite(v)))return null
               const p=previewPoint(transform(panel,range,shown),currentPreview)
-              const shownPolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||panel.polygon
+              const shownPolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||draftPolygon(panel)
               const shownMark=shownPolygon?.free_curve_points?.[edge]?.find(item=>item.id===mark.id)||mark
               const cubic=freeCurveBase(shownPolygon,edge)
               const derivative=shownMark.derivative|| (cubic&&cubicDerivativeAt(cubic,mark.t))
@@ -2369,8 +2483,8 @@ export default function ClothCraftBoardV2({
                     return
                   }
                   if(event.altKey){
-                    const polygon=removeNativeFreeCurvePoint(panel.polygon,edge,mark.id)
-                    if(polygon)void edit({kind:'Shape',panel:panel.id,polygon})
+                    const polygon=removeNativeFreeCurvePoint(draftPolygon(panel),edge,mark.id)
+                    if(polygon)void applyOrStagePatternCurve(panel,polygon,edge)
                     return
                   }
                   start(event,panel,`f:${edge}:${mark.id}`)

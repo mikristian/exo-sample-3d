@@ -328,7 +328,10 @@ function collectEntities(pairs) {
 }
 
 function ignoredOutlineLayer(layer) {
-  return /^(SA_|NOTCH_|GRAIN_|LABEL_|INTERNAL_|DART_|DART_CENTER)/i.test(layer || '')
+  // Engineering exports may carry separate sew-path and measurement LINE
+  // entities. They can form complete loops and must not be imported as extra
+  // fabric pieces beside the sole CUT_* closed contour.
+  return /^(SA_|NOTCH_|GRAIN_|LABEL_|INTERNAL_|DART_|DART_CENTER|STITCH_|SEW_|POM_|POM_LABEL_)/i.test(layer || '')
 }
 
 function closeEnough(a, b, tolerance = 0.75) {
@@ -495,9 +498,15 @@ export function parseDxfPatterns(text, options = {}) {
       const midpoint = toLocal({ x: (entity.a.x + entity.b.x) * 0.5, y: (entity.a.y + entity.b.y) * 0.5 })
       const nearest = nearestStraightEdge(piece.points, midpoint)
       if (nearest && nearest.distance < 1.5) {
-        const existing = piece.notches.find((notch) => notch.edgeIndex === nearest.edgeIndex && Math.abs(notch.t - nearest.t) < 0.08)
-        if (existing) existing.type = 'double'
-        else piece.notches.push({ id: `import-notch-${piece.notches.length + 1}`, edgeIndex: nearest.edgeIndex, t: nearest.t, type: 'single', depthCm: 0.45 })
+        // DXF stores the physical notch lines, not a conceptual paired-mark
+        // container. Treat distinct 6 mm match marks as two physical notches;
+        // the old 8%-of-edge merge silently discarded the second station.
+        // Only an effectively identical line can be deduplicated.
+        const duplicate = piece.notches.some((notch) => notch.edgeIndex === nearest.edgeIndex && Math.abs(notch.t - nearest.t) < 0.00001)
+        const depthCm = Math.hypot(entity.b.x - entity.a.x, entity.b.y - entity.a.y) * scale
+        if (!duplicate && Number.isFinite(depthCm) && depthCm > 0) {
+          piece.notches.push({ id: `import-notch-${piece.notches.length + 1}`, edgeIndex: nearest.edgeIndex, t: nearest.t, type: 'single', depthCm })
+        }
       }
     } else if (/^GRAIN_/i.test(entity.layer)) {
       const dx = entity.b.x - entity.a.x

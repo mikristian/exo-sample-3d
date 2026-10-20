@@ -14,7 +14,7 @@ const TOOLS = {
     { name: 'polygon', label: 'Draw New Polygon Pattern', icon: 'polygon-tool', options: ['polygon', 'internal'] },
     { name: 'sew', label: 'Edit Sewing', icon: 'sew', options: ['sew', 'notch', 'allowance', 'fastener'] },
     { name: 'notch', label: 'Notches / Seam Allowance', icon: 'notch', options: ['notch', 'allowance'] },
-    { name: 'internal', label: 'Internal Line / Dart', icon: 'internal', options: ['internal', 'pin', 'measure'] },
+    { name: 'internal', label: 'Internal Line / Dart', icon: 'internal', options: ['internal', 'dart', 'pin', 'measure'] },
     { name: 'measure', label: 'Measure', icon: 'measure', options: ['measure', 'notch', 'allowance', 'pin'] },
   ],
   '3d': [
@@ -29,14 +29,14 @@ const TOOLS = {
 const LABELS = {
   select: 'Select / Transform', point: 'Edit Points', split: 'Add / Split Point', polygon: 'Draw Polygon',
   curve: 'Edit Curve Point', sew: 'Free Sewing', notch: 'Add Notch', allowance: 'Seam Allowance',
-  fastener: 'Fastener', internal: 'Internal Line / Dart', pin: 'Pin',
+  fastener: 'Fastener', internal: 'Internal Line', dart: 'Physical Dart (Cut + Sew)', pin: 'Pin',
   measure: 'Measure', orbit: 'Orbit', transform: 'Select / Move',
   move: 'Move', rotate: 'Rotate', hand: 'Fabric Hand',
 }
 const ICONS = {
   select: 'select-2d', point: 'points', split: 'split', curve: 'curve', polygon: 'polygon-tool',
   sew: 'sew', notch: 'notch', allowance: 'seam-links', fastener: 'fastener', internal: 'internal',
-  pin: 'pin', measure: 'measure', orbit: 'camera', transform: 'select-3d',
+  dart: 'internal', pin: 'pin', measure: 'measure', orbit: 'camera', transform: 'select-3d',
   move: 'move-3d', rotate: 'rotate-3d', hand: 'hand',
 }
 
