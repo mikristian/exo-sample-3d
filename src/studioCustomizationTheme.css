@@ -425,8 +425,22 @@
   --studio-icon-muted:#d7e1e9;
 }
 .app-shell[data-glass-icon-color="adaptive"] :is(.cc-board,.pattern-editor-shell) .clo-corner-toolkit.exo-viewport-inline-tools {
-  --exo-glass-ink:#142c39;
-  --exo-glass-ink-active:#063c56;
+  /* Darken only the CAD artwork, not the transparent glass underneath. */
+  --exo-glass-ink:#102532;
+  --exo-glass-ink-active:#082f46;
+}
+.app-shell[data-studio-liquid-glass="true"][data-glass-icon-color="adaptive"] :is(.cc-board,.pattern-editor-shell)
+  .clo-corner-toolkit.exo-viewport-inline-tools :is(.clo-corner-tool-group > button,.clo-corner-tool-options > button) {
+  color:var(--exo-glass-ink)!important;
+}
+.app-shell[data-studio-liquid-glass="true"][data-glass-icon-color="adaptive"] :is(.cc-board,.pattern-editor-shell)
+  .clo-corner-toolkit.exo-viewport-inline-tools :is(.clo-corner-tool-group > button,.clo-corner-tool-options > button):is(.active,[aria-pressed="true"]) {
+  color:var(--exo-glass-ink-active)!important;
+}
+.app-shell[data-studio-liquid-glass="true"][data-glass-icon-color="adaptive"] :is(.cc-board,.pattern-editor-shell)
+  .clo-corner-toolkit.exo-viewport-inline-tools .cad-tool-icon-mask {
+  color:inherit!important;
+  opacity:1;
 }
 .app-shell[data-glass-icon-color="adaptive"] :is(.cc-scene,.viewport-shell) .clo-corner-toolkit.exo-viewport-inline-tools {
   --exo-glass-ink:#fbfcff;
@@ -491,4 +505,189 @@
 }
 @media(prefers-reduced-transparency:reduce){
   .app-shell[data-studio-liquid-glass="true"][data-glass-widgets="true"] :is(.clo-camera-widget,.clo-3d-view-controls,.cc-corner-tool-host .clo-corner-toolkit.exo-viewport-inline-tools){background:var(--studio-panel)!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+}
+
+/* Final side-rail parity override. Loaded after the general Studio solid
+   surface rules, otherwise their !important background shorthand overwrites
+   the upper-right Liquid Glass lens. Keep the left and right rails identical
+   without altering the selected material of the Library / Property Editor. */
+.app-shell[data-studio-customized="true"][data-studio-liquid-glass="false"]
+  :is(.tool-rail,.clo-left-3d-double-bars,.clo-right-tool-palette) {
+  background-image:linear-gradient(140deg,rgba(240,252,255,.13),rgba(226,241,255,.04) 36%,rgba(6,13,24,.07) 89%)!important;
+  background-color:rgba(38,46,56,.55)!important;
+  border-color:rgba(232,248,255,.28)!important;
+  backdrop-filter:blur(17px) saturate(148%)!important;
+  -webkit-backdrop-filter:blur(17px) saturate(148%)!important;
+  box-shadow:inset 0 1px 0 rgba(245,252,255,.19),0 5px 18px rgba(4,10,18,.15)!important;
+}
+.app-shell[data-studio-customized="true"][data-studio-liquid-glass="false"]
+  :is(.clo-right-tool-palette,.clo-left-3d-double-bars)
+  :is(.clo-palette-scroll,.clo-palette-workflows,.clo-reference-dual-bars,.clo-reference-column,.clo-left-3d-column,.clo-right-tool-grid) {
+  background:transparent!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+@media(prefers-reduced-transparency:reduce){
+  .app-shell[data-studio-customized="true"][data-studio-liquid-glass="false"]
+    :is(.tool-rail,.clo-left-3d-double-bars,.clo-right-tool-palette){
+    background:var(--studio-sidebar)!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+}
+
+/* The toolbars INSIDE the 2D drafting viewport use Liquid Glass. The fixed
+   application left/right toolbars are part of the selected theme, not glass.
+   Keep this final scoped distinction independent of the global Glass toggle:
+   the user's current global material is Solid and widget glass is disabled. */
+.app-shell[data-studio-customized="true"][data-studio-liquid-glass][data-glass-toolbars][data-glass-widgets]
+  :is(.tool-rail,.clo-right-tool-palette) {
+  background:var(--studio-sidebar,#303139)!important;
+  background-image:none!important;
+  background-color:var(--studio-sidebar,#303139)!important;
+  border-color:var(--studio-border,#484a4e)!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+/* The left rail already owns the opaque theme surface; don't paint a second
+   milky/dark sheet on its nested two-column tools. */
+.app-shell[data-studio-customized="true"][data-studio-liquid-glass][data-glass-toolbars][data-glass-widgets]
+  .tool-rail > .clo-left-3d-double-bars {
+  background:transparent!important;
+  background-image:none!important;
+  background-color:transparent!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+.app-shell[data-studio-customized="true"][data-studio-liquid-glass][data-glass-toolbars][data-glass-widgets]
+  .clo-right-tool-palette :is(.clo-palette-scroll,.clo-palette-workflows,.clo-right-tool-grid,.clo-reference-dual-bars,.clo-reference-column) {
+  background:transparent!important;
+  background-image:none!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+
+/* Share the EXISTING 3D clear optical-glass language with the 2D viewport.
+   3D quick-tool parent is completely clear, while individual buttons have
+   very subtle transparent glass rims. Do NOT put a tinted/frosted blur sheet
+   behind the entire 2D stack; it hides the pattern rather than refracting it.
+   Never target the solid left/right Studio toolbars. */
+.app-shell .cc-board .cc-corner-tool-host
+  .clo-corner-toolkit.exo-viewport-inline-tools {
+  background:transparent!important;
+  background-image:none!important;
+  background-color:transparent!important;
+  border:1px solid rgba(243,253,255,.20)!important;
+  border-radius:12px!important;
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  box-shadow:none!important;
+}
+.app-shell .cc-board .cc-corner-tool-host
+  .clo-corner-toolkit.exo-viewport-inline-tools :is(.clo-corner-tool-group > button,.cc-2d-display-trigger) {
+  background:rgba(210,236,255,.035)!important;
+  background-image:none!important;
+  border:1px solid rgba(246,253,255,.31)!important;
+  border-radius:9px!important;
+  color:var(--exo-glass-ink,#1a506c)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.18),0 1px 3px rgba(2,13,23,.22)!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+.app-shell .cc-board .cc-corner-tool-host
+  .clo-corner-toolkit.exo-viewport-inline-tools :is(.clo-corner-tool-group > button,.cc-2d-display-trigger):is(:hover,:focus-visible) {
+  background:rgba(220,247,255,.10)!important;
+  border-color:rgba(224,251,255,.72)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.32),0 0 0 1px rgba(170,233,255,.14)!important;
+}
+.app-shell .cc-board .cc-corner-tool-host
+  .clo-corner-toolkit.exo-viewport-inline-tools :is(.clo-corner-tool-group > button,.cc-2d-display-trigger):is(.active,[aria-pressed="true"]) {
+  background:rgba(52,183,237,.10)!important;
+  border-color:rgba(153,230,255,.82)!important;
+  color:var(--exo-glass-ink-active,#075078)!important;
+  box-shadow:inset 0 0 0 1px rgba(113,218,250,.22),0 0 10px rgba(39,157,208,.15)!important;
+}
+.app-shell .cc-board .cc-corner-tool-host
+  .clo-corner-toolkit.exo-viewport-inline-tools .clo-corner-tool-options {
+  background:rgba(22,39,57,.26)!important;
+  background-image:none!important;
+  border-color:rgba(234,253,255,.37)!important;
+  border-radius:11px!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.18),0 6px 18px rgba(4,14,27,.22)!important;
+}
+
+/* The 2D top horizontal controls were flattened by the old CLO audit.
+   Match the live 3D horizontal orientation lens, down to gradient, opacity,
+   rim, blur radius and shadow, even while the global material is Solid. */
+.app-shell .cc-board .cc-v2-orientation.cc-v2-board-orientation {
+  background:linear-gradient(155deg,rgba(255,255,255,.105),transparent 38%,rgba(255,255,255,.025) 84%),rgba(23,39,54,.065)!important;
+  background-image:linear-gradient(155deg,rgba(255,255,255,.105),transparent 38%,rgba(255,255,255,.025) 84%),none!important;
+  background-color:rgba(23,39,54,.065)!important;
+  border:1px solid rgba(236,249,255,.42)!important;
+  border-radius:12px!important;
+  -webkit-backdrop-filter:blur(3px) saturate(115%)!important;
+  backdrop-filter:blur(3px) saturate(115%)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.52),inset 0 -1px 0 rgba(255,255,255,.09),0 5px 16px rgba(4,10,18,.12)!important;
+}
+.app-shell .cc-board .cc-v2-orientation.cc-v2-board-orientation button {
+  border-radius:6px!important;
+  background:transparent!important;
+  background-image:none!important;
+  box-shadow:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+.app-shell .cc-board .cc-v2-orientation.cc-v2-board-orientation button:is(:hover,:focus-visible) {
+  background:rgba(228,249,255,.17)!important;
+  box-shadow:inset 0 0 0 1px rgba(236,252,255,.15)!important;
+}
+.app-shell .cc-board .cc-v2-orientation.cc-v2-board-orientation button:is(.active,[aria-pressed="true"]) {
+  background:rgba(67,129,171,.18)!important;
+  box-shadow:inset 0 0 0 1px rgba(36,100,145,.34)!important;
+}
+
+/* Eliminate the solid charcoal CLO-audit title strip crossing the upper
+   edge of the 2D viewport. Keep its label and hierarchy unobstructed. */
+.app-shell .cc-board .cc-pattern-window-title {
+  background:linear-gradient(155deg,rgba(255,255,255,.105),transparent 38%,rgba(255,255,255,.025) 84%),rgba(23,39,54,.065)!important;
+  background-image:linear-gradient(155deg,rgba(255,255,255,.105),transparent 38%,rgba(255,255,255,.025) 84%)!important;
+  background-color:rgba(23,39,54,.065)!important;
+  border-bottom-color:rgba(236,249,255,.42)!important;
+  color:#253f4e!important;
+  text-shadow:0 1px rgba(255,255,255,.56);
+  -webkit-backdrop-filter:blur(3px) saturate(115%)!important;
+  backdrop-filter:blur(3px) saturate(115%)!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.52)!important;
+}
+@media(prefers-reduced-transparency:reduce){
+  .app-shell .cc-board .cc-corner-tool-host
+    .clo-corner-toolkit.exo-viewport-inline-tools,
+  .app-shell .cc-board .cc-corner-tool-host
+    .clo-corner-toolkit.exo-viewport-inline-tools .clo-corner-tool-options,
+  .app-shell .cc-board .cc-v2-orientation.cc-v2-board-orientation,
+  .app-shell .cc-board .cc-pattern-window-title {
+    background:rgba(236,242,245,.93)!important;
+    background-image:none!important;
+    backdrop-filter:none!important;
+    -webkit-backdrop-filter:none!important;
+  }
+}
+
+/* Retire the 2D viewport's redundant heading. Native desktop releases built
+   before the JSX removal still contain this element, so hide it there too.
+   Reclaim the empty 24px gap for the same clear-glass corner controls; the
+   outer workspace header, 3D controls and solid side rails are unchanged. */
+.app-shell .cc-board .cc-pattern-window-title {
+  display:none!important;
+}
+.app-shell .cc-board .cc-corner-tool-host {
+  top:8px!important;
+}
+.app-shell .cc-board .cc-v2-orientation.cc-v2-board-orientation {
+  top:11px!important;
 }

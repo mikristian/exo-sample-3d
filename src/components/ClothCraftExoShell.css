@@ -195,6 +195,25 @@
   color:#153e57!important;box-shadow:inset 0 0 0 1px rgba(36,100,145,.34);
 }
 .cc-board-orientation-divider{flex:none;width:1px;height:15px;background:rgba(37,80,113,.27);margin:0 2px}
+/* Only the Liquid Glass 2D top strip is completely optically clear. Solid
+   themes retain their original readable control background. Unlike the
+   corner rail, selected/hovered states must never frost or tint this lens. */
+.app-shell[data-studio-liquid-glass="true"] .cc-board .cc-v2-board-orientation,
+.app-shell[data-studio-liquid-glass="true"] .cc-board .cc-v2-board-orientation > button {
+  background:transparent!important;
+  background-image:none!important;
+  -webkit-backdrop-filter:none!important;
+  backdrop-filter:none!important;
+}
+.app-shell[data-studio-liquid-glass="true"] .cc-board .cc-v2-board-orientation button:is(:hover,:focus-visible){
+  background:transparent!important;
+  box-shadow:inset 0 -1px 0 rgba(28,80,110,.42);
+}
+.app-shell[data-studio-liquid-glass="true"] .cc-board .cc-v2-board-orientation button:is(.active,[aria-pressed="true"]){
+  background:transparent!important;
+  color:#153e57!important;
+  box-shadow:inset 0 -2px 0 rgba(26,90,127,.68);
+}
 .cc-native-free-curve-guide{
   position:absolute;left:51px;bottom:12px;z-index:8;
   display:grid;gap:5px;max-width:min(298px,calc(100% - 65px));padding:9px 11px;
@@ -205,6 +224,9 @@
   font:10px/1.35 -apple-system,BlinkMacSystemFont,sans-serif;
 }
 .cc-native-free-curve-guide strong{font-weight:700}
+.cc-native-free-curve-guide.cc-pattern-compact-hint{left:56px;bottom:10px;max-width:min(225px,calc(100% - 70px));padding:7px 23px 7px 9px;gap:2px;border-radius:6px;font-size:9px;opacity:.8}
+.cc-native-free-curve-guide.cc-pattern-compact-hint button{position:absolute;right:5px;top:2px;border:0;background:transparent;color:#475762;cursor:pointer;font-size:15px;padding:1px 3px;line-height:1}
+.cc-board[data-precision-drafting="true"] .cc-native-free-curve-guide.cc-pattern-compact-hint{max-width:176px;opacity:.65}
 .cc-native-free-curve-guide label{display:flex;align-items:center;gap:7px;cursor:pointer}
 .cc-native-free-curve-guide input{accent-color:#4385a7;margin:0}
 .cc-native-free-curve-guide small{color:#9d4537;line-height:1.3}

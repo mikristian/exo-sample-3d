@@ -21,7 +21,7 @@ export function snapControlAngle(anchor,point,step=Math.PI/4) {
  *  Alt breaks the opposite tangent. Shift constrains the edited tangent to 45°.
  *  Adjacent handle length is preserved, so the neighboring edge remains stable.
  */
-export function editPatternBezierHandle(polygon,edge,index,delta,{breakTangents=false,snapAngle=false}={}) {
+export function editPatternBezierHandle(polygon,edge,index,delta,{breakTangents=false,snapAngle=false,mirrorTangents=false,mirrorAcrossPattern=false}={}) {
   if(!polygon||!Array.isArray(polygon.edges)||!Array.isArray(polygon.points))return null
   const n=polygon.points.length,k=polygon.edges.indexOf(edge)
   if(n<3||k<0||!validPoint(delta)||![0,1].includes(index)||!polygon.curves?.[edge]?.[index])return null
@@ -33,17 +33,52 @@ export function editPatternBezierHandle(polygon,edge,index,delta,{breakTangents=
   if(!validPoint(moved))return null
   const peerIndex=index===0?1:0
   const peerEdge=next.edges[index===0?(k+n-1)%n:(k+1)%n]
+  // The adjacent edge may still be straight (common at the side seam/hem).
+  // Opt-in mirroring creates its control so symmetry works at every vertex.
+  if(mirrorTangents&&!breakTangents&&!next.curves?.[peerEdge]){
+    const a=next.points[index===0?(k+n-1)%n:(k+1)%n]
+    const b=next.points[index===0?k:(k+2)%n]
+    if(!validPoint(a)||!validPoint(b))return null
+    next.curves??={}
+    next.curves[peerEdge]=[lerp(a,b,1/3),lerp(a,b,2/3)]
+  }
   const peer=next.curves[peerEdge]?.[peerIndex]
   const hIn=index===0?peer:initial,hOut=index===0?initial:peer
   const state={
     p:anchor,hIn:validPoint(hIn)?hIn:anchor,
     hOut:validPoint(hOut)?hOut:anchor,
-    kind:vectorcraftAnchorKind(anchor,validPoint(hIn)?hIn:anchor,validPoint(hOut)?hOut:anchor),
+    kind:mirrorTangents&&!breakTangents?'smooth':vectorcraftAnchorKind(anchor,validPoint(hIn)?hIn:anchor,validPoint(hOut)?hOut:anchor),
   }
   const updated=setVectorcraftHandle(state,index===0,moved,{independent:breakTangents})
   if(!updated)return null
   next.curves[edge][index]=index===0?updated.hOut:updated.hIn
   if(validPoint(peer))next.curves[peerEdge][peerIndex]=index===0?updated.hIn:updated.hOut
+  if(mirrorAcrossPattern){
+    // Match boundary endpoints, independent of their control geometry. Existing
+    // opposite-side curves may already be asymmetric while the user edits them.
+    const axis=(Math.min(...polygon.points.map(p=>p[0]))+Math.max(...polygon.points.map(p=>p[0])))/2
+    const reflect=p=>[2*axis-p[0],p[1]]
+    const a=reflect(polygon.points[k]),b=reflect(polygon.points[(k+1)%n])
+    const tolerance=.002
+    const matches=[]
+    for(let j=0;j<n;j++){
+      const start=polygon.points[j],end=polygon.points[(j+1)%n]
+      if(distance(start,b)<=tolerance&&distance(end,a)<=tolerance)
+        matches.push({j,error:Math.max(distance(start,b),distance(end,a))})
+    }
+    matches.sort((a,b)=>a.error-b.error)
+    if(matches.length===1||matches.length>1&&matches[0].error+1e-9<matches[1].error){
+      const partner=next.edges[matches[0].j]
+      next.curves??={}
+      if(matches[0].j===k){
+        // A symmetric hem is its own partner. Only reflect the handle being
+        // dragged into the opposite slot; never overwrite that source slot.
+        next.curves[edge][1-index]=reflect(next.curves[edge][index])
+      }else{
+        next.curves[partner]=[reflect(next.curves[edge][1]),reflect(next.curves[edge][0])]
+      }
+    }
+  }
   return next
 }
 
@@ -88,4 +123,27 @@ export function previewPatternAnchorMove(polygon,index,delta) {
   if(outgoing?.[0])outgoing[0]=add(outgoing[0],delta)
   if(incoming?.[1])incoming[1]=add(incoming[1],delta)
   return next
+}
+
+/** Materialize collinear controls only in an editing preview. Selection alone
+ * never writes the document. The normal native Shape transaction commits drag.
+ */
+export function patternEditingControls(polygon,edges) {
+  const next=structuredClone(polygon)
+  if(!next?.points?.length||!next.edges)return next
+  next.curves={...next.curves}
+  for(const edge of edges){
+    const i=next.edges.indexOf(edge)
+    if(i<0||next.curves[edge]||next.free_curve_points?.[edge]?.length)continue
+    const a=next.points[i],b=next.points[(i+1)%next.points.length]
+    next.curves[edge]=[1/3,2/3].map(t=>a.map((v,j)=>v+(b[j]-v)*t))
+  }
+  return next
+}
+
+/** View-only handle arm extension; never changes material coordinates. */
+export function visibleTangent(anchor,control,screenUnit,fixedScale) {
+  const length=Math.hypot(control[0]-anchor[0],control[1]-anchor[1])
+  const scale=fixedScale||Math.max(1,32*screenUnit/Math.max(length,1e-9))
+  return {point:control.map((v,i)=>anchor[i]+(v-anchor[i])*scale),scale}
 }

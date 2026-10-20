@@ -198,13 +198,20 @@ export default function PatternEditor({
   const activeCurveHandle = activeCurve ? (selectedCurvePiece.curves?.[activeCurve.edgeIndex] || null) : null
   const revealDockedPrecision = () => {
     // When selecting a vertex in the drawing, the appropriate fields should
-    // be immediately available even if the Property Editor was scrolled down
-    // to fabric/manufacturing settings. Only the right panel is scrolled.
+    // be in view, including when the dedicated dock follows the accordion
+    // sections. Scroll only the right-side Property Editor list.
     requestAnimationFrame(() => {
       const host = document.getElementById('clo-pattern-properties-host')
       if (host && !host.hidden) {
-        const scroller = host.closest('.clo-property-panel')
-        if (scroller) scroller.scrollTop = 0
+        const scroller = host.closest('.clo-pe-list')
+        const selectedControls = host.querySelector('.precision-point-inspector')
+          || host.querySelector('.precision-curve-inspector')
+          || host.querySelector('.draft-edge-inspector')
+          || host.querySelector('.clo-draft-split-settings')
+        if (scroller) {
+          const target = selectedControls || host
+          scroller.scrollTop += target.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 10
+        }
       }
     })
   }

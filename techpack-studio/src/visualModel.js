@@ -5,6 +5,16 @@ export const VISUAL_TEMPLATES=[
  {id:'factory',name:'Factory grid',detail:'Structured technical reference'},
  {id:'contrast',name:'Contrast',detail:'Bold architectural typography'}
 ]
+export const VISUAL_PRESETS=[
+ {id:'editorial-header',group:'header',name:'Editorial title header',detail:'Bold title, product code and season',items:[['header',5,5,90,17]]},
+ {id:'factory-header',group:'header',name:'Factory issue header',detail:'Compact style identity with revision footer',items:[['header',5,5,90,14],['footer',5,92,90,6]]},
+ {id:'measurement-grid',group:'grid',name:'Size specification grid',detail:'Live editable POM size chart',items:[['pom',5,24,90,63]]},
+ {id:'materials-grid',group:'grid',name:'Materials & trims grid',detail:'Linked BOM with consumption and price',items:[['bom',5,24,90,56]]},
+ {id:'callout-pair',group:'callout',name:'Double arrow callouts',detail:'Two instruction notes and movable arrows',items:[['callout',4,35,24,16,{content:'SEAM DETAIL / Specify construction'}],['leader',26,39,15,12],['callout',73,56,23,16,{content:'TRIM DETAIL / Confirm placement'}],['leader',60,57,15,12,{startX:.9,startY:.2,endX:.1,endY:.8}]]},
+ {id:'single-callout',group:'callout',name:'Arrow & construction note',detail:'Movable leader with editable label',items:[['callout',6,38,29,18,{content:'CONSTRUCTION NOTE / Confirm dimensions'}],['leader',34,41,23,14]]},
+ {id:'drawing-grid',group:'drawing',name:'Front & back drawings',detail:'Two technical drawing upload slots',items:[['photo',7,25,40,54],['photo',53,25,40,54]]},
+ {id:'color-grid',group:'grid',name:'Colorway swatch strip',detail:'Linked fabric colors and Pantone labels',items:[['swatch',6,70,88,18]]}
+]
 export const WIDGETS=[
  {type:'header',name:'Product header',detail:'Style, season, status'},
  {type:'hero',name:'Garment technical flat',detail:'Front, back, artwork and annotations'},

@@ -130,6 +130,10 @@ const handleReferenceKeyDown = event => {
   const buttons = [...event.currentTarget.querySelectorAll('button[data-clo-slot]')]
   const slot = [...CLO7_2D_A,...CLO7_2D_B].find(item => `2d:${item.id}` === current.dataset.cloSlot)
   if (!slot) return
+  if(slot.id==='B15' && (event.key==='ArrowDown'||event.key==='End')){
+    const foam=event.currentTarget.querySelector('button[data-exo-action="foam-padding"]')
+    if(foam){event.preventDefault();foam.focus();return}
+  }
   const sameColumn = slot.id.startsWith('A') ? CLO7_2D_A : CLO7_2D_B
   const otherColumn = slot.id.startsWith('A') ? CLO7_2D_B : CLO7_2D_A
   const index = sameColumn.findIndex(item => item.id === slot.id)
@@ -207,7 +211,9 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
   })
   // Settings retains the saved extra-tool selection, but the side palette
   // exposes only its original reference tools in both display modes.
-  const visibleAction=id=>EXO_RIGHT_REFERENCE_ACTION_IDS.has(id)
+  // Foam is a real 2D operation, not a footer action. Keep it available in
+  // the focused groups as well as directly beneath Fill in the full CLO rail.
+  const visibleAction=id=>EXO_RIGHT_REFERENCE_ACTION_IDS.has(id)||id==='foam-padding'
   useEffect(() => {
     try { localStorage.setItem(MODE_KEY, showAll ? 'all' : 'focused') } catch { /* private mode */ }
   }, [showAll])
@@ -320,7 +326,7 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
   const visibleReferenceCount = [...CLO7_2D_A,...CLO7_2D_B]
     .filter(supportedReference).length
   const visibleCount = showAll
-    ? visibleReferenceCount
+    ? visibleReferenceCount+1
     : groups.reduce((count, [, ids]) => count + ids.filter(id=>visibleAction(id)&&availableAction(TOOL_BY_ID.get(id)?.[2])).length, 0)
   const referenceTotal = CLO7_2D_A.length+CLO7_2D_B.length
   const totalCount = showAll?visibleCount:RIGHT_PALETTE_TOOLS.filter(([, ,action])=>availableAction(action)).length
@@ -390,7 +396,25 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
         <div className="clo-tool-palette-group-divider" aria-label="CLO version 7 two-column pattern reference">2D TOOLS</div>
         <div className="clo-reference-dual-bars clo-observed-bars" aria-label="CLO 7 verified drafting and sewing tool columns" data-toolbar-complete="true" onKeyDown={handleReferenceKeyDown}>
         <div className="clo-reference-column clo-right-tool-grid clo-observed-column" role="toolbar" aria-orientation="vertical" aria-label="CLO 2D column A">{visible(CLO7_2D_A).map(renderCloReference)}</div>
-        <div className="clo-reference-column clo-right-tool-grid clo-observed-column" role="toolbar" aria-orientation="vertical" aria-label="CLO 2D column B">{visible(CLO7_2D_B).map(renderCloReference)}</div>
+        <div className="clo-reference-column clo-right-tool-grid clo-observed-column" role="toolbar" aria-orientation="vertical" aria-label="CLO 2D column B">
+          {visible(CLO7_2D_B).map(renderCloReference)}
+          {/* EXO extension, not a claimed CLO slot: matches B15 Fill's button
+              size and sits one regular 34px row immediately below it. */}
+          <button type="button" className="clo-foam-padding-launch clo-supported-tool"
+            aria-label="Foam Padding / Trapunto"
+            title="Foam Padding / Trapunto · import SVG raised foam shapes"
+            data-exo-action="foam-padding" data-exo-after="fill-pattern"
+            style={{top:CLO7_2D_B.at(-1).observedY-CLO7_2D_A[0].observedY+34}}
+            onKeyDown={event=>{
+              if(event.key==='ArrowUp'||event.key==='Home'){
+                event.preventDefault()
+                event.currentTarget.parentElement.querySelector('[data-clo-slot="2d:B15"]')?.focus()
+              }
+            }}
+            onClick={()=>click('foam-padding')}>
+            <CadToolIcon id="surface" size={20}/>
+          </button>
+        </div>
         </div>
       </> : groups.map(([name, ids])=>[name,ids.filter(visibleAction)]).filter(([,ids])=>ids.length).map(([name, ids]) => <div className="clo-palette-group" key={name}>
         <div className="clo-palette-group-label" title={name}>{name}</div>
@@ -398,7 +422,6 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
       </div>)}
     </div>
     <button type="button" className="clo-reset-fabric-panels" disabled={typeof resetSimulation!=='function'} aria-disabled={typeof resetSimulation!=='function'} aria-label={nativeClothcraft?'Reset 3D fabric arrangement':'Reset fabric panels'} title={nativeClothcraft?'Reset the 3D fabric arrangement to its initial pose; preserve authored patterns, sewing and materials':'Reset fabric panels to their initial arrangement; preserve patterns, sewing and materials'} onClick={typeof resetSimulation==='function'?resetSimulation:undefined} style={{alignSelf:"flex-end",margin:"6px 3px",padding:"6px 2px",fontSize:8,width:"calc(100% - 6px)",minHeight:54,display:"flex",flexDirection:"column",alignItems:"center",gap:4,background:"#32373d",color:"#e6edf3"}}><RotateCcw size={18}/><span>RESET<br/>{nativeClothcraft?'3D':'PANELS'}</span></button>
-    <button type="button" className="clo-foam-padding-launch" aria-label="Foam Padding / Trapunto" title="Foam Padding / Trapunto · import SVG raised foam shapes" data-exo-action="foam-padding" onClick={()=>click('foam-padding')}><CadToolIcon id="surface" size={19}/><span>FOAM</span></button>
     <div className="clo-palette-count"
       title={showAll?
         `${visibleReferenceCount} operational or inspectable CLO reference positions of ${referenceTotal}; selecting a tool activates it without opening an information panel.`:

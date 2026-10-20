@@ -1,4 +1,5 @@
-import React, {useState} from 'react'
+import React, {useId,useState} from 'react'
+import {flushSync} from 'react-dom'
 import {Layers3, ScanLine, Spline, Scissors, Ruler} from 'lucide-react'
 import ViewportQuickTools from './ViewportQuickTools.jsx'
 import './ClothCraftCornerTools.css'
@@ -22,15 +23,26 @@ export default function ClothCraftCornerTools({dimension,mode,activeTool:control
   const [displayHovered,setDisplayHovered] = useState(false)
   const [displayFocused,setDisplayFocused] = useState(false)
   const [displayDismissed,setDisplayDismissed] = useState(false)
+  const displayMenuId=useId()
   const activeTool = controlledTool && tools[controlledTool] === mode ? controlledTool : lastTool && tools[lastTool] === mode
     ? lastTool : (ACTIVE_TOOL[dimension]?.[mode] || 'select')
   const displayVisible = !displayDismissed && (displayOpen || displayHovered || displayFocused)
   const displayGroup=dimension==='2d' ? <div className="canvas-tool-group clo-corner-tool-group cc-2d-display-host"
     data-tool-family="pattern-display" data-open={String(displayVisible)} data-dismissed={String(displayDismissed)}
     onPointerEnter={()=>{setDisplayHovered(true);setDisplayDismissed(false)}}
-    onPointerLeave={()=>setDisplayHovered(false)}
-    onFocusCapture={()=>{setDisplayFocused(true);setDisplayDismissed(false)}}
-    onBlurCapture={event=>{if(!event.currentTarget.contains(event.relatedTarget))setDisplayFocused(false)}}
+    onPointerLeave={()=>{setDisplayHovered(false);setDisplayOpen(false)}}
+    onFocusCapture={event=>{
+      setDisplayFocused(true)
+      // Escape restores focus from an option to the trigger. That internal
+      // focus move must not reopen an intentionally dismissed flyout.
+      if(!event.currentTarget.contains(event.relatedTarget))setDisplayDismissed(false)
+    }}
+    onBlurCapture={event=>{
+      if(!event.currentTarget.contains(event.relatedTarget)){
+        setDisplayFocused(false)
+        setDisplayOpen(false)
+      }
+    }}
     onKeyDown={event=>{
       if(event.key==='Escape'){
         event.preventDefault();event.stopPropagation()
@@ -38,18 +50,30 @@ export default function ClothCraftCornerTools({dimension,mode,activeTool:control
         event.currentTarget.querySelector('.cc-2d-display-trigger')?.focus()
       } else if(event.key==='ArrowRight' && event.target.classList.contains('cc-2d-display-trigger')){
         event.preventDefault()
-        setDisplayDismissed(false)
-        event.currentTarget.querySelector('.cc-2d-display-menu > button')?.focus()
+        // Focus cannot enter CSS display:none; expose the row synchronously.
+        flushSync(()=>{setDisplayOpen(true);setDisplayDismissed(false)})
+        event.currentTarget.querySelector('.cc-2d-display-menu > button:not(:disabled)')?.focus()
+      } else if(['ArrowRight','ArrowLeft','Home','End'].includes(event.key)&&event.target.closest?.('.cc-2d-display-menu')){
+        const buttons=[...event.currentTarget.querySelectorAll('.cc-2d-display-menu > button:not(:disabled)')]
+        const current=buttons.indexOf(event.target.closest('button'))
+        if(current<0||!buttons.length)return
+        event.preventDefault()
+        const next=event.key==='Home'?0:event.key==='End'?buttons.length-1:
+          (current+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length
+        buttons[next].focus()
       }
     }}>
     <button type="button" className="cc-2d-display-trigger" aria-label="2D Pattern Display"
       title="2D Pattern Display · hover to toggle reference, internal, notch and allowance guides"
-      aria-expanded={displayVisible} aria-haspopup="true"
-      onClick={()=>{setDisplayDismissed(false);setDisplayOpen(value=>!value)}}>
+      aria-expanded={displayVisible} aria-haspopup="true" aria-controls={displayMenuId}
+      onClick={()=>{
+        if(displayOpen){setDisplayOpen(false);setDisplayHovered(false);setDisplayDismissed(true)}
+        else {setDisplayOpen(true);setDisplayDismissed(false)}
+      }}>
       <Layers3 size={19}/>
       <span className="clo-corner-flyout-caret" aria-hidden="true"/>
     </button>
-    <div className="canvas-tool-options clo-corner-tool-options cc-2d-display-menu" role="group" aria-label="2D Pattern Display options">
+    <div id={displayMenuId} className="canvas-tool-options clo-corner-tool-options cc-2d-display-menu" role="group" aria-label="2D Pattern Display options">
       {[
         ['reference','Show Reference Lines',ScanLine],
         ['internal','Show Internal Lines',Spline],
