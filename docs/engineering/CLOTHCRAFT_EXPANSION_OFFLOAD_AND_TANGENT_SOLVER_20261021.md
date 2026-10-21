@@ -64,6 +64,21 @@ Under the identical 5% limit, 20 rigid-registration passes followed by 20 strict
 
 This is a **1.9458 mm maximum-gap** and **1.7513 mm RMS** improvement at the expense of **additional registration work**, without a measured equal-wall-time speed comparison. The sewn T-shirt remains extremely far from the provisional 10 mm physical closure target. Tangent-projected dynamics on this hybrid were also tested but made RMS worse.
 
+### Fabric-neighborhood/sweep A/B follow-up
+
+Additional matched off-body T-shirt trials used the same 10 nonrigid-registration passes, 20 strict dynamic VBD steps and **5% principal strain**; only the coupled block neighborhood radius and number of sweeps changed:
+
+| Nonrigid fabric neighborhood | Sweeps | Dynamic projection | Worst seam gap | Mean per-seam RMS |
+| --- | ---: | --- | ---: | ---: |
+| 1 ring | 1 | Off | 418.5496 mm | 333.4949 mm |
+| 1 ring | 1 | On | 419.3696 mm | 336.4610 mm |
+| **2 rings** | **1** | **Off** | **417.9275 mm** | **331.2740 mm** |
+| 2 rings | 1 | On | 418.9595 mm | 335.9151 mm |
+| 2 rings | 2 | Off | 416.6701 mm | 333.4781 mm |
+| 2 rings | 4 | Off | 416.6907 mm | 333.6845 mm |
+
+Two rings with one sweep reduced both seam metrics relative to the one-ring baseline, **but by only 0.62 mm maximum and 2.22 mm RMS**. Two/four sweeps lower the worst gap another ~1.25 mm at increased work while sacrificing RMS. All these QA fixtures passed the strain, endpoint collision and source save-state invariants. This tuning cannot substitute for actual full-garment closure. Raw evidence: `two-rings-no-tangent.json`, `two-rings-tangent.json`, `two-rings-two-sweeps.json`, `two-rings-four-sweeps.json` alongside the matched one-ring records.
+
 **QA:** `integrations/clothcraft/qa-offbody-preassembly-preview-20261021.mjs`.
 Raw reports are under `docs/qa/clothcraft-strain-tangent-20261021/`, including `guarded-baseline.json`, `tangent-after-registration.json`, `rigid20-vbd20-baseline.json`, `rigid20-nonrigid10-vbd20.json`, and `rigid20-nonrigid10-tangent20.json`. The API reports accepted/rejected block counts, RMS, max gap, explicit flags, original workspace nonmutation, staging-only validation and `avatarReentryValidated:false`.
 
