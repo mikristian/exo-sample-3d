@@ -13,7 +13,7 @@ The repeatable **`scripts/engineering/exo-direct-expansion-offload-20261021.py`*
 | Historical EXO backup | Result |
 | --- | --- |
 | `integrations/clothcraft/output/pattern-ui-backup-20261019` | **732 entries verified**, 369,719,933 logical file bytes; transferred 318,272,496 compressed bytes to Jarvis Expansion; source released only after verification |
-| `visible-handles-backup-20261019` | SSH transfer interrupted; **original retained locally**, incomplete remote fragment discarded |
+| `visible-handles-backup-20261019` | **735 entries verified**, 373,503,397 logical file bytes; 319,059,341 compressed bytes transferred to physical Expansion; source released only after full remote archive readback |
 | `clo-audit-backup-20261019` | Not successfully transferred; **original retained locally** |
 
 Completed remote archive:
@@ -21,8 +21,8 @@ Completed remote archive:
 on Jarvis, SHA-256:
 `9546696aa57ae3c8f20caf5a4f99b7c0dbac7aad295b1c2f42dc560b4bc08dd1`.
 
-Local verification manifest:
-`docs/qa/expansion-offload-20261021/pattern-ui-backup-20261019.verified.json`.
+Local verification manifests:
+`docs/qa/expansion-offload-20261021/pattern-ui-backup-20261019.verified.json` and `visible-handles-backup-20261019.verified.json`.
 Restore historical UI sources by extracting the archive into a **new recovery folder**; never overwrite the running app, current web bundle or saved garment.
 
 The Mac dropped below 500 MiB free during storage staging and repeated Rust builds. With no active compilers, additional **regenerable, intermediate Cargo/Rust** artifacts were cleared safely: the Rust `target/debug/incremental` (~2.5 GiB), then precisely 17,104 intermediate `marvelous_cloth-*.rcgu.o` compiler object files (~4.8 GiB) from the canonical target `debug/deps`. Executables, `.rlib`, source, live files and personally saved projects were not deleted. Final observed internal free space increased to approximately **5.8 GiB**. These objects can be regenerated; later builds may consume that space again. Continue aiming for **20–25 GiB headroom** through additional verified offloads, not by deleting unknown files.
@@ -78,6 +78,8 @@ Additional matched off-body T-shirt trials used the same 10 nonrigid-registratio
 | 2 rings | 4 | Off | 416.6907 mm | 333.6845 mm |
 
 Two rings with one sweep reduced both seam metrics relative to the one-ring baseline, **but by only 0.62 mm maximum and 2.22 mm RMS**. Two/four sweeps lower the worst gap another ~1.25 mm at increased work while sacrificing RMS. All these QA fixtures passed the strain, endpoint collision and source save-state invariants. This tuning cannot substitute for actual full-garment closure. Raw evidence: `two-rings-no-tangent.json`, `two-rings-tangent.json`, `two-rings-two-sweeps.json`, `two-rings-four-sweeps.json` alongside the matched one-ring records.
+
+**Extended 40-step check:** Holding 10 off-body nonrigid registrations, 1 sweep, 5% strain and identical initial garments fixed, 1 ring yielded **324.6921 mm** worst gap and **235.5418 mm** RMS; 2 rings yielded **324.0721 mm** and **234.0834 mm** respectively. Thus the small two-ring advantage persisted for the longer preview, with no accepted dynamic nonrigid blocks in either mode. See `forty-step-one-ring.json` and `forty-step-two-rings.json`. This remains more than 32 times the provisional 10 mm seam-closure target.
 
 **QA:** `integrations/clothcraft/qa-offbody-preassembly-preview-20261021.mjs`.
 Raw reports are under `docs/qa/clothcraft-strain-tangent-20261021/`, including `guarded-baseline.json`, `tangent-after-registration.json`, `rigid20-vbd20-baseline.json`, `rigid20-nonrigid10-vbd20.json`, and `rigid20-nonrigid10-tangent20.json`. The API reports accepted/rejected block counts, RMS, max gap, explicit flags, original workspace nonmutation, staging-only validation and `avatarReentryValidated:false`.
