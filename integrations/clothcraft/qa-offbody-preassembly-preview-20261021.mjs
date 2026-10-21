@@ -11,8 +11,10 @@ import {fileURLToPath} from 'node:url'
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..')
 const steps=Number(process.env.EXO_OFFBODY_STEPS||10)
 const strainLimit=Number(process.env.EXO_OFFBODY_STRAIN_PERCENT||5)
+const registrationSteps=Number(process.env.EXO_OFFBODY_REGISTRATION_STEPS||0)
 assert(Number.isInteger(steps)&&steps>=1&&steps<=40)
 assert(Number.isFinite(strainLimit)&&strainLimit>=0&&strainLimit<=50)
+assert(Number.isInteger(registrationSteps)&&registrationSteps>=0&&registrationSteps<=40)
 const bin=path.join(root,'research/oss/clothcraft/target/debug/exo-session')
 const avatar=path.join(root,'research/oss/clothcraft/assets/makehuman/mannequin.obj')
 const temp=mkdtempSync(path.join(tmpdir(),'exo-offbody-assembly-'))
@@ -51,16 +53,22 @@ try{
  assert.equal(source.revision,before.revision)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:0},/1.40 steps/)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:41},/1.40 steps/)
+ await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,rigidRegistrationSteps:41},/at most 40/)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,strainLimitPercent:-1},/strain limit/)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:'ten'},/invalid type|expected u64/i)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,strainLimitPercent:'5'},/invalid type|expected f64/i)
- const ten=await good({op:'preassemble-preview',revision:source.revision,steps,strainLimitPercent:strainLimit})
+ const ten=await good({op:'preassemble-preview',revision:source.revision,steps,strainLimitPercent:strainLimit,
+  rigidRegistrationSteps:registrationSteps})
  assert.equal(ten.format,'exo-offbody-assembly-preview.v1')
  assert.equal(ten.committed,false)
  assert.equal(ten.avatarReentryValidated,false)
  assert.equal(ten.sweptContactCertified,false)
  assert.equal(ten.stagedAvatarEndpointChecked,true)
  assert.equal(ten.stepsAccepted,steps)
+ assert.equal(ten.rigidRegistrationRequested,registrationSteps)
+ assert(ten.rigidRegistrationAccepted>=0&&ten.rigidRegistrationAccepted<=registrationSteps)
+ assert(Number.isInteger(ten.coupledPanelMotionAcceptedSteps)&&
+  ten.coupledPanelMotionAcceptedSteps>=0&&ten.coupledPanelMotionAcceptedSteps<=steps)
  assert(Number.isInteger(ten.selectedBestStep)&&ten.selectedBestStep>=0&&ten.selectedBestStep<=steps)
  assert(ten.finalSeamGapMm<=ten.terminalSeamGapMm+1e-7,'Best stage worse than terminal stage')
  assert(ten.seamReboundAfterBestMm>=0,'Invalid observed rebound')
@@ -76,6 +84,10 @@ try{
  const saved=await good({op:'save'})
  assert.deepEqual(saved.project.state?.x,before.positions,'Preview changed saved user garment')
  result={pass:true,sourceRevision:source.revision,steps,strainLimitPercent:strainLimit,
+  rigidRegistrationRequested:registrationSteps,rigidRegistrationAccepted:ten.rigidRegistrationAccepted,
+  rigidRegistrationCoupledAccepted:ten.rigidRegistrationCoupledAccepted,
+  postRegistrationGapMm:ten.postRegistrationSeamGapMm,
+  coupledPanelMotionAcceptedSteps:ten.coupledPanelMotionAcceptedSteps,
   selectedBestStep:ten.selectedBestStep,terminalGapMm:ten.terminalSeamGapMm,
   seamReboundAfterBestMm:ten.seamReboundAfterBestMm,initialGapMm:ten.initialSeamGapMm,
   finalGapMm:ten.finalSeamGapMm,improvementPercent:100*(1-ten.finalSeamGapMm/ten.initialSeamGapMm),
