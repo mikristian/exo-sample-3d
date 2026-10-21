@@ -15,6 +15,8 @@ const registrationSteps=Number(process.env.EXO_OFFBODY_REGISTRATION_STEPS||0)
 const nonrigidSweeps=Number(process.env.EXO_NONRIGID_SEAM_SWEEPS||0)
 const fabricRings=Number(process.env.EXO_NONRIGID_FABRIC_RINGS||0)
 const nonrigidRegistration=Number(process.env.EXO_NONRIGID_REGISTRATION_STEPS||0)
+const allowGapRebound=process.env.EXO_NONRIGID_ALLOW_GAP_REBOUND==='1'
+const projectStrainTangent=process.env.EXO_NONRIGID_PROJECT_STRAIN_TANGENT==='1'
 assert(Number.isInteger(steps)&&steps>=1&&steps<=40)
 assert(Number.isFinite(strainLimit)&&strainLimit>=0&&strainLimit<=50)
 assert(Number.isInteger(registrationSteps)&&registrationSteps>=0&&registrationSteps<=40)
@@ -67,7 +69,9 @@ try{
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,strainLimitPercent:'5'},/invalid type|expected f64/i)
  const ten=await good({op:'preassemble-preview',revision:source.revision,steps,strainLimitPercent:strainLimit,
   rigidRegistrationSteps:registrationSteps,nonrigidSeamSweeps:nonrigidSweeps,
-  nonrigidFabricRings:fabricRings,nonrigidRegistrationSteps:nonrigidRegistration})
+  nonrigidFabricRings:fabricRings,nonrigidRegistrationSteps:nonrigidRegistration,
+  nonrigidAllowGapRebound:allowGapRebound,
+  nonrigidProjectStrainTangent:projectStrainTangent})
  assert.equal(ten.format,'exo-offbody-assembly-preview.v1')
  assert.equal(ten.committed,false)
  assert.equal(ten.avatarReentryValidated,false)
@@ -77,6 +81,8 @@ try{
  assert.equal(ten.rigidRegistrationRequested,registrationSteps)
  assert.equal(ten.nonrigidSeamSweeps,nonrigidSweeps)
  assert.equal(ten.nonrigidFabricRings,fabricRings)
+ assert.equal(ten.nonrigidAllowGapRebound,allowGapRebound)
+ assert.equal(ten.nonrigidProjectStrainTangent,projectStrainTangent)
  assert.equal(ten.nonrigidRegistrationRequested,nonrigidRegistration)
  assert(ten.nonrigidBlockAccepted<=ten.nonrigidBlockAttempts)
  assert(ten.rigidRegistrationAccepted>=0&&ten.rigidRegistrationAccepted<=registrationSteps)
@@ -88,6 +94,8 @@ try{
  assert.equal(ten.positions.length,before.positions.length)
  assert(ten.stagingTranslationM[2]>.5,'Preview did not stage cloth beyond avatar in Z')
  assert(Number.isFinite(ten.initialSeamGapMm)&&Number.isFinite(ten.finalSeamGapMm))
+ assert(Number.isFinite(ten.initialSeamRmsMm)&&Number.isFinite(ten.finalSeamRmsMm))
+ assert(ten.initialSeamRmsMm>=0&&ten.finalSeamRmsMm>=0)
  assert(ten.finalSeamGapMm<ten.initialSeamGapMm,'Stage did not improve real seam opening')
  assert(ten.principalExtensionMaxPercent<=strainLimit+0.00001,'Staged principal stretch cap violated')
  const after=await good({op:'snapshot'})
@@ -99,12 +107,18 @@ try{
  result={pass:true,sourceRevision:source.revision,steps,strainLimitPercent:strainLimit,
   rigidRegistrationRequested:registrationSteps,rigidRegistrationAccepted:ten.rigidRegistrationAccepted,
   nonrigidSeamSweeps:nonrigidSweeps,nonrigidFabricRings:fabricRings,
+  nonrigidAllowGapRebound:allowGapRebound,
+  nonrigidProjectStrainTangent:projectStrainTangent,
   nonrigidRegistrationRequested:nonrigidRegistration,
   nonrigidRegistrationAttempts:ten.nonrigidRegistrationAttempts,
   nonrigidRegistrationAccepted:ten.nonrigidRegistrationAccepted,
   nonrigidBlockAttempts:ten.nonrigidBlockAttempts,nonrigidBlockAccepted:ten.nonrigidBlockAccepted,
+  nonrigidDynamicRejectionDiagnostics:ten.nonrigidDynamicRejectionDiagnostics,
   rigidRegistrationCoupledAccepted:ten.rigidRegistrationCoupledAccepted,
   postRegistrationGapMm:ten.postRegistrationSeamGapMm,
+  initialSeamRmsMm:ten.initialSeamRmsMm,
+  postRegistrationSeamRmsMm:ten.postRegistrationSeamRmsMm,
+  finalSeamRmsMm:ten.finalSeamRmsMm,
   coupledPanelMotionAcceptedSteps:ten.coupledPanelMotionAcceptedSteps,
   selectedBestStep:ten.selectedBestStep,terminalGapMm:ten.terminalSeamGapMm,
   seamReboundAfterBestMm:ten.seamReboundAfterBestMm,initialGapMm:ten.initialSeamGapMm,
