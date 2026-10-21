@@ -12,9 +12,15 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..')
 const steps=Number(process.env.EXO_OFFBODY_STEPS||10)
 const strainLimit=Number(process.env.EXO_OFFBODY_STRAIN_PERCENT||5)
 const registrationSteps=Number(process.env.EXO_OFFBODY_REGISTRATION_STEPS||0)
+const nonrigidSweeps=Number(process.env.EXO_NONRIGID_SEAM_SWEEPS||0)
+const fabricRings=Number(process.env.EXO_NONRIGID_FABRIC_RINGS||0)
+const nonrigidRegistration=Number(process.env.EXO_NONRIGID_REGISTRATION_STEPS||0)
 assert(Number.isInteger(steps)&&steps>=1&&steps<=40)
 assert(Number.isFinite(strainLimit)&&strainLimit>=0&&strainLimit<=50)
 assert(Number.isInteger(registrationSteps)&&registrationSteps>=0&&registrationSteps<=40)
+assert(Number.isInteger(nonrigidSweeps)&&nonrigidSweeps>=0&&nonrigidSweeps<=4)
+assert(Number.isInteger(fabricRings)&&fabricRings>=0&&fabricRings<=2)
+assert(Number.isInteger(nonrigidRegistration)&&nonrigidRegistration>=0&&nonrigidRegistration<=20)
 const bin=path.join(root,'research/oss/clothcraft/target/debug/exo-session')
 const avatar=path.join(root,'research/oss/clothcraft/assets/makehuman/mannequin.obj')
 const temp=mkdtempSync(path.join(tmpdir(),'exo-offbody-assembly-'))
@@ -54,11 +60,14 @@ try{
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:0},/1.40 steps/)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:41},/1.40 steps/)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,rigidRegistrationSteps:41},/at most 40/)
+ await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,nonrigidSeamSweeps:5},/<=4 sweeps/)
+ await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,nonrigidRegistrationSteps:21},/<=20 steps/)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,strainLimitPercent:-1},/strain limit/)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:'ten'},/invalid type|expected u64/i)
  await expectFail({op:'preassemble-preview',revision:source.revision,steps:1,strainLimitPercent:'5'},/invalid type|expected f64/i)
  const ten=await good({op:'preassemble-preview',revision:source.revision,steps,strainLimitPercent:strainLimit,
-  rigidRegistrationSteps:registrationSteps})
+  rigidRegistrationSteps:registrationSteps,nonrigidSeamSweeps:nonrigidSweeps,
+  nonrigidFabricRings:fabricRings,nonrigidRegistrationSteps:nonrigidRegistration})
  assert.equal(ten.format,'exo-offbody-assembly-preview.v1')
  assert.equal(ten.committed,false)
  assert.equal(ten.avatarReentryValidated,false)
@@ -66,6 +75,10 @@ try{
  assert.equal(ten.stagedAvatarEndpointChecked,true)
  assert.equal(ten.stepsAccepted,steps)
  assert.equal(ten.rigidRegistrationRequested,registrationSteps)
+ assert.equal(ten.nonrigidSeamSweeps,nonrigidSweeps)
+ assert.equal(ten.nonrigidFabricRings,fabricRings)
+ assert.equal(ten.nonrigidRegistrationRequested,nonrigidRegistration)
+ assert(ten.nonrigidBlockAccepted<=ten.nonrigidBlockAttempts)
  assert(ten.rigidRegistrationAccepted>=0&&ten.rigidRegistrationAccepted<=registrationSteps)
  assert(Number.isInteger(ten.coupledPanelMotionAcceptedSteps)&&
   ten.coupledPanelMotionAcceptedSteps>=0&&ten.coupledPanelMotionAcceptedSteps<=steps)
@@ -85,6 +98,11 @@ try{
  assert.deepEqual(saved.project.state?.x,before.positions,'Preview changed saved user garment')
  result={pass:true,sourceRevision:source.revision,steps,strainLimitPercent:strainLimit,
   rigidRegistrationRequested:registrationSteps,rigidRegistrationAccepted:ten.rigidRegistrationAccepted,
+  nonrigidSeamSweeps:nonrigidSweeps,nonrigidFabricRings:fabricRings,
+  nonrigidRegistrationRequested:nonrigidRegistration,
+  nonrigidRegistrationAttempts:ten.nonrigidRegistrationAttempts,
+  nonrigidRegistrationAccepted:ten.nonrigidRegistrationAccepted,
+  nonrigidBlockAttempts:ten.nonrigidBlockAttempts,nonrigidBlockAccepted:ten.nonrigidBlockAccepted,
   rigidRegistrationCoupledAccepted:ten.rigidRegistrationCoupledAccepted,
   postRegistrationGapMm:ten.postRegistrationSeamGapMm,
   coupledPanelMotionAcceptedSteps:ten.coupledPanelMotionAcceptedSteps,
