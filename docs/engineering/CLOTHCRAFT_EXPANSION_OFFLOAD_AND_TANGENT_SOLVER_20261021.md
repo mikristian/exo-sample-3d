@@ -14,7 +14,9 @@ The repeatable **`scripts/engineering/exo-direct-expansion-offload-20261021.py`*
 | --- | --- |
 | `integrations/clothcraft/output/pattern-ui-backup-20261019` | **732 entries verified**, 369,719,933 logical file bytes; transferred 318,272,496 compressed bytes to Jarvis Expansion; source released only after verification |
 | `visible-handles-backup-20261019` | **735 entries verified**, 373,503,397 logical file bytes; 319,059,341 compressed bytes transferred to physical Expansion; source released only after full remote archive readback |
-| `clo-audit-backup-20261019` | Not successfully transferred; **original retained locally** |
+| `clo-audit-backup-20261019` | **760 entries verified**, 404,587,597 logical file bytes; 328,484,548 compressed bytes transferred to physical Expansion; source released only after full remote archive readback |
+
+**All three historical UI archives are now complete:** 2,227 verified archive entries, 1,147,810,927 logical file bytes, and 965,816,385 compressed archive bytes on physical Expansion. Each remote file has a per-member SHA-256 check and an independently verified compressed archive checksum. These are historical backup bundles, not the active app, saved garments, or source tree.
 
 Completed remote archive:
 `/Volumes/Expansion/EXO-Engineering/verified-backups/EXO-ClothCraft-Offload-20261021/pattern-ui-backup-20261019.tar.gz`
@@ -22,7 +24,7 @@ on Jarvis, SHA-256:
 `9546696aa57ae3c8f20caf5a4f99b7c0dbac7aad295b1c2f42dc560b4bc08dd1`.
 
 Local verification manifests:
-`docs/qa/expansion-offload-20261021/pattern-ui-backup-20261019.verified.json` and `visible-handles-backup-20261019.verified.json`.
+`docs/qa/expansion-offload-20261021/pattern-ui-backup-20261019.verified.json`, `visible-handles-backup-20261019.verified.json`, and `clo-audit-backup-20261019.verified.json`.
 Restore historical UI sources by extracting the archive into a **new recovery folder**; never overwrite the running app, current web bundle or saved garment.
 
 The Mac dropped below 500 MiB free during storage staging and repeated Rust builds. With no active compilers, additional **regenerable, intermediate Cargo/Rust** artifacts were cleared safely: the Rust `target/debug/incremental` (~2.5 GiB), then precisely 17,104 intermediate `marvelous_cloth-*.rcgu.o` compiler object files (~4.8 GiB) from the canonical target `debug/deps`. Executables, `.rlib`, source, live files and personally saved projects were not deleted. Final observed internal free space increased to approximately **5.8 GiB**. These objects can be regenerated; later builds may consume that space again. Continue aiming for **20–25 GiB headroom** through additional verified offloads, not by deleting unknown files.
