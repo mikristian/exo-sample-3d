@@ -15,10 +15,19 @@ jobs:
       run:
         working-directory: research/oss/clothcraft
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          sparse-checkout: research/oss/clothcraft
+      # Public, credential-free checkout avoids unrelated legacy gitlinks with
+      # missing .gitmodules URLs in the parent repository.
+      - name: Check out the exact public source revision
+        working-directory: ${{ github.workspace }}
+        env:
+          SOURCE_REVISION: ${{ github.sha }}
+        run: |
+          git init .
+          git remote add origin https://github.com/mikristian/exo-sample-3d.git
+          git fetch --depth=1 --filter=blob:none origin "$SOURCE_REVISION"
+          git sparse-checkout init --cone
+          git sparse-checkout set research/oss/clothcraft
+          git checkout --detach FETCH_HEAD
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.99.1 --profile minimal
       - name: Build all default-feature binaries
