@@ -47,6 +47,22 @@ if [[ "$ready" != 1 ]]; then
   exit 1
 fi
 "/usr/local/bin/node" -e 'let x=require(process.argv[1]);if(!x.ok||x.backend!=="clothcraft-exo-local"||!x.nativeReady)process.exit(1)' "$TEMP/health.json"
+# Exercise the real Rust workspace using *only* this disposable output root.
+# In particular, never send a garment-changing command to the user's live
+# 5385 process, and do not confuse a static HTML render with a working editor.
+curl -fsS --max-time 35 \
+  -H 'Origin: http://127.0.0.1:5284' -H 'Content-Type: application/json' \
+  -d '{"op":"open","preset":"tshirt"}' \
+  http://127.0.0.1:5497/workspace -o "$TEMP/open.json"
+"/usr/local/bin/node" -e 'const x=require(process.argv[1]);if(!x.ok||!Array.isArray(x.data?.template?.panels)||x.data.template.panels.length<2)process.exit(1);console.log("RUST_OPEN_PANELS",x.data.template.panels.length)' "$TEMP/open.json"
+curl -fsS --max-time 35 \
+  -H 'Origin: http://127.0.0.1:5284' -H 'Content-Type: application/json' \
+  -d '{"op":"save"}' \
+  http://127.0.0.1:5497/workspace -o "$TEMP/save.json"
+"/usr/local/bin/node" -e 'const x=require(process.argv[1]);if(!x.ok)process.exit(1);console.log("RUST_SAVE_OK")' "$TEMP/save.json"
+[[ -s "$TEMP/output/workspace/fitting-project.json" ]] || {
+  echo 'The isolated Rust workspace did not persist a garment file' >&2; exit 1
+}
 /usr/local/bin/node --input-type=module <<'JS'
 import {chromium} from 'playwright-core'
 const browser=await chromium.launch({

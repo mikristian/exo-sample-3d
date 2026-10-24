@@ -83,9 +83,15 @@ done
 # Private/personal avatar exports and derivative research media must not leave
 # this machine as if they were cleared public release assets. Remove only from
 # the isolated copy, never from SOURCE_APP.
+# The conservative beta build also omits unreviewed visuals, materials and
+# MediaPipe model weights. Those optional features may have missing previews;
+# they are *not* claimed as supported until their licenses are documented.
 rm -rf "$RES/web/clo-hardware-converted" "$RES/web/audit-evidence" \
   "$RES/web/stage-scenes" "$RES/web/hardware-premium" "$RES/web/library-3d" \
-  "$RES/web/fabric-scans" "$RES/web/fabric-scans-ambientcg"
+  "$RES/web/fabric-scans" "$RES/web/fabric-scans-ambientcg" \
+  "$RES/web/hand-tracking" "$RES/web/stage-posters" "$RES/web/hangers" \
+  "$RES/web/hardware-thumbnails" "$RES/web/garment-previews" \
+  "$RES/web/avatars/opensew"
 find "$RES" -depth -type f \( -iname '*thomas*' -o -iname '*theo*' -o -iname '*nora*' \
   -o -iname '*.pem' -o -iname '*.key' -o -iname '*.p12' -o -iname '*.pfx' \
   -o -iname '*.safetensors' -o -iname '*.onnx' -o -iname '*.pt' -o -iname '*.pth' \) \
@@ -103,6 +109,20 @@ fi
   echo 'Public filtering damaged the launch/runtime prerequisites' >&2; exit 1;
 }
 
+# Exact-version Node runtime license and included third-party notices are
+# required for the redistribution of the bundled official Node executable.
+node_version="$("$RES/bin/node" --version)"
+[[ "$node_version" == 'v24.13.1' ]] || {
+  echo "Bundled Node version changed ($node_version); obtain matching official license before staging" >&2
+  exit 1
+}
+notice="$ROOT/scripts/release/licenses/Node-v24.13.1-LICENSE.txt"
+[[ -s "$notice" ]] || { echo 'Missing exact-version Node license notice' >&2; exit 1; }
+mkdir -p "$RES/licenses"
+cp "$notice" "$RES/licenses/Node-v24.13.1-LICENSE.txt"
+cp "$ROOT/LICENSE" "$RES/licenses/EXO-GPL-3.0-only.txt"
+cp "$ROOT/public/avatars/MAKEHUMAN-LICENSE.ASSETS.md" "$RES/licenses/MakeHuman-CC0-1.0.txt"
+
 # The input .app's signature is invalidated by filtering; re-sign ONLY the copy.
 /usr/bin/codesign --force --deep --sign - "$APP"
 /usr/bin/codesign --verify --deep --strict "$APP"
@@ -113,4 +133,5 @@ hdiutil create -volname 'EXO ClothCraft Studio V2 LOCAL TEST' \
   -srcfolder "$STAGE" -format UDZO "$DMG"
 (cd "$OUT" && shasum -a 256 "$(basename "$DMG")" > "$(basename "$DMG").sha256")
 echo "Local-only, UNNOTARIZED EXO V2 DMG: $DMG"
-echo 'DO NOT PUBLISH: asset license review, Developer ID signing, Apple notarization and clean-Mac launch QA remain required.'
+echo 'DO NOT PUBLISH YET: source/asset rights review and clean-Mac app launch QA remain required.'
+echo 'Developer ID/notarization are OPTIONAL for a clearly labeled unnotarized beta; macOS may require manual Open Anyway approval.'
