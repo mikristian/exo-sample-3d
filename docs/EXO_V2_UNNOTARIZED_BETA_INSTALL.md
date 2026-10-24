@@ -1,8 +1,10 @@
 # EXO ClothCraft Studio V2 — unnotarized macOS beta
 
-**Release status (October 24, 2026): NOT YET PUBLISHED.** The installed full
-Studio V2 has a local DMG test candidate, but there is **no approved GitHub
-Releases download yet**. Do not treat the source ZIP or the older
+**Release status (October 24, 2026): NOT YET PUBLIC.** The installed full
+Studio V2 has a local DMG test candidate and an authenticated **draft GitHub
+release with the DMG and SHA256 uploaded**. A draft is visible to authorized
+maintainers, not ordinary public visitors: there is **no approved public
+GitHub Releases download yet**. Do not treat the source ZIP or the older
 `GarmentStudioNative` preview as the full Studio V2 installer.
 
 When a beta release is approved, its download will appear at:
@@ -37,9 +39,15 @@ https://github.com/mikristian/exo-sample-3d/releases
   stage artwork and optional hand-tracking model). Missing thumbnails or
   reduced optional features are intentional until licensing is cleared.
 - The current local DMG has passed SHA256, signature, Node/Rust backend,
-  sample garment Open/Save and isolated browser UI smoke tests. It has
+  sample garment Open/Save and isolated browser UI smoke tests. The r5 internal
+  candidate was stripped of personal developer source paths and all modified
+  native executables were re-signed. GitHub draft asset SHA256 was checked
+  against the local DMG. It has
   **not** passed independent fresh-Mac GUI installation/launch or final
   full-source/license provenance review.
+- An internal source-review archive exists locally but is **not certified
+  matching GPL corresponding source**; its upload was blocked. No public
+  release may assert source completeness until this is resolved.
 - An unnotarized beta is possible without an Apple Developer Program
   membership; this does **not** remove macOS Gatekeeper warnings.
 

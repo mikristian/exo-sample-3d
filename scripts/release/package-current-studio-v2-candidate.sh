@@ -123,6 +123,70 @@ cp "$notice" "$RES/licenses/Node-v24.13.1-LICENSE.txt"
 cp "$ROOT/LICENSE" "$RES/licenses/EXO-GPL-3.0-only.txt"
 cp "$ROOT/public/avatars/MAKEHUMAN-LICENSE.ASSETS.md" "$RES/licenses/MakeHuman-CC0-1.0.txt"
 
+# The engineering build carries absolute developer home paths in Rust/Swift
+# debug information. Such paths must never be exported in a public binary.
+# Strip ONLY the release COPY's local first-party executables; never modify
+# the user's installed .app or the bundled, upstream-signed Node executable.
+for binary in \
+  "$APP/Contents/MacOS/EXOClothCraft" \
+  "$RES/native_cpp/build-cmake/garment_cad_cli" \
+  "$RES/research/oss/clothcraft/target/debug/cloth-template" \
+  "$RES/research/oss/clothcraft/target/debug/cloth-fit" \
+  "$RES/research/oss/clothcraft/target/debug/exo-session" \
+  "$RES/integrations/clothcraft/rust-static-host/target/debug/exo-rust-static-host" \
+  "$RES/integrations/clothcraft/rust-service/target/debug/exo-metadata-validation" \
+  "$RES/integrations/clothcraft/rust-agent-api/target/debug/exo-agent-validator"; do
+  [[ -x "$binary" ]] || { echo "Missing release executable: $binary" >&2; exit 1; }
+  /usr/bin/strip -S -x "$binary"
+done
+# Rust panic/debug metadata in older engineering executables can contain the
+# original absolute source checkout path even after Mach-O symbols are stripped.
+# Redact *only equal-length source-path literals* in isolated first-party
+# engineering binaries. This is a LOCAL TEST mitigation, not a substitute for
+# a reproducible clean public release build using --remap-path-prefix.
+python3 - "$HOME/" \
+  "$RES/research/oss/clothcraft/target/debug/cloth-template" \
+  "$RES/research/oss/clothcraft/target/debug/cloth-fit" \
+  "$RES/research/oss/clothcraft/target/debug/exo-session" \
+  "$RES/integrations/clothcraft/rust-service/target/debug/exo-metadata-validation" \
+  "$RES/integrations/clothcraft/rust-agent-api/target/debug/exo-agent-validator" <<'PY'
+from pathlib import Path
+import sys
+original = sys.argv[1].encode()
+replacement_prefix = b'/exo/release/'
+if len(replacement_prefix) > len(original):
+    raise SystemExit('Cannot redact source path without changing binary size')
+replacement = replacement_prefix + b'_' * (len(original) - len(replacement_prefix))
+for filename in sys.argv[2:]:
+    path = Path(filename)
+    data = path.read_bytes()
+    if original in data:
+        path.write_bytes(data.replace(original,replacement))
+        path.chmod(0o755)
+PY
+# Apple Silicon enforces Mach-O code signatures even for ad-hoc test builds.
+# Editing a binary after signing invalidates its signature and will cause the
+# Rust workspace child to be killed on launch. Sign every modified executable
+# in the isolated stage BEFORE signing the enclosing app.
+for binary in \
+  "$APP/Contents/MacOS/EXOClothCraft" \
+  "$RES/native_cpp/build-cmake/garment_cad_cli" \
+  "$RES/research/oss/clothcraft/target/debug/cloth-template" \
+  "$RES/research/oss/clothcraft/target/debug/cloth-fit" \
+  "$RES/research/oss/clothcraft/target/debug/exo-session" \
+  "$RES/integrations/clothcraft/rust-static-host/target/debug/exo-rust-static-host" \
+  "$RES/integrations/clothcraft/rust-service/target/debug/exo-metadata-validation" \
+  "$RES/integrations/clothcraft/rust-agent-api/target/debug/exo-agent-validator"; do
+  /usr/bin/codesign --force --sign - "$binary"
+  /usr/bin/codesign --verify --strict "$binary"
+done
+if command -v rg >/dev/null 2>&1 && \
+   rg -a -l --no-messages -F "$HOME/" "$APP/Contents" | grep -q .; then
+  echo 'Personal developer home path remains in staged EXO V2; refusing DMG' >&2
+  rg -a -l --no-messages -F "$HOME/" "$APP/Contents" | sed "s|$APP/||" | head -20 >&2 || true
+  exit 1
+fi
+
 # The input .app's signature is invalidated by filtering; re-sign ONLY the copy.
 /usr/bin/codesign --force --deep --sign - "$APP"
 /usr/bin/codesign --verify --deep --strict "$APP"
