@@ -1,0 +1,29 @@
+name: ClothCraft source review
+on:
+  push:
+    branches: [release/exo-v2-source-review-20261024]
+  pull_request:
+    paths: ['research/oss/clothcraft/**', '.github/workflows/clothcraft-source-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-build:
+    runs-on: macos-14
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: research/oss/clothcraft
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: research/oss/clothcraft
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.99.1 --profile minimal
+      - name: Build all default-feature binaries
+        run: cargo +1.99.1 build --locked -j 2 --bins
+      - name: CPU-only regression tests
+        env:
+          RAYON_NUM_THREADS: '2'
+        run: cargo +1.99.1 test --locked --no-default-features -j 2 -- --test-threads=2
