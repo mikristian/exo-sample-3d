@@ -1,20 +1,22 @@
 # EXO ClothCraft Studio V2 — unnotarized macOS beta
 
-**Release status (October 24, 2026): NOT YET PUBLIC.** The installed full
-Studio V2 has a local DMG test candidate and an authenticated **draft GitHub
-release with the DMG and SHA256 uploaded**. A draft is visible to authorized
-maintainers, not ordinary public visitors: there is **no approved public
-GitHub Releases download yet**. Do not treat the source ZIP or the older
-`GarmentStudioNative` preview as the full Studio V2 installer.
+**Release status (October 24, 2026): PUBLIC BETA.** EXO ClothCraft Studio V2
+v0.3.0-beta.1 is publicly downloadable at:
+https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-beta.1
+This is the full native Studio V2 DMG, not the older
+`GarmentStudioNative` preview.
 
-When a beta release is approved, its download will appear at:
-https://github.com/mikristian/exo-sample-3d/releases
+DMG SHA-256:
+`103dc1bbfd91a483b4d36638b34d4785c0dd1a733223456fe688576c0dc2c86d`
 
-## Installation after a verified DMG is published
+Source archive SHA-256:
+`dadd84f7a5104137e99d29db457e4870e77b8150f965afbda0a25d18a998ba00`
 
-1. Download the explicitly labeled **unnotarized Apple Silicon macOS beta**
-   `EXO ClothCraft Studio V2.dmg` and the matching SHA256 checksum from
-   GitHub Releases. Do not download files from unofficial mirrors.
+## Installing the published beta
+
+1. Download the **unnotarized Apple Silicon macOS beta** DMG from the
+   GitHub release above. The source archive is available on the same page.
+   Do not download from unofficial mirrors.
 2. Verify the DMG checksum against the checksum published in the release.
 3. Open the DMG and drag `EXO ClothCraft Studio V2.app` into Applications.
    Node.js, Rust, npm, Xcode and a development environment are **not**
@@ -38,23 +40,21 @@ https://github.com/mikristian/exo-sample-3d/releases
   redistribution rights (private CLO avatars and trims, fabric scans,
   stage artwork and optional hand-tracking model). Missing thumbnails or
   reduced optional features are intentional until licensing is cleared.
-- The current local DMG has passed SHA256, signature, Node/Rust backend,
-  sample garment Open/Save and isolated browser UI smoke tests. The r5 internal
-  candidate was stripped of personal developer source paths and all modified
-  native executables were re-signed. GitHub draft asset SHA256 was checked
-  against the local DMG. It has
-  **not** passed independent fresh-Mac GUI installation/launch or final
-  full-source/license provenance review.
-- An internal source-review archive exists locally but is **not certified
-  matching GPL corresponding source**; its upload was blocked. No public
-  release may assert source completeness until this is resolved.
+- The published source-built r8 DMG passed SHA256, code-signature validation,
+  bundled Node/Rust backend, T-shirt Open/Save and isolated browser UI smoke
+  tests. It has **not** passed independent fresh-Mac Swift GUI/first-launch
+  Gatekeeper testing.
+- A source snapshot with first-party GPL code, modified MIT ClothCraft fork,
+  native/Swift code, Rust/WASM source, build scripts and dependency inventories
+  is attached. Byte-for-byte reproducibility of all preexisting native C++
+  dependencies and full third-party legal-notice coverage have not been
+  independently certified.
 - An unnotarized beta is possible without an Apple Developer Program
   membership; this does **not** remove macOS Gatekeeper warnings.
 
-## Maintainer release checklist
+## Maintainer follow-up checklist
 
-Do **not** upload the local `LOCAL-TEST-UNNOTARIZED` artifacts as a
-public GitHub release just by renaming them. Before publishing:
+The beta is published, but broader release approval still requires:
 
 1. Confirm matching GPL-covered source and required corresponding source,
    source revisions, dependency/asset licenses and notices are available.
@@ -65,8 +65,8 @@ public GitHub release just by renaming them. Before publishing:
 4. Exercise the **real EXOClothCraft Swift GUI** on a clean macOS Apple
    Silicon account/device without developer tools, including Open, Save,
    Quit, Reopen and one supported export.
-5. Create an immutable release tag, publish the approved DMG and checksum
-   as a **GitHub prerelease**, and independently redownload/verify.
+5. Rebuild from a clean source checkout, improve third-party notice coverage,
+   and independently verify a fresh public download before a stable release.
 
 Release gate details:
 `docs/reports/EXO_PUBLIC_MACOS_V2_RELEASE_READINESS_20261024.md`.

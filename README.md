@@ -1,5 +1,11 @@
 # EXO Sample 3D
 
+## Download EXO ClothCraft Studio V2 — macOS Beta
+
+**[Download EXO ClothCraft Studio V2 v0.3.0-beta.1 for Apple Silicon](https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-beta.1)**. The GitHub release contains a self-contained, **unnotarized** DMG and the corresponding-source candidate archive. Supported target: Apple Silicon running macOS 13 or later; no Node, Rust, Xcode, or development environment needs to be installed to launch the bundled app.
+
+Open the DMG and drag the app to Applications. Because this is not Apple-notarized, macOS may require manual approval under **System Settings → Privacy & Security → Open Anyway** after you verify and trust the download. Do not disable Gatekeeper globally. This is an experimental prerelease: optional private models/assets are excluded, factory-readiness is not certified, and clean-Mac first-launch testing remains outstanding. [Installation details](docs/EXO_V2_UNNOTARIZED_BETA_INSTALL.md).
+
 **An open-source, experimental platform for fashion CAD, 2D patterns, 3D garments, cloth simulation, material visualization, and production engineering.**
 
 EXO Sample 3D is a research-driven garment design workspace that aims to connect the entire apparel-development process: draft a pattern, sew digital panels, assemble and simulate fabric on an avatar, refine material behavior, grade sizes, visualize the product, and prepare manufacturing deliverables. The long-term goal is an extensible alternative workflow inspired by the capabilities designers value in tools such as CLO3D, without distributing proprietary software, artwork, model assets, or internal code.
