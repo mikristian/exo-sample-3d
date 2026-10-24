@@ -11,8 +11,23 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>CFBundleExecutable</key><string>GarmentStudioNative</string><key>CFBundleIdentifier</key><string>com.mikristian.garmentstudio.nativepreview</string><key>CFBundleName</key><string>Garment Studio Native</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleVersion</key><string>0.1.0</string><key>LSMinimumSystemVersion</key><string>13.0</string><key>NSHighResolutionCapable</key><true/></dict></plist>
 PLIST
-for fixture in tee-quality.native-sim.json hoodie-quality.native-sim.json pants.native-sim.json zip-hoodie-quality.native-sim.json; do
-  cp "../native_backend/fixtures/$fixture" "$APP/Contents/Resources/fixtures/$fixture"
+# Optional generated quality fixture aliases are absent on clean GitHub
+# checkouts. Use the checked-in native XPBD fixtures as grounded fallbacks.
+for mapping in \
+  'tee-quality.native-sim.json:tee-distance-isometric-xpbd.json' \
+  'hoodie-quality.native-sim.json:hoodie-distance-isometric-xpbd.json' \
+  'pants.native-sim.json:pants-distance-isometric-xpbd.json' \
+  'zip-hoodie-quality.native-sim.json:zip-hoodie-distance-isometric-xpbd.json'; do
+  destination="${mapping%%:*}"
+  source="${mapping#*:}"
+  if [[ -s "../native_backend/fixtures/$destination" ]]; then
+    cp "../native_backend/fixtures/$destination" "$APP/Contents/Resources/fixtures/$destination"
+  elif [[ -s "../native_backend/fixtures/$source" ]]; then
+    cp "../native_backend/fixtures/$source" "$APP/Contents/Resources/fixtures/$destination"
+  else
+    echo "Missing checked-in native XPBD fixture: $destination (fallback: $source)" >&2
+    exit 1
+  fi
 done
 if [[ "${INCLUDE_FULL_WORKSPACE:-1}" == "1" ]]; then
   if [[ ! -s ../dist/index.html ]]; then
