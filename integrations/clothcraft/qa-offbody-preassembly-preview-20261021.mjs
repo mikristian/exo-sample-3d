@@ -17,6 +17,10 @@ const fabricRings=Number(process.env.EXO_NONRIGID_FABRIC_RINGS||0)
 const nonrigidRegistration=Number(process.env.EXO_NONRIGID_REGISTRATION_STEPS||0)
 const allowGapRebound=process.env.EXO_NONRIGID_ALLOW_GAP_REBOUND==='1'
 const projectStrainTangent=process.env.EXO_NONRIGID_PROJECT_STRAIN_TANGENT==='1'
+// Emergency disk-safe diagnostic mode. Do NOT claim persistent-save parity
+// when it is deliberately skipped; snapshot/revision/non-mutation still run.
+// Normal QA continues to require the real save/round-trip check.
+const skipSave=process.env.EXO_OFFBODY_SKIP_SAVE==='1'
 assert(Number.isInteger(steps)&&steps>=1&&steps<=40)
 assert(Number.isFinite(strainLimit)&&strainLimit>=0&&strainLimit<=50)
 assert(Number.isInteger(registrationSteps)&&registrationSteps>=0&&registrationSteps<=40)
@@ -102,8 +106,10 @@ try{
  assert.equal(after.revision,before.revision,'Preview changed document revision')
  assert.equal(after.time,before.time,'Preview changed simulation clock')
  assert.deepEqual(after.positions,before.positions,'Preview altered existing garment coordinates')
- const saved=await good({op:'save'})
- assert.deepEqual(saved.project.state?.x,before.positions,'Preview changed saved user garment')
+ if (!skipSave) {
+  const saved=await good({op:'save'})
+  assert.deepEqual(saved.project.state?.x,before.positions,'Preview changed saved user garment')
+ }
  result={pass:true,sourceRevision:source.revision,steps,strainLimitPercent:strainLimit,
   rigidRegistrationRequested:registrationSteps,rigidRegistrationAccepted:ten.rigidRegistrationAccepted,
   nonrigidSeamSweeps:nonrigidSweeps,nonrigidFabricRings:fabricRings,
@@ -127,6 +133,7 @@ try{
   stagedOffsetM:ten.stagingTranslationM,stagedAvatarEndpointChecked:true,
   avatarReentryValidated:false,sweptContactCertified:false,
   savedPositionsUnchanged:true,revisionUnchanged:true,privateProject:true,
+  persistentSaveVerified:!skipSave,
   productionAppUntouched:true}
  console.log(JSON.stringify(result,null,2))
 }catch(err){console.error(JSON.stringify({...result,error:String(err.stack||err),stderr:stderr.slice(-700)},null,2));process.exitCode=1}

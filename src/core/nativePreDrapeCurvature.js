@@ -1,3 +1,5 @@
+import {rustPreDrapeArc} from './rustPreDrapeCurvatureKernel.js'
+
 // Preview-only shaping for a reset Rust garment. Never pass these coordinates to
 // the native solver, undo history, placement handlers, or project serialization.
 export function preDrapeDisplayPositions(snapshot) {
@@ -63,11 +65,11 @@ export function preDrapeDisplayPositions(snapshot) {
     for (const i of indices) {
       const p = source[i]
       const coord = alongX ? p[0] : p[2]
-      const normalized = Math.min(1, Math.abs((coord - center) * 2 / width))
-      const angle = ((coord-center)*2/width) * halfAngle
-      const bulge = sign * (radius * (Math.cos(angle)-Math.cos(halfAngle)) + towardBody)
+      const accelerated = rustPreDrapeArc(coord,center,width,radius,halfAngle,sign,towardBody)
+      const angle = accelerated ? null : ((coord-center)*2/width) * halfAngle
+      const bulge = accelerated ? accelerated[1] : sign * (radius * (Math.cos(angle)-Math.cos(halfAngle)) + towardBody)
       const result = [...p]
-      result[alongX ? 0 : 2] = center + radius * Math.sin(angle)
+      result[alongX ? 0 : 2] = accelerated ? accelerated[0] : center + radius * Math.sin(angle)
       result[alongX ? 2 : 0] += bulge
       display[i] = result
     }

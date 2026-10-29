@@ -1,9 +1,16 @@
+import { rustEllipsoidClearance, rustCapsuleClearance } from './rustAvatarClearanceKernel.js'
+import { projectRustDistanceConstraint } from './rustDistanceConstraintKernel.js'
+import { createRustPbdSweep } from './rustPbdKernel.js'
+import { projectRustAnchor } from './rustAnchorKernel.js'
+import { accumulateRustStructuralStrain } from './rustStructuralStrainKernel.js'
 import { resolveSelfCollisions } from './physics/selfCollision.js'
 import { avatarContactParameters, projectAvatarContacts } from './physics/avatarContactPass.js'
-import { resolveSolverTimestep } from './physics/timestep.js'
+import { resolveSolverTimestep, resolveFabricDamping } from './physics/timestep.js'
 import { assessSimulationFit } from './physics/qualityGate.js'
 import { inspectClothMesh } from './physics/meshQuality.js'
-import { optimizeTriangleQuality } from './physics/qualityTriangulation.js'
+import { optimizeTriangleQuality,materialHingeProtectedEdges } from './physics/qualityTriangulation.js'
+import {smoothInteriorTriangleQuality} from './physics/interiorMeshSmoothingResearch.js'
+import {searchCertifiedPoorFaceFlips} from './physics/materialRetriangulationResearch.js'
 import * as THREE from 'three'
 import { edgePointAt, edgeRangeLength, samplePieceBoundary } from './project.js'
 import { simplifiedClothBoundary } from './clothMeshing.js'
@@ -983,7 +990,9 @@ function addPieceTrimConstraints(pieceSim, constraints) {
   return trimConstraints
 }
 
-export function buildSimulation(project, { optimizeMesh = false } = {}) {
+export function buildSimulation(project, { optimizeMesh = false,protectedHingeAxesByPiece=null,experimentalSmoothInteriorMesh=false,experimentalCertifiedPoorFaceFlips=false } = {}) {
+  if(experimentalCertifiedPoorFaceFlips&&(!optimizeMesh||experimentalSmoothInteriorMesh))
+    throw new Error('Certified poor-face flips require optimized, unsmoothed material geometry')
   const pieces = new Map()
   const constraints = []
   const anchorConstraints = []
@@ -1047,7 +1056,23 @@ export function buildSimulation(project, { optimizeMesh = false } = {}) {
     // its saved drape. Optimizing interior edges does not alter cut boundaries
     // or user patterns; the remaining slivers are filtered by the native
     // strain safety gate while keeping their distance-edge constraints.
-    const mesh = optimizeMesh ? optimizeTriangleQuality(baseMesh) : baseMesh
+    // Experimental, explicit fold-line constraints. Protect all segments of
+    // a material hinge while remeshing, then rebuild native constraints from
+    // the resulting topology below. Default simulation topology is unchanged.
+    const protectedAxes=protectedHingeAxesByPiece?.[piece.id]||[]
+    if(!Array.isArray(protectedAxes))throw new TypeError('Protected material hinge axes must be arrays')
+    const protectedEdges=optimizeMesh ? protectedAxes.flatMap(axis=>
+      materialHingeProtectedEdges(baseMesh,axis)) : []
+    const flippedMesh = optimizeMesh ? optimizeTriangleQuality(baseMesh,{protectedEdges}) : baseMesh
+    // Research-only topology replacement happens before particles, springs,
+    // bending, sewing and collision exclusions are generated. Material UVs
+    // and default simulation behavior are left untouched.
+    const certifiedMesh=experimentalCertifiedPoorFaceFlips
+      ? {...flippedMesh,faces:searchCertifiedPoorFaceFlips(flippedMesh,{
+          protectedEdges,maxFlips:4,maxCandidates:2400}).mesh.faces}
+      : flippedMesh
+    const mesh = experimentalSmoothInteriorMesh
+      ? smoothInteriorTriangleQuality(certifiedMesh,{protectedEdges}) : certifiedMesh
     const meshQuality = inspectClothMesh(mesh.vertices, mesh.faces)
     const bounds = patternBounds(sampled.points)
     const centerX = (bounds.minX + bounds.maxX) * 0.5
@@ -1641,6 +1666,7 @@ export function buildSimulation(project, { optimizeMesh = false } = {}) {
     pieces,
     meshQuality: Object.fromEntries([...pieces].map(([id,piece])=>[id,piece.meshQuality])),
     constraints,
+    distanceSweep: createRustPbdSweep(constraints),
     clothConstraints: constraints.filter((constraint) => constraint.type !== 'seam'),
     seamConstraints,
     surfaceAttachmentConstraints,
@@ -1669,6 +1695,7 @@ function satisfyDistance(constraint) {
     satisfySurfaceAttachment(constraint)
     return
   }
+  if (projectRustDistanceConstraint(constraint)) return
   const { a, b, rest, stiffness } = constraint
   const wa = a.invMass
   const wb = b.invMass
@@ -1694,6 +1721,7 @@ function satisfyDistance(constraint) {
 function satisfyAnchor(constraint) {
   const particle = constraint.particle
   if (!particle || particle.invMass <= 0) return
+  if (projectRustAnchor(constraint)) return
   if (constraint.axes === 'y') {
     particle.position.y = THREE.MathUtils.lerp(particle.position.y, constraint.target.y, constraint.stiffness)
     // A support tack should not inject vertical Verlet velocity.
@@ -1720,6 +1748,7 @@ function satisfyAnchor(constraint) {
 }
 
 function updateStrain(simulation) {
+  if (accumulateRustStructuralStrain(simulation, EPSILON)) return
   for (const piece of simulation.pieces.values()) {
     for (const particle of piece.particles) {
       particle.strain = 0
@@ -1943,6 +1972,10 @@ export function getAvatarTorsoRadii(avatar, y) {
 }
 
 function ellipsoidClearance(position, center, radii) {
+  return rustEllipsoidClearance(position, center, radii) ?? ellipsoidClearanceJS(position, center, radii)
+}
+
+export function ellipsoidClearanceJS(position, center, radii) {
   const dx = position.x - center.x
   const dy = position.y - center.y
   const dz = position.z - center.z
@@ -1955,6 +1988,10 @@ function ellipsoidClearance(position, center, radii) {
 }
 
 function capsuleClearance(position, pose) {
+  return rustCapsuleClearance(position, pose) ?? capsuleClearanceJS(position, pose)
+}
+
+export function capsuleClearanceJS(position, pose) {
   const start = pose.center.clone().addScaledVector(pose.axis, -pose.halfLength)
   const end = pose.center.clone().addScaledVector(pose.axis, pose.halfLength)
   const segment = end.clone().sub(start)
@@ -2579,6 +2616,12 @@ export function stepSimulation(simulation, project, dt = 1 / 60) {
   if (!schedule) return simulation
   const { safeDt, substeps, subDt, gravityStep, iterations, selfCollisionDistance } = schedule
 
+  // Validate every material before changing any particle or contact state.
+  const dampingByPiece = new Map()
+  for (const piece of simulation.pieces.values()) {
+    dampingByPiece.set(piece, resolveFabricDamping(piece.fabric?.damping ?? 0.985, subDt))
+  }
+
   // Keep the largest contact event seen anywhere in this displayed frame so
   // pressure visualization remains meaningful when using multiple substeps.
   for (const piece of simulation.pieces.values()) {
@@ -2589,7 +2632,7 @@ export function stepSimulation(simulation, project, dt = 1 / 60) {
 
   for (let substep = 0; substep < substeps; substep += 1) {
     for (const piece of simulation.pieces.values()) {
-      const damping = Math.pow(piece.fabric?.damping ?? 0.985, 1 / substeps)
+      const damping = dampingByPiece.get(piece)
       for (const particle of piece.particles) {
         if (particle.invMass <= 0) continue
         const velocity = particle.position.clone().sub(particle.previous).multiplyScalar(damping)
@@ -2605,7 +2648,9 @@ export function stepSimulation(simulation, project, dt = 1 / 60) {
       // bias while still letting seam and structural constraints continuously
       // relax one another. This produced the most stable mirrored drape in the
       // current PBD solver.
-      if ((iteration + substep) % 2 === 0) {
+      if (simulation.distanceSweep?.((iteration + substep) % 2 !== 0, satisfyDistance, simulation.constraints)) {
+        // Rust projects contiguous distance runs; special constraints retain JS dispatch order.
+      } else if ((iteration + substep) % 2 === 0) {
         for (let index = 0; index < simulation.constraints.length; index += 1) satisfyDistance(simulation.constraints[index])
       } else {
         for (let index = simulation.constraints.length - 1; index >= 0; index -= 1) satisfyDistance(simulation.constraints[index])

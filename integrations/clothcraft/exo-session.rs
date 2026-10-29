@@ -12,6 +12,7 @@ fn command(v:&Value)->Result<Command,String>{
  "Primitive"=>Command::Primitive{kind:match v["shape"].as_str(){Some("ellipse")=>Primitive::Ellipse,Some("sector")=>Primitive::Sector,_=>Primitive::Rectangle},size:f!("size"),sweep_degrees:v["sweep_degrees"].as_f64().unwrap_or(180.),origin:f!("origin"),meshing:MeshingSettings::default(),fabric:f!("fabric"),replace:false},
  "Polygon"=>Command::Polygon{points:f!("points"),tangents:field(v,"tangents").unwrap_or_default(),meshing:MeshingSettings::default(),fabric:f!("fabric"),replace:false},
  "Anchor"=>Command::Anchor{panel:f!("panel"),anchor:f!("anchor"),position:f!("position")},
+ "AnchorGroup"=>Command::AnchorGroup{panel:f!("panel"),edits:f!("edits")},
  "MovePoints"=>Command::MovePoints{panel:f!("panel"),points:f!("points"),delta:f!("delta")},
  "Nudge"=>Command::Nudge{panel:f!("panel"),points:f!("points"),delta_mm:f!("delta_mm")},
  "SetMeasurement"=>Command::SetMeasurement{panel:f!("panel"),measurement:f!("measurement")},
@@ -705,8 +706,23 @@ impl Session {
    "edit-batch"=>{
     let commands=v["commands"].as_array().ok_or("Missing commands")?;
     if commands.is_empty()||commands.len()>256{return Err("Batch requires 1 to 256 commands".into())}
+    // Multi-panel parametric construction: one Anchor edit per distinct panel
+    // can be applied atomically. Rust normalizes each edited panel after its
+    // Anchor, so multiple anchors on ONE panel require a separate group
+    // authoring primitive and are rejected rather than mispositioned.
+    let layout=commands.iter().all(|item|item["kind"]=="BoardTransform");
+    let anchors=commands.iter().all(|item|item["kind"]=="Anchor"||item["kind"]=="AnchorGroup");
+    if !layout && !anchors {return Err("Batch requires only BoardTransform commands or distinct-panel Anchor commands".into())}
+    if anchors {
+      if commands.len()>32{return Err("Atomic point batch exceeds 32 panels".into())}
+      let mut seen=std::collections::BTreeSet::new();
+      for item in commands {
+        let panel=field::<String>(item,"panel")?;
+        if !seen.insert(panel){return Err("Atomic Anchor batch requires distinct pattern panels".into())}
+      }
+    }
     let mut template=self.project.template.clone();let mut final_edit=None;
-    for item in commands {if item["kind"]!="BoardTransform"{return Err("Only BoardTransform is supported in a layout batch".into())}let edit=authoring::apply(&template,command(item)?)?;template=edit.template.clone();final_edit=Some(edit);}
+    for item in commands {let edit=authoring::apply(&template,command(item)?)?;template=edit.template.clone();final_edit=Some(edit);}
     // No document or history mutation until every edit has validated.
     self.history.record(self.project.template.clone());self.apply_edit(final_edit.unwrap());
    },

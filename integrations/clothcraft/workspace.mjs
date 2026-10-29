@@ -6,6 +6,7 @@ import {createInterface} from 'node:readline'
 import {createHash} from 'node:crypto'
 import {paths,nativeExport} from './bridge.mjs'
 import {createMetadataValidator} from './rust-service/validator-client.mjs'
+import {assertNativeAvatarPersistence} from './avatarPersistenceContract.mjs'
 export const chooseNativeGpuPhysics=(env,capabilities)=>
  env.EXO_CLOTHCRAFT_GPU==='1' &&
  capabilities?.ok===true && capabilities?.gpuSimulation===true &&
@@ -17,6 +18,16 @@ export function createWorkspace(outputRoot) {
  let liveGrab=null
  const saveFile=path.join(outputRoot,'workspace','fitting-project.json')
  const metadataFile=saveFile+'.properties.json'
+ // The native Rust Undo/Redo sidecar is digest-linked to fitting-project.json.native.
+ // Every rollback archive containing the native project must retain its
+ // matching journal, otherwise restoring a garment silently loses the saved
+ // cross-restart linked pattern/grade/hardware history.
+ const backupEntries=()=>[
+  [saveFile,'fitting-project.json'],
+  [saveFile+'.native','fitting-project.json.native'],
+  [saveFile+'.native.undo-v1.json','fitting-project.json.native.undo-v1.json'],
+  [metadataFile,'fitting-project.json.properties.json'],
+ ]
  let avatarModel='makehuman-base'
  const avatarPathFor=model=>{
   if(model==='makehuman-base'){
@@ -88,7 +99,13 @@ export function createWorkspace(outputRoot) {
    lastError='GPU garment physics has not passed long-run CPU parity; the editor is using the safer CPU solver. Experimental GPU testing requires EXO_CLOTHCRAFT_ALLOW_EXPERIMENTAL_GPU=1.'
    console.warn('[EXO workspace] '+lastError)
   }
-  child=spawn(bin,[avatarPathFor(avatarModel),saveFile+'.native',...(useGpu?['--gpu']:[])],{cwd:config.upstream,stdio:['pipe','pipe','pipe']})
+  // The research-only hairpin initial pose failed 50-step strain screening.
+  // It may be opted into for isolated direct exo-session experiments, but
+  // must NEVER be inherited by the installed Studio bridge.
+  child=spawn(bin,[avatarPathFor(avatarModel),saveFile+'.native',...(useGpu?['--gpu']:[])],{
+    cwd:config.upstream,stdio:['pipe','pipe','pipe'],
+    env:{...process.env,EXO_UNVALIDATED_TUCK_HAIRPIN_PREFOLD:'0'}
+  })
   const proc=child
   const fail=e=>{if(child!==proc)return;child=null;loaded=false;if(pending){clearTimeout(pending.timer);pending.reject(e);pending=null}}
   child.on('error',fail);child.on('exit',()=>fail(new Error('ClothCraft worker stopped. Reopen the saved workspace.')))
@@ -107,7 +124,10 @@ export function createWorkspace(outputRoot) {
  })
  const save=async()=>{
   const result=await rpc({op:'save'})
-  if(result.ok){fs.mkdirSync(path.dirname(saveFile),{recursive:true});fs.writeFileSync(saveFile+'.tmp',JSON.stringify(result.data.project));fs.renameSync(saveFile+'.tmp',saveFile);stepsSinceSave=0}
+  if(result.ok){
+   assertNativeAvatarPersistence(result.data?.project,avatarPathFor(avatarModel))
+   fs.mkdirSync(path.dirname(saveFile),{recursive:true});fs.writeFileSync(saveFile+'.tmp',JSON.stringify(result.data.project));fs.renameSync(saveFile+'.tmp',saveFile);stepsSinceSave=0
+  }
   return result
  }
  // Opening another library garment must never silently destroy the active
@@ -121,7 +141,7 @@ export function createWorkspace(outputRoot) {
   const stamp=new Date().toISOString().replace(/[:.]/g,'-')
   const archive=fs.mkdtempSync(path.join(archiveRoot,`before-library-switch-${stamp}-`))
   try{
-   for(const [source,target] of [[saveFile,'fitting-project.json'],[saveFile+'.native','fitting-project.json.native'],[metadataFile,'fitting-project.json.properties.json']]){
+   for(const [source,target] of backupEntries()){
     if(fs.existsSync(source))fs.copyFileSync(source,path.join(archive,target))
    }
   }catch(error){
@@ -202,6 +222,9 @@ export function createWorkspace(outputRoot) {
     fs.copyFileSync(saveFile,backup)
     const originalNative=saveFile+'.native'
     if(fs.existsSync(originalNative))fs.copyFileSync(originalNative,backup+'.native')
+    const originalJournal=originalNative+'.undo-v1.json'
+    if(fs.existsSync(originalJournal))
+     fs.copyFileSync(originalJournal,backup+'.native.undo-v1.json')
     start()
     const restoredRaw=await rpc({op:'open',project:{...project,state:null,mesh_signature:null},avatar:true})
     if(restoredRaw.ok)bindMetadata(restoredRaw.data.template)
@@ -277,6 +300,98 @@ export function createWorkspace(outputRoot) {
      ? {...result,data:{...result.data,previousProjectBackup}} : result
    }
    if(data.op==='save')return await save()
+   // Production-vs-3D article membership is a real Rust fitting-project
+   // field. Back up the pre-migration garment before its first durable write,
+   // because older native binaries reject unknown FittingProject fields.
+   if(['piece-variant-store','piece-variant-clear'].includes(data.op)){
+    if(!Number.isSafeInteger(data.revision)||data.revision!==current?.revision)
+     return {ok:false,error:'Stale document revision; reload current snapshot',data:current}
+    if(data.op==='piece-variant-store'&&!current?.pieceVariant?.persisted){
+     const prior=await save()
+     if(!prior.ok)return prior
+     const backups=path.join(outputRoot,'workspace','backups')
+     fs.mkdirSync(backups,{recursive:true})
+     const stamp=new Date().toISOString().replace(/[:.]/g,'-')
+     const archive=fs.mkdtempSync(path.join(backups,`before-native-piece-variant-${stamp}-`))
+     try{
+      for(const [source,name] of backupEntries()){
+       if(fs.existsSync(source))fs.copyFileSync(source,path.join(archive,name))
+      }
+     }catch(error){
+      fs.rmSync(archive,{recursive:true,force:true})
+      throw Error('Native piece variant backup failed: '+error.message)
+     }
+    }
+    const changed=remember(await rpc(data))
+    if(!changed.ok)return changed
+    const persisted=await save()
+    if(!persisted.ok)throw Error(persisted.error||'Could not save native production and 3D variant')
+    return changed
+   }
+   // A six-size grade catalog must pass Rust's revision CAS and then be
+   // written into the SAME FittingProject JSON as the source garment.
+   // In-memory validation without durable native save is not persistence.
+   if(['grade-run-commit','grade-run-clear'].includes(data.op)){
+    if(!Number.isSafeInteger(data.revision)||data.revision!==current?.revision)
+     return {ok:false,error:'Stale document revision; reload current snapshot',data:current}
+    if(data.op==='grade-run-commit'){
+     // The new grade_run schema is not readable by older native binaries
+     // (FittingProject deny_unknown_fields). Archive the pre-commit garment
+     // and native pose before this first revision-controlled migration.
+     const prior=await save()
+     if(!prior.ok)throw Error(prior.error||'Could not save original garment before grade catalog')
+     const backups=path.join(outputRoot,'workspace','backups')
+     fs.mkdirSync(backups,{recursive:true})
+     const stamp=new Date().toISOString().replace(/[:.]/g,'-')
+     const archive=fs.mkdtempSync(path.join(backups,`before-native-grade-catalog-${stamp}-`))
+     try{
+      for(const [source,name] of backupEntries()){
+       if(fs.existsSync(source))fs.copyFileSync(source,path.join(archive,name))
+      }
+     }catch(error){
+      fs.rmSync(archive,{recursive:true,force:true})
+      throw Error('Native grading catalog backup failed: '+error.message)
+     }
+    }
+    const changed=await rpc(data)
+    if(!changed.ok)return changed
+    const next=remember(await rpc({op:'snapshot',avatar:true,graphics:true}))
+    if(!next.ok)throw Error(next.error||'Could not refresh graded catalog revision')
+    const persisted=await save()
+    if(!persisted.ok)throw Error(persisted.error||'Native graded size catalog was not saved')
+    return {ok:true,data:{...next.data,gradeCatalogResult:{
+      ...changed.data,persisted:true,sourceRevision:next.data.revision,
+      manufactured:false}}}
+   }
+   // These requests return inspection packets rather than a garment snapshot.
+   // Never pass them through remember(), which owns the current native scene
+   // state and must not be replaced with CUT or grade catalog metadata.
+   if(['piece-variant-inspect','piece-variant-instance-preview','grade-run-status','grade-run-cutlines','grade-run-pom-audit','grade-run-industrial-audit','grade-run-sewing-balance-audit','bindings-grade-regenerate-preview','fabric-grade-envelope-inspect'].includes(data.op))return rpc(data)
+   if(['grade-run-activate','grade-run-restore'].includes(data.op)){
+    if(!Number.isSafeInteger(data.revision)||data.revision!==current?.revision)
+     return {ok:false,error:'Stale document revision; reload current snapshot',data:current}
+    if(data.op==='grade-run-activate'){
+     const report=await rpc({op:'grade-run-status',revision:data.revision})
+     if(!report.ok)return report
+     const catalog=report.data?.catalog
+     if(typeof data.size!=='string'||!catalog||
+       !(catalog.sizes?.includes(data.size)||Object.hasOwn(catalog.sizeCorrespondence||{},data.size)))
+      return {ok:false,error:'Choose a verified saved native grading size or correspondence',data:current}
+    }
+    // Protect the authored base garment on disk before changing the active
+    // Rust viewport. The native command only swaps in a compiled sized scene;
+    // future saves always serialize the preserved base template and pose.
+    if(data.op==='grade-run-activate'&&!current?.activeGradedSize){
+     const prior=await save()
+     if(!prior.ok)return {ok:false,error:prior.error||'Could not preserve original graded garment',data:current}
+    }
+    const next=remember(await rpc(data))
+    if(!next.ok)return next
+    // The backend has already compiled its new native sized garment; both
+    // linked 2D/3D views receive the same mesh and physical source template.
+    runError=null;stepsSinceSave=0;liveGrab=null
+    return {...next,data:{...next.data,manufacturingApproved:false,gradedSizePreview:Boolean(next.data.activeGradedSize)}}
+   }
    const appearanceKeys=['color','opacity','roughness','metalness','reflectionIntensity']
    const appearanceField=data.op==='set-property'&&data.target==='fabric'&&typeof data.field==='string'&&
     (appearanceKeys.some(key=>data.field===`appearance.${key}`||data.field===`appearance.back.${key}`||data.field===`appearance.side.${key}`))
@@ -327,9 +442,17 @@ export function createWorkspace(outputRoot) {
    if(result.ok){
     // A successful reset or edit establishes a new valid solver state.
     // Do not keep reporting an older OGC intersection after recovery.
-    if(['reset','edit','edit-batch','undo','redo','pull-panel','pose-panel','step','line-spec','set-property','graphics-set','grade-pattern','pleat-guides','hardware-set','hardware-undo','hardware-redo'].includes(data.op))runError=null
+    if(['reset','edit','edit-batch','tuck-fold-sew-batch','undo','redo','pull-panel','pose-panel','step','line-spec','set-property','graphics-set','grade-pattern','pleat-guides','hardware-set','hardware-undo','hardware-redo','grade-run-activate','grade-run-restore','piece-variant-instance-activate','piece-variant-instance-restore','bindings-grade-regenerate','fabric-grade-envelope-store','fabric-grade-envelope-clear'].includes(data.op))runError=null
     stepsSinceSave+=data.op==='step'?Number(data.steps||1):0
-    if(['edit','edit-batch','undo','redo','reset','pull-panel','pose-panel','line-spec','set-property','graphics-set','grade-pattern','pleat-guides','hardware-set','hardware-undo','hardware-redo'].includes(data.op)||stepsSinceSave>=30)await save()
+    if(['edit','edit-batch','tuck-fold-sew-batch','undo','redo','reset','pull-panel','pose-panel','line-spec','set-property','graphics-set','grade-pattern','pleat-guides','hardware-set','hardware-undo','hardware-redo','bindings-grade-regenerate','fabric-grade-envelope-store','fabric-grade-envelope-clear'].includes(data.op)||stepsSinceSave>=30){
+     const persisted=await save()
+     // A native envelope is an authoritative garment constraint, not an
+     // optional browser mirror. Never acknowledge its mutation as durable if
+     // the source-linked project could not be written to disk.
+     if((['fabric-grade-envelope-store','fabric-grade-envelope-clear'].includes(data.op)||
+       ['edit','bindings-grade-regenerate'].includes(data.op)&&result.data?.fabricGradeEnvelope)&&!persisted.ok)
+      throw Error('Native fabric envelope revision changed in memory but could not be saved; recover the last durable garment before continuing')
+    }
    }
    if(runError&&data.op==='snapshot')return{ok:false,error:runError,data:{...current,avatar:data.avatar?current.avatar:null,running:false}}
    return result

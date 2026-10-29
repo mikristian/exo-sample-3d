@@ -1,6 +1,6 @@
 import React,{useEffect,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Camera,Grip,Hand,X} from 'lucide-react'
+import {Camera,CameraOff,Circle,Grip,Hand,Square,X} from 'lucide-react'
 import {recognizeFabricPinch} from '../core/cameraFabricHandGesture.js'
 import './CameraFabricHand.css'
 
@@ -20,13 +20,84 @@ export default function CameraFabricHand({onActivate,disabled=false,viewportRef}
   const [pointer,setPointer]=useState(null)
   const [provider,setProvider]=useState('mediapipe')
   const [position,setPosition]=useState(null)
+  const [recording,setRecording]=useState(false)
+  const [captureError,setCaptureError]=useState('')
+  const [captureNotice,setCaptureNotice]=useState('')
+  const [recordingAvailable,setRecordingAvailable]=useState(typeof MediaRecorder!=='undefined')
   const panel=useRef(null),drag=useRef(null)
+  const mounted=useRef(true)
   const video=useRef(null),active=useRef(false),tracker=useRef(null),stream=useRef(null)
+  const recorder=useRef(null),recordedChunks=useRef([]),recordingFormat=useRef(''),recordingSession=useRef(0)
   const animation=useRef(null),lastFrame=useRef(-1),lastTime=useRef(0),pinched=useRef(false),processing=useRef(false),generation=useRef(0)
+  const download=(blob,extension)=>{
+    const url=URL.createObjectURL(blob)
+    const anchor=document.createElement('a')
+    anchor.href=url
+    anchor.download=`exo-camera-${new Date().toISOString().replace(/[:.]/g,'-')}.${extension}`
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    setTimeout(()=>URL.revokeObjectURL(url),60000)
+  }
+  const stopRecording=()=>{
+    const current=recorder.current
+    if(current?.state==='recording')current.stop()
+    else if(current?.state==='paused')current.stop()
+    setRecording(false)
+  }
+  const photograph=()=>{
+    const frame=video.current
+    if(!active.current||!stream.current?.active||!frame||frame.readyState<2){setCaptureError('Camera frame unavailable.');return}
+    try{
+      const canvas=document.createElement('canvas')
+      canvas.width=frame.videoWidth;canvas.height=frame.videoHeight
+      const context=canvas.getContext('2d')
+      if(!context||!canvas.width||!canvas.height)throw Error('Photo capture is unavailable.')
+      context.translate(canvas.width,0);context.scale(-1,1)
+      context.drawImage(frame,0,0)
+      canvas.toBlob(blob=>{
+        if(!blob){setCaptureError('Unable to save photo.');return}
+        download(blob,'jpg')
+        if(mounted.current)setCaptureNotice('Photo downloaded')
+      },'image/jpeg',.94)
+      setCaptureError('')
+    }catch(error){setCaptureError(error.message||'Unable to capture photo.')}
+  }
+  const beginRecording=()=>{
+    if(!active.current||!stream.current?.active){setCaptureError('Camera is unavailable.');return}
+    if(typeof MediaRecorder==='undefined'){setCaptureError('Video recording is not supported in this browser.');setRecordingAvailable(false);return}
+    const format=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4;codecs=avc1.42E01E','video/mp4'].find(value=>MediaRecorder.isTypeSupported?.(value))
+    if(!format){setCaptureError('Video recording is unavailable in this browser.');setRecordingAvailable(false);return}
+    try{
+      const instance=new MediaRecorder(stream.current,{mimeType:format})
+      const session=++recordingSession.current
+      recordedChunks.current=[]
+      recordingFormat.current=format
+      instance.ondataavailable=event=>{if(event.data?.size&&recordingSession.current===session)recordedChunks.current.push(event.data)}
+      instance.onerror=event=>{
+        if(recordingSession.current!==session)return
+        setCaptureError(event.error?.message||'Video recording failed.')
+        setRecording(false)
+      }
+      instance.onstop=()=>{
+        if(recordingSession.current!==session)return
+        recorder.current=null
+        const chunks=recordedChunks.current
+        recordedChunks.current=[]
+        if(mounted.current)setRecording(false)
+        if(chunks.length){download(new Blob(chunks,{type:recordingFormat.current}),recordingFormat.current.startsWith('video/mp4')?'mp4':'webm');if(mounted.current)setCaptureNotice('Video downloaded')}
+        else if(mounted.current)setCaptureError('No video was captured.')
+      }
+      instance.start(1000)
+      recorder.current=instance
+      setRecording(true);setCaptureError('');setCaptureNotice('')
+    }catch(error){setCaptureError(error.message||'Could not start video recording.');setRecording(false)}
+  }
   const release=()=>{pinched.current=false;emit({tracking:false,pinched:false})}
   const stop=()=>{
     generation.current++
     active.current=false
+    stopRecording()
     if(animation.current!=null)cancelAnimationFrame(animation.current)
     animation.current=null
     release()
@@ -35,7 +106,7 @@ export default function CameraFabricHand({onActivate,disabled=false,viewportRef}
     tracker.current?.close?.();tracker.current=null
     setPointer(null);lastFrame.current=-1;lastTime.current=0
   }
-  useEffect(()=>()=>stop(),[])
+  useEffect(()=>{mounted.current=true;return()=>{mounted.current=false;stop()}},[])
   useEffect(()=>{
     // Prefer the 3D garment toolbar's slot immediately below Press. Standalone
     // ClothCraft uses its own left quick-toolbar slot as a safe fallback.
@@ -58,12 +129,13 @@ export default function CameraFabricHand({onActivate,disabled=false,viewportRef}
     try{
       if(!navigator.mediaDevices?.getUserMedia)throw Error('Camera access requires localhost or a secure browser connection.')
       const acquired=await navigator.mediaDevices.getUserMedia({audio:false,video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}}})
-      if(!active.current){acquired.getTracks().forEach(track=>track.stop());return}
+      if(!active.current||generation.current!==session){acquired.getTracks().forEach(track=>track.stop());return}
       stream.current=acquired
       const element=video.current
       if(!element)throw Error('Camera preview did not mount.')
       element.srcObject=acquired
       await element.play()
+      if(!active.current||generation.current!==session)return
       const factory=import.meta.env.DEV?window.__exoFabricHandTrackerFactory:null
       let detector
       if(chosen==='apple-vision'){
@@ -122,7 +194,7 @@ export default function CameraFabricHand({onActivate,disabled=false,viewportRef}
         `Hand camera unavailable: ${error.message}`)
     }
   }
-  const close=()=>{stop();setOpen(false);setStatus('idle')}
+  const close=()=>{stop();setOpen(false);setStatus('idle');setCaptureError('');setCaptureNotice('')}
   // The preview is a movable tool window within the real 3D viewport. Hand
   // coordinates are always full-viewport coordinates, independent of this UI.
   useEffect(()=>{
@@ -167,7 +239,7 @@ export default function CameraFabricHand({onActivate,disabled=false,viewportRef}
       <div className="cc-camera-hand-heading" aria-label="Drag camera viewer"
         onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag}
         onPointerCancel={endDrag} onLostPointerCapture={event=>{if(drag.current?.pointerId===event.pointerId)drag.current=null}}>
-        <Grip size={13} aria-hidden="true"/><strong>CAMERA FABRIC HAND</strong>
+        <Grip size={13} aria-hidden="true"/><strong>Hand camera</strong>
         <label><span>Tracker</span><select aria-label="Hand tracking provider" value={provider} onChange={event=>{const selected=event.target.value;stop();setProvider(selected);void start(selected)}}><option value="mediapipe">MediaPipe</option><option value="apple-vision">Apple Vision · Mac</option></select></label>
         <button type="button" aria-label="Close Camera Fabric Hand" onClick={close}><X size={14}/></button>
       </div>
@@ -175,9 +247,21 @@ export default function CameraFabricHand({onActivate,disabled=false,viewportRef}
         <video ref={video} muted autoPlay playsInline aria-label="Live hand tracking camera preview"/>
         {pointer&&<span className={`cc-camera-hand-point${pointer.pinched?' cc-camera-hand-grabbing':''}`} style={{left:`${pointer.x*100}%`,top:`${pointer.y*100}%`}}/>}
         {status!=='ready'&&<span className="cc-camera-hand-loading">{status==='loading'?'STARTING TRACKER':'CAMERA STOPPED'}</span>}
+        {recording&&<span className="cc-camera-hand-recording-indicator"><Circle size={7} fill="currentColor"/> REC</span>}
       </div>
-      <p role="status" className="cc-camera-hand-status">{pointer?.pinched?'PINCH · GRAB FABRIC':pointer?'HAND TRACKED · MOVE CURSOR':'WAITING FOR HAND'} · {message}</p>
-      <div className="cc-camera-hand-footer"><span>Move to aim · pinch to grab · release to drop</span>{status==='error'&&<button type="button" onClick={()=>void start()}>Retry</button>}<button type="button" onClick={close}>Stop camera</button></div>
+      <div className="cc-camera-hand-actions" aria-label="Camera captures">
+        <button type="button" className="cc-camera-hand-shutter" aria-label="Take photo" title="Save photo as JPG" onClick={photograph} disabled={!stream.current?.active||status==='error'}><Camera size={18}/><span>Photo</span></button>
+        <button type="button" className={`cc-camera-hand-video-button${recording?' is-recording':''}`} aria-label={recording?'Stop video recording':'Record video'} title={recording?'Stop recording and save video locally':'Record video locally (WebM or MP4)'} onClick={recording?stopRecording:beginRecording} disabled={!recording&&(!stream.current?.active||!recordingAvailable||status==='error')} aria-pressed={recording}>
+          {recording?<Square size={16} fill="currentColor"/>:<Circle size={17} fill="currentColor"/>}<span>{recording?'Stop & save':'Record'}</span>
+        </button>
+      </div>
+      <div className="cc-camera-hand-meta">
+        <span className="cc-camera-hand-tracking-state" role="status">{pointer?.pinched?'Grabbing fabric':pointer?'Hand tracked':status==='loading'?'Starting hand tracking':status==='error'?'Camera unavailable':'Waiting for hand'}</span>
+        {status==='error'&&<button type="button" onClick={()=>void start()}>Retry camera</button>}
+        <button type="button" className="cc-camera-hand-stop" onClick={close}><CameraOff size={13}/> End camera</button>
+      </div>
+      {(captureError||captureNotice||status==='error')&&<p role="status" className={`cc-camera-hand-feedback${captureError||status==='error'?' is-error':''}`}>{captureError||captureNotice||message}</p>}
+      {!recordingAvailable&&<p className="cc-camera-hand-feedback">Video recording is unavailable in this browser.</p>}
     </section>
   const trigger=<button type="button" className={`cc-camera-hand-launch${open?' active':''}`}
       title="Use webcam hand tracking to pull real simulated fabric" aria-label="Camera Fabric Hand"

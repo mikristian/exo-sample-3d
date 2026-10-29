@@ -1,5 +1,6 @@
 import React, {useRef, useState} from 'react'
 import CadToolIcon from './CadToolIcon.jsx'
+import {PanelLeftClose} from 'lucide-react'
 import {CLO7_3D_A,CLO7_3D_B} from '../data/clo7ToolbarOrder.js'
 import {getClo7NativeCapability} from '../core/clo7NativeToolCapabilities.js'
 
@@ -55,7 +56,7 @@ const handleToolbarKeyDown=event=>{
  * Native commands execute on click, inspectors navigate directly, and
  * unavailable slots keep their original positions without spawning popups.
  */
-export default function Clo3DReferenceToolbar({nativeClothcraft, enabledLegacy, onActivate,
+export default function Clo3DReferenceToolbar({nativeClothcraft, enabledLegacy, onActivate, onCollapse3D,
   canDraft, running=false, viewportTool='', tool='', sewingGuides=false,
   toolbarDock='left', toolbarPosition=null, onToolbarPositionChange, toolbarOrder=null, onToolbarOrderChange, onToolbarDockChange, toolbarEditMode=false}) {
   const [localDock,setLocalDock]=useState({x:0,y:0})
@@ -179,6 +180,7 @@ export default function Clo3DReferenceToolbar({nativeClothcraft, enabledLegacy, 
       {/* The camera launch belongs directly below Press (B18) in the actual
           left toolbar. ClothCraft supplies its working control via a portal. */}
       <div className="clo-3d-webcam-slot" data-camera-hand-toolbar-slot="true" aria-label="Webcam tool below Press"/>
+      {onCollapse3D && <button type="button" className="clo-3d-collapse-slot" aria-label="Collapse 3D viewer for full-width 2D patterns" title="Expand 2D patterns · hide 3D" onClick={onCollapse3D}><PanelLeftClose size={19}/></button>}
     </div>
   </div>
 }

@@ -78,3 +78,4 @@ assert.equal((await call({ action: 'line.inspect', panel: 'front', edge: 'hem' }
 workspace.status = () => ({ loaded: false, busy: false })
 assert.equal((await call({ action: 'workspace.snapshot' })).code, 'NOT_LOADED')
 console.log('Agent API and named-line inspection/specification validation, revision, audit, and no-implicit-open smoke tests passed')
+api.close()

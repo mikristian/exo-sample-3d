@@ -94,7 +94,8 @@ try{
  await page.waitForFunction(()=>document.querySelector('.cc-board')?.dataset.segmentSewing==='true')
  assert.equal(await button.getAttribute('aria-pressed'),'true','Segment Sewing button should be highlighted')
  assert.equal(await page.locator('[data-native-sewing-panel="true"]').count(),0,'No seam popup for Segment Sewing')
- const cursor=await board.locator('svg').first().evaluate(el=>getComputedStyle(el).cursor)
+ // SVG icons inside the tool chrome precede the physical pattern canvas.
+ const cursor=await board.locator('svg[aria-label^="Metric 2D pattern board"]').evaluate(el=>getComputedStyle(el).cursor)
  assert.match(cursor,/sewing-machine\.svg/,'SVG sewing-machine cursor must be active')
  assert.equal((await page.request.get(ui+'/cursors/sewing-machine.svg')).status(),200)
  assert((await page.locator('[data-segment-sew-candidate="true"]').count())>8,'Eligible edges should be marked')
@@ -105,8 +106,9 @@ try{
  await page.mouse.click(first.x,first.y)
  await page.waitForFunction(()=>document.querySelector('.cc-board')?.dataset.segmentSewStage==='second')
  assert.equal(await page.locator('[data-sew-edge-state="first"]').count()>0,true)
- assert.match(await page.locator('[data-segment-sew-hint]').innerText(),/Click the matching edge/)
- const shot=path.join(root,'screenshots','exo-v2-direct-segment-sewing-20261017.png')
+ assert.match(await page.locator('[data-native-sewing-tool-dock]').innerText(),/Select second boundary/)
+ // QA image is disposable; never overwrite a user's existing reference screenshot.
+ const shot=path.join(dir,'exo-v2-direct-segment-sewing-qa.png')
  await page.screenshot({path:shot})
  const second=await midpoint(page,pair[1].key)
  assert(second,'Cannot locate second actual seam edge')
@@ -119,6 +121,10 @@ try{
  }
  assert.equal(after.template.seams.length,before.template.seams.length+1,
   'Second sewing-edge click must submit and persist Rust Sew automatically: '+JSON.stringify(responses.filter(r=>r.request?.command?.kind==='Sew').map(r=>r.error)))
+ const newlySewn=after.template.seams.find(s=>!before.template.seams.some(old=>old.id===s.id))
+ assert(newlySewn?.id,'Exactly one named native seam must be newly authored')
+ await page.waitForFunction(id=>document.querySelector('.cc-board')?.dataset.selectedNativeSeam===id,
+  newlySewn.id,{timeout:10000})
  const edit=sent.filter(r=>r.command?.kind==='Sew').at(-1)
  assert.deepEqual(edit.command.a.range,[0,1])
  assert.deepEqual(edit.command.b.range,[0,1])
@@ -131,12 +137,28 @@ try{
  await page.waitForFunction(()=>document.querySelector('.cc-board')?.dataset.freeSewing==='true')
  assert.equal(await board.getAttribute('data-segment-sewing'),'false')
  assert.equal(await page.locator('[data-native-sewing-panel="true"]').count(),0)
- assert.match(await page.locator('[data-free-sew-hint]').innerText(),/Click the start point of edge A/)
- assert.equal(await page.getByRole('checkbox',{name:'Allow Free Sewing easing'}).isChecked(),true)
+ assert.match(await page.locator('[data-native-sewing-tool-dock]').innerText(),/Click start of first boundary/)
+ assert.equal(await page.getByRole('checkbox',{name:'Allow Free Sewing easing'}).isChecked(),false,
+  'Easing must remain explicit until user approves mismatched sewing lengths')
+ // Native Undo / Redo must restore the SAME authored correspondence. This is
+ // an isolated disposable Rust session; do not mutate any user garment file.
+ const nativeAction=async(op,revision)=>{
+  const response=await page.request.post(api+'/workspace',{
+   data:{op,revision},headers:{'Content-Type':'application/json'}})
+  const payload=await response.json()
+  assert(payload.ok,op+' failed: '+payload.error)
+  return payload.data
+ }
+ const undone=await nativeAction('undo',after.revision)
+ assert.equal(undone.template.seams.length,before.template.seams.length,'Undo must remove only the new sewing relationship')
+ const redone=await nativeAction('redo',undone.revision)
+ assert.equal(redone.template.seams.length,after.template.seams.length,'Redo must restore the same sewing relationship')
+ assert.deepEqual(redone.template.seams.at(-1),after.template.seams.at(-1),'Redo must preserve authored ranges and settings')
  assert.deepEqual(errors,[],'Browser errors')
  console.log(JSON.stringify({pass:true,initialSeams:before.template.seams.length,newSeams:after.template.seams.length,
   edges:pair.map(x=>({key:x.key,lengthCm:+(x.length*100).toFixed(1)})),noPopup:true,
   blueActive:true,hoverHighlight:true,sewingMachineCursor:true,autoCommit:true,freeSewIntact:true,
+  nativeUndoRedo:true,
   requests:sent.length,errors,screenshot:shot},null,2))
 }finally{
  await browser?.close().catch(()=>{})

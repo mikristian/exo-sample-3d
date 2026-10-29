@@ -11,6 +11,7 @@ export function freeCurveBase(polygon,edge) {
   if(i<0||!validPoint(points[i])||!validPoint(points[(i+1)%points.length]))return null
   const a=points[i],b=points[(i+1)%points.length]
   const controls=polygon.curves?.[edge]||[lerp(a,b,1/3),lerp(a,b,2/3)]
+  if(!Array.isArray(controls)||controls.length!==2||!controls.every(validPoint))return null
   return [a,...controls,b]
 }
 
@@ -33,6 +34,16 @@ export function evaluateFreeCurve(polygon,edge,t) {
   const base=freeCurveBase(polygon,edge)
   if(!base||!Number.isFinite(t))return null
   const markers=polygon.free_curve_points?.[edge]||[]
+  // Imported or partially edited knots must not introduce NaN coordinates
+  // into 2D snapping, labels or split-point selection. Reject the whole edge
+  // rather than silently drawing a different contour from the saved data.
+  if(!Array.isArray(markers)||markers.some((mark,index)=>
+    !mark||!Number.isFinite(mark.t)||mark.t<=0||mark.t>=1||
+    (index>0&&mark.t<=markers[index-1].t)||
+    !validPoint(mark.position)||
+    (mark.derivative!==undefined&&!validPoint(mark.derivative))||
+    (mark.derivative_in!==undefined&&!validPoint(mark.derivative_in))||
+    (mark.derivative_out!==undefined&&!validPoint(mark.derivative_out))))return null
   const knots=[
     {t:0,position:base[0],derivative:cubicDerivativeAt(base,0)},
     ...markers.map(mark=>({
@@ -133,6 +144,7 @@ export function closestFreeCurveParameter(polygon,edge,localPoint) {
   // fraction; refines an approximation for curved existing boundaries.
   for(let i=0;i<=160;i++){
     const t=i/160,p=evaluateFreeCurve(polygon,edge,t)
+    if(!validPoint(p))return null
     const distance=Math.hypot(p[0]-localPoint[0],p[1]-localPoint[1])
     if(distance<best.distance)best={t,distance}
   }
@@ -141,6 +153,7 @@ export function closestFreeCurveParameter(polygon,edge,localPoint) {
     for(const t of [best.t-step,best.t+step]){
       if(t<=0||t>=1)continue
       const p=evaluateFreeCurve(polygon,edge,t)
+      if(!validPoint(p))return null
       const distance=Math.hypot(p[0]-localPoint[0],p[1]-localPoint[1])
       if(distance<best.distance)best={t,distance}
     }
@@ -218,9 +231,11 @@ export function moveNativeFreeCurvePoint(polygon,edge,id,delta) {
     const paired=Object.entries(copy.free_curve_points)
       .flatMap(([otherEdge,points])=>points.filter(item=>item.mirror_group===mark.mirror_group&&
         (otherEdge!==edge||item.id!==id)).map(item=>({edge:otherEdge,item})))
-    if(paired.length!==1)return null
+    if(paired.length!==1||paired[0].edge===edge)return null
     const other=paired[0].item
+    if(!validPoint(other.position))return null
     other.position=other.position.map((v,i)=>v+(i===0?-delta[i]:delta[i]))
+    if(!validPoint(other.position))return null
   }
   mark.position=mark.position.map((v,i)=>v+delta[i])
   if(mark.position.some(v=>!Number.isFinite(v)))return null

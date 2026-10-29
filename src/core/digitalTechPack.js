@@ -1,4 +1,5 @@
 import { buildTechPack } from './measurements.js'
+import { referenceAnnotationPercentPosition } from './referenceAnnotationPosition.js'
 
 const copy = (x) => structuredClone(x)
 const esc = (x) => String(x ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))
@@ -56,9 +57,9 @@ const photo=(item,fallback)=>{
   const src=imageSrc(typeof item==='string' ? item : read(item,'src','image','imageSrc','dataUrl'))
   if(!src)return ''
   const markers=list(item?.annotations || item?.callouts).slice(0,60).map((entry,index)=>{
-    const x=Number(entry?.x),y=Number(entry?.y)
-    if(!Number.isFinite(x)||!Number.isFinite(y))return ''
-    const left=Math.max(0,Math.min(100,x*100)),top=Math.max(0,Math.min(100,y*100))
+    const position=referenceAnnotationPercentPosition(entry)
+    if(!position)return ''
+    const {left,top}=position
     return `<span class="reference-pin" style="position:absolute;left:${left}%;top:${top}%;transform:translate(-50%,-50%);background:#222;color:#fff;border:1px solid white;border-radius:50%;width:18px;height:18px;text-align:center;font-size:10px;font-weight:bold;line-height:18px">${index+1}</span>`
   }).join('')
   const annotations=list(item?.annotations || item?.callouts).slice(0,60)

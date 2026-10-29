@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /** Rust physical-space foam preview integrator. Public callers keep existing
  * validation/default semantics while the numerical loop executes in WASM.
  */
@@ -18,10 +19,7 @@ export async function initializeRustFoamKernel({bytes,url=WASM_PATH}={}){
   if(pending)return pending
   pending=(async()=>{
     try{
-      const wasm=bytes??await fetch(url).then(response=>{
-        if(!response.ok)throw Error(`Rust foam kernel HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const wasm=bytes??await fetchWasmBytes(url, "Rust foam kernel HTTP ")
       const result=await WebAssembly.instantiate(wasm,{})
       const exports=result.instance?.exports??result.exports
       if(required.some(name=>typeof exports?.[name]!=='function') ||

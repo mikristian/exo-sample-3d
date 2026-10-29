@@ -11,6 +11,35 @@ test('VectorCraft smooth vs corner anchor classification, with absolute handles'
   assert.equal(vectorcraftAnchorKind([0,0],[0,0],[.08,0]),'corner')
 })
 
+test('millimetre-scale angular corners never auto-link their opposite Bézier handle',()=>{
+  const p=[0,0],hIn=[-.001,0],hOut=[.001,.001]
+  assert.equal(vectorcraftAnchorKind(p,hIn,hOut),'corner','45-degree 1 mm handle must not be treated as collinear')
+  const anchor={p,hIn,hOut}
+  const updated=setVectorcraftHandle(anchor,true,[.001,.002])
+  assert.equal(updated.kind,'corner')
+  assert.deepEqual(updated.hIn,hIn,'editing a short corner must not rotate its opposite control')
+  assert.deepEqual(anchor.hOut,hOut,'source handles must remain untouched')
+  assert.equal(vectorcraftAnchorKind(p,[-1,0],[1,1]),'corner','classification must not depend on handle scale')
+})
+
+test('small near-collinear tangents remain smooth under angular tolerance',()=>{
+  assert.equal(vectorcraftAnchorKind([0,0],[-.001,0],[.001,1e-10]),'smooth')
+  assert.equal(vectorcraftAnchorKind([0,0],[-1,0],[1,1e-7]),'smooth')
+  assert.equal(vectorcraftAnchorKind([0,0],[-.001,0],[.001,.00001]),'corner')
+})
+
+test('2D Edit Pattern does not move an adjacent control at a short angled corner',()=>{
+  const polygon={
+    points:[[0,0],[.1,0],[.1,.1],[0,.1]],
+    edges:['top','right','bottom','left'],
+    curves:{top:[[.001,.001],[.08,0]],left:[[0,.08],[-.001,0]]},
+  }
+  const edited=editPatternBezierHandle(polygon,'top',0,[0,.001])
+  assert.deepEqual(edited.curves.top[0],[.001,.002])
+  assert.deepEqual(edited.curves.left[1],[-.001,0])
+  assert.deepEqual(polygon.curves.top[0],[.001,.001])
+})
+
 test('ported set_handle preserves opposing smooth length and aligns vector tangents',()=>{
   const original={p:[0,0],hIn:[-.04,0],hOut:[.08,0],kind:'smooth'}
   const edited=setVectorcraftHandle(original,true,[0,.12])

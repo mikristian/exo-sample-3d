@@ -11,10 +11,20 @@ export function cutlinePoints(indices, positions) {
   // join its two neighbours and invent a material edge across the gap.
   if (!Array.isArray(indices) || !Array.isArray(positions) || indices.length < 2) return []
   const points=[]
+  let totalLength=0
   for (const index of indices) {
     if (!Number.isInteger(index) || index < 0 || index >= positions.length ||
         !finitePoint(positions[index])) return []
-    points.push(positions[index])
+    const point=positions[index]
+    if(points.length){
+      const previous=points[points.length-1]
+      const segmentLength=Math.hypot(point[0]-previous[0],point[1]-previous[1])
+      totalLength+=segmentLength
+      // Finite vertices can still overflow a segment or accumulated arclength.
+      // Reject the entire cutline instead of passing Infinity to WASM or sewing tools.
+      if(!Number.isFinite(totalLength))return []
+    }
+    points.push(point)
   }
   return points
 }

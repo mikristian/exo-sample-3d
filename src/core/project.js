@@ -1,4 +1,5 @@
 import { quadraticArcLength, quadraticAtLengthFraction } from './draftingPrecision.js'
+import { rustSignedPolygonArea } from './rustProjectAreaKernel.js'
 
 export function cloneProject(project) {
   return typeof structuredClone === 'function'
@@ -14,6 +15,8 @@ export function touchProject(project) {
 
 export function polygonArea(points = []) {
   if (points.length < 3) return 0
+  const native = rustSignedPolygonArea(points)
+  if (native !== null) return Math.abs(native)
   let area = 0
   for (let i = 0; i < points.length; i += 1) {
     const a = points[i]
@@ -57,6 +60,8 @@ export function samplePieceBoundary(piece, segments = 8) {
 }
 
 function signedPolygonArea(points = []) {
+  const native = rustSignedPolygonArea(points)
+  if (native !== null) return native
   let area = 0
   for (let index = 0; index < points.length; index += 1) {
     const a = points[index]

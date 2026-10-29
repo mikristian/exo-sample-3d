@@ -81,7 +81,7 @@ export default function ImportedHardwareInspector({asset,placement,selectedPanel
       </div>
       <div className="exo-imported-hardware-actions"><button type="button" onClick={onDuplicate} disabled={readonly}>Duplicate</button><button type="button" onClick={onRemove} disabled={readonly}>Remove</button></div>
     </>}
-    {nativeMode&&<div className="exo-imported-hardware-actions"><button type="button" data-imported-hardware-undo disabled={!canUndoHardware||readonly} onClick={onUndoHardware}>Undo Hardware</button><button type="button" data-imported-hardware-redo disabled={!canRedoHardware||readonly} onClick={onRedoHardware}>Redo Hardware</button></div>}
+    {nativeMode&&<div className="exo-imported-hardware-actions"><button type="button" data-imported-hardware-undo title="Undo only when imported hardware is the newest edit in global history" disabled={!canUndoHardware||readonly} onClick={onUndoHardware}>Undo Hardware</button><button type="button" data-imported-hardware-redo title="Redo only when imported hardware is the next edit in global history" disabled={!canRedoHardware||readonly} onClick={onRedoHardware}>Redo Hardware</button></div>}
     <small className="exo-imported-hardware-disclaimer">Surface placement follows garment deformation where supported. Imported rigid objects do not create simulated fastener contact, cutting, or tooth-interlocking forces.</small>
     {isPlaced&&<small className="exo-imported-hardware-disclaimer">Weight is a recorded hardware specification and does not change native cloth mass. Material settings affect the GLB render; supplied mesh dimensions are estimates until calibrated.</small>}
   </section>

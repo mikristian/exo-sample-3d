@@ -2,12 +2,16 @@
 import {rustPatternSpanIntersection} from './rustGeometryKernel.js'
 export function getBounds(points) {
   if (!points?.length) return null
-  const xs = points.map(p => p[0]), ys = points.map(p => p[1])
-  const minX = Math.min(...xs), maxX = Math.max(...xs)
-  const minY = Math.min(...ys), maxY = Math.max(...ys)
-  if (![minX, maxX, minY, maxY].every(Number.isFinite)) return null
-  return {minX, maxX, minY, maxY, cx:(minX + maxX)/2, cy:(minY + maxY)/2,
-    width:maxX - minX, height:maxY - minY}
+  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity
+  // Meshes can contain more vertices than the argument-spread limit.
+  for (const p of points) {
+    if (!p || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) return null
+    minX=Math.min(minX,p[0]);maxX=Math.max(maxX,p[0])
+    minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1])
+  }
+  const width=maxX-minX,height=maxY-minY
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return null
+  return {minX,maxX,minY,maxY,cx:minX+width/2,cy:minY+height/2,width,height}
 }
 
 /** Only complete, finite triangles can contribute to a filled SVG cut region. */

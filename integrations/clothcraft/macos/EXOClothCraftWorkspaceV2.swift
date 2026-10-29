@@ -4,7 +4,7 @@ import WebKit
 
 /// Native AppKit application window. Its interface and tools are bundled inside
 /// the signed app, not opened in Safari, Chrome, or an external browser window.
-final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKDownloadDelegate, WKUIDelegate {
+final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKDownloadDelegate, WKUIDelegate, WKScriptMessageHandler {
     private var window: NSWindow!
     private var webView: WKWebView!
     private var processes: [Process] = []
@@ -38,6 +38,8 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         window.title = "EXO ClothCraft Studio V2"
         window.minSize = NSSize(width: 970, height: 650)
         window.center()
+        NotificationCenter.default.addObserver(self, selector: #selector(didExitStudioFullscreen(_:)),
+                                               name: NSWindow.didExitFullScreenNotification, object: window)
 
         let root = NSView(frame: window.contentView!.bounds)
         root.autoresizingMask = [.width, .height]
@@ -48,6 +50,7 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.websiteDataStore = .default()
+        configuration.userContentController.add(self, name: "exoStudioFullscreen")
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = self
@@ -235,6 +238,27 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         webView?.reload()
     }
 
+    // Only the bundled localhost UI may request native window fullscreen.
+    // The separate 2D editor and saved garment are not changed by this toggle.
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.name == "exoStudioFullscreen", message.frameInfo.isMainFrame,
+              message.frameInfo.securityOrigin.host == "127.0.0.1",
+              message.frameInfo.securityOrigin.port == 5386,
+              let action = message.body as? String,
+              action == "enter" || action == "exit" else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let window = self?.window else { return }
+            let isFullscreen = window.styleMask.contains(.fullScreen)
+            if (action == "enter" && !isFullscreen) || (action == "exit" && isFullscreen) {
+                window.toggleFullScreen(nil)
+            }
+        }
+    }
+
+    @objc private func didExitStudioFullscreen(_ notification: Notification) {
+        webView?.evaluateJavaScript("window.dispatchEvent(new Event('exo-native-3d-fullscreen-exited'))", completionHandler: nil)
+    }
+
     private func installMenu() {
         let main = NSMenu()
         let appItem = NSMenuItem()
@@ -255,6 +279,8 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationWillTerminate(_ notification: Notification) {
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "exoStudioFullscreen")
+        NotificationCenter.default.removeObserver(self)
         processes.forEach { process in if process.isRunning { process.terminate() } }
         try? logs?.close()
     }

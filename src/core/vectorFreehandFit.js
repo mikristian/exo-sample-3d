@@ -57,10 +57,10 @@ export function fitPencilStroke(points, { toleranceM = 0.002, closed = false } =
     const p = { x: point.x, y: point.y }
     if (!clean.length || distanceSquared(clean[clean.length - 1], p) > 0) clean.push(p)
   }
-  // A closed Pencil path has an implicit last→first edge. A duplicated or
-  // near-duplicated final point would create a degenerate native cutting edge
-  // and can trigger Rust's polygon self-intersection rejection.
-  if (closed && clean.length > 1 && distanceSquared(clean[0], clean[clean.length - 1]) <= Math.max(toleranceM,1e-6) ** 2) clean.pop()
+  // Closure is a geometric coincidence, not a smoothing preference. A large
+  // Pencil tolerance must never erase a real final corner of the cutline.
+  // Strip repeated closing samples, including a few sub-micron pen jitters.
+  if (closed) while (clean.length > 1 && distanceSquared(clean[0], clean[clean.length - 1]) <= 1e-12) clean.pop()
   if (!clean.length) return []
   // Open RDP retains first and final samples; for closed paths we represent
   // closure implicitly and retain the first unique anchor without duplicating it.
@@ -80,6 +80,23 @@ export function fitPencilStroke(points, { toleranceM = 0.002, closed = false } =
     }
     result = simplify(clean, hi)
     if (result.length > MAX_POINTS) result = Array.from({ length: MAX_POINTS }, (_, i) => result[Math.floor(i * (result.length - 1) / (MAX_POINTS - 1))])
+  }
+  if (closed && result.length < 3) {
+    // RDP on an open representation can reduce a perfectly valid closed
+    // triangle to its endpoints. Recover the strongest original third corner
+    // rather than submitting a two-point cutting polygon to the Rust editor.
+    if (clean.length < 3 || result.length < 2) return []
+    const a = result[0], b = result[result.length - 1]
+    const dx = b.x - a.x, dy = b.y - a.y
+    const length = Math.hypot(dx, dy)
+    if (!(length > 0)) return []
+    let best = null, bestHeight = 0
+    for (const point of clean) {
+      const height = Math.abs((point.x - a.x) * dy - (point.y - a.y) * dx) / length
+      if (height > bestHeight) { bestHeight = height; best = point }
+    }
+    if (!(bestHeight > 1e-9)) return []
+    result = [a, best, b]
   }
   if (!closed && result.length > 1) {
     result[0] = first

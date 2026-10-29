@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /** Batch Rust/WASM adapter for actual VBD mesh strain visualization.
  * The legacy JS calculation remains the synchronous fallback until the
  * compiled kernel loads or a large/invalid mesh exceeds supported bounds.
@@ -26,10 +27,7 @@ export async function initializeRustStrainKernel({bytes,url=WASM_PATH}={}) {
   if (loading) return loading
   loading = (async () => {
     try {
-      const raw = bytes ?? await fetch(url).then(response => {
-        if (!response.ok) throw new Error(`Rust strain WASM HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const raw = bytes ?? await fetchWasmBytes(url, "Rust strain WASM HTTP ")
       const module = await WebAssembly.instantiate(raw,{})
       const exports = module.instance?.exports ?? module.exports
       if (required.some(name => typeof exports?.[name] !== 'function') ||

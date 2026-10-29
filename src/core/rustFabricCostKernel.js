@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /** Batched Rust costing for already-built garment markers, with synchronous JS fallback. */
 export const RUST_FABRIC_COST_ABI_VERSION = 1
 const WASM_URL = '/wasm/exo_fabric_cost_kernel.wasm'
@@ -18,10 +19,7 @@ export async function initializeRustFabricCostKernel({ bytes, url = WASM_URL } =
   if (loading) return loading
   loading = (async () => {
     try {
-      const raw = bytes ?? await fetch(url).then(response => {
-        if (!response.ok) throw new Error(`Fabric cost WASM HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const raw = bytes ?? await fetchWasmBytes(url, "Fabric cost WASM HTTP ")
       const module = await WebAssembly.instantiate(raw, {})
       const api = module.instance?.exports ?? module.exports
       if (!api?.memory || REQUIRED.some(name => typeof api[name] !== 'function') ||

@@ -28,6 +28,25 @@ test('closed strokes remove terminal repeat and keep finite geometry', () => {
   assert.throws(() => fitPencilStroke([], {toleranceM: -1}), RangeError)
 })
 
+test('closed Pencil smoothing cannot erase a real triangle corner', () => {
+  const triangle = [{x:0,y:0},{x:1,y:0},{x:.5,y:1},{x:0,y:0}]
+  const original = structuredClone(triangle)
+  const fitted = fitPencilStroke(triangle,{closed:true,toleranceM:3})
+  assert.equal(fitted.length,3,'A high smoothing tolerance must retain three valid corners')
+  assert.ok(fitted.some(point=>point.x===.5&&point.y===1),'Keep the apex')
+  assert.deepEqual(triangle,original,'Fitting cannot modify the authored samples')
+  assert.deepEqual(fitPencilStroke(triangle,{closed:true,toleranceM:3}),fitted)
+})
+
+test('repeated closure samples are removed; collinear closed strokes fail closed', () => {
+  const points=[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:0},{x:0,y:0}]
+  const fitted=fitPencilStroke(points,{closed:true})
+  assert.equal(fitted.length,3)
+  assert.notDeepEqual(fitted[0],fitted.at(-1))
+  assert.deepEqual(fitPencilStroke([{x:0,y:0},{x:1,y:0},{x:2,y:0},{x:0,y:0}],{closed:true,toleranceM:5}),[])
+  assert.deepEqual(fitPencilStroke([{x:0,y:0},{x:1,y:0},{x:2,y:0}],{closed:false,toleranceM:5}),[{x:0,y:0},{x:2,y:0}])
+})
+
 test('cubic controls preserve straight lines and interpolate a corner', () => {
   assert.deepEqual(pathCubicControls([{x: 0, y: 0}, {x: 6, y: 0}]), [{c1: {x: 1, y: 0}, c2: {x: 5, y: 0}}])
   const controls = pathCubicControls([{x: 0, y: 0}, {x: 1, y: 1}, {x: 2, y: 0}])

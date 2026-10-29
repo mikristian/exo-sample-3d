@@ -32,7 +32,7 @@ export default function ClothCraftContextMenu({context, items=[], onChoose, onCl
     if (context) menuRef.current?.querySelector('button:not(:disabled)')?.focus({preventScroll:true})
   }, [context])
   if (!context) return null
-  const width=236
+  const width=278
   // Menus can include several native seam operations. Reserve enough height
   // for button rows, section dividers, title and padding before clamping.
   // The CSS also scrolls very tall menus on short screens.
@@ -58,7 +58,7 @@ export default function ClothCraftContextMenu({context, items=[], onChoose, onCl
     {items.map((item,i)=>item.separator
       ? <div key={'sep'+i} role="separator" className="cc-native-context-divider"/>
       : <button type="button" role="menuitem" key={item.id}
-        disabled={item.disabled}
+        disabled={item.disabled} title={item.title||undefined}
         className={item.danger?'danger':''}
         onClick={()=>{onClose();onChoose(item.id,context)}}>
         <span>{item.label}</span>{item.shortcut&&<kbd>{item.shortcut}</kbd>}

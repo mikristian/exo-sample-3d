@@ -22,6 +22,17 @@ export function seamEndpointOverlap(a, b, epsilon = 1e-5) {
   return Boolean(ar && br && rustSeamIntervalsOverlap(ar.start, ar.end, br.start, br.end, epsilon))
 }
 
+// Invalid imported cutline coordinates and Bézier handles must never turn a
+// sewing range into a seemingly valid seam or a passing assembly audit.
+function finiteSewingRangeLength(piece, edgeIndex, range) {
+  try {
+    const length = edgeRangeLength(piece, edgeIndex, range.start, range.end)
+    return Number.isFinite(length) && length >= 0 ? length : null
+  } catch {
+    return null
+  }
+}
+
 export function validateNewSeam(project, proposed, { allowOverlappingLayers = false, excludeSeamId = null } = {}) {
   const messages = []
   const pieces = new Map((project.pieces || []).map((piece) => [piece.id, piece]))
@@ -36,7 +47,10 @@ export function validateNewSeam(project, proposed, { allowOverlappingLayers = fa
     }
     const range = seamEndpointInterval(endpoint)
     if (!range) { messages.push(`Side ${label} has an invalid sewing range`); continue }
-    if (edgeRangeLength(piece, endpoint.edgeIndex, range.start, range.end) < 0.01) {
+    const length = finiteSewingRangeLength(piece, endpoint.edgeIndex, range)
+    if (length === null) {
+      messages.push(`Side ${label} has invalid cutline geometry`)
+    } else if (length < 0.01) {
       messages.push(`Side ${label} is shorter than 0.1 mm; expand the selection`)
     }
   }
@@ -77,14 +91,15 @@ export function auditSewingConstruction(project, { maxExamples = 12 } = {}) {
     let invalid = false
     for (const endpoint of [seam.a, seam.b]) {
       const piece = pieces.get(endpoint?.pieceId)
-      if (!piece || !Number.isInteger(endpoint?.edgeIndex) || endpoint.edgeIndex < 0 || endpoint.edgeIndex >= piece.points.length || !seamEndpointInterval(endpoint)) {
+      const range = seamEndpointInterval(endpoint)
+      if (!piece || !Number.isInteger(endpoint?.edgeIndex) || endpoint.edgeIndex < 0 || endpoint.edgeIndex >= piece.points.length || !range || finiteSewingRangeLength(piece, endpoint.edgeIndex, range) === null) {
         add('invalidEndpoints', seam.id, `${endpoint?.pieceId || '?'}:${endpoint?.edgeIndex ?? '?'}`)
         invalid = true
         continue
       }
       const key = endpointIdentity(endpoint)
       if (!intervals.has(key)) intervals.set(key, [])
-      intervals.get(key).push({ ...seamEndpointInterval(endpoint), seamId: seam.id })
+      intervals.get(key).push({ ...range, seamId: seam.id })
       if (piece.active3d === false) add('inactive3d', seam.id, `The source pattern ${piece.name || piece.id} is excluded from simulation`)
     }
     if (invalid) continue

@@ -9,6 +9,7 @@ import {CLO_LENGTH_UNITS,fromCentimetres,toCentimetresValue,formatPropertyLength
 import {getHardwarePreset} from '../data/hardwarePresets.js'
 import {resolveHardwareStyle} from '../core/hardwareStyleProperties.js'
 import HardwareStyleEditor from './HardwareStyleEditor.jsx'
+import PatternReferencePanel20261025 from './PatternReferencePanel20261025.jsx'
 import CloButtonShapeEditor from './CloButtonShapeEditor.jsx'
 import ZipperMaterialPreview from './ZipperMaterialPreview.jsx'
 import './CloPropertyEditorAccordion.css'
@@ -98,6 +99,7 @@ function FabricMapRow({label,kind,src,onChoose,onRemove,editable=false}) {
 export default function CloPropertyEditorAccordion({
   activeSection,selectedPiece,project,fabric,clothcraftHybrid,clothcraftLive,
   selectedArea,onSwitchSection,onShowFabric,onSimulate,onReset,onSetLineTarget,objectTab='Scene',draftLineSelection,objectSelection,onPropertyEdit,onNativePropertyEdit,onSelectNativeSeam,onPlaceHardwarePreset,onPairZipperToSeam,onHardwareStyleEdit,onFabricTextureRepeatChange,onFabricMapChoose,onFabricMapRemove,onFabricPresetImport,onFabricSelect,
+  referenceProjectKey=null,referenceItems=[],onReferenceChange,selectedReferenceId=null,onReferenceSelect,
   children,
 }) {
   const accessoryKinds=['button','buttonhole','zipper','binding','fastener','topstitch','puckering']
@@ -123,6 +125,7 @@ export default function CloPropertyEditorAccordion({
       : nativeLine?'line':nativeSewing?'sewing':nativePattern?'pattern':'none')
     : (objectSelection?.type==='Scene'&&objectSelection?.pieceId?'pattern':objectSelection?.type?.toLowerCase())
       ||(accessoryTab && !objectSelection ? accessoryTab :null)
+      ||(activeSection==='Production'&&['Grading','POM'].includes(objectTab)?objectTab.toLowerCase():null)
       ||(selectedPiece&&objectTab==='Scene'?'pattern':'none')
   const visibleGroups=selectedObjectKind==='none'?[]:CONTEXT_GROUPS[selectedObjectKind] || (selectedObjectKind==='pattern'||selectedObjectKind==='line'||selectedObjectKind==='project'
       ? CLO_PROPERTY_GROUPS
@@ -161,7 +164,9 @@ export default function CloPropertyEditorAccordion({
   // selected object's schema. A Sewing selection, for example, has a Sewing
   // group rather than the Pattern-only Selected Line group; the old mapping
   // silently buried its actual controls in Miscellaneous.
-  const defaultContextGroup=selectedObjectKind==='fabric'?'physical'
+  const defaultContextGroup=selectedObjectKind==='grading'?'grading'
+    :selectedObjectKind==='pom'?'pom'
+    :selectedObjectKind==='fabric'?'physical'
     :selectedObjectKind==='sewing'?'sewing'
     :EDITOR_GROUP_FOR_SECTION[activeSection]||'miscellaneous'
   const contextGroup=visibleGroups.some(([id])=>id===defaultContextGroup)
@@ -175,6 +180,17 @@ export default function CloPropertyEditorAccordion({
   const [buttonMaterialPart,setButtonMaterialPart]=useState('button')
   const toggleMaterialDetail=key=>setMaterialDetails(previous=>({...previous,[key]:!previous[key]}))
   const [lengthUnit,setLengthUnit]=useState('cm')
+  useEffect(()=>{
+    // The little selected-line number in CLO's Property Editor and the Pen
+    // drafting label must use the SAME display units. Rust geometry stays SI.
+    const sync=event=>{
+      const unit=event?.detail?.unit||document.querySelector('.cc-board')?.dataset.penUnit
+      if(CLO_LENGTH_UNITS.includes(unit))setLengthUnit(unit)
+    }
+    window.addEventListener('exo-clothcraft-pen-unit-changed',sync)
+    sync()
+    return()=>window.removeEventListener('exo-clothcraft-pen-unit-changed',sync)
+  },[])
   const length=cm=>formatPropertyLength(cm,lengthUnit)
   const previousSection=useRef(activeSection)
   useEffect(()=>{
@@ -196,6 +212,7 @@ export default function CloPropertyEditorAccordion({
     // controls for a newly selected Fabric (or vice versa).
     if(selectedObjectKind==='fabric')setOpen(['information','material','physical','fabric'])
     else if(selectedObjectKind==='pattern')setOpen(['information',contextGroup])
+    else if(selectedObjectKind==='grading'||selectedObjectKind==='pom')setOpen(['information',selectedObjectKind])
     else if(selectedObjectKind==='line')setOpen(['information','selected-line'])
     else if(selectedObjectKind==='sewing')setOpen(['information','sewing'])
     else if(selectedObjectKind==='button')setOpen(['information','button','button-material','position'])
@@ -570,19 +587,24 @@ export default function CloPropertyEditorAccordion({
   // node. Switching to the special graphic inspector must not replace the
   // portal target retained by PatternEditor while a draft edit is in progress.
   const showNativeGraphic=clothcraftHybrid&&objectTab==='Graphic'
+  const showNativeReference=clothcraftHybrid&&objectTab==='Reference'
   const selectedGraphic=showNativeGraphic
     ?clothcraftLive?.graphicRefs?.find(item=>item.id===clothcraftLive?.selectedGraphicId)||clothcraftLive?.graphicRefs?.[0]
     :null
   return <>
-    <div className="inspector-head clo-pe-header" data-property-editor-design="neutral-gray"><span>Property Editor</span><strong title={showNativeGraphic?(selectedGraphic?.name||'Graphic'):propertySubject}>{showNativeGraphic?(selectedGraphic?.name||'Graphic'):propertySubject}</strong></div>
-    {!showNativeGraphic&&<>
+    <div className="inspector-head clo-pe-header" data-property-editor-design="neutral-gray"><span>Property Editor</span><strong title={showNativeReference?(referenceItems.find(item=>item.id===selectedReferenceId)?.name||'Reference'):showNativeGraphic?(selectedGraphic?.name||'Graphic'):propertySubject}>{showNativeReference?(referenceItems.find(item=>item.id===selectedReferenceId)?.name||'Reference'):showNativeGraphic?(selectedGraphic?.name||'Graphic'):propertySubject}</strong></div>
+    {!showNativeGraphic&&!showNativeReference&&<>
     {(selectedObjectKind==='fabric'||(activeSection==='Fabric'&&objectTab==='Fabric'))&&<FabricFileToolbar kind={clothcraftHybrid&&!selectedDraftAccessory?'native':'draft'}
       fabric={clothcraftHybrid&&!selectedDraftAccessory?(nativeObject||clothcraftLive?.fabricRefs?.[0]):(draftObject||fabric)}
       options={clothcraftHybrid&&!selectedDraftAccessory?(clothcraftLive?.fabricRefs||[]):Object.entries(project?.fabrics||{}).map(([id,item])=>({...item,id}))}
       onSelect={id=>onFabricSelect?.(id)}
       onImport={entry=>onFabricPresetImport?.({kind:clothcraftHybrid&&!selectedDraftAccessory?'native':'draft',id:identityId||(clothcraftHybrid?clothcraftLive?.fabricRefs?.[0]?.id:fabric?.id),entry})}/>}
     <label className="clo-pe-unit-selection">Measurement Display
-      <select aria-label="Property Editor length unit" value={lengthUnit} onChange={event=>setLengthUnit(event.target.value)}>
+      <select aria-label="Property Editor length unit" value={lengthUnit} onChange={event=>{
+        const unit=event.target.value
+        setLengthUnit(unit)
+        window.dispatchEvent(new CustomEvent('exo-clothcraft-set-pen-unit',{detail:{unit}}))
+      }}>
         {CLO_LENGTH_UNITS.map(unit=><option key={unit} value={unit}>{unit}</option>)}
       </select>
     </label>
@@ -595,8 +617,12 @@ export default function CloPropertyEditorAccordion({
         </select>
       </label>}
     </>}
-    <div className="clo-pe-list" aria-label="Property Editor sections" data-property-context={showNativeGraphic?'graphic':selectedObjectKind}>
-      {showNativeGraphic?<div id="cc-native-graphic-editor" className="clo-native-graphic-host" aria-label="Selected graphic measurements and materials"/>:<>
+    <div className="clo-pe-list" aria-label="Property Editor sections" data-property-context={showNativeReference?'reference':showNativeGraphic?'graphic':selectedObjectKind}>
+      {showNativeReference?<PatternReferencePanel20261025
+        projectKey={referenceProjectKey} references={referenceItems} onChange={onReferenceChange}
+        selectedId={selectedReferenceId} onSelect={onReferenceSelect}
+        disabled={!referenceProjectKey} variant="properties"/>:
+      showNativeGraphic?<div id="cc-native-graphic-editor" className="clo-native-graphic-host" aria-label="Selected graphic measurements and materials"/>:<>
       {selectedObjectKind==='none'&&<div className="clo-pe-empty" role="status">
         Select a pattern in the 2D or 3D viewport, or select a fabric in Object Browser, to edit its properties.
       </div>}
@@ -621,7 +647,7 @@ export default function CloPropertyEditorAccordion({
           Graphic, and do not bury controls in the collapsed Arrange group. */}
       <div id="clo-pattern-properties-host" className="clo-pattern-properties-host clo-pe-persistent-drafting"
         role="region" aria-label="2D drafting precision properties"
-        hidden={showNativeGraphic||!['Pattern','Sewing','Production'].includes(activeSection)}/>
+        hidden={showNativeGraphic||showNativeReference||!['Pattern','Sewing','Production'].includes(activeSection)}/>
     </div>
   </>
 }

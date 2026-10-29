@@ -7,7 +7,15 @@ pub const ABI_VERSION: u32 = 1;
 mod cubic;
 mod axis;
 mod topology;
+mod point_deletion;
 mod span;
+mod dxf;
+
+/// DXF notch endpoint in source centimetres; outer=0 is the short inner leg.
+#[no_mangle]
+pub extern "C" fn exo_dxf_notch_coordinate(point: f64, normal: f64, depth_cm: f64, outer: u32) -> f64 {
+    dxf::notch_coordinate(point, normal, depth_cm, outer != 0)
+}
 
 #[no_mangle]
 pub extern "C" fn exo_pattern_span_horizontal(ax:f64,ay:f64,bx:f64,by:f64,y:f64)->f64 {

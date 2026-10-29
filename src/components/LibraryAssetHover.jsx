@@ -12,6 +12,7 @@ export default function LibraryAssetHover({category,id,title,description='',deta
   const patternDisplay = category === 'Patterns'
   const templateDisplay = garmentDisplay || patternDisplay
   const fabricDisplay = category === 'Fabric'
+  const techpackDisplay = category === 'Techpack'
   const [open,setOpen]=useState(false)
   const [position,setPosition]=useState({left:12,top:12})
   const popupRef=useRef(null)
@@ -39,11 +40,11 @@ export default function LibraryAssetHover({category,id,title,description='',deta
     tileRef.current=target
     const rect=target.getBoundingClientRect()
     const viewport=visibleViewport()
-    const width=Math.min(garmentDisplay ? 760 : patternDisplay ? 720 : fabricDisplay ? 740 : 400,viewport.width-24)
+    const width=Math.min(garmentDisplay ? 760 : patternDisplay ? 720 : fabricDisplay ? 740 : techpackDisplay ? 690 : 400,viewport.width-24)
     const beside=rect.right+14+width<viewport.left+viewport.width-12
     setPosition({
       left:beside?rect.right+14:Math.max(viewport.left+12,rect.left-width-14),
-      top:Math.max(viewport.top+12,Math.min(rect.top,viewport.top+viewport.height-(garmentDisplay ? 625 : patternDisplay ? 550 : fabricDisplay ? 690 : 490))),
+      top:Math.max(viewport.top+12,Math.min(rect.top,viewport.top+viewport.height-(garmentDisplay ? 625 : patternDisplay ? 550 : fabricDisplay ? 690 : techpackDisplay ? 610 : 490))),
     })
     timer.current=window.setTimeout(()=>setOpen(true),delay)
   }
@@ -103,7 +104,7 @@ export default function LibraryAssetHover({category,id,title,description='',deta
     onFocus:e=>{
       child.props.onFocus?.(e)
       if(suppressFocus.current){suppressFocus.current=false;return}
-      if(templateDisplay||e.currentTarget.matches(':focus-visible'))show(e.currentTarget,0)
+      if(templateDisplay||techpackDisplay||e.currentTarget.matches(':focus-visible'))show(e.currentTarget,0)
     },
     onBlur:e=>{
       child.props.onBlur?.(e)
@@ -144,7 +145,7 @@ export default function LibraryAssetHover({category,id,title,description='',deta
           event.preventDefault()
           tileRef.current?.focus({preventScroll:true})
         }
-      }} role="dialog" aria-modal="false" className={`exo-library-asset-hover ${garmentDisplay ? 'exo-library-asset-hover--garment' : patternDisplay ? 'exo-library-asset-hover--pattern' : fabricDisplay ? 'exo-library-asset-hover--fabric' : ''}`} data-library-preview={`${category}:${id}`} aria-label={`${title} enlarged preview`} style={position}>
+      }} role="dialog" aria-modal="false" className={`exo-library-asset-hover ${garmentDisplay ? 'exo-library-asset-hover--garment' : patternDisplay ? 'exo-library-asset-hover--pattern' : fabricDisplay ? 'exo-library-asset-hover--fabric' : techpackDisplay ? 'exo-library-asset-hover--techpack' : ''}`} data-library-preview={`${category}:${id}`} aria-label={`${title} enlarged preview`} style={position}>
       <div className="exo-library-asset-hover-media">{preview || <div className="exo-library-asset-hover-unavailable">No preview available</div>}</div>
       <div className="exo-library-asset-hover-information">
         <span className="exo-library-asset-hover-eyebrow">{category.toUpperCase()} · LIBRARY PREVIEW</span>

@@ -9,6 +9,7 @@
  * sharp changes of direction we use a bounded bevel instead of creating
  * arbitrarily long spikes. Curves are represented by sampled cutline points.
  */
+import {rustAllowancePreviewPoints} from './rustAllowancePreviewKernel.js'
 export function seamAllowancePreviewPoints(points,width,{miterLimit=4}={}) {
   if (!Array.isArray(points) || !Number.isFinite(width) || width<=0 ||
       !Number.isFinite(miterLimit) || miterLimit<1) return []
@@ -21,6 +22,13 @@ export function seamAllowancePreviewPoints(points,width,{miterLimit=4}={}) {
       clean.push([point[0],point[1]])
   }
   if (clean.length<2) return []
+
+  // The normal, miter and bevel calculations are authoritative in Rust once
+  // the WASM kernel loads. Keep the exact synchronous result while it loads.
+  // The WASM and synchronous paths must see the same de-duplicated cutline.
+  // Sending original duplicates to WASM can change joins after it loads.
+  const rust=rustAllowancePreviewPoints(clean,width,miterLimit)
+  if(rust!==null) return rust.every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)) ? rust : []
 
   const normals=[]
   const tangents=[]
@@ -54,5 +62,7 @@ export function seamAllowancePreviewPoints(points,width,{miterLimit=4}={}) {
     }
   }
   output.push(shifted(clean.at(-1),normals.at(-1)))
-  return output
+  // Large but finite authored coordinates and allowance widths can overflow
+  // offset sums. Do not send Infinity/NaN into SVG rendering or hit testing.
+  return output.every(p=>p.every(Number.isFinite)) ? output : []
 }

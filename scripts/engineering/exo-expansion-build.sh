@@ -22,6 +22,16 @@ case "${1:-}" in
     exit 2
     ;;
 esac
+# Every Cargo object is first built on the Mac; a mounted remote noexec
+# WebDAV drive does NOT provide local compiler scratch space. Refuse before
+# touching the remote destination when the source volume is nearly full.
+# The 2 GiB floor covers dependency compilation and concurrent QA writes,
+# not a claim of available WebDAV capacity or authorized factory deployment.
+free_kib="$(/bin/df -Pk "$ROOT" | /usr/bin/awk 'END {print $4}')"
+if [[ ! "$free_kib" =~ ^[0-9]+$ ]] || (( free_kib < 2097152 )); then
+  echo "EXO_EXPANSION_BUILD_REFUSED_LOCAL_DISK_HEADROOM: need >=2GiB free before Rust build or remote writes; have ${free_kib:-unknown} KiB" >&2
+  exit 6
+fi
 if ! mount | grep -Fq " on $TUNNEL (webdav,"; then
   echo "ERROR: Expected verified ExpansionCloud WebDAV mount at $TUNNEL" >&2
   exit 3

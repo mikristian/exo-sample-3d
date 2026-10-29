@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import CadToolIcon from './CadToolIcon.jsx'
-import { RotateCcw } from 'lucide-react'
+import PatternStudioExtraColumns from './PatternStudioExtraColumns.jsx'
+import { RotateCcw,ChevronLeft,ChevronRight } from 'lucide-react'
 import {CLO7_2D_A,CLO7_2D_B} from '../data/clo7ToolbarOrder.js'
 import {getClo7NativeCapability} from '../core/clo7NativeToolCapabilities.js'
 import {RIGHT_PALETTE_TOOLS,EXO_RIGHT_EXTRA_TOOLS,EXO_RIGHT_REFERENCE_ACTION_IDS} from '../core/exoExtraToolCatalog.js'
@@ -147,7 +148,8 @@ const handleReferenceKeyDown = event => {
   if (target) { event.preventDefault(); target.focus() }
 }
 
-export default function RightToolPalette({ activeSection, viewportTool, tool, setViewportTool, setTool, setActiveSection, setObjectTab, onRevealBrowser, showSewingGuides, setShowSewingGuides, wireframe, setWireframe, analysisMode, setAnalysisMode, toggleSimulation, resetSimulation, onReset2d, exportProject, onFitCamera, onMirrorSelected, onCreatePolygon, onCloTool, activeFinishingTool=null, onOtherToolSelect, nativeClothcraft=false, running, toolbarDock='right', toolbarPosition=null, onToolbarPositionChange, toolbarOrder=null, onToolbarOrderChange, onToolbarDockChange, toolbarEditMode=false, extraToolIds=[] }) {
+export default function RightToolPalette({ activeSection, viewportTool, tool, setViewportTool, setTool, setActiveSection, setObjectTab, onRevealBrowser, showSewingGuides, setShowSewingGuides, wireframe, setWireframe, analysisMode, setAnalysisMode, toggleSimulation, resetSimulation, onReset2d, exportProject, onFitCamera, onMirrorSelected, onCreatePolygon, onCloTool, activeFinishingTool=null, onOtherToolSelect, nativeClothcraft=false, running, full2D=false, toolbarDock='right', toolbarPosition=null, onToolbarPositionChange, toolbarOrder=null, onToolbarOrderChange, onToolbarDockChange, toolbarEditMode=false, extraToolIds=[] }) {
+  const [combinedToolsCollapsed,setCombinedToolsCollapsed]=useState(false)
   const [localDock,setLocalDock]=useState({x:0,y:0})
   const [localOrder,setLocalOrder]=useState([])
   const dock=toolbarPosition||localDock
@@ -162,7 +164,7 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
     bottom:toolbarDock==='bottom'?12:'auto',
     left:toolbarDock==='left'?12:toolbarDock==='top'?190:'auto',
     right:toolbarDock==='right'?12:toolbarDock==='floating'||toolbarDock==='bottom'?12:'auto',
-    width:78,maxHeight:'calc(100dvh - 105px)',overflow:'hidden'
+    width:['top','bottom'].includes(toolbarDock)?'min(90vw,1050px)':78,maxHeight:'calc(100dvh - 105px)',overflow:'hidden'
   }:{}
   const ordered=column=>{
     const ids=visible(column).map(slot=>`2d:${slot.id}`)
@@ -386,18 +388,20 @@ export default function RightToolPalette({ activeSection, viewportTool, tool, se
       <CadToolIcon id={slot.icon} size={20}/>
     </button>
   }
-  return <nav ref={rootRef} className={`clo-right-tool-palette exo-reorderable-toolbar ${showAll ? 'all-tools' : 'focused-tools'}`} data-toolbar-dock={toolbarDock} data-toolbar-edit={String(toolbarEditMode)} style={{...floatStyle,transform:`translate(${dock.x||0}px, ${dock.y||0}px)`}} aria-label="Right workspace tools">
+  return <nav ref={rootRef} className={`clo-right-tool-palette exo-reorderable-toolbar ${showAll ? 'all-tools' : 'focused-tools'} ${nativeClothcraft&&full2D?'exo-four-column-pattern-toolbar':''}`} data-toolbar-dock={toolbarDock} data-toolbar-edit={String(toolbarEditMode)} style={{...floatStyle,transform:`translate(${dock.x||0}px, ${dock.y||0}px)`}} aria-label="Right workspace tools">
     {toolbarEditMode&&<button type="button" className="exo-toolbar-move-grip" aria-label="Move 2D toolbar" title="Drag to move 2D toolbar" onPointerDown={beginMove} onPointerMove={move} onPointerUp={finishMove} onPointerCancel={()=>{gripDrag.current=null}}>⠿</button>}
     <div className="clo-palette-workflows" aria-label="Quick workflow switching">
       {WORKFLOW_TABS.map(([section, iconId]) => <button key={section} type="button" aria-label={`Switch to ${section} tools`} aria-pressed={activeSection === section} title={`${section} tools`} className={activeSection === section ? 'active' : ''} onClick={() => activateWorkflow(section)}><CadToolIcon id={iconId} size={19}/></button>)}
     </div>
     <div className="clo-palette-scroll" aria-live="off">
-      {showAll ? <>
+      {(showAll||nativeClothcraft&&full2D) ? <>
         <div className="clo-tool-palette-group-divider" aria-label="CLO version 7 two-column pattern reference">2D TOOLS</div>
-        <div className="clo-reference-dual-bars clo-observed-bars" aria-label="CLO 7 verified drafting and sewing tool columns" data-toolbar-complete="true" onKeyDown={handleReferenceKeyDown}>
-        <div className="clo-reference-column clo-right-tool-grid clo-observed-column" role="toolbar" aria-orientation="vertical" aria-label="CLO 2D column A">{visible(CLO7_2D_A).map(renderCloReference)}</div>
+
+        <div className="clo-reference-dual-bars clo-observed-bars exo-two-column-combined-bars" data-tools-collapsed={combinedToolsCollapsed} aria-label="Combined 2D and Pattern Studio tools" data-toolbar-complete="true" onKeyDown={handleReferenceKeyDown}>
+        <div className="clo-reference-column clo-right-tool-grid clo-observed-column" role="toolbar" aria-orientation="vertical" aria-label="CLO 2D column A">{visible(CLO7_2D_A).map(renderCloReference)}{nativeClothcraft&&full2D&&<PatternStudioExtraColumns nativeClothcraft={nativeClothcraft} full2D={full2D} running={running} column={0}/>}</div>
         <div className="clo-reference-column clo-right-tool-grid clo-observed-column" role="toolbar" aria-orientation="vertical" aria-label="CLO 2D column B">
           {visible(CLO7_2D_B).map(renderCloReference)}
+          {nativeClothcraft&&full2D&&<PatternStudioExtraColumns nativeClothcraft={nativeClothcraft} full2D={full2D} running={running} column={1}/>}
           {/* EXO extension, not a claimed CLO slot: matches B15 Fill's button
               size and sits one regular 34px row immediately below it. */}
           <button type="button" className="clo-foam-padding-launch clo-supported-tool"

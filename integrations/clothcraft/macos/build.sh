@@ -25,6 +25,37 @@ node scripts/build-rust-mesh-selection-kernel.mjs
 node rust/exo_fabric_cost_kernel/build.mjs
 node scripts/build-rust-selection-metrics-kernel.mjs
 node rust/exo_measurement_kernel/build.mjs
+node scripts/build-rust-allowance-preview-kernel.mjs
+node scripts/build-rust-sewing-guide-kernel.mjs
+node scripts/build-rust-label-layout-kernel.mjs
+node scripts/build-rust-material-guide-kernel.mjs
+node scripts/build-rust-preflight-crossing-kernel.mjs
+node scripts/build-rust-curve-draft-kernel.mjs
+node scripts/build-rust-tangent-drag-kernel.mjs
+node scripts/build-rust-body-arrangement-kernel.mjs
+node scripts/build-rust-notch-preset-kernel.mjs
+node scripts/build-rust-preflight-kernel.mjs
+node scripts/build-rust-fabric-kernel.mjs
+node scripts/build-rust-bom-kernel.mjs
+node scripts/build-rust-marker-kernel.mjs
+node scripts/build-rust-restore-kernel.mjs
+node scripts/build-rust-preview-offset-kernel.mjs
+node scripts/build-rust-export-contour-kernel.mjs
+node scripts/build-rust-svg-affine-kernel.mjs
+node scripts/build-rust-unfold-kernel.mjs
+node scripts/build-rust-mesh-quality-kernel.mjs
+node scripts/build-rust-auto-fit-placement-kernel.mjs
+node scripts/build-rust-precision-polar-kernel.mjs
+node scripts/build-rust-quality-flip-kernel.mjs
+node scripts/build-rust-fit-telemetry-kernel.mjs
+node scripts/build-rust-timestep-kernel.mjs
+node scripts/build-rust-avatar-contact-parameters-kernel.mjs
+node scripts/build-rust-self-collision-kernel.mjs
+node scripts/build-rust-avatar-clearance-kernel.mjs
+node scripts/build-rust-distance-constraint-kernel.mjs
+node scripts/build-rust-pbd-kernel.mjs
+node scripts/build-rust-structural-strain-kernel.mjs
+node scripts/build-rust-anchor-kernel.mjs
 VITE_CLOTHCRAFT_BRIDGE_URL="$EXPECTED_BRIDGE" npm run build -- --outDir "$STAGED_WEB"
 test -s "$STAGED_WEB/index.html"
 if ! grep -rlq --fixed-strings "$EXPECTED_BRIDGE" "$STAGED_WEB/assets"; then
@@ -37,7 +68,34 @@ for required in index.html wasm/exo_ui_kernel.wasm wasm/exo_grading_kernel.wasm 
   wasm/exo_construction_kernel.wasm wasm/exo_free_sewing_kernel.wasm \
   wasm/exo_strain_kernel.wasm wasm/exo_mesh_selection_kernel.wasm \
   wasm/exo_fabric_cost_kernel.wasm wasm/exo_selection_metrics_kernel.wasm \
-  wasm/exo_measurement_kernel.wasm \
+  wasm/exo_measurement_kernel.wasm wasm/exo_allowance_preview_kernel.wasm \
+  wasm/exo_sewing_guide_kernel.wasm wasm/exo_label_layout_kernel.wasm \
+  wasm/exo_material_guide_kernel.wasm wasm/exo_preflight_crossing_kernel.wasm \
+  wasm/exo_mesh_quality_kernel.wasm \
+  wasm/exo_auto_fit_placement_kernel.wasm \
+  wasm/exo_precision_polar_kernel.wasm \
+  wasm/exo_quality_flip_kernel.wasm \
+  wasm/exo_fit_telemetry_kernel.wasm \
+  wasm/exo_timestep_kernel.wasm \
+  wasm/exo_avatar_contact_parameters_kernel.wasm \
+  wasm/exo_self_collision_kernel.wasm \
+  wasm/exo_avatar_clearance_kernel.wasm \
+  wasm/exo_distance_constraint_kernel.wasm \
+  wasm/exo_pbd_kernel.wasm \
+  wasm/exo_structural_strain_kernel.wasm \
+  wasm/exo_anchor_kernel.wasm \
+  wasm/exo_curve_draft_kernel.wasm \
+  wasm/exo_tangent_drag_kernel.wasm \
+  wasm/exo_body_arrangement_kernel.wasm \
+  wasm/exo_notch_preset_kernel.wasm \
+  wasm/exo_preflight_kernel.wasm \
+  wasm/exo_fabric_kernel.wasm wasm/exo_bom_kernel.wasm \
+  wasm/exo_marker_kernel.wasm \
+  wasm/exo_restore_kernel.wasm \
+  wasm/exo_preview_offset_kernel.wasm \
+  wasm/exo_export_contour_kernel.wasm \
+  wasm/exo_svg_affine_kernel.wasm \
+  wasm/exo_unfold_kernel.wasm \
   fabric-scans/denim_fabric_06/color.jpg \
   hardware-thumbnails/four-hole-shirt-button.png \
   library-3d/MIKRISTIAN_Cathedral_House.glb \
@@ -48,11 +106,28 @@ for required in index.html wasm/exo_ui_kernel.wasm wasm/exo_grading_kernel.wasm 
   hardware-premium/d-ring.glb hardware-premium/d-ring.png \
   hardware-premium/prong-buckle.glb hardware-premium/prong-buckle.png \
   hardware-premium/slide-adjuster.glb hardware-premium/slide-adjuster.png; do
+  if [[ "${EXO_PUBLIC_DISTRIBUTION:-0}" == 1 ]]; then
+    # Optional private clothing scans, accessories and legacy CLO previews
+    # are NOT prerequisites for a redistributable core 2D/3D beta.
+    case "$required" in
+      fabric-scans/*|hardware-thumbnails/*|library-3d/*|avatars/preview/clo-thomas.glb|hangers/*|hardware-premium/*)
+        continue ;;
+    esac
+  fi
   if [[ ! -s "$RES/web/$required" ]]; then
     echo "Incomplete EXO desktop web asset copy: $required" >&2
     exit 1
   fi
 done
+if [[ "${EXO_PUBLIC_DISTRIBUTION:-0}" == 1 ]]; then
+  rm -rf "$RES/web/clo-hardware-converted" "$RES/web/audit-evidence" \
+    "$RES/web/stage-scenes" "$RES/web/hardware-premium" "$RES/web/library-3d" \
+    "$RES/web/fabric-scans" "$RES/web/fabric-scans-ambientcg" \
+    "$RES/web/hand-tracking" "$RES/web/stage-posters" "$RES/web/hangers" \
+    "$RES/web/hardware-thumbnails" "$RES/web/garment-previews" \
+    "$RES/web/avatars/opensew"
+  rm -f "$RES/web/avatars/clo-thomas.glb" "$RES/web/avatars/preview/clo-thomas.glb"
+fi
 
 # Personal offline build only: the user's existing private CLO export and CC0
 # MPFB avatars live outside this tracked Git worktree. Never add them to Git
@@ -92,8 +167,19 @@ NODE_BIN="${EXO_NODE_BIN:-$(command -v node)}"
 test -x "$NODE_BIN"
 cp "$NODE_BIN" "$RES/bin/node"
 chmod 755 "$RES/bin/node"
-for file in bridge.mjs server.mjs contact_run.mjs workspace.mjs static.mjs agent-api.mjs mcp-server.mjs; do
+# Bundle the complete direct ESM import closure. A successful web build is
+# useless if the installed localhost native service throws MODULE_NOT_FOUND.
+for file in bridge.mjs server.mjs contact_run.mjs workspace.mjs static.mjs agent-api.mjs mcp-server.mjs \
+  avatarPersistenceContract.mjs agent-key-store.mjs collaboration.mjs apple-vision-hand.mjs \
+  pattern-intelligence-catalog.mjs seamly2dEngineRoute20261023.mjs seamly2dNativeEngine20261023.mjs \
+  seamlyAamaReceivingRoundtrip20261023.mjs gridcraftBridge.mjs; do
+  test -s "integrations/clothcraft/$file" || { echo "Required EXO service module missing: $file" >&2; exit 1; }
   cp "integrations/clothcraft/$file" "$RES/integrations/clothcraft/$file"
+done
+mkdir -p "$RES/src/core/backends" "$RES/src/core"
+for file in src/core/backends/nativeOrderedAssembly20261025.mjs src/core/seamlyAamaManufacturingSemantics20261023.mjs; do
+  test -s "$file" || { echo "Required EXO service dependency missing: $file" >&2; exit 1; }
+  cp "$file" "$RES/$file"
 done
 # The workspace imports this adapter; its relative binary lookup is preserved
 # inside Contents/Resources so future installed builds use actual Rust.
@@ -155,6 +241,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 chmod 755 "$APP/Contents/MacOS/EXOClothCraft" "$RES/native_cpp/build-cmake/garment_cad_cli" \
   "$RES/research/oss/clothcraft/target/debug/cloth-template" "$RES/research/oss/clothcraft/target/debug/cloth-fit"
+if [[ "${EXO_PUBLIC_DISTRIBUTION:-0}" == 1 ]]; then
+  python3 scripts/release/stage-desktop-node-module-closure.py "$APP"
+fi
 /usr/bin/codesign --force --deep --sign - "$APP"
 /usr/bin/plutil -lint "$APP/Contents/Info.plist"
 echo "Built macOS application: $APP"

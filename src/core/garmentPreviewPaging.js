@@ -1,5 +1,6 @@
 // Read-only garment Library presentation: never silently omit authored pieces.
 // The bounded page size limits WebGL allocations across the triptych views.
+import {rustPreviewPageIndex} from './rustCoreMathKernel.js'
 export const GARMENT_HOVER_PAGE_SIZE = 14
 
 export function garmentPreviewPage(sourcePieces, requestedPage = 0, pageSize = GARMENT_HOVER_PAGE_SIZE) {
@@ -9,7 +10,7 @@ export function garmentPreviewPage(sourcePieces, requestedPage = 0, pageSize = G
   const total = valid.length
   const pageCount = Math.max(1, Math.ceil(total / limit))
   const page = Number.isFinite(requestedPage)
-    ? Math.max(0, Math.min(pageCount - 1, Math.trunc(requestedPage))) : 0
+    ? rustPreviewPageIndex(total,limit,requestedPage) : 0
   const start = page * limit
   return {
     pieces: valid.slice(start, start + limit),

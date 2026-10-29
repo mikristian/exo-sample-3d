@@ -8,17 +8,28 @@ import * as THREE from 'three'
 import {createStageEnvironment, applyStageSettings} from '../core/createStageEnvironment.js'
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
 import {TransformControls} from 'three/addons/controls/TransformControls.js'
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js'
 import {paintStudioGradient} from './studioGradientBackdrop.js'
 import {applySceneCameraViewport} from '../core/sceneCameraViewport.js'
 import {cursorForTool} from '../core/toolCursors.js'
 import {preDrapeDisplayPositions} from '../core/nativePreDrapeCurvature.js'
+import {buildNativeSeam3DSelection20261025,nativeSeamSelectionFromGuide20261025} from '../core/nativeSeam3DSelection20261025.js'
+import {rankNativeSeam3DGuideScreen20261025,nativeSeamPerspectiveFraction20261025} from '../core/nativeSeam3DHitGeometry20261025.js'
 import {createSceneMeshes} from './FoamPaddingNativeOverlay.jsx'
 import {normalizeFoamMaterial, stepFoamCompressionState, foamPressFalloff} from '../core/foamCompressionModel.js'
 import {avatarSurfaceConstructionCurves} from './avatarConstructionGuides.js'
+import {WALK_PRESETS, WALK_SEQUENCES, walkKeys, walkDuration, walkPose, walkVertex} from '../core/avatarWalkPreview20261025.js'
+import {Camera} from 'lucide-react'
 
 const COLORS = ['#638da2', '#d49b70', '#8caf87', '#b69bc7', '#ceb96d', '#82b7b1']
 const SEAM_COLORS = ['#eb775e', '#55aecd', '#dbb44c', '#8dc575', '#a98cd9', '#dd91b9']
+const WALK_AVATAR_SOURCES = [
+  {id:'native',label:'Current fitted avatar · MakeHuman / CLO'},
+  {id:'theo',label:'Theo · rigged visual avatar',url:'/avatars/opensew/theo.glb'},
+  {id:'nora',label:'Nora · rigged visual avatar',url:'/avatars/opensew/nora.glb'},
+  {id:'thomas-preview',label:'CLO Thomas · visual preview',url:'/avatars/preview/clo-thomas.glb'},
+]
 const setMarkerDiagnostics = (canvas, counts, visible) => {
   if (!canvas) return
   const total = counts.reduce((sum, count) => sum + count, 0)
@@ -43,18 +54,38 @@ const replaceChildren = group => {
     disposeTree(child)
   }
 }
-const weighted = (entries, points) => {
-  const out = new THREE.Vector3()
-  for (const entry of entries || []) {
-    if (!Array.isArray(entry)) continue
-    const [index, weight] = entry
-    if (finiteVec(points?.[index]) && Number.isFinite(weight)) out.addScaledVector(v3(points[index]), weight)
-  }
-  return out
-}
 const material = (color, options = {}) => new THREE.MeshStandardMaterial({
   color, side: THREE.DoubleSide, roughness: .82, metalness: .025, ...options,
 })
+// Stage GLBs share runway materials with the walls. Clone only runway meshes
+// while a custom floor is active so a floor change does not recolor the set.
+const applyStageFloorTint = (group, color, custom) => {
+  group?.userData.stageRoom?.traverse(node => {
+    if (!node.isMesh || !/(?:runway|floor|ground)/i.test(node.name)) return
+    let saved = node.userData.exoStudioFloorMaterials
+    if (!custom) {
+      if (saved) {
+        node.material = saved.original
+        saved.clones.forEach(value => value.dispose())
+        delete node.userData.exoStudioFloorMaterials
+      }
+      return
+    }
+    if (!saved) {
+      const originals = Array.isArray(node.material) ? node.material : [node.material]
+      const clones = originals.map(value => value.clone())
+      saved = {original:node.material,clones}
+      node.userData.exoStudioFloorMaterials=saved
+      node.material=Array.isArray(node.material)?clones:clones[0]
+    }
+    for (const value of saved.clones) {
+      value.color?.set(color)
+      // A solid set-design floor swatch must not be multiplied by a dark
+      // imported texture. Other runway properties stay on the private clone.
+      if (value.map) {value.map=null;value.needsUpdate=true}
+    }
+  })
+}
 const buildIndexedMesh = (positions, triangles, color, uv = null) => {
   // Native snapshots may contain uninitialized or collapsed solver triangles.
   // They cannot contribute visible cloth and poison normal calculations.
@@ -114,8 +145,9 @@ const worldPointAtMaterialUv=(triangles,uv,positions,point,offset)=>{
 export default function ClothCraftSceneV2({
   snapshot, active, selected, mode = 'edit', seamEditing=false, onPick, onHover, onPlace,
   graphics = [], importedHardware = [], foamPads = [],
-  onChangeMode = () => {}, toolsDisabled = false,
-  showAvatar = true, showSeams = true, sewingToolsActive = false, wireframe = false, analysisMode = 'surface',
+  onChangeMode = () => {}, toolsDisabled = false, onCollapse3D, onToggle3DStudio, studio3DActive = false,
+  onToggle3DStudioFullscreen, studio3DFullscreenActive = false, animationWorkspaceActive = false,
+  showAvatar = true, showSeams = true, sewingToolsActive = mode==='sew'||seamEditing, wireframe = false, analysisMode = 'surface',
   showBoundingBox = false, showContactDots = true, spread = 0,
   onStretchDrag, onStretchStart, onStretchCancel, environmentPreset = 'studio', stageId = 'none', showFloor = true,
   cameraSettings = null, sceneLight = null, sceneLight2 = null, exposure = 1.1, studioAppearance = null, studioPreferences = null, stageSettings = null,
@@ -128,6 +160,160 @@ export default function ClothCraftSceneV2({
   hardwareSnapshotRef.current = snapshot
   const [grabRefresh, setGrabRefresh] = useState(0)
   const [showConstructionGuides, setShowConstructionGuides] = useState(false)
+  const [walkAvatarSource, setWalkAvatarSource] = useState('native')
+  const [walkAvatarError, setWalkAvatarError] = useState('')
+  const [photoStatus, setPhotoStatus] = useState('')
+  const [walkPresetId, setWalkPresetId] = useState('runway')
+  const [walkSequenceId, setWalkSequenceId] = useState('straight')
+  const [walkSequenceEdits, setWalkSequenceEdits] = useState(()=>{
+    // Reusable motion edits belong to the local animation library, not a
+    // garment's Rust sewing history or fitted collision body.
+    try{
+      const stored=JSON.parse(window.localStorage.getItem('exo-3d-walk-motion-keys-v1')||'{}')
+      if(!stored||typeof stored!=='object'||Array.isArray(stored))return {}
+      const valid={}
+      for(const sequence of WALK_SEQUENCES){
+        const keys=stored[sequence.id]
+        if(!Array.isArray(keys)||keys.length<2||keys.length>64||
+          !keys.every(key=>typeof key?.id==='string'&&key.id.length<64&&
+            Number.isFinite(key.t)&&Number.isFinite(key.z)&&Number.isFinite(key.yaw)))continue
+        valid[sequence.id]=walkKeys({sequence:sequence.id,keyframes:keys})
+      }
+      return valid
+    }catch{return {}}
+  })
+  const [walkSelectedKeyId, setWalkSelectedKeyId] = useState('start')
+  const [walkFps, setWalkFps] = useState(30)
+  const [walkTimelineHeight, setWalkTimelineHeight] = useState(204)
+  const [walkOptionsOpen, setWalkOptionsOpen] = useState(false)
+  const [walkKeyEditorOpen, setWalkKeyEditorOpen] = useState(false)
+  const walkTimelineResizeRef=useRef(null)
+  const clampTimelineHeight=height=>Math.max(165,Math.min(Math.min(520,window.innerHeight-180),height))
+  const startTimelineResize=event=>{
+    if(event.button!==0)return
+    event.preventDefault()
+    walkTimelineResizeRef.current={y:event.clientY,height:walkTimelineHeight}
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+  const moveTimelineResize=event=>{
+    if(!walkTimelineResizeRef.current)return
+    const {y,height}=walkTimelineResizeRef.current
+    setWalkTimelineHeight(clampTimelineHeight(height+y-event.clientY))
+  }
+  const stopTimelineResize=()=>{walkTimelineResizeRef.current=null}
+  const [walkPlaying, setWalkPlaying] = useState(false)
+  const [walkSpeed, setWalkSpeed] = useState(1)
+  const [walkDistance, setWalkDistance] = useState(2.4)
+  const [walkDirection, setWalkDirection] = useState('forward')
+  const [walkLoop, setWalkLoop] = useState(true)
+  const [walkProgress, setWalkProgress] = useState(0)
+  const walkProgressRef = useRef(0)
+  const walkKeyDragRef = useRef(null)
+  const walkPreviewRef = useRef({})
+  const currentWalkKeys=walkKeys({sequence:walkSequenceId,keyframes:walkSequenceEdits[walkSequenceId]})
+  const selectedWalkKey=currentWalkKeys.find(key=>key.id===walkSelectedKeyId)||currentWalkKeys[0]
+  const walkFrames=Math.max(2,Math.ceil(walkDuration({
+    preset:walkPresetId,sequence:walkSequenceId,keyframes:currentWalkKeys,
+    distance:walkDistance,speed:walkSpeed,
+  })*walkFps))
+  walkPreviewRef.current = {preset:walkPresetId,playing:walkPlaying,speed:walkSpeed,
+    distance:walkDistance,direction:walkDirection,loop:walkLoop,
+    sequence:walkSequenceId,keyframes:currentWalkKeys}
+  const updateWalkKey=(id,field,value)=>{
+    setWalkSequenceEdits(old=>{
+      const keys=walkKeys({sequence:walkSequenceId,keyframes:old[walkSequenceId]})
+      const index=keys.findIndex(key=>key.id===id)
+      if(index<0)return old
+      const prior=keys[index],last=keys.length-1
+      const bounds=field==='t'
+        ? [index===0?0:keys[index-1].t+.005,index===last?1:keys[index+1].t-.005]
+        :field==='z'?[-2,2]:[-720,720]
+      const next=keys.map(key=>key.id===id
+        ? {...key,[field]:field==='t'&&index===0?0:field==='t'&&index===last?1
+          :Math.min(bounds[1],Math.max(bounds[0],Number(value)||0))}
+        :key)
+      if(next.every((key,i)=>JSON.stringify(key)===JSON.stringify(keys[i])))return old
+      return {...old,[walkSequenceId]:next}
+    })
+  }
+  const selectWalkSequence=id=>{
+    setWalkSequenceId(id)
+    setWalkSelectedKeyId('start')
+    setWalkPlaying(false)
+    setWalkLoop(id==='straight'||id==='catwalk')
+    walkProgressRef.current=0
+    setWalkProgress(0)
+  }
+  const seekWalkFrame=frame=>{setWalkPlaying(false);seekWalk(frame/walkFrames)}
+  const selectWalkKey=key=>{
+    setWalkSelectedKeyId(key.id)
+    seekWalkFrame(Math.round(key.t*walkFrames))
+  }
+  const beginWalkDrag=(event,key)=>{
+    if(event.button!==0||key.id===currentWalkKeys[0].id||
+      key.id===currentWalkKeys[currentWalkKeys.length-1].id)return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    walkKeyDragRef.current={id:key.id,x:event.clientX,t:key.t,
+      width:event.currentTarget.parentElement.getBoundingClientRect().width}
+    setWalkSelectedKeyId(key.id)
+    setWalkPlaying(false)
+  }
+  const moveWalkDrag=event=>{
+    const drag=walkKeyDragRef.current
+    if(!drag)return
+    const next=drag.t+(event.clientX-drag.x)/Math.max(20,drag.width)
+    updateWalkKey(drag.id,'t',next)
+    walkProgressRef.current=next
+    setWalkProgress(next)
+  }
+  const stopWalkDrag=()=>{walkKeyDragRef.current=null}
+  useEffect(()=>{
+    try{window.localStorage.setItem('exo-3d-walk-motion-keys-v1',JSON.stringify(walkSequenceEdits))}
+    catch{/* Private mode or disabled storage never breaks animation playback. */}
+  },[walkSequenceEdits])
+  const insertWalkKey=()=>{
+    const t=Math.max(.005,Math.min(.995,walkProgressRef.current))
+    const pose=walkPose(t,walkPreviewRef.current)
+    const id='user-'+Date.now()
+    const key={id,name:'Custom key',t,z:pose.translationZ/Math.max(.01,walkDistance)*
+      (walkDirection==='backward'?-1:1),
+      yaw:pose.yaw*180/Math.PI-(walkDirection==='backward'?180:0)}
+    setWalkSequenceEdits(old=>({...old,[walkSequenceId]:
+      [...walkKeys({sequence:walkSequenceId,keyframes:old[walkSequenceId]}),key].sort((a,b)=>a.t-b.t)}))
+    setWalkSelectedKeyId(id)
+  }
+  const removeWalkKey=()=>{
+    if(selectedWalkKey?.id===currentWalkKeys[0].id||
+      selectedWalkKey?.id===currentWalkKeys[currentWalkKeys.length-1].id)return
+    setWalkSequenceEdits(old=>({...old,[walkSequenceId]:
+      currentWalkKeys.filter(key=>key.id!==selectedWalkKey.id)}))
+    setWalkSelectedKeyId('start')
+  }
+  const seekWalk = value => {
+    const next = Math.max(0,Math.min(1,Number(value)||0))
+    walkProgressRef.current = next
+    setWalkProgress(next)
+  }
+  const resetWalk = () => {setWalkPlaying(false);seekWalk(0)}
+  useEffect(()=>{
+    const toggle=()=>{if(walkProgressRef.current>=1)seekWalk(0);setWalkPlaying(value=>!value)}
+    const stop=()=>resetWalk()
+    window.addEventListener('exo-clothcraft-animation-toggle',toggle)
+    window.addEventListener('exo-clothcraft-animation-reset',stop)
+    window.addEventListener('exo-clothcraft-animation-stop',stop)
+    return ()=>{
+      window.removeEventListener('exo-clothcraft-animation-toggle',toggle)
+      window.removeEventListener('exo-clothcraft-animation-reset',stop)
+      window.removeEventListener('exo-clothcraft-animation-stop',stop)
+    }
+  },[])
+  useEffect(()=>{
+    if(!animationWorkspaceActive)resetWalk()
+  },[animationWorkspaceActive])
+  useEffect(()=>{
+    window.dispatchEvent(new CustomEvent('exo-clothcraft-animation-playback',{detail:{playing:walkPlaying}}))
+  },[walkPlaying])
   const propsRef = useRef({})
   propsRef.current = {snapshot, active, selected, mode, seamEditing, onPick, onHover, onPlace, showAvatar,
     showSeams, sewingToolsActive, wireframe, showBoundingBox, showContactDots, spread, onStretchDrag, onStretchStart, onStretchCancel, environmentPreset, stageId, showFloor,
@@ -156,7 +342,8 @@ export default function ClothCraftSceneV2({
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
     renderer.toneMappingExposure = 1.1
-    hostNode.appendChild(renderer.domElement)
+    const renderSurface=hostNode.querySelector('.cc-scene-render-surface')||hostNode
+    renderSurface.appendChild(renderer.domElement)
     const pmremGenerator = new THREE.PMREMGenerator(renderer)
     const roomEnvironment = new RoomEnvironment()
     const studioEnvironment = pmremGenerator.fromScene(roomEnvironment, .04).texture
@@ -246,9 +433,89 @@ export default function ClothCraftSceneV2({
       down: null, dragging: false, nativeStart: null, handleStart: null, requestId: null,
       sceneSnapshot: null, rings, ringDrag:null, ringEnabled:false, stretchGrab:null,
       stretchCommitPending:false, pendingGrabSnapshot:false, meshBrushActive:false,
-      authoredLines, brushVertices:new Set(), brushDrag:null, tapeMode:null, tapePoints:[], tapeDrag:null,
+      authoredLines, internalLineMarks, brushVertices:new Set(), brushDrag:null, tapeMode:null, tapePoints:[], tapeDrag:null,
       internalLineActive:false,internalLinePoints:[],foamPaddingGroup,
       foamPress:null,foamCompression:new Map(),foamMeshes:new Map()}
+    state.walkGeometries = new Map()
+    state.walkBodyBounds = {minY:0,height:1.75}
+    state.walkAvatarRoot=null
+    state.walkAvatarBones=[]
+    state.walkAvatarSource='native'
+    state.walkLastFrame = 0
+    state.walkApplied = false
+    const applyWalkPreview = progress => {
+      const cfg = walkPreviewRef.current
+      const canvas = renderer.domElement
+      // The Rust solver's original positions are never overwritten: each
+      // independent Three geometry has a private rest-pose byte-for-byte copy.
+      // Native 2D patterns, sewing history and collisions stay unchanged.
+      if (!state.walkGeometries.size) {
+        const modelRoot=state.walkAvatarRoot||avatar
+        const box=new THREE.Box3().setFromObject(modelRoot)
+        if (!box.isEmpty() && Number.isFinite(box.min.y) && Number.isFinite(box.max.y)) {
+          state.walkBodyBounds={minY:box.min.y,height:Math.max(.5,box.max.y-box.min.y)}
+        }
+        for(const root of [modelRoot,cloth]){
+          root.traverse(node=>{
+            const geometry=node.isMesh?node.geometry:null
+            const positions=geometry?.getAttribute('position')
+            // A skinned GLB is animated at its named bones, not by deforming
+            // bind-space vertices a second time on the CPU.
+            if(node.isSkinnedMesh || !positions || positions.itemSize!==3 || state.walkGeometries.has(geometry))return
+            state.walkGeometries.set(geometry,{positions,rest:positions.array.slice()})
+          })
+        }
+      }
+      const pose=walkPose(progress,cfg)
+      const active=progress>0
+      if(!active && !state.walkApplied){
+        canvas.dataset.walkPreview='idle'
+        return
+      }
+      for(const {positions,rest} of state.walkGeometries.values()){
+        const values=positions.array
+        if(active){
+          for(let i=0;i<rest.length;i+=3){
+            const [x,y,z]=walkVertex(rest[i],rest[i+1]-state.walkBodyBounds.minY,rest[i+2],
+              pose.phase,state.walkBodyBounds.height,cfg.preset,pose.gaitWeight)
+            values[i]=x
+            values[i+1]=y+state.walkBodyBounds.minY
+            values[i+2]=z
+          }
+        } else values.set(rest)
+        positions.needsUpdate=true
+      }
+      for(const joint of state.walkAvatarBones){
+        const side=joint.name.startsWith('left')?1:-1
+        const oscillation=Math.sin(pose.phase+(side<0?Math.PI:0))
+        let amount=0
+        if(joint.name.includes('upleg')||joint.name.includes('thigh')) amount=oscillation*.42
+        else if(joint.name.includes('leg')&&!joint.name.includes('upleg')) amount=Math.max(0,-oscillation)*.33
+        else if(joint.name.includes('arm')) amount=-oscillation*.27
+        joint.bone.rotation.x=joint.restX+(active?amount*pose.gaitWeight:0)
+        if(joint.name==='leftarm'||joint.name==='rightarm'){
+          const drop=joint.name==='leftarm'?-1:1
+          joint.bone.rotation.z=joint.restZ+drop*.95
+        }
+      }
+      for(const group of [state.walkAvatarRoot||avatar,cloth]){
+        group.position.z=active?pose.translationZ:0
+        group.rotation.y=active?pose.yaw:0
+        group.updateMatrixWorld(true)
+      }
+      state.walkApplied=active
+      canvas.dataset.walkPreview=active?'visual-only':'idle'
+      canvas.dataset.walkPositionZ=String((state.walkAvatarRoot||avatar).position.z.toFixed(4))
+      canvas.dataset.walkPhase=String(pose.phase.toFixed(4))
+      canvas.dataset.walkYawDegrees=String((pose.yaw*180/Math.PI).toFixed(2))
+      canvas.dataset.walkSequence=cfg.sequence
+      canvas.dataset.walkSegment=String(pose.segment)
+      canvas.dataset.walkAvatarSource=state.walkAvatarSource
+      canvas.dataset.walkRigBones=String(state.walkAvatarBones.length)
+      canvas.dataset.walkRigMotion=state.walkAvatarBones.reduce((sum,joint)=>
+        sum+Math.abs(joint.bone.rotation.x-joint.restX),0).toFixed(4)
+    }
+    state.applyWalkPreview=applyWalkPreview
     sceneRef.current = state
     // Cursor follows the actual active viewport operation. Native pointer
     // handlers occasionally change the cursor while dragging; restore the
@@ -574,10 +841,94 @@ export default function ClothCraftSceneV2({
       const surface = ray.intersectObjects(cloth.children, false)[0]
       const body = propsRef.current.showAvatar && avatar.visible
         ? ray.intersectObjects(avatar.children,false)[0] : null
+      // A 10-pixel seam picker remains usable while orbiting and zooming.
+      // THREE.Line ray thresholds are measured in world metres, causing the
+      // same guide to become nearly unclickable at some camera distances.
+      let seam = null
+      if (propsRef.current.seamEditing && seams.visible) {
+        const projected=[]
+        camera.updateMatrixWorld()
+        seams.updateMatrixWorld(true)
+        for (let index=0;index<seams.children.length;index++) {
+          const guide=seams.children[index]
+          if (!guide.visible || !guide.userData?.seamId) continue
+          const attribute=guide.geometry?.getAttribute('position')
+          if (!attribute || attribute.count!==2) continue
+          const first=new THREE.Vector3().fromBufferAttribute(attribute,0).applyMatrix4(guide.matrixWorld)
+          const second=new THREE.Vector3().fromBufferAttribute(attribute,1).applyMatrix4(guide.matrixWorld)
+          const a=first.clone().project(camera),b=second.clone().project(camera)
+          if (![a.x,a.y,a.z,b.x,b.y,b.z].every(Number.isFinite) ||
+              a.z < -1 || a.z > 1 || b.z < -1 || b.z > 1) continue
+          projected.push({seamId:guide.userData.seamId,guideIndex:index,visible:true,
+            a:[rect.left+(a.x+1)*rect.width/2,rect.top+(1-a.y)*rect.height/2],
+            b:[rect.left+(b.x+1)*rect.width/2,rect.top+(1-b.y)*rect.height/2],
+            first,second})
+        }
+        // Evaluate each guide sample before collapsing to a single candidate
+        // per seam. One hidden sample must not hide a different visible sample
+        // of the same physical stitching relation.
+        const ranked=rankNativeSeam3DGuideScreen20261025(projected,[event.clientX,event.clientY],10,{keepAllSamples:true})
+        const projectPoint=candidate=>{
+          const preview=candidate.segment
+          const startDepth=-preview.first.clone().applyMatrix4(camera.matrixWorldInverse).z
+          const endDepth=-preview.second.clone().applyMatrix4(camera.matrixWorldInverse).z
+          const corrected=camera.isPerspectiveCamera
+            ? nativeSeamPerspectiveFraction20261025(candidate.t,startDepth,endDepth):candidate.t
+          return corrected===null?null:preview.first.clone().lerp(preview.second,corrected)
+        }
+        const uniqueBySeam=rows=>{
+          const seen=new Set()
+          return rows.filter(candidate=>{
+            if(seen.has(candidate.seamId))return false
+            seen.add(candidate.seamId)
+            return true
+          })
+        }
+        const viewable=uniqueBySeam(ranked.filter(candidate=>{
+          const point=projectPoint(candidate)
+          if(!point)return false
+          const distance=point.sub(ray.ray.origin).dot(ray.ray.direction)
+          return distance>0&&(!surface||surface.distance>=distance-.018)&&
+            (!body||body.distance>=distance-.018)
+        }))
+        // Do not let an occluded close line steal the click from the next
+        // visible seam. Highlighted selected lines are drawn over cloth; only
+        // fall back to that see-through line if nothing physically visible won.
+        const selectedId=propsRef.current.selected?.seamId
+        const candidates=viewable.length?viewable:uniqueBySeam(ranked.filter(candidate=>{
+          if(candidate.seamId!==selectedId)return false
+          const point=projectPoint(candidate)
+          if(!point)return false
+          const distance=point.sub(ray.ray.origin).dot(ray.ray.direction)
+          return distance>0&&(!body||body.distance>=distance-.018)
+        }))
+        const repeated=event.type==='pointerup'&&state.lastSeamClick?.seamId===selectedId&&
+          Math.hypot(event.clientX-state.lastSeamClick.x,event.clientY-state.lastSeamClick.y)<6&&
+          performance.now()-state.lastSeamClick.at<1500
+        const cycle=event.type==='pointerup'&&(event.altKey||state.down?.altKey||repeated)&&candidates.length>1
+        const current=cycle?candidates.findIndex(candidate=>candidate.seamId===selectedId):-1
+        seam=candidates[current>=0?(current+1)%candidates.length:0]?.segment||null
+        renderer.domElement.dataset.native3dSeamLastPickMethod=seam?(cycle?'screen-10px-cycle':'screen-10px'):'none'
+        renderer.domElement.dataset.native3dSeamLastPickId=seam?.seamId||''
+        renderer.domElement.dataset.native3dSeamPickCandidates=JSON.stringify(candidates.map(candidate=>candidate.seamId))
+        renderer.domElement.dataset.native3dSeamOverlapCount=String(candidates.length)
+        if(event.type==='pointerup')state.lastSeamClick=seam?{
+          x:event.clientX,y:event.clientY,seamId:seam.seamId,at:performance.now()
+        }:null
+        // Screen samples are diagnostic targets for lightweight browser QA.
+        // Their positions are taken from the actual displayed line geometry.
+        renderer.domElement.dataset.native3dSeamScreenSamples=JSON.stringify(projected.slice(0,80).map(item=>({
+          seamId:item.seamId,x:(item.a[0]+item.b[0])/2,y:(item.a[1]+item.b[1])/2})))
+      }
       // A visible fitting body is selectable wherever cloth does not occlude
       // it. This also prevents clicking through the body to fabric behind it.
       if(body && (!surface || body.distance<surface.distance-.003) &&
-        (!edge || body.distance<edge.distance-.003)) return {avatar:true}
+        (!edge || body.distance<edge.distance-.003) &&
+        !seam) return {avatar:true}
+      if (seam) {
+        const relation=state.seamRelations?.find(item=>item.seamId===seam.seamId)
+        return nativeSeamSelectionFromGuide20261025(relation)
+      }
       return edge && (!surface || edge.distance < surface.distance + .018)
         ? edge.object.userData : surface?.object.userData || null
     }
@@ -744,6 +1095,13 @@ export default function ClothCraftSceneV2({
     }
     const pointerDown = event => {
       propsRef.current.onCanvasActivate?.()
+      // A moved visual pose cannot be used as an authoritative solver hit
+      // target. Allow camera orbit, but block garment edit/pick gestures until
+      // the user resets the preview to the genuine Rust rest pose.
+      if(walkPreviewRef.current.playing || walkProgressRef.current>0){
+        state.down=null
+        return
+      }
       if (event.button !== 0) return
       if(state.internalLineActive){
         const selectedHit=internalLineHit(event)
@@ -835,7 +1193,7 @@ export default function ClothCraftSceneV2({
           return
         }
       }
-      state.down = {x: event.clientX, y: event.clientY, hit: hit(event)}
+      state.down = {x: event.clientX, y: event.clientY, altKey:event.altKey, hit: hit(event)}
       if (propsRef.current.mode === 'move3d' && state.down.hit?.panel && !state.transform.dragging && !state.transform.axis) {
         const id = state.down.hit.panel
         const surface = ray.intersectObjects(cloth.children, false).find(item => item.object.userData?.panel === id)
@@ -1070,20 +1428,84 @@ export default function ClothCraftSceneV2({
     transform.addEventListener('mouseUp', transformEnd)
     const resize = () => {
       if (!hostNode.isConnected) return
-      const {width, height} = hostNode.getBoundingClientRect()
+      const {width, height} = renderSurface.getBoundingClientRect()
       if (width <= 0 || height <= 0) return
       renderer.setSize(width, height, false)
       camera.aspect = width / height
       camera.updateProjectionMatrix()
     }
     const observer = new ResizeObserver(resize)
-    observer.observe(hostNode)
+    observer.observe(renderSurface)
     resize()
+    // Techpack images are genuine render captures from the active EXO scene,
+    // not illustration substitutes or an unrelated website mockup. Restore
+    // the user's camera and orbit target immediately after capturing.
+    const captureTechpackViews=()=>{
+      const pos=propsRef.current.snapshot?.positions
+      const vertices=Array.isArray(pos)?pos.filter(p=>Array.isArray(p)&&p.length>=3&&p.every(Number.isFinite)):[]
+      if(vertices.length<3||renderer.domElement.width<10||renderer.domElement.height<10)return
+      const lo=[Infinity,Infinity,Infinity],hi=[-Infinity,-Infinity,-Infinity]
+      for(const point of vertices)for(let axis=0;axis<3;axis++){
+        lo[axis]=Math.min(lo[axis],point[axis]);hi[axis]=Math.max(hi[axis],point[axis])
+      }
+      const center=new THREE.Vector3(...lo.map((minimum,axis)=>(minimum+hi[axis])/2))
+      const extent=Math.max(.4,...lo.map((minimum,axis)=>hi[axis]-minimum))
+      const distance=Math.min(20,Math.max(1.1,extent*2.75))
+      const previous={position:camera.position.clone(),quaternion:camera.quaternion.clone(),target:controls.target.clone()}
+      const savedView=controls.enabled
+      const hiddenNodes=[avatar,grid,floor,boundaries,seams,dots,boxes,brushMarks,tapeMarks,internalLineMarks,authoredLines,rings,pivot,transform.getHelper()]
+      const previousVisibility=hiddenNodes.map(node=>node.visible)
+      const previousBackground=scene.background,previousFog=scene.fog
+      const results={}
+      try{
+        controls.enabled=false
+        hiddenNodes.forEach(node=>{node.visible=false})
+        scene.background=new THREE.Color('#ffffff')
+        scene.fog=null
+        const frame=document.createElement('canvas');frame.width=520;frame.height=560
+        const ctx=frame.getContext('2d')
+        if(!ctx)return
+        for(const [name,direction] of [['front',[0,0,1]],['back',[0,0,-1]],['side',[1,0,0]]]){
+          camera.position.copy(center).add(new THREE.Vector3(...direction).multiplyScalar(distance))
+          camera.lookAt(center)
+          camera.updateMatrixWorld(true)
+          renderer.render(scene,camera)
+          ctx.fillStyle='#f7f8f8';ctx.fillRect(0,0,frame.width,frame.height)
+          ctx.drawImage(renderer.domElement,0,0,frame.width,frame.height)
+          results[name]=frame.toDataURL('image/jpeg',.73)
+        }
+      }catch(error){console.warn('EXO techpack scene render capture unavailable:',error)}
+      finally{
+        camera.position.copy(previous.position);camera.quaternion.copy(previous.quaternion);controls.target.copy(previous.target)
+        hiddenNodes.forEach((node,index)=>{node.visible=previousVisibility[index]})
+        scene.background=previousBackground;scene.fog=previousFog
+        controls.enabled=savedView;camera.updateMatrixWorld(true);renderer.render(scene,camera)
+      }
+      if(Object.keys(results).length===3)window.dispatchEvent(new CustomEvent('exo-clothcraft-techpack-render-captured',{detail:{views:results,revision:propsRef.current.snapshot?.revision??null}}))
+    }
+    window.addEventListener('exo-clothcraft-techpack-render-capture-request',captureTechpackViews)
     let lastFrame=performance.now()
     const render = () => {
       state.requestId = requestAnimationFrame(render)
       const now=performance.now(),dt=Math.min(.033,Math.max(0,(now-lastFrame)/1000))
       lastFrame=now
+      const cfg=walkPreviewRef.current
+      if(cfg.playing){
+        let next=walkProgressRef.current+dt/walkDuration(cfg)
+        if(next>=1){
+          if(cfg.loop)next%=1
+          else {next=1;setWalkPlaying(false)}
+        }
+        walkProgressRef.current=next
+        if(now-(state.walkLastUiTime||0)>120){
+          state.walkLastUiTime=now
+          setWalkProgress(next)
+        }
+      }
+      if(now-state.walkLastFrame>33 && (cfg.playing || state.walkApplied || walkProgressRef.current>0)){
+        state.walkLastFrame=now
+        applyWalkPreview(walkProgressRef.current)
+      }
       applyFoamCompression(dt)
       updateRings()
       controls.update()
@@ -1101,6 +1523,7 @@ export default function ClothCraftSceneV2({
       window.removeEventListener('exo-clothcraft-3d-tool',activateInternalLine)
       window.removeEventListener('keydown',clearBrush,true)
       observer.disconnect()
+      window.removeEventListener('exo-clothcraft-techpack-render-capture-request',captureTechpackViews)
       renderer.domElement.removeEventListener('pointerdown', pointerDown, true)
       renderer.domElement.removeEventListener('pointermove', pointerMove)
       renderer.domElement.removeEventListener('contextmenu', contextMenu)
@@ -1125,6 +1548,7 @@ export default function ClothCraftSceneV2({
       if(state.stageGroup){
         state.stageGroup.userData.disposed = true
         scene.remove(state.stageGroup)
+        applyStageFloorTint(state.stageGroup,null,false)
         disposeTree(state.stageGroup)
         state.stageGroup = null
       }
@@ -1148,6 +1572,63 @@ export default function ClothCraftSceneV2({
       sceneRef.current = null
     }
   }, [])
+
+  // Preview-only avatar selector. The Rust collision body remains the same
+  // authoritative fitted mesh; Theo/Nora and compact Thomas are visual actors
+  // that can reuse the identical walking preset on any curated 3D stage.
+  useEffect(()=>{
+    const state=sceneRef.current
+    if(!state)return undefined
+    const source=WALK_AVATAR_SOURCES.find(item=>item.id===walkAvatarSource)
+    let cancelled=false
+    walkProgressRef.current=0
+    setWalkProgress(0)
+    setWalkPlaying(false)
+    state.applyWalkPreview?.(0)
+    state.walkGeometries.clear()
+    state.walkAvatarBones=[]
+    state.walkAvatarSource=walkAvatarSource
+    state.avatar.visible=showAvatar&&walkAvatarSource==='native'
+    setWalkAvatarError('')
+    if(!source?.url)return undefined
+    const loader=new GLTFLoader()
+    loader.load(source.url,gltf=>{
+      if(cancelled||sceneRef.current!==state){
+        disposeTree(gltf.scene)
+        return
+      }
+      const root=gltf.scene
+      root.name='exo-stage-walk-visual-avatar-'+walkAvatarSource
+      root.visible=showAvatar
+      root.traverse(node=>{
+        if(!node.isBone)return
+        // GLTFLoader sanitizes ':' from Mixamo bone names to '_' so support
+        // both the authored and the sanitized rig naming conventions.
+        const name=node.name.toLowerCase().replace(/^.*?mixamorig[_:]?/,'').replace(/^.*:/,'')
+        if(/^(left|right)(upleg|leg|thigh|arm|forearm)/.test(name))
+          state.walkAvatarBones.push({name,bone:node,restX:node.rotation.x,restZ:node.rotation.z})
+      })
+      state.scene.add(root)
+      state.walkAvatarRoot=root
+      state.walkGeometries.clear()
+      state.renderer.domElement.dataset.walkAvatarLoaded=walkAvatarSource
+    },undefined,error=>{
+      if(!cancelled)setWalkAvatarError('Could not load local avatar: '+String(error.message||error).slice(0,100))
+    })
+    return()=>{
+      cancelled=true
+      const root=state.walkAvatarRoot
+      if(root){
+        state.scene.remove(root)
+        disposeTree(root)
+      }
+      state.walkAvatarRoot=null
+      state.walkAvatarBones=[]
+      state.walkGeometries.clear()
+      state.walkAvatarSource='native'
+      if(state.renderer?.domElement)state.renderer.domElement.dataset.walkAvatarLoaded=''
+    }
+  },[walkAvatarSource])
 
   // A native 3D mode change can originate from keyboard shortcuts, the
   // embedded quick bar, or a context menu instead of a CLO A/B slot. Release
@@ -1205,6 +1686,13 @@ export default function ClothCraftSceneV2({
     const color=studioAppearance?.backgroundMode==='color'?studioAppearance?.studioColor:null
     const fogColor=paintStudioGradient(state.studioBackdrop,color)
     state.scene.background=state.studioBackdrop
+    const floorColor=/^#[0-9a-f]{6}$/i.test(studioAppearance?.floorColor||'')?studioAppearance.floorColor:'#ebebed'
+    const customFloor=studioAppearance?.floorMode==='color'
+    state.floor.material.color.set(customFloor?floorColor:'#ebebed')
+    state.studioFloorAppearance={color:floorColor,custom:customFloor}
+    applyStageFloorTint(state.stageGroup,floorColor,customFloor)
+    state.renderer.domElement.dataset.customStudioFloor=floorColor
+    state.renderer.domElement.dataset.studioFloorMode=customFloor?'color':'default'
     // A runway is a full-sized room: neutral-studio distance fog must not
     // erase the rear set, avatar, or garment panels arranged off-body.
     state.scene.fog=stageId==='EXO01'?null:new THREE.Fog(fogColor,6,16)
@@ -1223,7 +1711,7 @@ export default function ClothCraftSceneV2({
     state.renderer.domElement.dataset.customStudioLight=studioAppearance?.lightColor||''
     state.renderer.domElement.dataset.studioBackgroundMode=studioAppearance?.backgroundMode||'default'
     state.renderer.domElement.dataset.studioLightPosition=state.key.position.toArray().map(v=>v.toFixed(2)).join(',')
-  },[studioAppearance?.studioColor,studioAppearance?.backgroundMode,studioAppearance?.environmentPreset,studioAppearance?.lightColor,studioAppearance?.lightIntensity,studioAppearance?.lightPositionX,studioAppearance?.lightPositionY,studioAppearance?.lightPositionZ,sceneLight,environmentPreset,stageId])
+  },[studioAppearance?.studioColor,studioAppearance?.floorColor,studioAppearance?.floorMode,studioAppearance?.backgroundMode,studioAppearance?.environmentPreset,studioAppearance?.lightColor,studioAppearance?.lightIntensity,studioAppearance?.lightPositionX,studioAppearance?.lightPositionY,studioAppearance?.lightPositionZ,sceneLight,environmentPreset,stageId])
 
   useEffect(()=>{
     const state=sceneRef.current
@@ -1262,6 +1750,7 @@ export default function ClothCraftSceneV2({
     if(previous){
       previous.userData.disposed = true
       state.scene.remove(previous)
+      applyStageFloorTint(previous,null,false)
       disposeTree(previous)
       state.stageGroup = null
     }
@@ -1278,6 +1767,7 @@ export default function ClothCraftSceneV2({
     if(!stageId || stageId === 'none') return
     const update = group => {
       if(state.stageGroup !== group || group.userData.disposed || !canvas.isConnected)return
+      applyStageFloorTint(group,state.studioFloorAppearance?.color,state.studioFloorAppearance?.custom)
       let count = 0
       group.traverse(item => {if(item.isMesh && item.geometry?.getAttribute('position')?.count > 0)count++})
       canvas.dataset.stageMeshCount = String(count)
@@ -1307,6 +1797,7 @@ export default function ClothCraftSceneV2({
       if(state.stageGroup!==group)return
       group.userData.disposed = true
       state.scene.remove(group)
+      applyStageFloorTint(group,null,false)
       disposeTree(group)
       state.stageGroup = null
     }
@@ -1318,16 +1809,39 @@ export default function ClothCraftSceneV2({
     syncStageLogoDiagnostics()
   }, [stageSettings, stageId])
 
+  // Animation is a separate viewing workspace. On entry restore an intentional
+  // runway shot instead of inheriting the last pattern-edit orbit (which can
+  // be extremely zoomed out, facing a wall, or inside the stage geometry).
+  useEffect(()=>{
+    if(!animationWorkspaceActive)return
+    const state=sceneRef.current
+    if(!state)return
+    const lookAt=new THREE.Vector3(0,1.03,0)
+    state.controls.target.copy(lookAt)
+    state.camera.position.set(stageId==='EXO01'?1.9:1.1,1.85,stageId==='EXO01'?5.2:4.0)
+    state.camera.lookAt(lookAt)
+    state.controls.update()
+    state.renderer.domElement.dataset.animationCameraFramed='true'
+  },[animationWorkspaceActive,stageId])
+
   useEffect(() => {
     const state = sceneRef.current
     if (!state) return
     const {cloth, boundaries, seams, dots, avatar, boxes, authoredLines, panelMeshes, panelOffsets} = state
     for (const group of [cloth, boundaries, seams, dots, avatar, boxes, authoredLines]) replaceChildren(group)
+    // The prior geometries were just disposed. A new Rust snapshot becomes the
+    // exact rest pose for the non-destructive visual animation.
+    state.walkGeometries.clear()
+    state.walkApplied=false
     panelMeshes.clear()
     panelOffsets.clear()
     if (!snapshot) {
       state.markerCounts = SEAM_COLORS.map(() => 0)
+      state.seamRelations=[]
       setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, false)
+      state.renderer.domElement.dataset.native3dSeamGuideCount='0'
+      state.renderer.domElement.dataset.native3dSewingRevision=''
+      state.renderer.domElement.dataset.native3dSeamIssues='[]'
       state.renderer.domElement.dataset.native3dPanelMeshCount = '0'
       state.renderer.domElement.dataset.native3dMeshRevision = ''
       state.renderer.domElement.dataset.native3dMeshTriangles = '0'
@@ -1480,34 +1994,38 @@ export default function ClothCraftSceneV2({
     // Keep precisely the Rust guide endpoints, with clear, unlit marks that
     // remain legible against the garment even at grazing camera angles.
     const dotGeometry = new THREE.SphereGeometry(.008, 8, 6)
-    const sharedDotMaterials = SEAM_COLORS.map(color => new THREE.MeshBasicMaterial({
-      color, depthTest:false, depthWrite:false, toneMapped:false,
-    }))
-    // One instanced draw call per seam color, regardless of guide count.
-    const dotPositions = SEAM_COLORS.map(() => [])
-    ;(snapshot.seams || []).forEach((seam, index) => {
+    // Keep correspondence markers associated with their individual seam IDs.
+    // In particular, hovering one edge must not reveal dots for every seam.
+    const dotPositions = []
+    const compiled=buildNativeSeam3DSelection20261025({...snapshot,positions:world})
+    state.seamRelations=compiled.relations
+    state.renderer.domElement.dataset.native3dSeamIssueCount=String(compiled.issues?.length||0)
+    state.renderer.domElement.dataset.native3dSeamIssues=JSON.stringify((compiled.issues||[]).slice(0,64))
+    ;(compiled.relations || []).forEach((relation, index) => {
       const colorIndex = index % SEAM_COLORS.length
-      const spec = snapshot.template?.seams?.find(item => item.id === seam.id)
-      const highlighted = !!active?.edge && [spec?.a, spec?.b].some(side => side?.panel === active.panel && side.edge === active.edge)
-      ;(seam.guides || []).forEach((pair, pairIndex) => {
-        if (!Array.isArray(pair) || pair.length !== 2) return
-        const ends = pair.map((weights, sideIndex) => {
-          const value = weighted(weights, world)
-          const panelId = sideIndex ? spec?.b?.panel : spec?.a?.panel
-          return value.add(panelOffsets.get(panelId) || new THREE.Vector3())
-        })
-        if (showSeams && highlighted) {
-          const guide=line(ends[0], ends[1], highlighted ? '#f07847' : SEAM_COLORS[colorIndex], highlighted ? 1 : .62)
-          guide.userData={links:[spec?.a?.panel,spec?.b?.panel],basePoints:ends.map(point=>point.clone())}
-          seams.add(guide)
-        }
-        if (showSeams && showContactDots && highlighted)
-          dotPositions[colorIndex].push({point:ends[0].clone(),panel:spec?.a?.panel},{point:ends[1].clone(),panel:spec?.b?.panel})
+      const source=relation.source,target=relation.target
+      const seamDots=[]
+      // Keep a bounded sample of every native sewing relationship in the 3D
+      // scene. Hover and selection only change presentation; they never
+      // modify the native solver's constraints or simulation state.
+      const pairs=relation.guides
+      const stride=Math.max(1,Math.ceil(pairs.length/32))
+      pairs.forEach((pair, pairIndex) => {
+        if(pairIndex!==0 && pairIndex!==pairs.length-1 && pairIndex%stride!==0)return
+        const ends=[v3(pair.a).add(panelOffsets.get(source.panel)||new THREE.Vector3()),
+          v3(pair.b).add(panelOffsets.get(target.panel)||new THREE.Vector3())]
+        const guide=line(ends[0],ends[1],SEAM_COLORS[colorIndex],.55)
+        guide.userData={kind:'sewing',seamId:relation.seamId,panel:source.panel,edge:source.edge,
+          links:[source.panel,target.panel],basePoints:ends.map(point=>point.clone())}
+        seams.add(guide)
+        if (showSeams && showContactDots)
+          seamDots.push({point:ends[0].clone(),panel:source.panel},{point:ends[1].clone(),panel:target.panel})
       })
+      if(seamDots.length)dotPositions.push({seamId:relation.seamId,colorIndex,positions:seamDots})
     })
-    sharedDotMaterials.forEach((mat, index) => {
-      const positions = dotPositions[index]
-      if (!positions.length) {mat.dispose(); return}
+    dotPositions.forEach(({seamId,colorIndex,positions}) => {
+      const mat=new THREE.MeshBasicMaterial({color:SEAM_COLORS[colorIndex],
+        depthTest:false,depthWrite:false,toneMapped:false})
       const mesh = new THREE.InstancedMesh(dotGeometry.clone(), mat, positions.length)
       const dummy = new THREE.Object3D()
       positions.forEach(({point}, i) => {
@@ -1518,11 +2036,14 @@ export default function ClothCraftSceneV2({
       mesh.instanceMatrix.needsUpdate = true
       mesh.frustumCulled = false
       mesh.renderOrder = 85
-      mesh.userData.markers=positions
+      mesh.userData={markers:positions,seamId,colorIndex}
+      mesh.visible=false
       dots.add(mesh)
     })
-    state.markerCounts = dotPositions.map(positions => positions.length)
-    setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, showSeams && sewingToolsActive && showContactDots)
+    state.markerCounts = SEAM_COLORS.map(()=>0)
+    state.renderer.domElement.dataset.native3dSeamGuideCount=String(seams.children.length)
+    state.renderer.domElement.dataset.native3dSewingRevision=String(snapshot.revision??'')
+    setMarkerDiagnostics(state.renderer.domElement, state.markerCounts, false)
     dotGeometry.dispose()
     if (snapshot.avatar?.positions?.length && snapshot.avatar?.triangles?.length) {
       const bodyMesh=buildIndexedMesh(snapshot.avatar.positions, snapshot.avatar.triangles, '#555b64')
@@ -1557,7 +2078,8 @@ export default function ClothCraftSceneV2({
       }
       state.renderer.domElement.dataset.avatarColor='#555b64'
     }
-    avatar.visible = showAvatar
+    avatar.visible = showAvatar && walkAvatarSource==='native'
+    if(state.walkAvatarRoot)state.walkAvatarRoot.visible=showAvatar
     state.renderer.domElement.dataset.constructionGuidesVisible=String(showAvatar && showConstructionGuides && avatar.children.some(child=>child.name==='avatar-construction-guides'))
     state.renderer.domElement.dataset.avatarVisible = String(showAvatar && avatar.children.length > 0)
     boundaries.visible = sewingToolsActive
@@ -1581,7 +2103,7 @@ export default function ClothCraftSceneV2({
     const valid=new Set(world.map((vertex,index)=>finiteVec(vertex)?index:null).filter(index=>index!==null))
     for(const index of state.brushVertices)if(!valid.has(index))state.brushVertices.delete(index)
     state.updateBrushMarks?.()
-  }, [snapshot, spread, grabRefresh, analysisMode, graphics])
+  }, [snapshot, spread, grabRefresh, analysisMode, graphics, walkAvatarSource])
 
   // Visual draft meshes share the native scene, camera, lighting and render
   // loop. Their material-space vertices follow the current Rust cloth pose;
@@ -1688,12 +2210,22 @@ export default function ClothCraftSceneV2({
   useEffect(() => {
     const state = sceneRef.current
     if (!state) return
-    state.avatar.visible = showAvatar
+    state.avatar.visible = showAvatar && walkAvatarSource==='native'
+    if(state.walkAvatarRoot)state.walkAvatarRoot.visible=showAvatar
     state.renderer.domElement.dataset.avatarVisible = String(showAvatar && state.avatar.children.length > 0)
     state.boundaries.visible = sewingToolsActive
     state.seams.visible = showSeams && sewingToolsActive
     state.dots.visible = showSeams && sewingToolsActive && showContactDots
-    setMarkerDiagnostics(state.renderer.domElement, state.markerCounts || SEAM_COLORS.map(() => 0), state.dots.visible)
+    const visibleMarkers=SEAM_COLORS.map(()=>0)
+    for(const cloud of state.dots.children){
+      const spec=snapshot?.template?.seams?.find(item=>item.id===cloud.userData.seamId)
+      const sameEdge=Boolean(!active?.seamId&&active?.edge&&[spec?.a,spec?.b].some(side=>
+        side?.panel===active.panel&&side.edge===active.edge))
+      cloud.visible=state.dots.visible&&(selected?.seamId===cloud.userData.seamId||
+        active?.seamId===cloud.userData.seamId||sameEdge)
+      if(cloud.visible)visibleMarkers[cloud.userData.colorIndex]+=cloud.count
+    }
+    setMarkerDiagnostics(state.renderer.domElement, visibleMarkers, state.dots.visible)
     for (const mesh of state.panelMeshes.values()) {
       mesh.material.wireframe = wireframe
       for(const child of mesh.children)if(['native-cloth-back-face','native-cloth-side-edge'].includes(child.name))child.material.wireframe=wireframe
@@ -1710,6 +2242,24 @@ export default function ClothCraftSceneV2({
       }
     }
     let highlightedEdges=0
+    let highlightedSeamGuides=0
+    for (const guide of state.seams.children) {
+      const details=guide.userData
+      const spec=snapshot?.template?.seams?.find(item=>item.id===details.seamId)
+      const focused=Boolean(selected?.seamId&&selected.seamId===details.seamId)
+      const hoverEdge=Boolean(!active?.seamId&&active?.edge&&[spec?.a,spec?.b].some(side=>
+        side?.panel===active.panel&&side.edge===active.edge))
+      const highlighted=focused||active?.seamId===details.seamId||hoverEdge
+      guide.visible=state.seams.visible&&(seamEditing||highlighted)
+      guide.material.color.set(highlighted?'#f07847':SEAM_COLORS[(snapshot?.template?.seams||[]).findIndex(item=>item.id===details.seamId)%SEAM_COLORS.length]||'#eb775e')
+      guide.material.opacity=highlighted?1:.48
+      guide.material.depthTest=!highlighted
+      guide.renderOrder=highlighted?98:0
+      if(highlighted)highlightedSeamGuides++
+    }
+    state.renderer.domElement.dataset.native3dSelectedSeamId=selected?.seamId||''
+    state.renderer.domElement.dataset.native3dHoveredSeamId=active?.seamId||''
+    state.renderer.domElement.dataset.native3dHighlightedSeamGuideCount=String(highlightedSeamGuides)
     for (const boundary of state.boundaries.children) {
       const highlighted = sewingToolsActive && !!active?.edge && boundary.userData.panel === active.panel && active.edge === boundary.userData.edge
       boundary.material.color.set(highlighted ? '#ff9b3d' : '#566875')
@@ -1746,7 +2296,7 @@ export default function ClothCraftSceneV2({
       delete state.renderer.domElement.dataset.gizmoRingRadius
       state.renderer.domElement.dataset.gizmoVisible='false'
     }
-  }, [snapshot, active?.panel, active?.edge, selected?.panel, mode, showAvatar, showConstructionGuides,
+  }, [snapshot, active?.panel, active?.edge, selected?.panel, selected?.seamId, mode, seamEditing, showAvatar, walkAvatarSource, showConstructionGuides,
     showSeams, sewingToolsActive, wireframe, showBoundingBox, showContactDots, spread, analysisMode])
 
   useEffect(()=>{if(mode!=='stretch3d')sceneRef.current?.cancelStretch?.()},[mode])
@@ -1803,11 +2353,100 @@ export default function ClothCraftSceneV2({
     state.controls.update()
   }
   const frameGarment=()=>window.dispatchEvent(new CustomEvent('exo-clothcraft-fit-camera'))
-  return <div ref={host} className="cc-scene" aria-label="EXO 3D garment scene: Rust geometry, interactive transform gizmo and sewing guides">
+  const takeAnimationPhoto=()=>{
+    const state=sceneRef.current
+    const {renderer,scene,camera,controls}=state||{}
+    const canvas=renderer?.domElement
+    if(!canvas||!canvas.isConnected||canvas.width<2||canvas.height<2){
+      setPhotoStatus('3D camera is not ready.');return
+    }
+    const helpers=[state.grid,state.boundaries,state.seams,state.dots,state.boxes,
+      state.brushMarks,state.tapeMarks,state.internalLineMarks,state.authoredLines,state.rings,
+      state.transform.getHelper()]
+    const visible=helpers.map(item=>item.visible)
+    try{
+      // Render the current camera and animation pose, omitting editing guides.
+      // Copy synchronously while the WebGL drawing buffer is still available.
+      helpers.forEach(item=>{item.visible=false})
+      controls.update()
+      renderer.render(scene,camera)
+      const photo=document.createElement('canvas')
+      photo.width=canvas.width
+      photo.height=canvas.height
+      const context=photo.getContext('2d')
+      if(!context)throw Error('Canvas capture unavailable')
+      context.drawImage(canvas,0,0)
+      const url=photo.toDataURL('image/png')
+      const date=new Date()
+      const timestamp=[date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('')
+      const time=[date.getHours(),date.getMinutes(),date.getSeconds()].map(n=>String(n).padStart(2,'0')).join('')
+      const stage=String(stageId||'studio').replace(/[^a-z0-9-]/gi,'_')
+      const name=`EXO-Animation-${stage}-${timestamp}-${time}-frame-${String(Math.round(walkProgressRef.current*walkFrames)).padStart(4,'0')}.png`
+      const download=document.createElement('a')
+      download.href=url
+      download.download=name
+      document.body.appendChild(download)
+      download.click()
+      download.remove()
+      setPhotoStatus(`PNG download started · ${photo.width} × ${photo.height}`)
+    }catch(error){
+      setPhotoStatus(`Photo capture failed: ${error?.message||'Unknown error'}`)
+    }finally{
+      helpers.forEach((item,index)=>{item.visible=visible[index]})
+      renderer.render(scene,camera)
+    }
+  }
+  const focusedSeam=seamEditing&&selected?.seamId
+    ? snapshot?.template?.seams?.find(seam=>seam.id===selected.seamId):null
+  const focusedGap=focusedSeam?snapshot?.seams?.find(seam=>seam.id===focusedSeam.id):null
+  const selectedGapMm=Number.isFinite(focusedGap?.gap_m)&&focusedGap.gap_m>=0?focusedGap.gap_m*1000:null
+  const selectedRmsGapMm=Number.isFinite(focusedGap?.rms_gap_m)&&focusedGap.rms_gap_m>=0?focusedGap.rms_gap_m*1000:null
+  const provisionalSeamClose=selectedGapMm!==null&&selectedRmsGapMm!==null&&
+    Number(snapshot?.time)>0&&selectedGapMm<=2&&selectedRmsGapMm<=2
+  const authoredSeams=seamEditing?(snapshot?.template?.seams||[]).filter(seam=>
+    seam?.id&&seam?.a?.panel&&seam?.a?.edge&&seam?.b?.panel&&seam?.b?.edge):[]
+  return <div ref={host} className={`cc-scene ${animationWorkspaceActive?'cc-animation-workspace':''}`}
+    style={{'--cc-animation-timeline-height':`${walkTimelineHeight}px`}}
+    aria-label="EXO 3D garment scene: Rust geometry, interactive transform gizmo and sewing guides">
+    <div className="cc-scene-render-surface"/>
+    {authoredSeams.length>0&&showSeams&&<aside data-native-3d-sewing-link={focusedSeam?.id||''}
+      data-native-3d-seam-gap-mm={selectedGapMm??'unavailable'}
+      data-native-3d-seam-rms-mm={selectedRmsGapMm??'unavailable'}
+      data-native-3d-closure-candidate={String(provisionalSeamClose)}
+      aria-label="Linked 2D and 3D sewing relation" style={{position:'absolute',left:12,
+        bottom:animationWorkspaceActive?'calc(var(--cc-animation-timeline-height) + 16px)':14,
+        zIndex:4,maxWidth:270,padding:'9px 12px',borderRadius:6,
+        background:'rgba(37,40,44,.91)',color:'#f0f1f2',fontSize:11,
+        boxShadow:'0 3px 12px rgba(0,0,0,.18)'}}>
+      <label style={{display:'block',fontWeight:600,marginBottom:5}}>3D SEWING · Native pair
+        <select aria-label="Select linked seam in 3D" value={focusedSeam?.id||''}
+          disabled={toolsDisabled} onChange={event=>{
+            const seam=authoredSeams.find(item=>item.id===event.target.value)
+            if(seam)onPick?.({kind:'sewing',seamId:seam.id,panel:seam.a.panel,edge:seam.a.edge})
+          }} style={{display:'block',width:'100%',minWidth:170,marginTop:4,
+            padding:'4px 5px',background:'#34383c',color:'#f0f1f2',border:'1px solid #64696d',borderRadius:4,fontSize:11}}>
+          {!focusedSeam&&<option value="">Choose a seam</option>}
+          {authoredSeams.map(seam=><option key={seam.id} value={seam.id}>{seam.id}</option>)}
+        </select>
+      </label>
+      {focusedSeam?.a?.panel&&focusedSeam?.b?.panel&&<>
+      <span style={{display:'block',opacity:.85}}>{focusedSeam.a.panel}/{focusedSeam.a.edge} ↔ {focusedSeam.b.panel}/{focusedSeam.b.edge}</span>
+      <span style={{display:'block',marginTop:3}}>{selectedGapMm!==null
+        ? `Maximum separation ${selectedGapMm.toFixed(2)} mm`:'Awaiting native 3D seam measurement'}</span>
+      <span style={{display:'block',opacity:.85}}>{selectedRmsGapMm!==null
+        ? `RMS separation ${selectedRmsGapMm.toFixed(2)} mm`:'RMS measurement unavailable'}</span>
+      <span style={{display:'block',opacity:.75,marginTop:3}}>{provisionalSeamClose
+        ? 'Within provisional 2 mm check · verify stable drape'
+        : Number(snapshot?.time)>0?'Physical seam still under evaluation':'Start simulation to evaluate closure'}</span>
+      </>}
+      <span style={{display:'block',opacity:.68,marginTop:3}}>Linked 2D source · Fit unverified</span>
+      <span style={{display:'block',opacity:.68,marginTop:3}}>Click again or Option-click to cycle overlaps</span>
+    </aside>}
     {analysisMode==='strain'&&<div data-strain-legend="true" style={{position:'absolute',bottom:12,left:12,zIndex:3,background:'#fff',color:'#263746',padding:8,fontSize:11}}>Principal extension · blue 0% → red 25%+ · not stress/pressure</div>}
-    <ClothCraftCornerTools dimension="3d" mode={mode} onChangeMode={onChangeMode} disabled={toolsDisabled}
+    <ClothCraftCornerTools dimension="3d" mode={mode} onChangeMode={onChangeMode} disabled={toolsDisabled} onCollapse3D={onCollapse3D}
       cameraHandControl={<span data-camera-hand-toolbar-fallback-slot="true"/>}/>
     <div className="cc-v2-orientation" role="group" aria-label="3D viewport orientation widget">
+      {onToggle3DStudio&&<button type="button" className="cc-3d-studio-glass-arrow" aria-label={studio3DActive?'Return to main studio':'Open 3D Studio'} title={studio3DActive?'Return to main studio':'Open 3D Studio'} aria-pressed={studio3DActive} onClick={onToggle3DStudio}>{studio3DActive?'‹':'›'}</button>}
       <strong title="World orientation">XYZ</strong>
       <button type="button" aria-pressed={showConstructionGuides} onClick={()=>setShowConstructionGuides(value=>!value)} title="Toggle approximate avatar construction references: center front/back, chest, waist and navel">Guides</button>
       <button type="button" onClick={() => view([0, .05, 3.3])} title="Front camera: looking along Z">F</button>
@@ -1820,5 +2459,137 @@ export default function ClothCraftSceneV2({
         <button type="button" onClick={frameGarment} title="Fit visible garment, including off-body or reset panels" aria-label="Fit garment on stage">G</button>
       </>}
     </div>
+    {animationWorkspaceActive&&<section className="cc-walk-timeline" role="region" aria-label="Animation timeline">
+      <div className="cc-animation-timeline-resizer" role="separator" aria-orientation="horizontal"
+        aria-label="Resize Animation Editor timeline" aria-valuemin={165} aria-valuemax={520}
+        aria-valuenow={walkTimelineHeight} aria-valuetext={`${walkTimelineHeight} pixels`}
+        title="Drag up to expand the timeline · double-click to restore compact height"
+        tabIndex={0} onPointerDown={startTimelineResize} onPointerMove={moveTimelineResize}
+        onPointerUp={stopTimelineResize} onPointerCancel={stopTimelineResize}
+        onLostPointerCapture={stopTimelineResize}
+        onDoubleClick={()=>setWalkTimelineHeight(204)}
+        onKeyDown={event=>{
+          if(event.key==='ArrowUp'||event.key==='ArrowDown'){
+            event.preventDefault()
+            setWalkTimelineHeight(height=>clampTimelineHeight(height+(event.key==='ArrowUp'?20:-20)))
+          }else if(event.key==='Home'){event.preventDefault();setWalkTimelineHeight(204)}
+        }}><span/></div>
+      <div className="cc-animation-timeline-heading">
+        <strong>ANIMATION EDITOR</strong>
+        <span>{stageId!=='none'?'STAGE '+stageId+' · ':''}AVATAR MOTION · KEYFRAMES</span>
+        <button type="button" className="cc-animation-photo" aria-label="Take photo of current 3D set" title="Take a PNG photo from the current camera, without editing guides" onClick={takeAnimationPhoto}><Camera size={14}/> Take photo</button>
+        <button type="button" aria-expanded={walkOptionsOpen} onClick={()=>setWalkOptionsOpen(open=>!open)}>{walkOptionsOpen?'Hide controls':'More controls'}</button>
+      </div>
+      {photoStatus&&<span className="cc-animation-photo-status" role="status">{photoStatus}</span>}
+      <div className={`cc-animation-preset-toolbar ${walkOptionsOpen?'expanded':''}`}>
+        <label>Avatar
+          <select aria-label="Walk avatar model" value={walkAvatarSource} onChange={event=>{resetWalk();setWalkAvatarSource(event.target.value)}}>
+            {WALK_AVATAR_SOURCES.map(avatar=><option key={avatar.id} value={avatar.id}>{avatar.label}</option>)}
+          </select>
+        </label>
+        <label>Motion sequence
+          <select aria-label="Walk motion sequence" value={walkSequenceId} onChange={event=>selectWalkSequence(event.target.value)}>
+            {WALK_SEQUENCES.map(sequence=><option key={sequence.id} value={sequence.id}>{sequence.label}</option>)}
+          </select>
+        </label>
+        {walkOptionsOpen&&<label>Walk style
+          <select aria-label="Walk preset" value={walkPresetId} onChange={event=>{setWalkPresetId(event.target.value);resetWalk()}}>
+            {WALK_PRESETS.map(preset=><option key={preset.id} value={preset.id}>{preset.label}</option>)}
+          </select>
+        </label>}
+        {walkOptionsOpen&&<label>Direction
+          <select aria-label="Walk direction" value={walkDirection} onChange={event=>setWalkDirection(event.target.value)}>
+            <option value="forward">Toward audience</option><option value="backward">Toward backdrop</option>
+          </select>
+        </label>}
+      </div>
+      {walkAvatarError&&<span role="alert" className="cc-animation-error">{walkAvatarError}</span>}
+      <div className="cc-animation-transport">
+        <div className="cc-animation-play-actions">
+          <button type="button" aria-label="Go to first animation frame" onClick={()=>seekWalkFrame(0)}>⏮</button>
+          <button type="button" aria-label="Previous animation frame" onClick={()=>seekWalkFrame(Math.max(0,Math.round(walkProgressRef.current*walkFrames)-1))}>‹</button>
+          <button className="cc-animation-play" type="button" aria-label={walkPlaying?'Pause walk animation':'Play walk animation'}
+            onClick={()=>{if(walkProgressRef.current>=1)seekWalk(0);setWalkPlaying(v=>!v)}}
+            disabled={!snapshot?.avatar?.positions?.length&&!snapshot?.positions?.length}>{walkPlaying?'Ⅱ Pause':'▶ Play'}</button>
+          <button type="button" aria-label="Next animation frame" onClick={()=>seekWalkFrame(Math.min(walkFrames,Math.round(walkProgressRef.current*walkFrames)+1))}>›</button>
+          <button type="button" aria-label="Go to last animation frame" onClick={()=>seekWalkFrame(walkFrames)}>⏭</button>
+          <button type="button" aria-label="Reset walk animation" onClick={resetWalk}>↺</button>
+        </div>
+        <span className="cc-animation-frame-counter">FRAME <b>{String(Math.round(walkProgress*walkFrames)).padStart(4,'0')}</b> / {walkFrames} <small>· {walkDuration(walkPreviewRef.current).toFixed(2)}s</small></span>
+        <label>FPS
+          <select aria-label="Animation frame rate" value={walkFps} onChange={event=>setWalkFps(Number(event.target.value))}>
+            {[24,30,60].map(fps=><option key={fps} value={fps}>{fps}</option>)}
+          </select>
+        </label>
+        {walkOptionsOpen&&<label>Speed
+          <input aria-label="Walk speed" type="number" min=".3" max="2" step=".1" value={walkSpeed} onChange={event=>setWalkSpeed(Math.max(.3,Math.min(2,Number(event.target.value)||1)))}/>
+        </label>}
+        {walkOptionsOpen&&<label>Distance (m)
+          <input aria-label="Walk travel distance" type="number" min=".3" max="6" step=".1" value={walkDistance} onChange={event=>setWalkDistance(Math.max(.3,Math.min(6,Number(event.target.value)||1)))}/>
+        </label>}
+        <label className="cc-walk-loop"><input type="checkbox" checked={walkLoop} onChange={event=>setWalkLoop(event.target.checked)}/> Loop</label>
+      </div>
+      <div className="cc-animation-tracks" data-animation-tracks={currentWalkKeys.length}>
+        <div className="cc-animation-track-label cc-animation-track-header">TRACKS / KEYFRAMES</div>
+        <div className="cc-animation-ruler">
+          <div className="cc-animation-ruler-ticks">{[0,.25,.5,.75,1].map(t=><span key={t}>{Math.round(t*walkFrames)}f</span>)}</div>
+          <input aria-label="Walk timeline" type="range" min="0" max={walkFrames} step="1"
+            value={Math.round(walkProgress*walkFrames)} onChange={event=>seekWalkFrame(Number(event.target.value))}/>
+        </div>
+        {[
+          {id:'motion',label:'Avatar · Motion clips'},
+          {id:'position',label:'Position Z · metres'},
+          {id:'heading',label:'Heading Y · degrees'},
+        ].map(track=><React.Fragment key={track.id}>
+          <div className="cc-animation-track-label">{track.label}</div>
+          <div className={`cc-animation-track-lane cc-animation-track-${track.id}`}
+            onPointerDown={event=>{
+              if(event.target!==event.currentTarget)return
+              const bounds=event.currentTarget.getBoundingClientRect()
+              seekWalkFrame(Math.round(Math.max(0,Math.min(1,(event.clientX-bounds.left)/bounds.width))*walkFrames))
+            }}>
+            {track.id==='motion'&&currentWalkKeys.slice(1).map((key,i)=>{
+              const from=currentWalkKeys[i],turning=Math.abs(key.yaw-from.yaw)>1
+              const travelling=Math.abs(key.z-from.z)>.001
+              return <div className={`cc-animation-motion-clip ${turning?'is-turn':travelling?'is-walk':'is-hold'}`} key={key.id}
+                style={{left:`${from.t*100}%`,width:`${Math.max(.1,(key.t-from.t)*100)}%`}}
+                title={`${from.name} → ${key.name} · ${turning?'Turn':travelling?'Walk':'Hold'}`}>
+                {turning?'TURN':travelling?'WALK':'HOLD'}
+              </div>
+            })}
+            {track.id!=='motion'&&currentWalkKeys.map(key=><button key={key.id} type="button"
+              className={`cc-animation-keyframe ${selectedWalkKey?.id===key.id?'selected':''}`}
+              style={{left:`${key.t*100}%`}}
+              title={`${key.name} · frame ${Math.round(key.t*walkFrames)} · ${track.id==='position'?(key.z*walkDistance).toFixed(2)+'m':key.yaw+'°'}`}
+              aria-label={`Select ${track.id} keyframe ${key.name}`}
+              onClick={()=>selectWalkKey(key)}
+              onPointerDown={event=>beginWalkDrag(event,key)}
+              onPointerMove={moveWalkDrag}
+              onPointerUp={stopWalkDrag}
+              onPointerCancel={stopWalkDrag}>◆</button>)}
+            <div className="cc-animation-playhead" data-walk-playhead="true" style={{left:`${walkProgress*100}%`}}/>
+          </div>
+        </React.Fragment>)}
+      </div>
+      <div className="cc-animation-key-inspector">
+        <strong>KEY</strong>
+        <span>{selectedWalkKey?.name||'Select a key'}</span>
+        {walkKeyEditorOpen&&<label>Frame <input aria-label="Selected keyframe frame" type="number" min="0" max={walkFrames}
+          value={Math.round((selectedWalkKey?.t||0)*walkFrames)}
+          disabled={selectedWalkKey?.id===currentWalkKeys[0].id||selectedWalkKey?.id===currentWalkKeys[currentWalkKeys.length-1].id}
+          onChange={event=>updateWalkKey(selectedWalkKey.id,'t',Number(event.target.value)/walkFrames)}/></label>}
+        {walkKeyEditorOpen&&<label>Position Z <input aria-label="Selected keyframe position" type="number" min="-12" max="12" step=".1"
+          value={Number(((selectedWalkKey?.z||0)*walkDistance).toFixed(2))}
+          onChange={event=>updateWalkKey(selectedWalkKey.id,'z',Number(event.target.value)/Math.max(.01,walkDistance))}/></label>}
+        {walkKeyEditorOpen&&<label>Heading <input aria-label="Selected keyframe rotation" type="number" min="-720" max="720" step="5"
+          value={selectedWalkKey?.yaw||0} onChange={event=>updateWalkKey(selectedWalkKey.id,'yaw',event.target.value)}/></label>}
+        <button type="button" aria-expanded={walkKeyEditorOpen} onClick={()=>setWalkKeyEditorOpen(open=>!open)}>{walkKeyEditorOpen?'Done':'Edit values'}</button>
+        <button type="button" onClick={insertWalkKey} aria-label="Add animation keyframe">+ Add key</button>
+        <button type="button" onClick={removeWalkKey} aria-label="Remove selected animation keyframe"
+          disabled={selectedWalkKey?.id===currentWalkKeys[0].id||selectedWalkKey?.id===currentWalkKeys[currentWalkKeys.length-1].id}>− Delete</button>
+        {walkKeyEditorOpen&&<button type="button" onClick={()=>{setWalkSequenceEdits(old=>{const next={...old};delete next[walkSequenceId];return next});setWalkSelectedKeyId('start');resetWalk()}}
+          aria-label="Restore motion preset keyframes">Restore preset</button>}
+      </div>
+    </section>}
   </div>
 }

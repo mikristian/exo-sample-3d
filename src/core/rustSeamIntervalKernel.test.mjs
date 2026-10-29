@@ -20,10 +20,21 @@ test('fallback preserves original interval and overlap behavior',()=>{
   assert.equal(rustSeamIntervalsOverlap(0,.2,.2,.6),false)
 })
 
+test('invalid negative seam overlap tolerance cannot turn disjoint edges into a collision',()=>{
+  // A negative tolerance reverses the separation test and can incorrectly
+  // report a gap as overlapping, blocking otherwise valid 2D sewing topology.
+  assert.equal(rustSeamIntervalsOverlap(0,.2,.3,.5,-.2),false)
+  assert.equal(rustSeamIntervalsOverlap(0,.2,.3,.5,-Infinity),false)
+  assert.equal(rustSeamIntervalsOverlap(0,.2,.3,.5,NaN),false)
+  assert.equal(rustSeamIntervalsOverlap(0,.2,.3,.5,0),false)
+  assert.equal(rustSeamIntervalsOverlap(0,.4,.3,.5,0),true)
+})
+
 test('loaded WASM reproduces JavaScript interval predicates across random and boundary cases',async()=>{
   const wasm=await readFile('public/wasm/exo_seam_interval_kernel.wasm')
   assert.equal(await initializeRustSeamIntervalKernel({bytes:wasm}),true,rustSeamIntervalKernelStatus().error)
   assert.equal(rustSeamIntervalKernelStatus().backend,'rust-wasm')
+  assert.equal(rustSeamIntervalsOverlap(0,.2,.3,.5,-.2),false,'WASM-backed calls must reject negative tolerance too')
   let seed=0x12345678
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296}
   const special=[-Infinity,-2,-.000001,-0,0,1e-8,0.1,0.5,0.500001,0.999999,1,1.000001,2,Infinity,NaN]

@@ -64,6 +64,19 @@ fn main() {
 mod tests {
     use super::*;
     #[test]
+    fn step_validation_boundaries_and_error_order() {
+        for steps in [json!(null), json!("1"), json!(true), json!(0), json!(5), json!(1.5)] {
+            assert_eq!(validate(&json!({"action":"simulation.step","expectedRevision":0,"steps":steps})),
+                error("INVALID_ARGUMENTS", Some("steps must be integer 1..4")));
+        }
+        for steps in 1..=4 {
+            assert_eq!(validate(&json!({"action":"simulation.step","expectedRevision":9007199254740991_i64,"steps":steps})), json!({"valid":true}));
+        }
+        assert_eq!(validate(&json!({"action":"simulation.step","steps":0})), error("REVISION_REQUIRED", Some("expectedRevision must be a nonnegative safe integer")));
+        assert_eq!(validate(&json!({"action":"simulation.step","expectedRevision":0})), error("INVALID_ARGUMENTS", Some("steps must be integer 1..4")));
+        assert_eq!(validate(&json!({"action":"simulation.step","expectedRevision":0,"steps":1,"panel":"x"})), error("INVALID_ARGUMENTS", Some("steps must be integer 1..4")));
+    }
+    #[test]
     fn preserves_action_errors() {
         assert_eq!(validate(&json!({"action":"workspace.nope"}))["body"]["code"], "UNSUPPORTED_ACTION");
         assert_eq!(validate(&json!({"action":"simulation.step","expectedRevision":0,"steps":5}))["body"]["code"], "INVALID_ARGUMENTS");

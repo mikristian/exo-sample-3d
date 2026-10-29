@@ -28,7 +28,7 @@ assert.ok(bytes.length>32)
 assert.equal(await initializeRustFabricKernel({bytes}),true,rustFabricKernelStatus().error??'WASM load failed')
 assert.equal(rustFabricKernelReady(),true)
 assert.equal(rustFabricKernelStatus().backend,'rust-wasm')
-assert.equal(rustFabricKernelStatus().abiVersion,1)
+assert.equal(rustFabricKernelStatus().abiVersion,2)
 for(const value of specimen){
   const expected=Number.isFinite(value)&&value>0?Math.max(.5,value):20
   assert.equal(rustTextureDimension(value),expected,`dimension ${value}`)

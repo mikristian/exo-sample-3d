@@ -30,5 +30,5 @@ test('Rust JSONL responses match real agent dispatch errors and HTTP status', as
     }
     assert.equal((await validator.validate({action:'workspace.snapshot'})).valid, true)
     assert.equal((await validator.validate({action:'workspace.save',expectedRevision:0})).valid, true)
-  } finally { validator.close() }
+  } finally { validator.close(); api.close() }
 })

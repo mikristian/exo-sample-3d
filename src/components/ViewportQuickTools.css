@@ -129,6 +129,54 @@
 .exo-viewport-inline-tools .clo-corner-tool-options > button:disabled {opacity:.37;cursor:not-allowed}
 .exo-viewport-inline-tools .clo-corner-tool-options > button .cad-tool-icon {width:19px;height:19px}
 .exo-viewport-inline-tools .clo-corner-tool-options > button .clo-corner-option-label {display:none}
+.exo-viewport-inline-tools .cc-pen-anchor-symbol{font-size:24px;font-weight:750;line-height:1;display:grid;place-items:center;width:20px;height:20px}
+/* Illustrator-style Pen family: a deliberate press-and-hold reveals a readable
+   vertical list. The other CLO tool families keep their horizontal hover rows. */
+:is(.pattern-editor-shell,.viewport-shell,.cc-corner-tool-host) .clo-corner-toolkit.exo-viewport-inline-tools [data-tool-family="vector-pen"]:not([data-touch-open="true"]) > .clo-corner-tool-options {
+  display:none!important;
+}
+:is(.pattern-editor-shell,.viewport-shell,.cc-corner-tool-host) .clo-corner-toolkit.exo-viewport-inline-tools [data-tool-family="vector-pen"] > .clo-corner-tool-options {
+  flex-direction:column;
+  align-items:stretch;
+  width:232px;
+  max-width:min(232px,calc(100vw - 75px));
+  overflow:visible;
+  gap:2px;
+  padding:5px;
+  border:1px solid rgba(135,154,168,.6);
+  border-radius:8px;
+  background:#26303b;
+  box-shadow:0 10px 28px rgba(0,0,0,.45);
+}
+:is(.pattern-editor-shell,.viewport-shell,.cc-corner-tool-host) .clo-corner-toolkit.exo-viewport-inline-tools [data-tool-family="vector-pen"] > .clo-corner-tool-options > button {
+  display:grid;
+  grid-template-columns:27px minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+  justify-content:flex-start;
+  flex:0 0 38px;
+  width:100%;
+  height:38px;
+  text-align:left;
+  padding:6px 8px;
+  border:0;
+  border-radius:5px;
+  background:transparent;
+  color:#e7eaf0;
+}
+.exo-viewport-inline-tools [data-tool-family="vector-pen"] .clo-corner-tool-options > button .clo-corner-option-label {
+  display:inline;
+  white-space:nowrap;
+  font:500 13px/1.25 system-ui,sans-serif;
+}
+.exo-viewport-inline-tools [data-tool-family="vector-pen"] .clo-corner-tool-options > button kbd{
+  font:11px/1.2 ui-monospace,Menlo,monospace;
+  color:#aab7ca;
+}
+.exo-viewport-inline-tools [data-tool-family="vector-pen"] .clo-corner-tool-options > button[aria-checked="true"] .clo-corner-option-label::after{
+  content:"";display:inline-block;width:6px;height:6px;margin-left:7px;
+  vertical-align:middle;border-radius:50%;background:#6aa6ff;
+}
 .exo-viewport-inline-tools .cad-tool-icon-artwork {display:none!important}
 .exo-viewport-inline-tools .cad-tool-icon-mask {
   display:inline-block!important;
@@ -332,4 +380,19 @@
 }
 @media(prefers-reduced-transparency:reduce){
   :is(.pattern-editor-shell,.viewport-shell,.cc-corner-tool-host) .clo-corner-toolkit.exo-viewport-inline-tools :is(.clo-corner-tool-group > button,.clo-corner-tool-options,.clo-corner-tool-options > button){-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+}
+
+/* 3D collapse is a real final row below Fabric Hand and shares the tool skin. */
+.exo-viewport-inline-tools.clo-corner-toolkit-3d .cc-collapse-3d-host {margin-top:6px}
+.exo-viewport-inline-tools.clo-corner-toolkit-3d .cc-collapse-3d-host > button svg {width:19px;height:19px}
+/* Once 2D fills the canvas, only a narrow, keyboard-accessible edge tab remains. */
+.workspaces > .exo-restore-3d-edge {
+  position:absolute;left:0;top:50%;transform:translateY(-50%);z-index:84;
+  width:19px;height:58px;min-width:19px;padding:0;display:grid;place-items:center;
+  color:#d8ebf2;background:rgba(41,51,58,.93);border:1px solid rgba(177,202,216,.65);
+  border-left:0;border-radius:0 7px 7px 0;box-shadow:2px 4px 12px rgba(0,0,0,.2);
+  cursor:pointer;transition:width .13s ease,background .13s ease;
+}
+.workspaces > .exo-restore-3d-edge:hover,.workspaces > .exo-restore-3d-edge:focus-visible {
+  width:25px;background:#405765;color:#fff;outline:2px solid #9bd3ea;outline-offset:1px;
 }

@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /** Rust/WASM greedy fabric marker packing. The surrounding editor keeps the
  * original synchronous API and uses its JavaScript path during startup.
  */
@@ -10,6 +11,21 @@ let loading = null
 let lastError = null
 
 export const rustMarkerKernelReady = () => Boolean(native)
+export function rustMarkerNormalizedRotation(value) {
+  let rotation=Number(value||0)%360
+  if(native?.exo_marker_normalized_rotation) return native.exo_marker_normalized_rotation(Number(value||0))
+  if(rotation>180)rotation-=360
+  if(rotation<=-180)rotation+=360
+  return rotation
+}
+export function rustMarkerRotatePoint(point,degrees) {
+  if(native?.exo_marker_rotate_x&&native?.exo_marker_rotate_y)return {
+    x:native.exo_marker_rotate_x(point.x,point.y,degrees),
+    y:native.exo_marker_rotate_y(point.x,point.y,degrees),
+  }
+  const radians=degrees*Math.PI/180,cosine=Math.cos(radians),sine=Math.sin(radians)
+  return {x:point.x*cosine-point.y*sine,y:point.x*sine+point.y*cosine}
+}
 export const rustMarkerKernelStatus = () => ({
   backend: native ? 'rust-wasm' : 'javascript-fallback',
   abiVersion: native?.exo_marker_abi_version() ?? null,
@@ -21,10 +37,7 @@ export async function initializeRustMarkerKernel({ bytes, url = URL } = {}) {
   if (loading) return loading
   loading = (async () => {
     try {
-      const data = bytes ?? await fetch(url).then(response => {
-        if (!response.ok) throw new Error(`Marker WASM HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const data = bytes ?? await fetchWasmBytes(url, "Marker WASM HTTP ")
       const instantiated = await WebAssembly.instantiate(data, {})
       const api = instantiated.instance?.exports ?? instantiated.exports
       if (!api?.memory || required.some(key => typeof api[key] !== 'function') ||
@@ -95,3 +108,28 @@ export function rustMarkerPlacements(entries, fabricWidth, gap) {
 
 if (typeof window !== 'undefined' && typeof WebAssembly !== 'undefined' &&
     typeof fetch === 'function') void initializeRustMarkerKernel()
+
+/** Synchronous page mapping; older WASM builds keep the JS fallback. */
+export function markerPdfCoordinates(points, heightCm, startCm) {
+  const fallback = () => points.map(point => ({
+    x: point.x * (72 / 2.54),
+    y: (heightCm - (point.y - startCm)) * (72 / 2.54),
+  }))
+  const len = points.length * 2
+  if (!native?.exo_marker_page_coordinates || !len || len > 1_000_000) return fallback()
+  let ptr = 0
+  try {
+    ptr = native.exo_marker_alloc_f64(len)
+    if (!ptr) return fallback()
+    const input = new Float64Array(native.memory.buffer, ptr, len)
+    points.forEach((point, i) => { input[i * 2] = point.x; input[i * 2 + 1] = point.y })
+    if (native.exo_marker_page_coordinates(ptr, len, heightCm, startCm) !== 1) return fallback()
+    const output = new Float64Array(native.memory.buffer, ptr, len)
+    return points.map((_, i) => ({ x: output[i * 2], y: output[i * 2 + 1] }))
+  } catch (error) {
+    lastError = `Marker coordinate WASM execution: ${String(error?.message || error)}`
+    return fallback()
+  } finally {
+    if (ptr) native.exo_marker_free_f64(ptr, len)
+  }
+}

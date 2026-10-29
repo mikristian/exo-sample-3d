@@ -8,10 +8,10 @@ const native='http://127.0.0.1:5385'
 const health=await fetch(native+'/health',{signal:AbortSignal.timeout(6000)}).then(r=>r.json())
 assert.equal(health.ok,true,'Signed EXO native bridge must be healthy')
 assert.equal(health.nativeReady,true,'EXO native Rust backend must be ready')
-// Checking only for an executable on disk missed a real release regression:
-// the Swift app launched --gpu against a CPU-only Rust binary, giving a healthy
-// /health endpoint but zero 2D and 3D garment geometry. Require a *usable*
-// saved native GPU session before checking browser viewport construction.
+// A release must restore actual authored 2D and 3D geometry. The workspace
+// deliberately defaults to CPU VBD until GPU long-run physical parity passes;
+// requiring GPU here would reject the safer installed runtime and roll back
+// unrelated UI updates. Keep all geometry, WASM and browser checks below.
 const snapshotResponse=await fetch(native+'/workspace',{
   method:'POST',headers:{'Content-Type':'application/json'},
   body:JSON.stringify({op:'snapshot'}),signal:AbortSignal.timeout(30000),
@@ -19,8 +19,8 @@ const snapshotResponse=await fetch(native+'/workspace',{
 const snapshot=await snapshotResponse.json()
 assert.equal(snapshotResponse.status,200,'Native saved garment startup failed: '+snapshot.error)
 assert.equal(snapshot.ok,true,snapshot.error||'Native saved garment unavailable')
-assert.match(snapshot.data?.backend||'',/GPU VBD/,
-  'Signed desktop EXO V2 must start the GPU-enabled Rust solver')
+assert.match(snapshot.data?.backend||'',/ClothCraft (?:GPU|CPU) VBD \+ (?:CPU )?OGC/,
+  'Signed desktop EXO V2 must start an identified Rust VBD + OGC solver')
 assert.ok((snapshot.data?.panels||[]).length>=2,
   'Signed V2 must restore both authored 2D pattern panels')
 assert.ok((snapshot.data?.triangles||[]).length>0,
@@ -30,8 +30,8 @@ const wasmResponse=await fetch(base+'/wasm/exo_fabric_kernel.wasm',
   {signal:AbortSignal.timeout(6000)})
 assert.equal(wasmResponse.status,200,'Compiled Rust fabric WASM must ship with signed app')
 const moduleResult=await WebAssembly.instantiate(await wasmResponse.arrayBuffer(),{})
-assert.equal(moduleResult.instance.exports.exo_fabric_kernel_abi_version(),1,
-  'Signed app must ship EXO Rust fabric ABI v1')
+assert.equal(moduleResult.instance.exports.exo_fabric_kernel_abi_version(),2,
+  'Signed app must ship the current EXO Rust fabric ABI v2')
 const geometryResponse=await fetch(base+'/wasm/exo_geometry_kernel.wasm',
   {signal:AbortSignal.timeout(6000)})
 assert.equal(geometryResponse.status,200,'Signed EXO app must include compiled Rust CAD geometry')
@@ -76,7 +76,7 @@ try{
   assert.deepEqual(errors,[])
   assert.deepEqual(badPorts,[])
   assert.deepEqual(warnings,[])
-  console.log(JSON.stringify({pass:true,nativeReady:true,gpuSimulation:true,rustFabricWasmAbi:1,
+  console.log(JSON.stringify({pass:true,nativeReady:true,backend:snapshot.data.backend,gpuSimulation:/GPU VBD/.test(snapshot.data.backend),rustFabricWasmAbi:2,
     rustGeometryWasmAbi:1,panels,triangles:snapshot.data.triangles.length,
     sceneCanvas:sceneDimensions,
     badPorts:0,pageErrors:0,textureWarnings:0}))

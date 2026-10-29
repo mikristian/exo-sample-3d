@@ -86,7 +86,9 @@ try{
   approx(distance(dxf.notches[0][i],i?cut.notchMarksMm[0].innerEndMm:cut.notchMarksMm[0].cutStartMm),0,.00001)
  }
  approx(distance(...dxf.notches[0]),4,.00001)
- const parsed=parseDxfPatterns(cut.dxf)
+ assert.throws(()=>parseDxfPatterns(cut.dxf),/would double its seam allowance/)
+ const parsed=parseDxfPatterns(cut.dxf,{manufacturingImport:'cut-reference'})
+ assert(parsed.pieces.every(piece=>piece.seamAllowance===0&&piece.locked))
  assert.equal(parsed.pieces.length,1)
  assert.equal(parsed.pieces[0].notches.length,1)
  const restored=parsed.pieces[0].points.map(p=>[p.x*10,p.y*10])

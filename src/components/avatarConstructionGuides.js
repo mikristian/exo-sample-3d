@@ -62,11 +62,22 @@ export function sliceAvatarAtHeight(positions, triangles, y, centerX = 0) {
 }
 
 export function avatarSurfaceConstructionCurves(positions, triangles) {
-  const valid = (Array.isArray(triangles) ? triangles : []).flatMap(t =>
-    Array.isArray(t) && t.length === 3 && t.every(i => Number.isInteger(i) && i >= 0 && finite(positions?.[i])) ? t.map(i => positions[i]) : [])
-  if (valid.length < 3) return []
-  const ys = valid.map(p => p[1]), xs = valid.map(p => p[0])
-  const minY = Math.min(...ys), maxY = Math.max(...ys), centerX = (Math.min(...xs) + Math.max(...xs)) / 2
+  // Large CLO avatar meshes easily exceed JavaScript's maximum argument
+  // count. Scan bounds without Math.min(...allVertices)/Math.max(...allVertices)
+  // or flattening 100k+ triangle vertices onto the call stack.
+  let minY = Infinity, maxY = -Infinity, minX = Infinity, maxX = -Infinity, validCount = 0
+  for (const triangle of Array.isArray(triangles) ? triangles : []) {
+    if (!Array.isArray(triangle) || triangle.length !== 3 ||
+      !triangle.every(i => Number.isInteger(i) && i >= 0 && finite(positions?.[i]))) continue
+    for (const i of triangle) {
+      const [x,y] = positions[i]
+      minY=Math.min(minY,y); maxY=Math.max(maxY,y)
+      minX=Math.min(minX,x); maxX=Math.max(maxX,x)
+      validCount++
+    }
+  }
+  if(validCount<3)return []
+  const centerX=(minX+maxX)/2
   if (!(maxY - minY > 1e-5)) return []
   const height = maxY - minY
   const levels = [['chest', .73], ['waist', .57], ['navel', .53]]

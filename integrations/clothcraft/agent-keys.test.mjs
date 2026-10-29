@@ -52,5 +52,5 @@ test('persistent keys, permissions, revocation, origin and batch enforcement', a
     document.keys.find(x => x.id === expired.id).expiresAt = new Date(Date.now() - 1000).toISOString()
     fs.writeFileSync(keyStorePath, JSON.stringify(document), { mode: 0o600 })
     assert.equal((await request('/agent/v1/status', { token: expired.key })).status, 401)
-  } finally { await new Promise(resolve => server.close(resolve)); fs.rmSync(dir, { recursive: true, force: true }) }
+  } finally { api.close(); await new Promise(resolve => server.close(resolve)); fs.rmSync(dir, { recursive: true, force: true }) }
 })

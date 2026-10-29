@@ -2,7 +2,9 @@
 //! No DOM, Three.js, network, or solver dependency. This is not measured
 //! textile physics. The stable exported C ABI works in wasm32 and native Rust.
 
-pub const ABI_VERSION: u32 = 1;
+pub mod calibration;
+
+pub const ABI_VERSION: u32 = 2;
 
 #[inline]
 fn clamp_finite(value: f64, min: f64, max: f64) -> f64 {

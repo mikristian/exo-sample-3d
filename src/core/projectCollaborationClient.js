@@ -1,5 +1,6 @@
 // Local-first collaboration client. Server owns ACLs, comments and versioned
 // shared snapshots; IndexedDB remains the source for personal project files.
+import { parseCollaborationSseBlock, initializeRustCollaborationSseKernel } from './rustCollaborationSseKernel.js'
 const DEFAULT_BASE = typeof window !== 'undefined' && window.location.port === '5486'
   ? 'http://127.0.0.1:5485' : typeof window !== 'undefined' && window.location.port === '5386'
   ? 'http://127.0.0.1:5385' : 'http://127.0.0.1:5193'
@@ -103,6 +104,8 @@ export function updateSharedProjectMapping(sourceId, value) {
 // The caller owns the abort controller; notifications never apply remote edits
 // over a designer's uncommitted local garment changes.
 export async function followProjectEvents(projectId, onEvent, signal) {
+  // Loading is opportunistic: stream parsing never waits for WASM startup.
+  void initializeRustCollaborationSseKernel()
   const bearer = await token()
   if (signal?.aborted) return
   const response = await fetch(`${COLLABORATION_BASE}/collab/v1/projects/${encodeURIComponent(projectId)}/events`, {
@@ -119,8 +122,7 @@ export async function followProjectEvents(projectId, onEvent, signal) {
       let index
       while ((index=pending.indexOf('\n\n'))>=0) {
         const block=pending.slice(0,index);pending=pending.slice(index+2)
-        const event=block.split('\n').find(line=>line.startsWith('event:'))?.slice(6).trim()||'message'
-        const wire=block.split('\n').filter(line=>line.startsWith('data:')).map(line=>line.slice(5).trim()).join('\n')
+        const {type:event,wire}=parseCollaborationSseBlock(block)
         if (wire) { try { onEvent({type:event,data:JSON.parse(wire)}) } catch { /* malformed server event */ } }
       }
     }

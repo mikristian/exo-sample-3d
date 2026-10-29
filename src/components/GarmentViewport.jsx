@@ -30,6 +30,7 @@ import { paintStudioGradient } from './studioGradientBackdrop.js'
 import {applySceneCameraViewport} from '../core/sceneCameraViewport.js'
 import { createHanger3D } from './Library3DAssetPreview.jsx'
 import { createHardwareButton3D } from './HardwareButton3D.js'
+import {viewportHardwarePlacements} from '../core/hardwareViewportSelection.js'
 import { createButtonholeHardware3D } from './ButtonholeHardware3D.js'
 import { createZipperHardware3D } from './ZipperHardware3D.js'
 import { createImportedCloHardware3D, updateImportedCloHardware3D } from '../core/importedCloHardware3D.js'
@@ -744,7 +745,7 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null, i
   return detailed
 }
 
-export default function GarmentViewport({ project, ppfPreview = null, running, hasSimulated = false, resetSignal, wireframe, analysisMode = 'surface', backendId = 'browser-pbd', nativeSolveSignal = 0, nativeQuality = 'draft', exportSignal = 0, glbExportSignal = 0, renderSignal = 0, hdriUrl = '', customAvatar = null, studioAppearance = null, studioPreferences = null, stageSettings = null, viewportTool = 'orbit', onMeshSelection, fitCameraSignal = 0, selectedPieceId = null, onSelectPiece, showSewingGuides = true, highlightSeamId = null, arrangementSpread = 0, onMoveStagedPanel, onExportMesh, onExportGlb, onRenderStill, onStats, onNativeSolve, onToggleWireframe, onToggleSewingGuides, onChangeAnalysisMode, onChangeViewportTool, onRemoveStage }) {
+export default function GarmentViewport({ project, ppfPreview = null, running, hasSimulated = false, resetSignal, wireframe, analysisMode = 'surface', backendId = 'browser-pbd', nativeSolveSignal = 0, nativeQuality = 'draft', exportSignal = 0, glbExportSignal = 0, renderSignal = 0, hdriUrl = '', customAvatar = null, studioAppearance = null, studioPreferences = null, stageSettings = null, viewportTool = 'orbit', onMeshSelection, fitCameraSignal = 0, selectedPieceId = null, onSelectPiece, showSewingGuides = true, highlightSeamId = null, arrangementSpread = 0, onMoveStagedPanel, onExportMesh, onExportGlb, onRenderStill, onStats, onNativeSolve, onToggleWireframe, onToggleSewingGuides, onChangeAnalysisMode, onChangeViewportTool, onRemoveStage, onCollapse3D }) {
   const [showAvatar, setShowAvatar] = useState(true)
   const [showFloor, setShowFloor] = useState(true)
   const [cameraPreset, setCameraPreset] = useState('perspective')
@@ -2213,7 +2214,7 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
         }
       }
 
-      for (const button of (simPiece.piece.buttons || []).filter(item=>item.visible!==false)) {
+      for (const button of viewportHardwarePlacements(simPiece.piece).proceduralButtons) {
         const preset = getHardwarePreset(button.hardwarePresetId)
         const buttonMesh = createHardwareButton3D(button,preset)
         const trimRecord = {
@@ -2397,12 +2398,8 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
     const liveMeshes = meshRecordsRef.current
     for (const meshRecord of liveMeshes) {
       const piece = meshRecord.simPiece.piece
-      const placements = [
-        ...(piece.importedHardwarePlacements || []),
-        ...(piece.importedHardware || []),
-        ...(piece.buttons || []).filter(button => button.importedAssetId || button.glbUrl),
-      ]
-      for (const placement of placements.filter(item => item.visible !== false)) {
+      const placements = viewportHardwarePlacements(piece).imported
+      for (const placement of placements) {
         const glbUrl = placement.glbUrl || placement.glb
         if (!glbUrl) continue
         void createImportedCloHardware3D(placement, meshRecord).then(record => {
@@ -2972,7 +2969,7 @@ export default function GarmentViewport({ project, ppfPreview = null, running, h
 
   return (
     <div className="viewport-shell">
-      <ViewportQuickTools dimension="3d" activeTool={viewportTool} onChangeTool={onChangeViewportTool}/>
+      <ViewportQuickTools dimension="3d" activeTool={viewportTool} onChangeTool={onChangeViewportTool} onCollapse3D={onCollapse3D}/>
       <div className="workspace-head viewport-head">
         <div>
           <strong>3D GARMENT</strong>

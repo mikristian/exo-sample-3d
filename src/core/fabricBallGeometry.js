@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import {rustFabricBallCoordinates} from './rustFabricBallGeometryKernel.js'
 
 export const FABRIC_BALL_SWATCH_CM=270
 
@@ -55,29 +56,27 @@ export function createFabricBallGeometry(fabric={}, {segments=104,rings=104}={})
     for(let ix=0;ix<=segments;ix++){
       const u=ix/segments
       const flatX=(u*2-1)*halfSize
-      const r=Math.hypot(flatX,flatZ)
-      const angle=Math.atan2(flatZ,flatX)
-      let x=flatX,z=flatZ,y
-      if(r<=contactRadius){
-        y=centerY+Math.sqrt(Math.max(0,radius*radius-r*r))+.013
-      }else{
-        const run=r-contactRadius
-        const ease=THREE.MathUtils.smoothstep(run,0,.36)
-        // Edge falls mostly vertically, retaining enough skirt expansion to
-        // show real folds across the light rather than self-overlapping walls.
-        const drop=run*(.92+.21*mass)+run*run*(.05+.03*mass)
-        // Keep projected radius monotonic along each radial grid line.
-        // Strong pinching had folded triangles through the support sphere and
-        // created visible holes; wrinkles belong chiefly in vertical relief.
-        const pleat=softness*run*(.018*Math.sin(9*angle+.37)+.009*Math.sin(15*angle-1.1))
-        const sweep=contactRadius+run*(.19+.025*bend)+pleat
-        const smooth=.018*Math.sin(angle*3+.2)*Math.min(1,run*2)
-        x=(sweep/r)*flatX+smooth*Math.cos(angle+.6)
-        z=(sweep/r)*flatZ+smooth*Math.sin(angle+.6)
-        const hemWave=ease*softness*(.044*Math.cos(9*angle-.2)+.015*Math.sin(17*angle+.4))
-        const verticalFolds=ease*softness*.025*Math.sin(8*angle+2.2*run)*Math.min(1,run)
-        y=contactY-drop+hemWave+verticalFolds
-      }
+      const [x,y,z]=rustFabricBallCoordinates(flatX,flatZ,bend,mass,softness,contactY,()=>{
+        const r=Math.hypot(flatX,flatZ)
+        const angle=Math.atan2(flatZ,flatX)
+        let x=flatX,z=flatZ,y
+        if(r<=contactRadius){
+          y=centerY+Math.sqrt(Math.max(0,radius*radius-r*r))+.013
+        }else{
+          const run=r-contactRadius
+          const ease=THREE.MathUtils.smoothstep(run,0,.36)
+          const drop=run*(.92+.21*mass)+run*run*(.05+.03*mass)
+          const pleat=softness*run*(.018*Math.sin(9*angle+.37)+.009*Math.sin(15*angle-1.1))
+          const sweep=contactRadius+run*(.19+.025*bend)+pleat
+          const smooth=.018*Math.sin(angle*3+.2)*Math.min(1,run*2)
+          x=(sweep/r)*flatX+smooth*Math.cos(angle+.6)
+          z=(sweep/r)*flatZ+smooth*Math.sin(angle+.6)
+          const hemWave=ease*softness*(.044*Math.cos(9*angle-.2)+.015*Math.sin(17*angle+.4))
+          const verticalFolds=ease*softness*.025*Math.sin(8*angle+2.2*run)*Math.min(1,run)
+          y=contactY-drop+hemWave+verticalFolds
+        }
+        return [x,y,z]
+      })
       positions.push(x,y,z)
       // Physical weave repeat derives from the original square textile
       // pattern, not cylindrical angular coordinates; this avoids a seam.

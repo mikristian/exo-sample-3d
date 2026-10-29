@@ -1,6 +1,9 @@
 use std::{collections::BTreeMap,env,fs,path::{Path,PathBuf}};
 
-const SURFACES:[&str;7]=["src","integrations/clothcraft","native_cpp","native_app","native_backend","ppf_backend","techpack-studio/src"];
+// Keep first-party Rust crates and runtime/automation scripts in the inventory.
+// The vendored research/oss/clothcraft fork is excluded pending provenance
+// classification; file counts must never be presented as functional ownership.
+const SURFACES:[&str;9]=["src","rust","scripts","integrations/clothcraft","native_cpp","native_app","native_backend","ppf_backend","techpack-studio/src"];
 const TYPES:[&str;8]=["js","jsx","mjs","ts","cpp","swift","rust","non_rust_remaining"];
 
 fn excluded_dir(name:&str)->bool{
@@ -63,8 +66,10 @@ fn main(){
   let base=env::temp_dir().join(format!("exo-audit-{}-{}",std::process::id(),SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
   fs::create_dir_all(base.join("src/core/tests")).unwrap();
   fs::create_dir_all(base.join("src/target")).unwrap();
+  fs::create_dir_all(base.join("rust/exo_example/src")).unwrap();
+  fs::create_dir_all(base.join("scripts")).unwrap();
   fs::create_dir_all(base.join("integrations/clothcraft/rust-service/src")).unwrap();
-  for file in ["src/App.jsx","src/core/engine.tsx","src/core/mesh.cpp","src/core/sim.h","src/core/test-grader.js","src/core/engine.test.ts","src/core/tests/example.js","src/target/ignore.rs","integrations/clothcraft/rust-service/src/lib.rs"]{
+  for file in ["src/App.jsx","src/core/engine.tsx","src/core/mesh.cpp","src/core/sim.h","src/core/test-grader.js","src/core/engine.test.ts","src/core/tests/example.js","src/target/ignore.rs","rust/exo_example/src/lib.rs","scripts/rust-migration-autopilot.mjs","scripts/qa-rust-autopilot.mjs","integrations/clothcraft/rust-service/src/lib.rs"]{
    fs::write(base.join(file),"fixture").unwrap();
   }
   let counts=inventory(&base).unwrap();
@@ -74,6 +79,8 @@ fn main(){
   assert_eq!(counts["src"]["non_rust_remaining"],4);
   assert_eq!(counts["integrations/clothcraft"]["rust"],1);
   assert_eq!(counts["integrations/clothcraft"]["non_rust_remaining"],0);
+  assert_eq!(counts["rust"]["rust"],1);
+  assert_eq!(counts["scripts"]["mjs"],1);
   fs::remove_dir_all(base).unwrap();
  }
 }

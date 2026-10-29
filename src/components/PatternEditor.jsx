@@ -5,12 +5,20 @@ import { offsetEdgePath, topstitchPaths, zipperPaths } from '../core/trims.js'
 import ViewportQuickTools from './ViewportQuickTools.jsx'
 import ClothCraftContextMenu from './ClothCraftContextMenu.jsx'
 import {PatternReferenceImageLayer, PatternReferenceImageControls, usePatternReferenceImage} from './PatternReferenceImage.jsx'
+import {droppedReferenceImage,referenceImageDragAvailable} from '../core/referenceImageDrop20261028.js'
 import FlatAvatarSilhouette from './FlatAvatarSilhouette.jsx'
 import { polarFromPoints, precisePointEdit, preciseCurveEdit, curveChordCoordinates } from '../core/draftingPrecision.js'
 import { DRAFT_CONSTRUCTION_MODES, preciseConstructionEdit } from '../core/draftingConstructions.js'
 import { constrainDraftAxis, snapDraftGrid, snapDraftPattern } from '../core/draftingSnapping.js'
 import { draftingSplitFractions, SPLIT_MODES } from '../core/draftingSplit.js'
 import {snapControlAngle} from '../core/vectorPatternBezier.js'
+import AccuMarkDraftGradeOverlay20261023 from './AccuMarkDraftGradeOverlay20261023.jsx'
+import AccuMarkFullPatternGradeNest20261023 from './AccuMarkFullPatternGradeNest20261023.jsx'
+import {readAccuMarkGradeDeltaMatrix} from '../core/accumarkNumericGradeDelta20261023.js'
+import CadViewportRulers20261023 from './CadViewportRulers20261023.jsx'
+import {cadColor20261023,cadDotStep20261023} from '../core/cadDotAppearance20261023.js'
+import {cadAutoContrastColors} from '../core/cadAutoContrast.js'
+import '../cadAutoContrast.css'
 import {initializeRustPomKernel, rustPomKernelReady, rustPomLabelAnchor, rustPomHorizontalCrossing} from '../core/rustPomKernel.js'
 
 const VIEWBOX = { width: 330, height: 170 }
@@ -87,12 +95,23 @@ function horizontalSpanAt(piece, y) {
 export default function PatternEditor({
   project,
   showGrid = true,
+  studioPreferences = null,
+  expanded2D = false,
+  full2D = false,
   showSeamLinks = true,
   layout2DSignal = 0,
   onToggleGrid,
   onToggleSeams,
   onAutoArrange,
   gradeNestProjects = [],
+  gradeSourceProject = null,
+  gradePreviewSize = null,
+  showGradeNest = false,
+  onToggleGradeNest,
+  onSelectGradeSize,
+  onGradePointDrag=null,
+  onGradePointSelected=null,
+  gradeBusy=false,
   highlightSeamId = null,
   selectedPieceId,
   tool,
@@ -142,6 +161,34 @@ export default function PatternEditor({
   const [splitError, setSplitError] = useState('')
   const [unfoldError, setUnfoldError] = useState('')
   const [selectedPoint, setSelectedPoint] = useState(null)
+  const [selectedGradePoint,setSelectedGradePoint] = useState(null)
+  const [showGradePointAnnotations,setShowGradePointAnnotations] = useState(true)
+  const [gradeNestScope,setGradeNestScope] = useState('all')
+  const [gradeNestPointMode,setGradeNestPointMode] = useState('all')
+  const [gradeNestLabels,setGradeNestLabels] = useState(true)
+  const [gradeNestVectors,setGradeNestVectors] = useState(true)
+  const [gradeNestDrag,setGradeNestDrag] = useState(false)
+  const [gradeNestMaintainGrowths,setGradeNestMaintainGrowths] = useState(false)
+  const [gradeNestEditMessage,setGradeNestEditMessage] = useState('')
+  const gradePointMatrix=useMemo(()=>{
+    if(!selectedGradePoint||!gradeSourceProject)return null
+    try{
+      return readAccuMarkGradeDeltaMatrix(gradeSourceProject,{
+        pieceId:selectedGradePoint.pieceId,pointIndex:selectedGradePoint.pointIndex,
+      })
+    }catch{return null}
+  },[gradeSourceProject,selectedGradePoint])
+  const selectedGradedRow=gradePointMatrix?.rows?.find(row=>row.size===gradePreviewSize)
+  const gradeEditAvailable=Boolean(showGradeNest&&gradeSourceProject&&gradePreviewSize
+    &&gradePreviewSize!==gradeSourceProject.grading?.baseSize&&!gradeBusy&&onGradePointDrag)
+  const applyGradeNudge=(dxCm,dyCm)=>{
+    if(!gradeEditAvailable||!selectedGradePoint)return
+    try{
+      onGradePointDrag({pieceId:selectedGradePoint.pieceId,pointIndex:selectedGradePoint.pointIndex,
+        size:gradePreviewSize,dxCm,dyCm,maintainGrowths:gradeNestMaintainGrowths})
+      setGradeNestEditMessage('')
+    }catch(error){setGradeNestEditMessage(error.message||String(error))}
+  }
   const [selectedCurve, setSelectedCurve] = useState(null)
   const [curveEditMode, setCurveEditMode] = useState('chord')
   const [curveDraft, setCurveDraft] = useState({cx:'',cy:'',alongCm:'',depthCm:''})
@@ -154,6 +201,28 @@ export default function PatternEditor({
   const [pointError, setPointError] = useState('')
   const [edgeAllowanceDraft, setEdgeAllowanceDraft] = useState('')
   const [view, setView] = useState({ x: 0, y: 0, width: VIEWBOX.width, height: VIEWBOX.height })
+  const [canvasSize,setCanvasSize] = useState([800,500])
+  useEffect(()=>{
+    if(!svgRef.current || typeof ResizeObserver==='undefined')return
+    const observer=new ResizeObserver(([entry])=>setCanvasSize([entry.contentRect.width,entry.contentRect.height]))
+    observer.observe(svgRef.current)
+    return ()=>observer.disconnect()
+  },[])
+  const rulerScreenUnit=Math.max(view.width/Math.max(1,canvasSize[0]),view.height/Math.max(1,canvasSize[1]))
+  const accumarkGreen=studioPreferences?.twoDCanvasTheme==='accumark-green'
+  const markerStyle=studioPreferences?.twoDGridStyle||'grid'
+  const dottedGrid=markerStyle==='dots'
+  const showRulers=studioPreferences?.twoDShowRulers!==false&&expanded2D
+  const rulerUnits=studioPreferences?.units||'mm'
+  const canvasColor=cadColor20261023(studioPreferences?.twoDCanvasColor,accumarkGreen?'#174e39':'#c6c7c9')
+  const adaptiveCad=studioPreferences?.twoDAutoContrast!==false
+    ?cadAutoContrastColors({canvas:canvasColor,paper:cadColor20261023(studioPreferences?.twoDPatternColor,'#f4f4f3'),
+      grid:studioPreferences?.twoDGridColor,edge:studioPreferences?.twoDEdgeColor,point:studioPreferences?.twoDPointColor,
+      selection:studioPreferences?.twoDSelectionColor,notch:studioPreferences?.twoDNotchColor,ruler:studioPreferences?.twoDRulerMarkColor}) : null
+  const markerColor=cadColor20261023(studioPreferences?.twoDGridColor,accumarkGreen?'#79a992':'#6e747a')
+  const markerOpacity=Math.max(.15,Math.min(1,Number(studioPreferences?.twoDGridOpacity??.8)||.8))
+  const dotScale=Math.max(.65,Math.min(2,Number(studioPreferences?.twoDDotSize??1)||1))
+  const dotStep=cadDotStep20261023(rulerScreenUnit,.01)||5
   const [referenceContextMenu,setReferenceContextMenu]=useState(null)
   const [pieceContextMenu,setPieceContextMenu]=useState(null)
   const panRef = useRef(null)
@@ -179,6 +248,7 @@ export default function PatternEditor({
     setPendingMeasurement(null)
     setInternalPreview(null)
     setSnapGuide(null)
+    setSelectedGradePoint(null)
   }, [tool, project.templateId])
   const selectedEdgePiece = project.pieces.find(piece => piece.id === selectedEdge?.pieceId)
   const activeEdge = selectedEdgePiece && Number.isInteger(selectedEdge?.edgeIndex) && selectedEdge.edgeIndex >= 0 && selectedEdge.edgeIndex < selectedEdgePiece.points.length
@@ -850,7 +920,11 @@ export default function PatternEditor({
   }
 
   return (
-    <div className="pattern-editor-shell">
+    <div className="pattern-editor-shell" data-cad-auto-contrast={String(Boolean(adaptiveCad))} data-cad-expanded={String(showRulers)} data-2d-canvas-theme={accumarkGreen?'accumark-green':'classic'} data-2d-grid-style={markerStyle}
+      data-pattern-surface-style={studioPreferences?.twoDPatternSurfaceStyle||'solid'}
+      style={adaptiveCad?{'--cad-adaptive-edge':adaptiveCad.edge,'--cad-adaptive-measure':adaptiveCad.measure,
+        '--cad-adaptive-measure-halo':adaptiveCad.measurementHalo,'--cad-adaptive-paper':adaptiveCad.patternPaper,
+        '--cad-adaptive-selected':adaptiveCad.selection,'--cad-adaptive-point':adaptiveCad.point,'--cad-adaptive-notch':adaptiveCad.notch}:undefined}>
       <ViewportQuickTools dimension="2d" activeTool={tool} onChangeTool={onChangeTool}/>
       <div className="workspace-head">
         <div>
@@ -858,6 +932,30 @@ export default function PatternEditor({
           <span>{project.units.toUpperCase()} · {project.pieces.length} PIECES</span>
         </div>
         <div className="workspace-hint">
+          {full2D&&gradeSourceProject?.grading?.sizes?.length>1&&<div className="exo-grade-canvas-controls" aria-label="Grading overlays on pattern blocks">
+            <button type="button" aria-label="Show nested grading outlines and points for every pattern block"
+              aria-pressed={showGradeNest} onClick={()=>onToggleGradeNest?.(!showGradeNest)}>
+              {showGradeNest?'NEST ON':'NEST OFF'}
+            </button>
+            {showGradeNest&&<>
+              <label>Blocks<select aria-label="Which pattern blocks show graded outlines" value={gradeNestScope}
+                onChange={event=>setGradeNestScope(event.target.value)}>
+                <option value="all">ALL BLOCKS</option><option value="selected">SELECTED BLOCK</option>
+              </select></label>
+              <label>Points<select aria-label="Which graded points are visible" value={gradeNestPointMode}
+                onChange={event=>setGradeNestPointMode(event.target.value)}>
+                <option value="all">ALL SIZES</option><option value="selected">SELECTED BLOCK</option><option value="off">HIDDEN</option>
+              </select></label>
+              <button type="button" aria-label="Toggle size labels on grading outlines" aria-pressed={gradeNestLabels}
+                onClick={()=>setGradeNestLabels(v=>!v)}>SIZE LABELS</button>
+              <button type="button" aria-label="Toggle grading point movement vectors" aria-pressed={gradeNestVectors}
+                onClick={()=>setGradeNestVectors(v=>!v)}>VECTORS</button>
+              <button type="button" aria-label="Toggle direct on-canvas grade point dragging" aria-pressed={gradeNestDrag}
+                onClick={()=>{setGradeNestDrag(value=>!value);setGradeNestEditMessage('')}}>EDIT POINTS</button>
+            </>}
+            {!showGradeNest&&<label><input type="checkbox" aria-label="Show selected pattern grade points"
+              checked={showGradePointAnnotations} onChange={event=>setShowGradePointAnnotations(event.target.checked)}/>POINTS</label>}
+          </div>}
           {tool === 'select' && 'Drag a piece to arrange it'}
           {tool === 'point' && 'Drag anchor points to edit · Option/Alt-click a point to delete it'}
           {tool === 'split' && (splitMode === 'numeric'
@@ -876,12 +974,35 @@ export default function PatternEditor({
           {tool === 'measure' && (pendingMeasurement ? 'Click the second measurement point on this pattern' : 'Click the first measurement point')}
         </div>
       </div>
+      {showGradeNest&&gradeNestDrag&&gradeSourceProject&&<div className="exo-grade-direct-editor"
+        role="group" aria-label="AccuMark direct point grading inspector">
+        <strong>DIRECT GRADING</strong>
+        <span>{selectedGradePoint?`${selectedGradePoint.pieceId} · P${selectedGradePoint.pointIndex+1}`:'Select a graded point on the canvas'}</span>
+        <span>{gradePreviewSize}{gradePreviewSize===gradeSourceProject.grading?.baseSize?' · BASE FIXED':''}</span>
+        {selectedGradedRow&&<span>X {selectedGradedRow.dxCm.toFixed(2)} cm · Y {selectedGradedRow.dyCm.toFixed(2)} cm</span>}
+        <label><input type="checkbox" checked={gradeNestMaintainGrowths}
+          onChange={event=>setGradeNestMaintainGrowths(event.target.checked)}/> Keep outer-size growths</label>
+        <div role="group" aria-label="Nudge the selected point by a tenth of a centimeter">
+          {[["X −",-.1,0],["X +",.1,0],["Y −",0,-.1],["Y +",0,.1]].map(([label,dx,dy])=>
+            <button type="button" key={label} disabled={!gradeEditAvailable||!selectedGradedRow}
+              onClick={()=>applyGradeNudge(dx,dy)}>{label}</button>)}
+        </div>
+        <small>{gradeEditAvailable?'Drag the selected-size point or nudge X/Y. Every edit is one undoable grade-rule transaction.':'Choose a non-base graded size to edit.'}</small>
+        {gradeNestEditMessage&&<span role="alert">{gradeNestEditMessage}</span>}
+      </div>}
       <PatternReferenceImageControls {...reference} unitsPerCm={1} menuOnly editorScope="draft"
         viewBounds={[view.x,view.y,view.width,view.height]}/>
       <ClothCraftContextMenu context={pieceContextMenu&&{...pieceContextMenu,dimension:'2d',hit:{panel:pieceContextMenu.pieceId}}}
-        items={[{id:'select',label:'Select Pattern'}, {separator:true}, {id:'delete',label:'Delete Pattern',shortcut:'⌫',danger:true}]}
+        items={[{id:'select',label:'Select Pattern'}, {separator:true},
+          {id:reference.image?'replace':'add',label:reference.image?'Replace Background Image…':'Add Background Image…'},
+          {separator:true}, {id:'delete',label:'Delete Pattern',shortcut:'⌫',danger:true}]}
         onClose={()=>setPieceContextMenu(null)}
         onChoose={(action,context)=>{
+          if(action==='add'||action==='replace'){
+            window.dispatchEvent(new CustomEvent('exo-open-2d-background-image',{detail:{editor:'draft',action}}))
+            setPieceContextMenu(null)
+            return
+          }
           const id=context?.pieceId
           if(!project.pieces.some(piece=>piece.id===id))return
           if(action==='delete')onDeletePiece?.(id)
@@ -903,6 +1024,21 @@ export default function PatternEditor({
       <svg
         ref={svgRef}
         className={`pattern-canvas tool-${tool}`}
+        onDragOver={event=>{
+          if(referenceImageDragAvailable(event.dataTransfer)){
+            event.preventDefault()
+            event.dataTransfer.dropEffect='copy'
+          }
+        }}
+        onDrop={event=>{
+          const source=droppedReferenceImage(event.dataTransfer)
+          if(!source)return
+          event.preventDefault()
+          event.stopPropagation()
+          const at=clientToSvg(event)
+          void reference.importImage(source,{viewBounds:[view.x,view.y,view.width,view.height],unitsPerCm:1,dropPoint:at})
+        }}
+        style={{background:canvasColor}}
         role="application"
         tabIndex={0}
         aria-label="2D pattern canvas: wheel to zoom; F fit all; Shift F focus selected; plus or minus zoom; Shift A tidy"
@@ -948,11 +1084,17 @@ export default function PatternEditor({
       >
         <defs>
           <pattern id="minor-grid" width="5" height="5" patternUnits="userSpaceOnUse">
-            <path d="M 5 0 L 0 0 0 5" fill="none" stroke="rgba(77,78,82,.16)" strokeWidth=".28" />
+            <path d="M 5 0 L 0 0 0 5" fill="none" stroke={studioPreferences?.twoDGridColor&&studioPreferences.twoDGridColor!=='auto'?markerColor:'rgba(77,78,82,.16)'} strokeWidth=".28" />
           </pattern>
           <pattern id="major-grid" width="25" height="25" patternUnits="userSpaceOnUse">
             <rect width="25" height="25" fill="url(#minor-grid)" />
-            <path d="M 25 0 L 0 0 0 25" fill="none" stroke="rgba(75,76,79,.27)" strokeWidth=".38" />
+            <path d="M 25 0 L 0 0 0 25" fill="none" stroke={studioPreferences?.twoDGridColor&&studioPreferences.twoDGridColor!=='auto'?markerColor:'rgba(75,76,79,.27)'} strokeWidth=".38" />
+          </pattern>
+          <pattern id="draft-dot-grid" width={dotStep} height={dotStep} patternUnits="userSpaceOnUse">
+            <circle cx={dotStep/2} cy={dotStep/2} r={rulerScreenUnit*.86*dotScale} fill={markerColor}/>
+          </pattern>
+          <pattern id="draft-major-dots" width={dotStep*5} height={dotStep*5} patternUnits="userSpaceOnUse">
+            <circle cx={dotStep*2.5} cy={dotStep*2.5} r={rulerScreenUnit*1.45*dotScale} fill={markerColor}/>
           </pattern>
           <marker id="grain-arrow" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" orient="auto-start-reverse" markerUnits="strokeWidth">
             <path d="M 0 0 L 5 2.5 L 0 5 z" fill="currentColor" />
@@ -985,8 +1127,12 @@ export default function PatternEditor({
         </defs>
         {/* Overscan the SVG camera's visible rectangle. Grid coverage is
             continuous even during rapid cursor-centric zoom and panning. */}
-        {showGrid && <rect x={view.x-view.width} y={view.y-view.height} width={view.width*3} height={view.height*3} fill="url(#major-grid)" pointerEvents="none" data-grid-coverage="overscanned"/>}
+        {showGrid&&markerStyle!=='none'&&<g opacity={markerOpacity} pointerEvents="none" data-grid-coverage="overscanned">
+          <rect x={view.x-view.width} y={view.y-view.height} width={view.width*3} height={view.height*3} fill={dottedGrid?'url(#draft-dot-grid)':'url(#major-grid)'}/>
+          {dottedGrid&&<rect x={view.x-view.width} y={view.y-view.height} width={view.width*3} height={view.height*3} fill="url(#draft-major-dots)"/>}
+        </g>}
         <PatternReferenceImageLayer image={reference.image} setImage={reference.setImage} unitsPerCm={1}
+          screenUnit={rulerScreenUnit}
           interactive={tool === 'select' || reference.image?.calibrating === true}/>
         {/* World-space drafting origin is aligned with the center of the guide
             figure. Unlike an HTML overlay, it pans and zooms with the patterns.
@@ -994,22 +1140,11 @@ export default function PatternEditor({
         <g className="draft-avatar-guide" aria-label={`Centered 2D drafting avatar: ${project.avatar?.name || 'Fitting body'}`} pointerEvents="none" transform={`translate(165 85) scale(${Math.max(.82, Math.min(1.22, Number(project.avatar?.heightCm || 180) / 180))})`}>
           <FlatAvatarSilhouette avatar={project.avatar}/>
         </g>
-        {showGrid && <g className="draft-center-axes" pointerEvents="none" aria-label="2D drafting center axes">
+        {showGrid&&markerStyle!=='none'&&!accumarkGreen && <g className="draft-center-axes" pointerEvents="none" aria-label="2D drafting center axes">
           <path className="draft-center-horizontal" d="M-900 85H1230"/>
           <path className="draft-center-vertical" d="M165-900V1100"/>
           <circle className="draft-origin-dot" cx="165" cy="85" r="1.5"/>
         </g>}
-
-        {gradeNestProjects.map((gradedProject, index) => {
-          const piece = gradedProject.pieces?.find((item) => item.id === selectedPieceId)
-          if (!piece) return null
-          return (
-            <g key={`grade-nest-${gradedProject.previewSize || index}`} className="grade-nest-group">
-              <path d={polygonPath(piece)} className="grade-nest-path" />
-              <text x={piece.layout2d.x} y={piece.layout2d.y - Math.max(...piece.points.map((point) => point.y)) - 3 - index * 3.2} className="grade-nest-label">{gradedProject.previewSize || ''}</text>
-            </g>
-          )
-        })}
 
         {project.pieces.map((piece) => {
           const selected = piece.id === selectedPieceId
@@ -1471,6 +1606,40 @@ export default function PatternEditor({
             </g>
           )
         })}
+        {showGradeNest&&gradeSourceProject?.grading?.sizes?.length>1&&<AccuMarkFullPatternGradeNest20261023
+          sourceProject={gradeSourceProject}
+          selectedPieceId={selectedPieceId}
+          selectedPointIndex={selectedGradePoint?.pieceId===selectedPieceId?selectedGradePoint.pointIndex:null}
+          selectedSize={gradePreviewSize||gradeSourceProject.grading.baseSize}
+          scope={gradeNestScope} pointMode={gradeNestPointMode}
+          showLabels={gradeNestLabels} showVectors={gradeNestVectors}
+          showSizeLabels={gradeNestLabels} viewWidth={view.width}
+          dragGradePoints={gradeNestDrag} onGradePointDrag={spec=>{
+            if(!onGradePointDrag)return
+            try{onGradePointDrag(spec);setGradeNestEditMessage('')}
+            catch(error){setGradeNestEditMessage(error.message||String(error))}
+          }}
+          maintainGrowths={gradeNestMaintainGrowths} disabled={!gradeEditAvailable}
+          onSelectPiece={onSelectPiece}
+          onSelectGradePoint={(pieceId,pointIndex)=>{
+            setSelectedGradePoint({pieceId,pointIndex})
+            onGradePointSelected?.({pieceId,pointIndex})
+          }}
+          onSelectSize={onSelectGradeSize}/>}
+        {!showGradeNest&&showGradePointAnnotations&&gradeSourceProject?.grading?.sizes?.length>1&&selectedPieceId&&(()=>{
+          const sourcePiece=gradeSourceProject.pieces?.find(piece=>piece.id===selectedPieceId)
+          const previewPiece=project.pieces?.find(piece=>piece.id===selectedPieceId)
+          if(!sourcePiece||!previewPiece)return null
+          return <AccuMarkDraftGradeOverlay20261023
+            sourcePiece={sourcePiece} previewPiece={previewPiece}
+            sizes={gradeSourceProject.grading.sizes} gradeNestProjects={gradeNestProjects}
+            previewSize={gradePreviewSize||gradeSourceProject.grading.baseSize}
+            selectedPointIndex={selectedGradePoint?.pieceId===selectedPieceId?selectedGradePoint.pointIndex:null}
+            onSelectPoint={pointIndex=>{
+              setSelectedGradePoint({pieceId:selectedPieceId,pointIndex})
+            }}
+            showNest={gradeNestProjects.length>0} viewWidth={view.width}/>
+        })()}
         {showSeamLinks && (project.seams || []).map((seam) => {
           const pieceA = project.pieces.find((piece) => piece.id === seam.a?.pieceId)
           const pieceB = project.pieces.find((piece) => piece.id === seam.b?.pieceId)
@@ -1499,7 +1668,13 @@ export default function PatternEditor({
           <circle cx={snapGuide.x} cy={snapGuide.y} r={2.3}/>
           <path d={`M ${snapGuide.x - 4.5} ${snapGuide.y} h 9 M ${snapGuide.x} ${snapGuide.y - 4.5} v 9`}/>
         </g>}
+        <PatternReferenceImageLayer image={reference.image} setImage={reference.setImage} unitsPerCm={1}
+          screenUnit={rulerScreenUnit}
+          interactive={tool === 'select'} handlesOnly/>
       </svg>
+      {showRulers&&<CadViewportRulers20261023 svgRef={svgRef} view={[view.x,view.y,view.width,view.height]}
+        worldToMetres={.01} units={rulerUnits} green={accumarkGreen} topInsetPx={39}
+        markColor={adaptiveCad?.ruler||studioPreferences?.twoDRulerMarkColor} glassColor={studioPreferences?.twoDRulerGlassColor} glassOpacity={studioPreferences?.twoDRulerGlassOpacity} glow={studioPreferences?.twoDRulerGlow}/>}
       {propertyDockHost && createPortal(
         <div className="clo-2d-docked-tools" aria-label="2D drafting property tools">
           <section className="clo-draft-snap-settings" aria-label="2D drafting snap preferences">

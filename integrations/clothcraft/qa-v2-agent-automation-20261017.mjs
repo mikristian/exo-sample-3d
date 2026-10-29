@@ -71,3 +71,4 @@ try {
   else process.env.EXO_AGENT_API_TOKEN = previous
 }
 console.log('Agent automation: summaries, validated save/undo/redo, fail-fast sequential batch, auth passed')
+api.close()

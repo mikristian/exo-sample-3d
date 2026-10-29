@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 export const RUST_MEASUREMENT_ABI_VERSION = 1
 let kernel = null
 let pending = null
@@ -10,10 +11,7 @@ export async function initializeRustMeasurementKernel({ bytes, url = '/wasm/exo_
   if (pending) return pending
   pending = (async () => {
     try {
-      const raw = bytes ?? await fetch(url).then(r => {
-        if (!r.ok) throw new Error(`Measurement WASM HTTP ${r.status}`)
-        return r.arrayBuffer()
-      })
+      const raw = bytes ?? await fetchWasmBytes(url, "Measurement WASM HTTP ")
       const instantiated = await WebAssembly.instantiate(raw, {})
       const api = instantiated.instance?.exports ?? instantiated.exports
       if (!api?.memory || api.exo_measurement_abi_version?.() !== RUST_MEASUREMENT_ABI_VERSION ||
@@ -29,18 +27,27 @@ export async function initializeRustMeasurementKernel({ bytes, url = '/wasm/exo_
 }
 
 function javascriptSpan(points, y) {
-  const intersections = []
+  // Track extrema incrementally: spreading a large cutline's intersections
+  // into Math.min/Math.max overflows the JS argument stack.
+  let minX = Infinity, maxX = -Infinity, intersectionCount = 0
   for (let i = 0; i < points.length; i++) {
     const a = points[i], b = points[(i + 1) % points.length]
     if (Math.abs(a.y - b.y) < 1e-6) {
-      if (Math.abs(y - a.y) < 0.2) intersections.push(a.x, b.x)
+      if (Math.abs(y - a.y) < 0.2) {
+        minX = Math.min(minX, a.x, b.x)
+        maxX = Math.max(maxX, a.x, b.x)
+        intersectionCount += 2
+      }
       continue
     }
     if (y < Math.min(a.y, b.y) || y > Math.max(a.y, b.y)) continue
     const t = (y - a.y) / (b.y - a.y)
-    intersections.push(a.x + (b.x - a.x) * t)
+    const x = a.x + (b.x - a.x) * t
+    minX = Math.min(minX, x)
+    maxX = Math.max(maxX, x)
+    intersectionCount++
   }
-  return intersections.length < 2 ? 0 : Math.max(...intersections) - Math.min(...intersections)
+  return intersectionCount < 2 ? 0 : maxX - minX
 }
 
 /** One WASM invocation handles every requested level across all sampled pieces. */

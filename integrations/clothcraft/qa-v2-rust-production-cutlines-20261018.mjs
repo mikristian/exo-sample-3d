@@ -55,7 +55,9 @@ try{
  assert.match(cut.dxf,/\$INSUNITS\n70\n4/)
  assert.match(cut.dxf,/0\nLWPOLYLINE\n8\nCUT_EXO\n90\n4\n70\n1/)
  assert.match(cut.dxf,/0\nENDSEC\n0\nEOF\n$/)
- const imported=parseDxfPatterns(cut.dxf)
+ assert.throws(()=>parseDxfPatterns(cut.dxf),/would double its seam allowance/)
+ const imported=parseDxfPatterns(cut.dxf,{manufacturingImport:'cut-reference'})
+ assert(imported.pieces.every(piece=>piece.locked&&piece.seamAllowance===0))
  assert.equal(imported.pieces.length,1)
  const restored=imported.pieces[0].points
  near(Math.max(...restored.map(p=>p.x))-Math.min(...restored.map(p=>p.x)),22)
@@ -78,7 +80,7 @@ try{
  near(Math.hypot(mark.cutStartMm[0]-mark.innerEndMm[0],mark.cutStartMm[1]-mark.innerEndMm[1]),4)
  assert.match(result.panels[0].svg,/stroke="#c0392b"/)
  assert.match(result.panels[0].dxf,/0\nLINE\n8\nNOTCH_EXO/)
- const withNotch=parseDxfPatterns(result.panels[0].dxf)
+ const withNotch=parseDxfPatterns(result.panels[0].dxf,{manufacturingImport:'cut-reference'})
  assert.equal(withNotch.pieces.length,1)
  assert.equal(withNotch.pieces[0].notches.length,1)
  // Split a different allowanced edge. Notch and all derived child allowance

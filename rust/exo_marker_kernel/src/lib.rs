@@ -99,6 +99,27 @@ pub fn pack_entries(input: &[f64], output: &mut [f64], fabric_width: f64, gap: f
 #[no_mangle]
 pub extern "C" fn exo_marker_abi_version() -> u32 { 1 }
 
+/// Preserve the marker's existing signed (-180,180] angular convention.
+#[no_mangle]
+pub extern "C" fn exo_marker_normalized_rotation(value: f64) -> f64 {
+    let mut rotation = value % 360.0;
+    if rotation > 180.0 { rotation -= 360.0; }
+    if rotation <= -180.0 { rotation += 360.0; }
+    rotation
+}
+
+#[no_mangle]
+pub extern "C" fn exo_marker_rotate_x(x:f64,y:f64,degrees:f64)->f64 {
+    let radians=degrees*std::f64::consts::PI/180.0;
+    x*radians.cos()-y*radians.sin()
+}
+
+#[no_mangle]
+pub extern "C" fn exo_marker_rotate_y(x:f64,y:f64,degrees:f64)->f64 {
+    let radians=degrees*std::f64::consts::PI/180.0;
+    x*radians.sin()+y*radians.cos()
+}
+
 #[no_mangle]
 pub extern "C" fn exo_marker_alloc_f64(len: usize) -> *mut f64 {
     if len == 0 || len > 1_000_000 { return std::ptr::null_mut(); }
@@ -132,9 +153,45 @@ pub unsafe extern "C" fn exo_marker_pack(
     i32::from(pack_entries(input, output, fabric_width, gap).is_ok())
 }
 
+pub fn page_coordinates(points: &mut [f64], height: f64, start: f64) {
+    let scale = 72. / 2.54;
+    for point in points.chunks_exact_mut(2) {
+        point[0] = point[0] * scale;
+        point[1] = (height - (point[1] - start)) * scale;
+    }
+}
+
+/// SAFETY: points must refer to a live f64 allocation of exactly len elements.
+#[no_mangle]
+pub unsafe extern "C" fn exo_marker_page_coordinates(
+    points: *mut f64, len: usize, height: f64, start: f64,
+) -> i32 {
+    if points.is_null() || len == 0 || len > 1_000_000 || len % 2 != 0 { return 0; }
+    page_coordinates(std::slice::from_raw_parts_mut(points, len), height, start);
+    1
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn pdf_coordinates_preserve_page_subtraction_order() {
+        let mut points = [2., 399., 150., 805.];
+        page_coordinates(&mut points, 400., 400.);
+        let scale = 72. / 2.54;
+        assert_eq!(points, [2. * scale, 401. * scale, 150. * scale, -5. * scale]);
+    }
+
+    #[test]
+    fn rotation_and_degenerate_inputs() {
+        assert_eq!(exo_marker_normalized_rotation(-180.),180.);
+        assert_eq!(exo_marker_normalized_rotation(540.),180.);
+        assert_eq!(exo_marker_normalized_rotation(-450.),-90.);
+        assert!((exo_marker_rotate_x(3.,4.,0.)-3.).abs()<1e-12);
+        assert!((exo_marker_rotate_y(3.,4.,0.)-4.).abs()<1e-12);
+        assert_eq!(exo_marker_rotate_x(0.,0.,135.),0.);
+        assert!(exo_marker_normalized_rotation(f64::NAN).is_nan());
+    }
 
     #[test]
     fn packs_adjacent_boxes_before_using_extra_length() {

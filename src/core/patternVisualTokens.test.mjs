@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   PATTERN_LAYER_ORDER,PATTERN_SEMANTIC,PATTERN_POINT_GLYPHS,
   patternCutlinePresentation,patternSemanticStroke,patternPointGlyph,
-  patternScreenPixelsToView,patternMeasurementLabel,
+  pointRadiusInView,patternScreenPixelsToView,patternMeasurementLabel,
 } from './patternVisualTokens.js'
 
 test('semantic layers draw structural contour above guides and below active controls',()=>{
@@ -49,6 +49,18 @@ test('glyph pixel size is invariant when converted across positive view scales',
     assert.equal(patternScreenPixelsToView(radius,unit)/unit,radius)
   }
   for(const unit of [0,-1,Infinity,NaN]) assert.throws(()=>patternScreenPixelsToView(3,unit),RangeError)
+})
+
+test('2D point radii fail closed when material-view conversion overflows or zoom is invalid',()=>{
+  assert.equal(pointRadiusInView(3,.002),.006)
+  assert.equal(patternScreenPixelsToView(3,.002),.006)
+  for(const convert of [pointRadiusInView,patternScreenPixelsToView]) {
+    assert.throws(()=>convert(Number.MAX_VALUE,2),RangeError)
+    assert.throws(()=>convert(2,Number.MAX_VALUE),RangeError)
+    assert.throws(()=>convert(3,0),RangeError)
+    assert.throws(()=>convert(-1,.002),RangeError)
+    assert.throws(()=>convert(NaN,.002),RangeError)
+  }
 })
 
 test('measurement annotation distinguishes exact and approximate readouts',()=>{

@@ -1,7 +1,17 @@
 import {createFoamPaddingGeometry} from './foamPaddingGeometry.js'
 
 const n=value=>Number(value.toFixed(4))
-const escapeXml=value=>String(value||'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]))
+const escapeXml=value=>{
+  const text=String(value??'')
+  // XML 1.0 forbids control characters, lone surrogates and U+FFFE/U+FFFF.
+  // Reject rather than silently changing manufacturing annotation text.
+  for(const character of text){
+    const cp=character.codePointAt(0)
+    if(!(cp===9||cp===10||cp===13||(cp>=32&&cp<=0xD7FF)||(cp>=0xE000&&cp<=0xFFFD)||(cp>=0x10000&&cp<=0x10FFFF)))
+      throw Error('Pad annotation contains invalid XML characters')
+  }
+  return text.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[char]))
+}
 
 /**
  * True-size foam cut outline and matching topstitch guidelines for a single

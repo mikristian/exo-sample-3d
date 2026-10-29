@@ -1,30 +1,53 @@
 import {presetForFabric} from "../core/clothcraftFabrics.js"
+import {proposeGraphicCanvasResize20261025} from '../core/graphicCanvasResize20261025.js'
+import {PatternReferencesSvgLayer20261025} from './PatternReferencePanel20261025.jsx'
 import React, {useEffect, useId, useMemo, useRef, useState} from 'react'
 import ClothCraftCornerTools from './ClothCraftCornerTools.jsx'
 import {PatternReferenceImageLayer, PatternReferenceImageControls, usePatternReferenceImage} from './PatternReferenceImage.jsx'
+import {droppedReferenceImage,referenceImageDragAvailable} from '../core/referenceImageDrop20261028.js'
 import ClothCraftStudioSilhouette from './ClothCraftStudioSilhouette.jsx'
 import './ClothCraftSegmentSewing.css'
 import {cursorForTool} from '../core/toolCursors.js'
 import {freeSewingPointAtFraction, freeSewingRangePoints, projectFreeSewingPoint} from '../core/freeSewingGeometry.js'
-import {getBounds, frontAvatarRegistration, horizontalPatternSpans, previewPoint, rotatedLayoutAroundCenter, trianglePath, boundarySegments} from '../core/clothcraft2dGeometry.js'
+import {getBounds, frontAvatarRegistration, horizontalPatternSpans, previewPoint, rotatedLayoutAroundCenter, boundarySegments} from '../core/clothcraft2dGeometry.js'
 import {horizontalGuideTracks,verticalGuideTracks,sharedTorsoGuideX,patternGuideLocalFrame,armpitChestReference} from '../core/patternGuideTracks.js'
 import {sampleInternalCurve,initialInternalTangents} from './nativeInternalCurve.js'
-import {cubicLength,editPatternBezierHandle,previewPatternAnchorMove,patternEditingControls,visibleTangent} from '../core/vectorPatternBezier.js'
+import {cubicLength,editPatternBezierHandle,previewPatternAnchorMove,patternEditingControls,visibleTangent,dragPatternAnchorHandles,reshapePatternBezierSegment} from '../core/vectorPatternBezier.js'
 import {addNativeFreeCurvePoint,closestFreeCurveParameter,evaluateFreeCurve,moveNativeFreeCurvePoint,editNativeFreeCurveTangent,cubicDerivativeAt,freeCurveBase,removeNativeFreeCurvePoint,arclengthToFreeCurvePoint} from '../core/nativeFreeCurvePoints.js'
 import {fitPencilStroke,pathCubicControls} from '../core/vectorFreehandFit.js'
+import {mirrorHalfPencilDraft} from '../core/mirroredPencilDraft.js'
+import {nativeShapeBuilderBlockers} from '../core/nativeShapeBuilderPreflight.js'
+import {shapeBuilderWorldToMaterial} from '../core/shapeBuilderCoordinateAdapter.js'
 import {teeBalanceNotchCommands} from '../core/patternSewingNotches.js'
+import {preflightNativeCutMark20261025} from '../core/nativeCutMarkPreflight20261025.js'
 import {shapePoints} from './FoamPaddingNativeOverlay.jsx'
 import {measureNativeSelection} from '../core/clothcraftSelectionMetrics.js'
 import {freeTangentDragDelta} from '../core/freeTangentDrag.js'
 import {sewingLengthDiagnostic} from '../core/sewingLengthDiagnostics.js'
 import {samplePatternSewingGuideIndices} from '../core/patternSewingGuideSampling.js'
 import {seamAllowancePreviewPoints} from '../core/patternAllowancePreview.js'
-import {placePatternLabel} from '../core/patternLabelPlacement.js'
 import {sideCurveStation,torsoSideCurveStations,curveDraftDimensions} from '../core/patternCurveDrafting.js'
 import {sampleGuideHalfCurve} from '../core/patternGuideHalfCurves.js'
 import {vectorcraftAnchorKind} from '../core/vectorcraftAnchorPort.js'
+import {parkOpenPenPath,restoreOpenPenPath} from '../core/vectorcraftPenSession20261029.js'
+import {smoothNativePatternAnchor} from '../core/vectorcraftSmoothAnchor20261029.js'
+import {nativePatternAnchorAt} from '../core/vectorcraftNativeAnchorHit20261029.js'
+import {cornerWidgetGeometry,cornerWidgetDragHandle,previewNativeCornerDrag} from '../core/vectorcraftCornerWidget20261029.js'
+import {penTangent,penCubicPath,insertPenAnchor,penSegmentAt,curvePenAnchor,reshapePenDraftSegment} from '../core/vectorcraftPenGesture20261023.js'
+import {resumePausedPenFromAnchor} from '../core/vectorPenResume20261028.js'
+import {dimensionedPenPoint,parsePenDimension,convertPenDimension,penDraftSegmentMetrics,sampledPenLineMetrics,formatPenDistance,formatPenDistancePrecise,penPreviewAtDisplayedLength,penInlineLabelPoint, PEN_LENGTH_UNITS} from '../core/vectorcraftPenDimensions20261025.js'
+import {formatDisplayMeasurement20261025} from '../core/measurementDisplayUnits20261025.js'
+import {moveCloNativePolygonPoints20261025} from '../core/cloNativeMultiPointEdit20261025.js'
+import {planNativePatternGroupMove20261025} from '../core/nativePatternGroupMove20261025.js'
+import {proposeCloNativeChangeLength20261025} from '../core/cloNativeChangeLength20261025.js'
+import AccuMarkGradingOverlay20261023 from './AccuMarkGradingOverlay20261023.jsx'
+import NativeGradingPOMOverlay20261025 from './NativeGradingPOMOverlay20261025.jsx'
 import './PatternAuditRefinements.css'
 import {PATTERN_VISUAL,PATTERN_METRICS,pointRadiusInView,patternCutlinePresentation,patternPointGlyph,patternSemanticStroke} from '../core/patternVisualTokens.js'
+import CadViewportRulers20261023 from './CadViewportRulers20261023.jsx'
+import {cadColor20261023,cadDotStep20261023} from '../core/cadDotAppearance20261023.js'
+import {cadAutoContrastColors} from '../core/cadAutoContrast.js'
+import '../cadAutoContrast.css'
 
 const COLORS = ['#527e91', '#d29465', '#7a9e79', '#a889b2', '#c3ab5d', '#76a5a4']
 const SEAM_COLORS = ['#eb775e', '#55aecd', '#dbb44c', '#8dc575', '#a98cd9', '#dd91b9']
@@ -38,27 +61,6 @@ const POINT_COLORS = {vertex:PATTERN_VISUAL.vertex,selectedVertex:PATTERN_VISUAL
 // and a distinct amber active selection without changing native geometry.
 const INITIAL_VIEW = [-1.1, -.24, 2.2, 2]
 const finite = value => Number.isFinite(value)
-const formatCm = metres => `${(metres * 100).toFixed(1)} cm`
-// Readouts use the current tessellated cutline in actual material metres.
-// Keep this view-only approximation separate from manufacturing measurements.
-function boundaryDisplayLength(indices, positions) {
-  const points=indices.map(index=>positions[index]).filter(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite))
-  if(points.length<2)return null
-  const segments=points.slice(1).map((p,i)=>{
-    const a=points[i],dx=p[0]-a[0],dy=p[1]-a[1]
-    return {a,dx,dy,length:Math.hypot(dx,dy)}
-  }).filter(item=>item.length>1e-9)
-  const length=segments.reduce((total,segment)=>total+segment.length,0)
-  if(!(length>0))return null
-  let remaining=length/2
-  for(const segment of segments){
-    if(remaining>segment.length){remaining-=segment.length;continue}
-    const t=remaining/segment.length
-    return {length,midpoint:[segment.a[0]+segment.dx*t,segment.a[1]+segment.dy*t],
-      normal:[-segment.dy/segment.length,segment.dx/segment.length]}
-  }
-  return null
-}
 const SEWING_CURSOR = "url('/cursors/sewing-machine.svg') 5 3, crosshair"
 const PLEAT_CURSOR = `url("data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28"><path d="M4 3v21M11 3v21M18 3v21" fill="none" stroke="#152b3b" stroke-width="3"/><path d="M4 3v21M11 3v21M18 3v21" fill="none" stroke="#e6f7ff" stroke-width="1.5"/><path d="m21 9 4 4-4 4" fill="none" stroke="#152b3b" stroke-width="2"/></svg>')}") 4 3, crosshair`
 
@@ -275,7 +277,7 @@ function guideGeometryAt(group,svg,clientX,clientY) {
     }
     lengthMetres+=Math.hypot(pts[i][0]-pts[i-1][0],pts[i][1]-pts[i-1][1])
   }
-  return {distance,lengthMetres,points:[pts[0],pts.at(-1)]}
+  return {distance,lengthMetres,points:[pts[0],pts.at(-1)],pathPoints:pts}
 }
 
 // Decorative drafting marks remain distinct from physically authored Rust
@@ -343,14 +345,14 @@ function ConstructionGuides({panel, range, boundaries, uv, triangles, clipId, pr
     const levels=torso?[chestY,waistY,bounds.minY+bounds.height*.965,bounds.minY+bounds.height*.975]:[]
     const tracks=verticalGuideTracks(boundaries,local,centerX,levels,triangles)
     if(!tracks.length)return null
-    // All occupied cutline intervals share one straight garment-local axis.
-    // Physical gaps stay empty; chest/waist rings intersect a drawn interval.
+    // Each physically continuous interval is a single straight, selectable
+    // guide; mesh-derived midpoint samples must not split its measurement.
     const kind=/back/i.test(identity)?'center-back':'center-front'
     return <g data-2d-guide-track={kind} data-center-vertical-dotted="true">
       {tracks.map((straight,trackIndex)=>{
         const pts=straight.map(toWorld)
         return <g key={trackIndex} data-center-guide-interval={trackIndex}>
-          {pts.slice(1).map((p,i)=>segment(kind,`${panel.id}:${kind}:${trackIndex}:${i}`,pts[i],p,true,'#0e2634'))}
+          {segment(kind,`${panel.id}:${kind}:${trackIndex}`,pts[0],pts.at(-1),true,'#0e2634')}
           {/* Transverse levels draw one shared ring; interval endpoints get dots. */}
           <GuideNodes panelId={panel.id} kind={kind} points={[pts[0],pts.at(-1)]} selectedGuide={selectedGuide} screenUnit={screenUnit}/>
         </g>
@@ -430,7 +432,7 @@ function ConstructionGuides({panel, range, boundaries, uv, triangles, clipId, pr
   </g>
 }
 
-function Dimensions({points, selected, panel, boundaries, uv, clipId, preview,screenUnit=1}) {
+function Dimensions({points, selected, panel, boundaries, uv, clipId, preview,screenUnit=1,unit='mm'}) {
   if (points.length < 3) return null
   const xs = points.map(p => p[0]), ys = points.map(p => p[1])
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys)
@@ -446,12 +448,12 @@ function Dimensions({points, selected, panel, boundaries, uv, clipId, preview,sc
     <path d={`M${minX + arrow},${y - arrow / 2}L${minX},${y}L${minX + arrow},${y + arrow / 2} M${maxX - arrow},${y - arrow / 2}L${maxX},${y}L${maxX - arrow},${y + arrow / 2}`} {...measureStroke} fill="none"/>
     <line x1={minX} x2={minX} y1={maxY + .012} y2={y + .012} {...faintStroke}/>
     <line x1={maxX} x2={maxX} y1={maxY + .012} y2={y + .012} {...faintStroke}/>
-    <text x={(minX + maxX) / 2} y={y - .009} {...font}>{formatCm(width)}</text>
+    <text x={(minX + maxX) / 2} y={y - .009} {...font}>{formatDisplayMeasurement20261025(width,unit)}</text>
     <line x1={x} x2={x} y1={minY} y2={maxY} {...measureStroke}/>
     <path d={`M${x - arrow / 2},${minY + arrow}L${x},${minY}L${x + arrow / 2},${minY + arrow} M${x - arrow / 2},${maxY - arrow}L${x},${maxY}L${x + arrow / 2},${maxY - arrow}`} {...measureStroke} fill="none"/>
     <line x1={maxX + .012} x2={x + .012} y1={minY} y2={minY} {...faintStroke}/>
     <line x1={maxX + .012} x2={x + .012} y1={maxY} y2={maxY} {...faintStroke}/>
-    <text x={x + .014} y={(minY + maxY) / 2} fontSize=".019" fill="#55656a" paintOrder="stroke" stroke="#eef0ef" strokeWidth=".008">{formatCm(height)}</text>
+    <text x={x + .014} y={(minY + maxY) / 2} fontSize=".019" fill="#55656a" paintOrder="stroke" stroke="#eef0ef" strokeWidth=".008">{formatDisplayMeasurement20261025(height,unit)}</text>
   </g>
 }
 
@@ -485,7 +487,7 @@ function SelectionMarquee2D({points, panel, onStart, disabled, screenUnit}) {
   </g>
 }
 
-function GraphicMeasurementBox({id, x, y, width, height, enabled, screenUnit}) {
+function GraphicMeasurementBox({id, x, y, width, height, enabled, screenUnit,unit='mm'}) {
   const line='#1486b7', tick=5*screenUnit, extension=12*screenUnit
   const labelStyle={fontSize:11*screenUnit,fontWeight:600,
     fill:'#095d82',stroke:'#fff',strokeWidth:2*screenUnit,paintOrder:'stroke'}
@@ -501,7 +503,7 @@ function GraphicMeasurementBox({id, x, y, width, height, enabled, screenUnit}) {
         M${x} ${y-3*screenUnit}v${-extension+3*screenUnit} M${x+width} ${y-3*screenUnit}v${-extension+3*screenUnit}`}
         fill="none" stroke={line} strokeWidth=".75" vectorEffect="non-scaling-stroke"/>
       <text x={x+width/2} y={y-extension-5*screenUnit} textAnchor="middle" {...labelStyle}>
-        {(width*1000).toFixed(1)} mm
+        {formatDisplayMeasurement20261025(width,unit)}
       </text>
       <line x1={x+width+extension} x2={x+width+extension} y1={y} y2={y+height}
         stroke={line} strokeWidth=".75" vectorEffect="non-scaling-stroke"/>
@@ -512,7 +514,7 @@ function GraphicMeasurementBox({id, x, y, width, height, enabled, screenUnit}) {
         fill="none" stroke={line} strokeWidth=".75" vectorEffect="non-scaling-stroke"/>
       <text x={x+width+extension+8*screenUnit} y={y+height/2} textAnchor="middle"
         transform={`rotate(90 ${x+width+extension+8*screenUnit} ${y+height/2})`} {...labelStyle}>
-        {(height*1000).toFixed(1)} mm
+        {formatDisplayMeasurement20261025(height,unit)}
       </text>
     </>}
   </g>
@@ -527,21 +529,33 @@ function GraphicMeasurementBox({id, x, y, width, height, enabled, screenUnit}) {
  * lengths use the actual cut outline / torso side edges (not circumference).
  */
 export default function ClothCraftBoardV2({
-  s, active, selection, pick = () => {}, hover = () => {}, edit = () => {},
+  onTogglePatternStudio=null, patternStudioActive=false,
+  nativeGradeProposal=null,
+  nativeGradeRunsByPanel=null,
+  nativeGradeVisibility=null,
+  nativeConstructionPreview=null,
+  nativeCurveStationPreview=null,
+  gradingPOMPreview=null,
+  nativeDartPrecisionPreview=null,
+  nativePhysicalPleatPreview=null,
+  onPickGradeSize=null,
+  s, active, selection, pick = () => {}, hover = () => {}, edit = () => {}, editBatch = null,
   onCreateInternalLine = null,
   onEnableCurveSeamEase = null,
   mode = 'edit', busy = false, onPolygon = () => {},
   graphics = [],
+  patternReferences = [], onUpdatePatternReferences = () => {}, referenceModeActive = false,
   foamPads = [], onMoveFoamPad = () => {},
   sewingVariant = 'free', sewingFirstEdge = null, sewingCommitting = false,
   onSegmentSewEdge = () => {}, freeSewPoints = [], onFreeSewPoint = () => {},
   editSewing = false, onSelectSewingSeam = () => {},
   onClearFreeSew = () => {}, allowFreeSewEase = false, onChangeFreeSewEase = () => {},
-  selectedGraphicId = null, onSelectGraphic = () => {}, onMoveGraphic = () => {},
+  selectedGraphicId = null, onSelectGraphic = () => {}, onMoveGraphic = () => {}, onResizeGraphic = () => {},
   showGraphicMeasurements = true, showGraphicMeasurementToggle = true, onToggleGraphicMeasurements = () => {},
   walkSeamId = null, walkFraction = 0,
   onChangeMode = () => {}, onContextMenuRequest = () => {}, onAvatarPick = () => {},
-  showMeasurements = true, showSilhouette = true, showSeamDots = true, showAvatar = true, showGrid = true,
+  showMeasurements = true, showSilhouette = true, onToggleSilhouette, showSeamDots = true, showAvatar = true, onToggleAvatar, showGrid = true,
+  studioPreferences = null,
 }) {
   const svg = useRef(null), drag = useRef(null), tapeDrag = useRef(null), graphicDrag = useRef(null),
     previousMeasureTool = useRef(false), [view, setView] = useState(INITIAL_VIEW), [draft, setDraft] = useState([])
@@ -555,6 +569,23 @@ export default function ClothCraftBoardV2({
   },[])
   // SVG uses meet scaling: controls remain the same screen size at any zoom.
   const screenUnit=Math.max(view[2]/Math.max(1,canvasSize[0]),view[3]/Math.max(1,canvasSize[1]))
+  const accumarkGreen=studioPreferences?.twoDCanvasTheme==='accumark-green'
+  const markerStyle=studioPreferences?.twoDGridStyle||'grid'
+  const dottedGrid=markerStyle==='dots'
+  const showRulers=studioPreferences?.twoDShowRulers!==false && patternStudioActive
+  const rulerUnits=studioPreferences?.units||'mm'
+  const displayMeasurement=metres=>formatDisplayMeasurement20261025(metres,rulerUnits)
+  const canvasColor=cadColor20261023(studioPreferences?.twoDCanvasColor,accumarkGreen?'#174e39':PATTERN_VISUAL.canvas)
+  const markerColor=cadColor20261023(studioPreferences?.twoDGridColor,accumarkGreen?'#8bbda1':'#89949c')
+  const adaptiveCad=studioPreferences?.twoDAutoContrast!==false
+    ?cadAutoContrastColors({canvas:canvasColor,paper:cadColor20261023(studioPreferences?.twoDPatternColor,PATTERN_VISUAL.paper),
+      grid:studioPreferences?.twoDGridColor,edge:studioPreferences?.twoDEdgeColor,
+      point:studioPreferences?.twoDPointColor,selection:studioPreferences?.twoDSelectionColor,
+      notch:studioPreferences?.twoDNotchColor,ruler:studioPreferences?.twoDRulerMarkColor}) : null
+  const displayGridColor=adaptiveCad?.grid||markerColor
+  const markerOpacity=Math.max(.15,Math.min(1,Number(studioPreferences?.twoDGridOpacity??.8)||.8))
+  const dotScale=Math.max(.65,Math.min(2,Number(studioPreferences?.twoDDotSize??1)||1))
+  const dotStep=cadDotStep20261023(screenUnit,1)||.05
 
   const foamDrag=useRef(null)
   const [foamPreview,setFoamPreview]=useState(null)
@@ -568,7 +599,66 @@ export default function ClothCraftBoardV2({
   const [freeCurveStatus,setFreeCurveStatus] = useState('')
   const [hoveredSplitMirrorGroup,setHoveredSplitMirrorGroup] = useState(null)
   const [vectorTangents,setVectorTangents] = useState([])
+  const temporaryShiftPen = useRef(false)
+  // A borrowed Convert Anchor tool is a transient keyboard gesture, never a
+  // permanent Pen/Pencil tool switch. Remember the exact originating tool so
+  // an Option release restores Pencil to Pencil and Pen to Pen.
+  const temporaryAnchorBorrow = useRef(null)
+  const [vectorSelectedAnchor,setVectorSelectedAnchor] = useState(null)
+  const [vectorCurveMode,setVectorCurveMode] = useState(false)
+  const [vectorCursor,setVectorCursor] = useState(null)
+  const [penPrecision,setPenPrecision] = useState({length:'',angle:'',unit:['mm','cm','in','m'].includes(studioPreferences?.units)?studioPreferences.units:'mm'})
+  useEffect(()=>{
+    setPenPrecision(previous=>{
+      if(previous.unit===rulerUnits)return previous
+      let length=previous.length
+      try{length=convertPenDimension(length,previous.unit,rulerUnits)}catch{length=''}
+      return {...previous,length,unit:rulerUnits}
+    })
+  },[rulerUnits])
+  const [penPrecisionError,setPenPrecisionError] = useState('')
+  const [showPenDimensions,setShowPenDimensions] = useState(true)
+  useEffect(()=>{
+    window.dispatchEvent(new CustomEvent('exo-clothcraft-pen-unit-changed',{detail:{unit:penPrecision.unit}}))
+  },[penPrecision.unit])
+  useEffect(()=>{
+    const cycle=()=>setPenPrecision(value=>{
+      const newUnit=({mm:'cm',cm:'in',in:'mm',m:'mm'}[value.unit]||'mm')
+      let length=value.length
+      try{length=convertPenDimension(value.length,value.unit,newUnit)}catch{length=''}
+      return {...value,length,unit:newUnit}
+    })
+    const setUnit=event=>{
+      const unit=event.detail?.unit
+      if(!['mm','cm','in','m'].includes(unit))return
+      setPenPrecision(value=>{
+        if(value.unit===unit)return value
+        let length=value.length
+        try{length=convertPenDimension(value.length,value.unit,unit)}catch{length=''}
+        return {...value,length,unit}
+      })
+    }
+    window.addEventListener('exo-clothcraft-cycle-pen-unit',cycle)
+    window.addEventListener('exo-clothcraft-set-pen-unit',setUnit)
+    return()=>{
+      window.removeEventListener('exo-clothcraft-cycle-pen-unit',cycle)
+      window.removeEventListener('exo-clothcraft-set-pen-unit',setUnit)
+    }
+  },[])
   const [pencilSamples,setPencilSamples] = useState([])
+  const [completedPencilMeasure,setCompletedPencilMeasure] = useState(null)
+  const [pencilMirrorMode,setPencilMirrorMode] = useState(false)
+  const [pencilMirrorMenu,setPencilMirrorMenu] = useState(null)
+  const [pencilMirrorStatus,setPencilMirrorStatus] = useState('')
+  const [penPaused,setPenPaused] = useState(false)
+  const [parkedPenPaths,setParkedPenPaths] = useState([])
+  const nextOpenPenId = useRef(1)
+  const [anchorEditPopup,setAnchorEditPopup] = useState(null)
+  const cornerDrag=useRef(null)
+  const [hoveredNativeAnchor,setHoveredNativeAnchor] = useState(null)
+  const [hoveredAddAnchor,setHoveredAddAnchor] = useState(null)
+  const [anchorToolbarPosition,setAnchorToolbarPosition] = useState(null)
+  const anchorToolbarDrag=useRef(null)
   const vectorDrag=useRef(null)
   // Selected construction guides are measured from the current UV/boundary
   // geometry. They remain guide objects until explicitly authored as Rust
@@ -578,6 +668,7 @@ export default function ClothCraftBoardV2({
   useEffect(()=>setActiveInternalLine(null),[s?.template?.id,s?.template?.name])
   const [hoveredGuideId,setHoveredGuideId] = useState(null)
   const [hoveredGuideGeometry,setHoveredGuideGeometry] = useState(null)
+  const [hoveredGraphicId,setHoveredGraphicId] = useState(null)
   // A curved drafting reference is NOT a native sewn edge. Store its
   // independent half-interval control in the local editor, scoped to the
   // material template; leave the Rust garment and the cutline untouched.
@@ -638,26 +729,116 @@ export default function ClothCraftBoardV2({
   // Both Edit Points and Edit Curves share the upstream 'edit' mode, but
   // neither should receive the 2D pattern-transform marquee.
   const [tool2d, setTool2d] = useState('select')
+  useEffect(()=>{
+    if(!anchorEditPopup)return
+    if(tool2d!=='direct-select'){
+      cornerDrag.current=null
+      setAnchorEditPopup(null)
+      setHandlePreview(null)
+      return
+    }
+    const dismiss=e=>{
+      if(e.key!=='Escape')return
+      e.preventDefault();e.stopImmediatePropagation()
+      cornerDrag.current=null
+      setAnchorEditPopup(null)
+      setHandlePreview(null)
+    }
+    window.addEventListener('keydown',dismiss,true)
+    return()=>window.removeEventListener('keydown',dismiss,true)
+  },[anchorEditPopup,tool2d])
+  // CLO Edit Pattern Shift/box selection is a native-geometry selection, not
+  // a separate decorative drawing object. A group can only span one physical
+  // garment panel per Rust Shape transaction.
+  const [multiEdit,setMultiEdit]=useState({panel:null,points:[]})
+  const [multiMove,setMultiMove]=useState({x:'0',y:'0'})
+  const [editLineLength,setEditLineLength]=useState('')
+  const [editLengthLocation,setEditLengthLocation]=useState('end')
+  const [precisionEditStatus,setPrecisionEditStatus]=useState('')
+  const [precisionPanelOpen,setPrecisionPanelOpen]=useState(false)
+  const [boxSelectPreview,setBoxSelectPreview]=useState(null)
+  const boxSelectDrag=useRef(null)
+  const groupMoveDrag=useRef(null)
+  const toggleNativePoint=(panel,index)=>{
+    setMultiEdit(value=>{
+      const old=value.panel===panel?value.points:[]
+      return {panel,points:old.includes(index)?old.filter(n=>n!==index):[...old,index].sort((a,b)=>a-b)}
+    })
+    setPrecisionEditStatus('')
+  }
+  useEffect(()=>{setMultiEdit({panel:null,points:[]});setPrecisionEditStatus('')},
+    [s?.template?.id,s?.template?.name])
+  const [shapeBuilderSelection,setShapeBuilderSelection] = useState({a:null,b:null})
+  const [patternMultiSelection,setPatternMultiSelection] = useState([])
+  const [patternMarquee,setPatternMarquee] = useState(null)
+  const patternMarqueeDrag=useRef(null)
+  const patternMarqueeIgnoreClick=useRef(false)
+  const [shapeBuilderStatus,setShapeBuilderStatus] = useState('')
+  const [shapeBuilderLine,setShapeBuilderLine] = useState(null)
+  const [shapeBuilderHovered,setShapeBuilderHovered] = useState(null)
+  const shapeBuilderDrag=useRef(null)
+  const shapeBuilderIgnoreClick=useRef(false)
+  useEffect(()=>{
+    if(tool2d!=='shape-builder')return
+    const cancel=event=>{
+      if(event.key!=='Escape')return
+      shapeBuilderDrag.current=null
+      setShapeBuilderLine(null)
+      setShapeBuilderHovered(null)
+      setShapeBuilderSelection({a:null,b:null})
+      setShapeBuilderStatus('Shape Builder selection cleared.')
+    }
+    window.addEventListener('keydown',cancel)
+    return()=>window.removeEventListener('keydown',cancel)
+  },[tool2d])
+  // The Pen family shares one unfinished material path. Switching to Convert,
+  // Add or Delete is a change of editing gesture, NOT a drawing cancellation.
+  const penSibling = name => ['vector-pen','anchor-point','direct-select','split','remove-anchor'].includes(name)
   // A hover acquired in Select mode must never survive into sewing, notch,
   // allowance, point or free-drawing tools and steal their next click.
   useEffect(()=>{
     setHoveredGuideId(null)
     setHoveredGuideGeometry(null)
   },[tool2d,mode,busy,showReferenceGuides,showInternalLines])
-  const curveEditing = ['point','curve'].includes(tool2d)
+  const curveEditing = ['point','curve','anchor-point','direct-select'].includes(tool2d)
+  // Numeric construction is an explicitly reviewed edit, never a freehand
+  // pointer mutation. A click selects a named corner; only Apply in the
+  // metric inspector may submit Rust Anchor/SplitBoundary.
+  const readOnlyConstructionTool=['construction-point','curve-station','dart-precision'].includes(tool2d)
   const drawingPanel = useRef(null)
   useEffect(() => {
     const receiveTool = event => {
       const tool = event?.detail?.tool
-      const modes = {select:'edit',point:'edit',curve:'edit',split:'edit',notch:'edit',allowance:'edit',dart:'edit',annotation:'edit',editAnnotation:'edit',sew:'sew','seam-edit':'edit',internal:'line',line:'line',polygon:'pen','vector-pen':'pen','vector-pencil':'pen',pleat:'edit',measure:'edit','measure-edit':'edit'}
+      const modes = {select:'edit',point:'edit','direct-select':'edit','anchor-point':'edit',curve:'edit','shape-builder':'edit','construction-point':'edit',split:'edit','remove-anchor':'edit','curve-station':'edit',notch:'edit',allowance:'edit',dart:'edit','dart-precision':'edit',annotation:'edit',editAnnotation:'edit',sew:'sew','seam-edit':'edit',internal:'line',line:'line',polygon:'pen','vector-pen':'pen','vector-pencil':'pen',pleat:'edit',measure:'edit','measure-edit':'edit'}
       if (!Object.hasOwn(modes,tool)) return
       setTool2d(tool)
       setFreeCurveStatus('')
-      setDraft([])
-      setVectorTangents([])
+      if(event?.detail?.temporary){
+        // Holding Shift or Option borrows Anchor Point from Pen/Pencil.
+        // Preserve the unfinished draft, tangents and native edit history.
+        onChangeMode(modes[tool])
+        return
+      }
+      temporaryAnchorBorrow.current=null
+      temporaryShiftPen.current=false
+      if(tool==='shape-builder'&&tool2d==='vector-pen'&&draft.length>=2){
+        // Shape Builder must inherit an unfinished, open Pen path, instead of
+        // closing it into a new garment piece when the user switches tools.
+        setShapeBuilderLine({points:draft.map(p=>[...p]),tangents:draft.map((_,i)=>vectorTangents[i]||[0,0]),
+          revision:s?.revision})
+      }
+      if(!(penSibling(tool2d)&&penSibling(tool))){
+        setDraft([])
+        setVectorTangents([])
+        setVectorSelectedAnchor(null)
+        setVectorCurveMode(false)
+        setPenPaused(false)
+        drawingPanel.current=null
+      }
+      setVectorCursor(null)
       setPencilSamples([])
+      setPencilMirrorMenu(null)
       vectorDrag.current=null
-      drawingPanel.current = null
       if(!previousMeasureTool.current || !['measure','measure-edit'].includes(tool))setTape([])
       setPomStart(null)
       previousMeasureTool.current=['measure','measure-edit'].includes(tool)
@@ -665,7 +846,31 @@ export default function ClothCraftBoardV2({
     }
     window.addEventListener('exo-clothcraft-select-2d-tool',receiveTool)
     return () => window.removeEventListener('exo-clothcraft-select-2d-tool',receiveTool)
-  },[onChangeMode])
+  },[onChangeMode,tool2d,draft,vectorTangents,s?.revision])
+  useEffect(()=>{
+    const showMirrorMenu=event=>{
+      const board=svg.current?.closest('.cc-board')
+      const rect=board?.getBoundingClientRect()
+      if(!rect||!Number.isFinite(event.detail?.clientX)||!Number.isFinite(event.detail?.clientY))return
+      setPencilMirrorMenu({
+        x:Math.max(8,Math.min(Math.max(8,rect.width-236),event.detail.clientX-rect.left)),
+        y:Math.max(8,Math.min(Math.max(8,rect.height-115),event.detail.clientY-rect.top)),
+      })
+    }
+    window.addEventListener('exo-clothcraft-pencil-mirror-menu-request',showMirrorMenu)
+    return()=>window.removeEventListener('exo-clothcraft-pencil-mirror-menu-request',showMirrorMenu)
+  },[])
+  useEffect(()=>{
+    if(!pencilMirrorMenu)return
+    const dismiss=event=>{
+      if(event.target.closest?.('[data-pencil-context-menu]'))return
+      setPencilMirrorMenu(null)
+    }
+    const escape=event=>{if(event.key==='Escape')setPencilMirrorMenu(null)}
+    document.addEventListener('pointerdown',dismiss)
+    document.addEventListener('keydown',escape)
+    return()=>{document.removeEventListener('pointerdown',dismiss);document.removeEventListener('keydown',escape)}
+  },[pencilMirrorMenu])
   useEffect(()=>{
     let applying=false
     const placeSewingMarks=async(event)=>{
@@ -699,8 +904,7 @@ export default function ClothCraftBoardV2({
   // fine SVG construction line is visible. Resolve guide proximity in screen
   // pixels so selecting a line is stable at any board zoom or resolution.
   const findGuideUnderPointer = event => {
-    if(busy || mode!=='edit' || !['select','point','curve'].includes(tool2d) ||
-      !(showReferenceGuides||showInternalLines))return null
+    if(busy || mode!=='edit')return null
     // Lower hem references can lie within the broad native boundary hit
     // stroke. Give the precise nearby guide priority in Select mode; active
     // Notch/Seam Allowance/Sew tools still own boundary editing.
@@ -723,7 +927,7 @@ export default function ClothCraftBoardV2({
       if(!id||panelId!==visiblePanel)continue
       const geom=guideGeometryAt(group,canvas,event.clientX,event.clientY)
       if(!geom)continue
-      const {distance,lengthMetres,points}=geom
+      const {distance,lengthMetres,points,pathPoints}=geom
       if(!Number.isFinite(lengthMetres)||lengthMetres<.001)continue
       const kind=group.getAttribute('data-guide-kind') || id.split(':').at(-2)
       // Centerline intersects horizontal guide nodes. Prefer transverse
@@ -731,7 +935,7 @@ export default function ClothCraftBoardV2({
       const score=distance+(/center-(front|back)/.test(kind)?2:0)
       if(score>=smallest)continue
       smallest=score
-      best={id,panelId,kind,lengthMetres,nativeLineId:group.getAttribute('data-native-line-id')||null,points}
+      best={id,panelId,kind,lengthMetres,nativeLineId:group.getAttribute('data-native-line-id')||null,points,pathPoints}
     }
     return best
   }
@@ -806,6 +1010,7 @@ export default function ClothCraftBoardV2({
     const hoveredGeometry=hoveredGroup&&guideGeometryAt(hoveredGroup,svg.current,event.clientX,event.clientY)
     const best=hoveredGeometry?.distance<7?{id:hoveredGuideId,panelId:hoveredGroup.getAttribute('data-guide-panel'),
       kind:hoveredGroup.getAttribute('data-guide-kind'),points:hoveredGeometry.points,
+      pathPoints:hoveredGeometry.pathPoints,
       nativeLineId:hoveredGroup.getAttribute('data-native-line-id')||null,
       lengthMetres:hoveredGeometry.lengthMetres}:findGuideUnderPointer(event)
     if(!best)return false
@@ -897,7 +1102,8 @@ export default function ClothCraftBoardV2({
       const [first, last] = item.range.vertices || []
       for (let i = first; i < last; i++) if (s.uv[i])
         map[i] = previewPoint(transform(item.panel, item.range, s.uv[i]),
-          preview?.panelId === item.panel.id ? preview : null)
+          preview?.panelId===item.panel.id ||
+          (preview?.kind==='move'&&preview?.groupIds?.includes(item.panel.id)) ? preview : null)
     }
     return map
   }, [s, panels, preview])
@@ -947,8 +1153,9 @@ export default function ClothCraftBoardV2({
   // by actual front shoulders. Never resize its shape to a pattern bounding box.
   const avatarAnchorX = originalAlignment.current?.avatarX ?? 0
   const avatarAnchorY = originalAlignment.current?.avatarY ?? .95
-  const avatarVisible = !precisionDrafting && showAvatar && showSilhouette && viewPreset === 'FRONT' && s?.avatar?.positions?.length > 0
-  const focus = (onlySelected=false) => {
+  const avatarAvailable = Boolean(s?.avatar?.positions?.length && s?.avatar?.triangles?.length)
+  const avatarVisible = showAvatar && showSilhouette && avatarAvailable
+  const focus = (onlySelected=false, includeAvatar=avatarVisible) => {
     let b=displayed
     if(onlySelected && (selection?.panel || active?.panel)){
       const entry=panels.find(p=>p.panel.id===(selection?.panel || active?.panel))
@@ -956,18 +1163,25 @@ export default function ClothCraftBoardV2({
         const xs=entry.points.map(p=>p[0]+offset[0]),ys=entry.points.map(p=>p[1]+offset[1])
         b={minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys)}
       }
-    } else if (avatarVisible) {
+    } else if (includeAvatar) {
       // Frame all includes the full body, including its feet and head, rather
       // than zooming to only the bodice and cutting away the guide figure.
       b={minX:Math.min(b.minX,avatarAnchorX-.56),maxX:Math.max(b.maxX,avatarAnchorX+.56),
         minY:Math.min(b.minY,avatarAnchorY-.875),maxY:Math.max(b.maxY,avatarAnchorY+.875)}
     }
-    const pad=precisionDrafting?.065:.22
-    const w=Math.max(precisionDrafting?.32:.9,b.maxX-b.minX+pad*2),h=Math.max(precisionDrafting?.32:.9,b.maxY-b.minY+pad*2)
+    const pad=precisionDrafting && !includeAvatar?.065:.22
+    const w=Math.max(precisionDrafting && !includeAvatar?.32:.9,b.maxX-b.minX+pad*2),h=Math.max(precisionDrafting && !includeAvatar?.32:.9,b.maxY-b.minY+pad*2)
     const aspect=canvasSize[0]/Math.max(1,canvasSize[1])
     const width=Math.max(w,h*aspect),height=width/aspect
     setView([(b.minX+b.maxX-width)/2,(b.minY+b.maxY-height)/2,width,height])
   }
+  useEffect(()=>{
+    const onZoomSelected=event=>{
+      if(event.detail?.panel&&panels.some(row=>row.panel.id===event.detail.panel))focus(true,false)
+    }
+    window.addEventListener('exo-clothcraft-zoom-selected-pattern',onZoomSelected)
+    return()=>window.removeEventListener('exo-clothcraft-zoom-selected-pattern',onZoomSelected)
+  })
   const previousEditingTool=useRef(null)
   useEffect(()=>{
     if(previousEditingTool.current!==tool2d&&['point','curve'].includes(tool2d)&&precisionDrafting)
@@ -1041,7 +1255,7 @@ export default function ClothCraftBoardV2({
   const startGraphicDrag = (event, graphic, panel) => {
     // The global editor mode may be 'move3d' while the 2D side remains in
     // Select. The graphic still needs to be editable in its own viewport.
-    if (busy || tool2d!=='select' || event.button!==0) return
+    if (busy || !['select','direct-select'].includes(tool2d) || event.button!==0) return
     const p=point(event)
     if(!p)return
     event.stopPropagation()
@@ -1056,6 +1270,28 @@ export default function ClothCraftBoardV2({
     // Selecting an image must not trigger native pattern selection: that can
     // route the right property editor away from the graphic mid-drag.
   }
+  const startGraphicResize = (event, graphic, panel, handle) => {
+    if(busy||!['select','direct-select'].includes(tool2d)||event.button!==0)return
+    const p=point(event)
+    if(!p)return
+    event.stopPropagation()
+    event.preventDefault()
+    svg.current.setPointerCapture(event.pointerId)
+    graphicDrag.current={id:graphic.id,kind:'resize',handle,start:p,
+      graphic:{...graphic,positionMm:[...(graphic.positionMm||[0,0])]},
+      angle:((panel.layout_rotation_degrees||0)+(graphic.rotation||0))*Math.PI/180,
+      pointerId:event.pointerId}
+    setGraphicPreview(null)
+    onSelectGraphic(graphic.id)
+  }
+  const graphicResizeAt = (event,d) => {
+    const p=point(event)
+    if(!p)return null
+    const dx=p[0]-d.start[0],dy=p[1]-d.start[1]
+    const c=Math.cos(d.angle),s=Math.sin(d.angle)
+    return proposeGraphicCanvasResize20261025(d.graphic,d.handle,
+      {x:(dx*c+dy*s)*1000,y:(-dx*s+dy*c)*1000})
+  }
   const graphicPositionAt = (event,d) => {
     const p=point(event)
     if(!p)return null
@@ -1067,6 +1303,11 @@ export default function ClothCraftBoardV2({
   const moveGraphicDrag = event => {
     const d=graphicDrag.current
     if(!d||event.pointerId!==d.pointerId)return false
+    if(d.kind==='resize'){
+      const fields=graphicResizeAt(event,d)
+      if(fields)setGraphicPreview({id:d.id,...fields})
+      return true
+    }
     const positionMm=graphicPositionAt(event,d)
     if(positionMm)setGraphicPreview({id:d.id,positionMm})
     return true
@@ -1074,6 +1315,15 @@ export default function ClothCraftBoardV2({
   const endGraphicDrag = event => {
     const d=graphicDrag.current
     if(!d||event.pointerId!==d.pointerId)return false
+    if(d.kind==='resize'){
+      const fields=graphicResizeAt(event,d)
+      graphicDrag.current=null
+      setGraphicPreview(null)
+      if(fields&&(['widthMm','heightMm'].some(key=>Math.abs(fields[key]-d.graphic[key])>=.01)||
+        fields.positionMm.some((value,i)=>Math.abs(value-d.graphic.positionMm[i])>=.01)))
+        onResizeGraphic(d.id,fields)
+      return true
+    }
     const positionMm=graphicPositionAt(event,d)
     graphicDrag.current=null
     setGraphicPreview(null)
@@ -1127,7 +1377,11 @@ export default function ClothCraftBoardV2({
     }
     const strict=(s?.template?.seams||[]).filter(seam=>!seam.allow_ease&&
       [seam.a,seam.b].some(b=>b?.panel===panel.id&&changedEdges.has(b.edge)))
-    if(onEnableCurveSeamEase&&(strict.length||original.edges?.includes(primaryEdge))){
+    // VectorCraft commits an edited anchor on pointer release. A standalone
+    // unsewn pattern has no seam-length permission to review: commit directly
+    // through native Rust Shape instead of leaving every drag as a proposal.
+    // Preserve the explicit reviewed gate for sewn edges only.
+    if(onEnableCurveSeamEase&&strict.length){
       setPendingCurveCommit({panelId:panel.id,edge:primaryEdge,polygon,
         affectedEdges:[...changedEdges],revision:s.revision,
         strictSeams:strict.map(seam=>seam.id)})
@@ -1141,8 +1395,107 @@ export default function ClothCraftBoardV2({
     setFreeCurveStatus(ok?'':'Native Rust rejected the shape; original fabric retained. Inspect sewn edges or adjust the curve.')
     return Boolean(ok)
   }
+  const exactEditNumber=value=>{
+    const raw=String(value??'').trim()
+    if(!/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(raw))return null
+    const number=Number(raw)
+    return Number.isFinite(number)?number:null
+  }
+  const applyCloMultiMove = async (unitsVector) => {
+    const selected=multiEdit
+    if(busy||!selected.panel||!selected.points.length)return false
+    const panel=s?.template?.panels?.find(item=>item.id===selected.panel)
+    if(!panel){setPrecisionEditStatus('Select a valid native pattern first.');return false}
+    const result=moveCloNativePolygonPoints20261025(s.template,
+      {panelId:selected.panel,indices:selected.points,delta:unitsVector})
+    if(!result.ok){setPrecisionEditStatus(result.reason);return false}
+    const proposal=result.template.panels.find(item=>item.id===selected.panel)
+    const committed=await applyOrStagePatternCurve(panel,proposal.polygon,
+      panel.polygon.edges[selected.points[0]])
+    setPrecisionEditStatus(committed?
+      `Moved ${selected.points.length} native point(s) with Rust validation.`:
+      'Rust rejected the proposed multi-point move or seam review is required.')
+    return committed
+  }
+  const localCloGroupDelta=(event,gesture)=>{
+    const p=point(event)
+    if(!p||!gesture)return null
+    const x=p[0]-gesture.start[0],y=p[1]-gesture.start[1]
+    const a=-(gesture.rotation||0)*Math.PI/180
+    let delta=[x*Math.cos(a)-y*Math.sin(a),x*Math.sin(a)+y*Math.cos(a)]
+    if(event.shiftKey){
+      if(Math.abs(delta[0])>=Math.abs(delta[1]))delta[1]=0
+      else delta[0]=0
+    }
+    return delta
+  }
+  const commitCloMove=()=>{
+    const x=exactEditNumber(multiMove.x),y=exactEditNumber(multiMove.y)
+    if(x===null||y===null){setPrecisionEditStatus('Enter finite X and Y movement distances.');return}
+    if(Math.max(Math.abs(x),Math.abs(y))>10000){setPrecisionEditStatus('Maximum movement is 10 metres per axis.');return}
+    const scale=PEN_LENGTH_UNITS[penPrecision.unit]||.001
+    void applyCloMultiMove([x*scale,y*scale])
+  }
+  const commitCloChangeLength=async()=>{
+    const target=exactEditNumber(editLineLength)
+    if(busy||!selection?.panel||!selection?.edge||target===null||target<=0){
+      setPrecisionEditStatus('Select a line and enter a positive target length.');return
+    }
+    const scale=PEN_LENGTH_UNITS[penPrecision.unit]||.001
+    const panel=s?.template?.panels?.find(item=>item.id===selection.panel)
+    if(!panel){setPrecisionEditStatus('Native pattern is unavailable.');return}
+    const result=proposeCloNativeChangeLength20261025(panel.polygon,{
+      edge:selection.edge,lengthM:target*scale,
+      mode:{start:'Start',end:'End',both:'Both'}[editLengthLocation],
+      panelId:panel.id,template:s.template
+    })
+    if(!result.ok){setPrecisionEditStatus(result.reason);return}
+    const accepted=await applyOrStagePatternCurve(panel,result.polygon,selection.edge)
+    setPrecisionEditStatus(accepted?
+      `Length changed to ${formatPenDistancePrecise(result.qa.measuredLengthM,penPrecision.unit)} using native Rust Shape.`:
+      'Rust rejected Change Length; original garment preserved.')
+  }
+  useEffect(()=>{
+    const nudge=event=>{
+      if(mode!=='edit'||tool2d!=='point'||busy||!multiEdit.points.length||!multiEdit.panel||
+        !['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)||
+        event.target?.closest?.('input,select,textarea,[contenteditable="true"]')||
+        event.metaKey||event.ctrlKey)return
+      event.preventDefault();event.stopImmediatePropagation()
+      // CLO's documented default increment is 0.25in. Alt provides a
+      // precision tenth step; native geometry remains expressed in metres.
+      const step=0.00635*(event.altKey?0.1:1)
+      const vector={ArrowLeft:[-step,0],ArrowRight:[step,0],
+        ArrowUp:[0,-step],ArrowDown:[0,step]}[event.key]
+      if(vector)void applyCloMultiMove(vector)
+    }
+    window.addEventListener('keydown',nudge,true)
+    return()=>window.removeEventListener('keydown',nudge,true)
+  },[tool2d,mode,busy,multiEdit,s?.revision,penPrecision.unit])
   const start = (e, panel, anchor, kind='move', handle=null) => {
     if (busy || ['sew', 'pen', 'line'].includes(mode) || e.button !== 0) return
+    if(transform2d&&anchor===undefined&&e.shiftKey){
+      e.preventDefault();e.stopPropagation()
+      const current=patternMultiSelection.length?patternMultiSelection:selection?.panel?[selection.panel]:[]
+      setPatternMultiSelection(current.includes(panel.id)?current.filter(id=>id!==panel.id):[...current,panel.id])
+      patternMarqueeIgnoreClick.current=true
+      return
+    }
+    const movingSelectedGroup=transform2d&&kind==='move'&&anchor===undefined&&
+      patternMultiSelection.length>1&&patternMultiSelection.includes(panel.id)
+    if(transform2d&&anchor===undefined&&!e.shiftKey&&!movingSelectedGroup){
+      // A regular Transform Pattern click replaces any previous Shift/marquee
+      // selection. Otherwise its old multi-selected boxes override the newly
+      // picked native panel and can survive later blank-board clicks.
+      setPatternMultiSelection([])
+    }
+    if(readOnlyConstructionTool){
+      e.preventDefault();e.stopPropagation()
+      pick({panel:panel.id,
+        ...(Number.isInteger(anchor)?{anchor,edge:panel.polygon?.edges?.[anchor]}:{}),
+        ...(typeof anchor==='string'&&anchor.startsWith('c:')?{edge:anchor.split(':')[1]}:{})})
+      return
+    }
     if(pendingCurveCommit?.panelId===panel.id&&pendingCurveCommit.revision!==s.revision){
       e.preventDefault();e.stopPropagation()
       setFreeCurveStatus('This proposal is stale after another edit. Discard it before drawing again.')
@@ -1182,15 +1535,16 @@ export default function ClothCraftBoardV2({
     const entry=panels.find(item => item.panel.id===panel.id)
     const b=getBounds(entry?.points)
     drag.current = {panel, originalPanel, pointerId:e.pointerId, previousProposal:pendingCurveCommit, anchor, start: startPoint, kind, handle, bounds:b,
+      groupIds:movingSelectedGroup?[...patternMultiSelection]:null,
       breakTangents:e.altKey, snapAngle:e.shiftKey, controlScale:Number(e.currentTarget.dataset.controlScale)||1}
     setPreview(null)
-    pick({panel: panel.id,...(typeof anchor==='string'&&(anchor.startsWith('c:')||anchor.startsWith('f:')||anchor.startsWith('ft:'))
+    if(!movingSelectedGroup)pick({panel: panel.id,...(typeof anchor==='string'&&(['c:','f:','ft:','r:'].some(prefix=>anchor.startsWith(prefix)))
       ?{edge:anchor.split(':')[1]}:
       Number.isInteger(anchor)&&curveEditing?{edge:panel.polygon?.edges?.[anchor]}:{}),
       // An old numeric vertex selection must not override a newly pressed
       // Bézier handle on another edge. That stale anchor caused side/hem
       // handles to disappear while the geometry was being dragged.
-      ...(anchor !== undefined ? {anchor} : {})})
+      ...(anchor !== undefined&&kind!=='reshape-segment' ? {anchor} : {})})
   }
   const updatePreview = (e, d) => {
     const q=point(e)
@@ -1210,11 +1564,23 @@ export default function ClothCraftBoardV2({
       else if(ay>ax*1.75)delta[0]=0
       else {const length=Math.min(ax,ay);delta[0]=Math.sign(dx)*length;delta[1]=Math.sign(dy)*length}
     }
-    return {panelId:d.panel.id,kind:'move',delta}
+    return {panelId:d.panel.id,kind:'move',delta,...(d.groupIds?{groupIds:d.groupIds}:{})}
   }
   const move = e => {
     const d=drag.current
     if (!d || d.pan || (d.pointerId!==undefined&&d.pointerId!==e.pointerId)) return
+    if(d.kind==='reshape-segment'){
+      const q=point(e)
+      if(!q)return
+      const a=-(d.panel.layout_rotation_degrees||0)*Math.PI/180
+      const dx=q[0]-d.start[0],dy=q[1]-d.start[1]
+      const local=[dx*Math.cos(a)-dy*Math.sin(a),dx*Math.sin(a)+dy*Math.cos(a)]
+      if(Math.hypot(...local)<=1e-6)return
+      const polygon=reshapePatternBezierSegment(d.panel.polygon,d.handle.edge,d.handle.t,local,
+        {perpendicular:e.shiftKey})
+      if(polygon)setHandlePreview({panelId:d.panel.id,anchor:`c:${d.handle.edge}:0`,polygon})
+      return
+    }
     if(typeof d.anchor==='string'&&(d.anchor.startsWith('c:')||d.anchor.startsWith('l:')||d.anchor.startsWith('f:')||d.anchor.startsWith('ft:'))){
       const q=point(e)
       if(q){
@@ -1244,8 +1610,11 @@ export default function ClothCraftBoardV2({
         const a=-(d.panel.layout_rotation_degrees||0)*Math.PI/180
         const dx=q[0]-d.start[0],dy=q[1]-d.start[1]
         const delta=[dx*Math.cos(a)-dy*Math.sin(a),dx*Math.sin(a)+dy*Math.cos(a)].map(v=>v/(d.controlScale||1))
-        setHandlePreview({panelId:d.panel.id,anchorIndex:d.anchor,
-          polygon:previewPatternAnchorMove(d.panel.polygon,d.anchor,delta)})
+        const converting=d.kind==='convert-anchor'
+        const polygon=converting?dragPatternAnchorHandles(d.panel.polygon,d.anchor,delta,{snapAngle:e.shiftKey}):
+          previewPatternAnchorMove(d.panel.polygon,d.anchor,delta)
+        if(polygon)setHandlePreview({panelId:d.panel.id,
+          ...(converting?{anchor:`c:${d.panel.polygon.edges[d.anchor]}:0`}:{anchorIndex:d.anchor}),polygon})
       }
       return
     }
@@ -1260,13 +1629,42 @@ export default function ClothCraftBoardV2({
     drag.current = null
     try{svg.current?.releasePointerCapture(e.pointerId)}catch{}
     setPreview(null)
-    const shapeGesture=typeof d?.anchor==='string'&&/^(c|f|ft|l):/.test(d.anchor)
+    const shapeGesture=typeof d?.anchor==='string'&&/^(c|f|ft|l|r):/.test(d.anchor)
     if(!shapeGesture)setHandlePreview(null)
     if (!d) return
     const q = point(e)
     if (!q){setHandlePreview(null);return}
     const delta = q.map((n, i) => n - d.start[i])
-    if (Math.hypot(...delta) < .002) {
+    // Material edits must retain sub-millimetre adjustments at every zoom.
+    // The old 2 mm click threshold silently discarded valid curve gestures.
+    // Retain it for board navigation, but use only a numerical tolerance for
+    // curve controls and material vertices (one micrometre in model space).
+    const materialGesture=shapeGesture||Number.isInteger(d.anchor)
+    if (Math.hypot(...delta) < (materialGesture ? 1e-6 : .002)) {
+      if(tool2d==='anchor-point'&&typeof d.anchor==='string'&&d.anchor.startsWith('c:')){
+        // Match VectorCraft AnchorTool's handle-end click: retract ONLY the
+        // pressed native control, without moving the corner or other handle.
+        const [,edge,part]=d.anchor.split(':'),index=Number(part)
+        const controls=d.originalPanel?.polygon?.curves?.[edge]
+        const k=d.panel.polygon.edges?.indexOf(edge)
+        const vertex=d.panel.polygon.points?.[(k+index)%d.panel.polygon.points.length]
+        const control=d.panel.polygon.curves?.[edge]?.[index]
+        if(controls&&k>=0&&vertex&&control){
+          const amount=vertex.map((value,axis)=>value-control[axis])
+          if(Math.hypot(...amount)>1e-7){
+            const polygon=editPatternBezierHandle(d.panel.polygon,edge,index,amount,{breakTangents:true})
+            if(polygon)await applyOrStagePatternCurve(d.originalPanel||d.panel,polygon,edge)
+          }
+        }
+        return
+      }
+      if(d.kind==='convert-anchor'&&Number.isInteger(d.anchor)){
+        const polygon=d.panel.polygon,n=polygon?.points?.length||0
+        const incoming=polygon?.edges?.[(d.anchor+n-1)%n],outgoing=polygon?.edges?.[d.anchor]
+        if(polygon?.curves?.[incoming]||polygon?.curves?.[outgoing])
+          await edit({kind:'CurvePoint',panel:d.panel.id,anchor:d.anchor,curved:false})
+        return
+      }
       if (d.pan && d.background) pick(null)
       if(d.stationDraft){
         // A click creates the side's actual free-knot geometry at exactly the
@@ -1288,6 +1686,16 @@ export default function ClothCraftBoardV2({
       edit({kind:'BoardTransform',panel:d.panel.id,
         origin:rotatedLayoutAroundCenter(range.layout,degrees,p.center),
         rotation_degrees:(d.panel.layout_rotation_degrees||0)+degrees})
+      return
+    }
+    if(d.kind==='reshape-segment'){
+      const a=-(d.panel.layout_rotation_degrees||0)*Math.PI/180
+      const local=[delta[0]*Math.cos(a)-delta[1]*Math.sin(a),
+        delta[0]*Math.sin(a)+delta[1]*Math.cos(a)]
+      const polygon=reshapePatternBezierSegment(d.panel.polygon,d.handle.edge,d.handle.t,local,
+        {perpendicular:e.shiftKey})
+      if(polygon)await applyOrStagePatternCurve(d.originalPanel||d.panel,polygon,d.handle.edge)
+      else setHandlePreview(null)
       return
     }
     if (d.anchor !== undefined) {
@@ -1316,7 +1724,10 @@ export default function ClothCraftBoardV2({
         await applyOrStagePatternCurve(d.originalPanel||d.panel,polygon,identifier)
       } else {
         const origin = d.panel.polygon?.points?.[d.anchor]
-        if(origin&&curveEditing){
+        if(origin&&d.kind==='convert-anchor'){
+          const polygon=dragPatternAnchorHandles(d.panel.polygon,d.anchor,local,{snapAngle:e.shiftKey})
+          if(polygon)await applyOrStagePatternCurve(d.originalPanel||d.panel,polygon,d.panel.polygon.edges[d.anchor])
+        }else if(origin&&tool2d==='curve'){
           const polygon=previewPatternAnchorMove(d.panel.polygon,d.anchor,local)
           if(polygon)await applyOrStagePatternCurve(d.panel,polygon,d.panel.polygon.edges[d.anchor])
         }else if(origin)edit({kind:'Anchor',panel:d.panel.id,anchor:d.anchor,
@@ -1324,6 +1735,18 @@ export default function ClothCraftBoardV2({
       }
     } else {
       const p=updatePreview(e,d)
+      if(d.groupIds?.length>1){
+        const result=planNativePatternGroupMove20261025(s?.template,d.groupIds,p?.delta||delta)
+        if(!result.ok){setPrecisionEditStatus(result.reason);return}
+        if(typeof editBatch!=='function'){
+          setPrecisionEditStatus('Native atomic multi-pattern movement is unavailable. No patterns moved.')
+          return
+        }
+        const accepted=await editBatch(result.commands)
+        setPrecisionEditStatus(accepted?`Moved ${d.groupIds.length} selected patterns together.`:
+          'Native Rust rejected the group movement; positions were preserved.')
+        return
+      }
       edit({kind: 'BoardTransform', panel: d.panel.id,
         origin: range.layout.map((n, i) => n + (p?.delta?.[i] ?? delta[i])),
         rotation_degrees: d.panel.layout_rotation_degrees || 0})
@@ -1370,6 +1793,93 @@ export default function ClothCraftBoardV2({
       if(Array.isArray(triangle)&&triangle.length===3&&insideTriangle(p,...triangle.map(index=>boardUV[index])))return true
     return false
   })?.panel.id || null
+  const clearTransformPatternSelection = () => {
+    // Keep one explicit deselection path for the real native selection, the
+    // 2D Transform Pattern bounding boxes and any graphic selection.
+    setPatternMultiSelection([])
+    setSelectedGuide(null)
+    onSelectGraphic(null)
+    hover(null)
+    pick(null)
+  }
+  const completePatternMarquee=(gesture,event)=>{
+    const end=point(event)||gesture.end
+    if(!end)return
+    const lo=[Math.min(gesture.start[0],end[0]),Math.min(gesture.start[1],end[1])]
+    const hi=[Math.max(gesture.start[0],end[0]),Math.max(gesture.start[1],end[1])]
+    if(Math.hypot(end[0]-gesture.start[0],end[1]-gesture.start[1])<4*screenUnit){
+      // A plain click on drafting paper is a deselection, not a marquee.
+      // Do not leave an old multi-selection or hover-derived box behind.
+      if(tool2d==='select'&&!gesture.additive){
+        clearTransformPatternSelection()
+      }
+      return
+    }
+    const intersects=({points})=>{
+      const bounds=getBounds(points)
+      return bounds&&bounds.maxX>=lo[0]&&bounds.minX<=hi[0]&&bounds.maxY>=lo[1]&&bounds.minY<=hi[1]
+    }
+    const selected=panels.filter(intersects).map(({panel})=>panel.id)
+    const next=gesture.additive?[...new Set([...patternMultiSelection,...selected])]:selected
+    setPatternMultiSelection(next)
+    if(selected.length)pick({panel:selected[0]})
+    else if(!gesture.additive&&tool2d==='select')pick(null)
+    if(tool2d==='shape-builder')setShapeBuilderStatus(`${selected.length} pattern${selected.length===1?'':'s'} selected. Use Shape Builder to combine or subtract selected shapes.`)
+    patternMarqueeIgnoreClick.current=true
+  }
+  const shapeBuilderLineValid=shapeBuilderLine?.revision===s?.revision&&shapeBuilderLine?.points?.length>=2
+  const applyShapeBuilder = async (a,b,operation='union') => {
+    const blockers=nativeShapeBuilderBlockers(s?.template,a,b)
+    if(busy||blockers.length){
+      setShapeBuilderStatus(blockers.join(' ')||'Select two different patterns.')
+      return false
+    }
+    setShapeBuilderStatus('Combining native cut contours…')
+    try{
+      const accepted=await edit({kind:'Boolean',a,b,operation,keep_tool:false})
+      if(accepted){setShapeBuilderSelection({a:null,b:null});setPatternMultiSelection([]);setShapeBuilderStatus('Cut contours updated in the native garment. Undo is available.')}
+      else setShapeBuilderStatus('Native geometry rejected this edit; original pieces were retained.')
+      return Boolean(accepted)
+    }catch(error){setShapeBuilderStatus(error?.message||'Shape operation could not be completed.');return false}
+  }
+  const commitShapeBuilderLine = async panelId => {
+    if(!shapeBuilderLineValid||busy)return
+    const {points,tangents}=shapeBuilderLine
+    if(points.length!==2||tangents.some(v=>Math.hypot(v[0],v[1])>1e-8)){
+      setShapeBuilderStatus('This native cut currently supports one straight Pen segment. Preserve longer or curved paths until region topology is available.')
+      return
+    }
+    const entry=panels.find(item=>item.panel.id===panelId)
+    if(!entry){setShapeBuilderStatus('Select an existing garment pattern.');return}
+    const {panel,range}=entry
+    const local=shapeBuilderWorldToMaterial(points,range.layout,panel.layout_rotation_degrees||0)
+    if(!local){setShapeBuilderStatus('The Pen cut has invalid coordinates or changed while editing.');return}
+    setShapeBuilderStatus('Building actual native cut edges…')
+    try{
+      const committed=await edit({kind:'ShapeBuilder',panel:panelId,points:local})
+      if(committed){
+        setShapeBuilderLine(null)
+        setShapeBuilderSelection({a:null,b:null})
+        setShapeBuilderStatus('Pen stroke became two real pattern cut contours. Native Undo is available.')
+      }else setShapeBuilderStatus('Native cut was rejected. Keep the straight line crossing two separate outer edges; attached seams and protected markings cannot be split yet.')
+    }catch(error){setShapeBuilderStatus(error?.message||'Native Shape Builder rejected this cut.')}
+  }
+  const shapeBuilderClick = (panelId,event) => {
+    if(!panelId||busy)return
+    if(shapeBuilderLineValid){
+      void commitShapeBuilderLine(panelId)
+      return
+    }
+    const previous=shapeBuilderSelection.a
+    if(!previous){setShapeBuilderSelection({a:panelId,b:null});setShapeBuilderStatus('Choose a second shape, or drag across adjoining shapes.');return}
+    if(previous===panelId){setShapeBuilderSelection({a:null,b:null});setShapeBuilderStatus('Selection cleared.');return}
+    void applyShapeBuilder(previous,panelId,event?.altKey?'difference':event?.shiftKey?'intersection':'union')
+  }
+  const applySelectedShapeBuilder=async operation=>{
+    const [first,...rest]=patternMultiSelection
+    if(!first||rest.length!==1){setShapeBuilderStatus('Select exactly two pattern pieces to combine, subtract or intersect.');return}
+    await applyShapeBuilder(first,rest[0],operation)
+  }
   const finishDrawing = () => {
     if(mode==='line') {
       if(!drawingPanel.current || draft.some(p=>panelAt(p)!==drawingPanel.current)) {
@@ -1382,40 +1892,404 @@ export default function ClothCraftBoardV2({
         if(panelAt(p)!==drawingPanel.current){invalidInternal('The internal line crosses outside the pattern boundary.');return}
       }
     }
-    onPolygon(draft,tool2d==='vector-pen'?draft.map((_,i)=>vectorTangents[i]||[0,0]):undefined)
+    const tangents=penSibling(tool2d)?draft.map((_,i)=>vectorTangents[i]||[0,0]):undefined
+    const mirrored=tool2d==='vector-pen'&&pencilMirrorMode?mirrorHalfPencilDraft(draft,tangents):null
+    if(tool2d==='vector-pen'&&pencilMirrorMode&&!mirrored){
+      setPencilMirrorStatus('Mirror needs at least three non-collinear points and two distinct centerline endpoints.')
+      return
+    }
+    onPolygon(mirrored?.points||draft,mirrored?.tangents||tangents)
     setDraft([])
     setVectorTangents([])
+    setVectorSelectedAnchor(null)
+    setVectorCurveMode(false)
+    setVectorCursor(null)
+    setPenPrecision(value=>({...value,length:'',angle:''}))
+    setPenPrecisionError('')
     setPencilSamples([])
+    setPenPaused(false)
+    setAnchorEditPopup(null)
+    setPencilMirrorStatus('')
     drawingPanel.current=null
   }
+  const pencilMirrorPreview=tool2d==='vector-pencil'&&pencilMirrorMode&&pencilSamples.length>=3
+    ?mirrorHalfPencilDraft(pencilSamples):null
+  const undoDraftVertex = (last=false) => {
+    const selected=!last&&Number.isInteger(vectorSelectedAnchor)?vectorSelectedAnchor:draft.length-1
+    if(!draft.length)return
+    setDraft(points=>points.filter((_,index)=>index!==selected))
+    setVectorTangents(points=>points.filter((_,index)=>index!==selected))
+    setVectorSelectedAnchor(draft.length<=1?null:Math.max(0,Math.min(selected-1,draft.length-2)))
+    if(draft.length===1){drawingPanel.current=null;setVectorCursor(null);setVectorCurveMode(false)}
+  }
+  const addDraftVertex = () => {
+    const inserted=insertPenAnchor(draft,vectorTangents,
+      Number.isInteger(vectorSelectedAnchor)?vectorSelectedAnchor:draft.length-2)
+    if(!inserted)return
+    setDraft(inserted.points);setVectorTangents(inserted.tangents)
+    setVectorSelectedAnchor(inserted.index)
+  }
+  const splitDraftAt = (e) => {
+    if(busy||tool2d!=='split'||!draft.length)return false
+    const pos=point(e)
+    if(!pos)return false
+    const hit=penSegmentAt(draft,vectorTangents,pos,Math.max(10*screenUnit,.003))
+    if(!hit)return false
+    // Do not create duplicate anchors when the user clicks an existing one.
+    if(draft.some(anchor=>Math.hypot(anchor[0]-pos[0],anchor[1]-pos[1])<7*screenUnit))return false
+    const inserted=insertPenAnchor(draft,vectorTangents,hit.index,hit.t)
+    if(!inserted)return false
+    setDraft(inserted.points);setVectorTangents(inserted.tangents)
+    setVectorSelectedAnchor(inserted.index)
+    return true
+  }
+  const convertDraftCurve = () => {
+    if(!penSibling(tool2d)||!draft.length)return
+    const selected=Number.isInteger(vectorSelectedAnchor)?vectorSelectedAnchor:draft.length-1
+    setVectorCurveMode(true)
+    const curved=curvePenAnchor(draft,vectorTangents,selected)
+    if(curved)setVectorTangents(curved)
+    setVectorSelectedAnchor(selected)
+  }
+  const penHasPrecision=Boolean(penPrecision.length.trim()||penPrecision.angle.trim())
+  const penSegments=penDraftSegmentMetrics(draft,vectorTangents)
+  const penTotalLength=penSegments.reduce((sum,segment)=>sum+segment.length,0)
+  const penClosingSegment=draft.length>=3
+    ?penDraftSegmentMetrics([draft.at(-1),draft[0]],[vectorTangents.at(-1)||[0,0],vectorTangents[0]||[0,0]])[0]
+    :null
+  const penPreviewCursor=(()=>{
+    if(!draft.length||!vectorCursor)return vectorCursor
+    if(penHasPrecision){
+      try{return dimensionedPenPoint(draft.at(-1),vectorCursor,penPrecision)}catch{return vectorCursor}
+    }
+    return penPreviewAtDisplayedLength(draft.at(-1),vectorCursor,penPrecision.unit)||vectorCursor
+  })()
+  // Selecting a material corner affects the preceding AND following cutline.
+  // Keep both dimension labels active throughout the live anchor/curve drag.
+  const measuredNativeEdges=panel=>{
+    const names=panel.polygon?.edges||[]
+    const selectedHere=selection?.panel===panel.id
+    const keys=[selectedHere?selection.edge:null,
+      active?.panel===panel.id?active.edge:null]
+    const draggingIndex=handlePreview?.panelId===panel.id&&Number.isInteger(handlePreview.anchorIndex)
+      ?handlePreview.anchorIndex:null
+    const index=draggingIndex??(selectedHere&&Number.isInteger(selection.anchor)?selection.anchor:null)
+    if(index!==null&&index>=0&&index<names.length){
+      keys.push(names[index],names[(index+names.length-1)%names.length])
+    }
+    return [...new Set(keys.filter(edge=>names.includes(edge)))]
+  }
+  // CLO Edit Pattern's small adjacent dimension style, shared by Pen, Pencil,
+  // selected native edges and live Bézier adjustment. No canvas popup.
+  // The installed WKWebView's navy CAD background swallowed the previous
+  // #343b40 ink; use bright lettering with a dark halo so it remains legible
+  // on both navy canvas and white fabric paper.
+  const cloInlineDimensionStyle={textAnchor:'middle',fontSize:12*screenUnit,fontWeight:650,
+    fill:'#f5fcff',stroke:'#183041',strokeWidth:2.2*screenUnit,
+    strokeLinejoin:'round',paintOrder:'stroke',pointerEvents:'none'}
+  // Native WKWebView paints the SVG strokes but intermittently omits adjacent
+  // SVG <text>. Render the SAME small number inline in the native window for
+  // (a) live Pen, (b) already-clicked Pen segments, (c) a selected yellow edge.
+  // The fallback uses the actual SVG CTM, including pan and split/2D layout,
+  // not a reconstructed viewBox approximation. None are floating widgets.
+  const nativeWKLineLabels=(()=>{
+    if(typeof navigator==='undefined'||!navigator.userAgent.includes('AppleWebKit')||
+      /Chrome|Chromium|CriOS/i.test(navigator.userAgent)||typeof DOMPoint==='undefined')return []
+    const root=svg.current,boardRect=root?.closest('.cc-board')?.getBoundingClientRect()
+    if(!root||!boardRect)return []
+    const labels=[]
+    const add=(key,kind,metres,position,reference,text,extra={})=>{
+      const matrix=reference?.getScreenCTM?.()
+      if(!position||!matrix||!Number.isFinite(metres)||metres<0)return
+      const positionPx=new DOMPoint(position.x,position.y).matrixTransform(matrix)
+      const x=positionPx.x-boardRect.left,y=positionPx.y-boardRect.top
+      if(!Number.isFinite(x)||!Number.isFinite(y)||x<8||x>boardRect.width-8||
+        y<8||y>boardRect.height-18)return
+      labels.push({key,kind,metres,x,y,text,...extra})
+    }
+    // penDraftVisible is declared later in this component; derive it here
+    // to keep WebKit-specific renders free of a temporal-dead-zone exception.
+    if(penSibling(tool2d)&&showPenDimensions&&draft.length){
+      const reference=root.querySelector('[data-vector-pen-preview="cubic"]')
+      for(const segment of penSegments){
+        const position=penInlineLabelPoint(segment.midpoint,segment.midpoint,screenUnit)
+        add(`pen-draft:${segment.index}`,'draft',segment.length,position,reference,
+          `${formatPenDistancePrecise(segment.length,penPrecision.unit)}${segment.curved?' arc':''}`,
+          {segmentIndex:segment.index})
+      }
+      if(tool2d==='vector-pen'&&penPreviewCursor){
+        const a=draft.at(-1),b=penPreviewCursor
+        const length=Math.hypot(b[0]-a[0],b[1]-a[1])
+        if(length>=.000001)add('pen:live','live',length,
+          penInlineLabelPoint(a,b,screenUnit),reference,
+          `${formatPenDistancePrecise(length,penPrecision.unit)} · ${(Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI).toFixed(1)}°`)
+      }
+    }
+    if(tool2d==='vector-pencil'){
+      const sampled=pencilSamples.length>=2?sampledPenLineMetrics(pencilSamples):null
+      const result=sampled||completedPencilMeasure
+      if(result){
+        const isMirror=sampled?Boolean(pencilMirrorPreview):Boolean(completedPencilMeasure?.mirror)
+        const visibleLength=sampled&&isMirror?result.length*2:result.length
+        const at=sampled?pencilSamples.at(-1):completedPencilMeasure?.endpoint
+        const reference=root.querySelector('[data-vector-draft="pencil"]')||
+          root.querySelector('[data-pencil-committed-length]')||
+          root.querySelector('[data-clothcraft-metric-layer]')
+        if(at)add(sampled?'pencil:live':'pencil:completed',
+          sampled?'pencil':'pencil-completed',visibleLength,
+          {x:at[0]+10*screenUnit,y:at[1]+13*screenUnit},reference,
+          `${isMirror?'Mirrored outline':'Stroke'} ${formatPenDistancePrecise(visibleLength,penPrecision.unit)}`)
+      }
+    }
+    if(!sewingActive)for(const {panel,range} of panels){
+      const edges=measuredNativeEdges(panel)
+      if(!edges.length)continue
+      const livePolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||
+        pendingCurveCommit?.panelId===panel.id&&pendingCurveCommit.polygon||panel.polygon
+      const measured=curveDraftDimensions(livePolygon)
+      const original=livePolygon===panel.polygon?null:curveDraftDimensions(panel.polygon)
+        const currentPreview=preview?.panelId===panel.id||
+          (preview?.kind==='move'&&preview?.groupIds?.includes(panel.id))?preview:null
+      for(const edge of edges){
+        const row=measured.find(item=>item.edge===edge)
+        if(!row)continue
+        const reference=Array.from(root.querySelectorAll('[data-2d-edge-hit]')).find(element=>
+          element.getAttribute('data-2d-edge-hit')===`${panel.id}:${edge}`)
+        const middle=previewPoint(transform(panel,range,row.midpoint),currentPreview)
+        const previous=original?.find(item=>item.edge===edge)
+        const change=previous?row.length-previous.length:null
+        add(`native-edge:${panel.id}:${edge}`,
+          selection?.panel===panel.id&&edges.includes(edge)?'selected':'hover',
+          row.length,penInlineLabelPoint(middle,middle,screenUnit),reference,
+          `≈ ${formatPenDistancePrecise(row.length,penPrecision.unit)}${change!==null&&Math.abs(change)>=.00005
+            ?` (${change>=0?'+':''}${formatPenDistancePrecise(change,penPrecision.unit)})`:''}`,
+          {panelId:panel.id,edge})
+      }
+    }
+    // The native EXO WKWebView can paint the internal-guide stroke while
+    // silently omitting SVG text. Reuse the same HTML/CTM-backed measurement
+    // channel as the working outside cutline labels, for both front and back.
+    const hoveredGuide=hoveredGuideGeometry?.id===hoveredGuideId?hoveredGuideGeometry:null
+    const activeGuide=hoveredGuide||(!hoveredGuideId?selectedGuide:null)
+    if(!sewingActive&&activeGuide?.points?.length===2){
+      const guideElement=[...root.querySelectorAll('[data-guide-id]')].find(element=>
+        element.getAttribute('data-guide-id')===activeGuide.id&&
+        element.getAttribute('data-guide-panel')===activeGuide.panelId)
+      const reference=guideElement?.querySelector('polyline[data-guide-curve],line:not([stroke="transparent"])')
+      const actual=activeGuide.pathPoints||activeGuide.points
+      const measured=sampledPenLineMetrics(actual)
+      if(measured&&reference){
+        const at=penInlineLabelPoint(measured.midpoint,measured.midpoint,screenUnit)
+        add(`inside-guide:${activeGuide.id}`,'guide',measured.length,at,reference,
+          formatPenDistancePrecise(measured.length,penPrecision.unit),
+          {panelId:activeGuide.panelId,edge:activeGuide.id})
+      }
+    }
+    // Graphic dimensions share the identical HTML fallback. Compute from
+    // the transformed SVG rectangle so rotated prints and zoom stay exact.
+    for(const element of root.querySelectorAll('[data-2d-graphic-hit]')){
+      const id=element.getAttribute('data-2d-graphic-hit')
+      if(id!==hoveredGraphicId&&id!==selectedGraphicId)continue
+      const graphic=graphics.find(item=>String(item.id)===id)
+      const width=Number(graphicPreview?.id===id?graphicPreview.widthMm:graphic?.widthMm)/1000
+      const height=Number(graphicPreview?.id===id?graphicPreview.heightMm:graphic?.heightMm)/1000
+      const x=Number(element.getAttribute('x')),y=Number(element.getAttribute('y'))
+      if(![width,height,x,y].every(Number.isFinite)||width<=0||height<=0)continue
+      add(`graphic-width:${id}`,'graphic-width',width,
+        {x:x+width/2,y:y-12*screenUnit},element,
+        formatDisplayMeasurement20261025(width,rulerUnits),{edge:id,panelId:graphic?.panel})
+      add(`graphic-height:${id}`,'graphic-height',height,
+        {x:x+width+12*screenUnit,y:y+height/2},element,
+        formatDisplayMeasurement20261025(height,rulerUnits),{edge:id,panelId:graphic?.panel})
+    }
+    return labels
+  })()
+  const addPrecisePenEdge = () => {
+    if(busy||tool2d!=='vector-pen'||mode!=='pen'||!draft.length)return
+    try {
+      if(parsePenDimension(penPrecision.length,penPrecision.unit)===null)
+        throw new Error('Enter an exact length before adding an edge')
+      const start=draft.at(-1)
+      const previous=draft.at(-2)
+      const direction=vectorCursor&&Math.hypot(vectorCursor[0]-start[0],vectorCursor[1]-start[1])>.000001
+        ?vectorCursor:previous?[start[0]+start[0]-previous[0],start[1]+start[1]-previous[1]]
+        :[start[0]+1,start[1]]
+      const next=dimensionedPenPoint(start,direction,penPrecision)
+      if(Math.hypot(next[0]-draft[0][0],next[1]-draft[0][1])<1e-9)
+        throw new Error('The new anchor overlaps the first anchor; use Close pattern instead')
+      setDraft(points=>[...points,next])
+      setVectorTangents(points=>[...points,[0,0]])
+      setVectorSelectedAnchor(draft.length)
+      setVectorCursor(null)
+      setPenPrecisionError('')
+    } catch(error) {setPenPrecisionError(error.message||String(error))}
+  }
+  const resizePrecisePenEdge = () => {
+    if(busy||tool2d!=='vector-pen'||!Number.isInteger(vectorSelectedAnchor)||vectorSelectedAnchor<1)return
+    try {
+      if(!penHasPrecision)throw new Error('Enter a length or angle to adjust this edge')
+      const index=vectorSelectedAnchor
+      const next=dimensionedPenPoint(draft[index-1],draft[index],penPrecision)
+      setDraft(points=>points.map((p,i)=>i===index?next:p))
+      setPenPrecisionError('')
+    }catch(error){setPenPrecisionError(error.message||String(error))}
+  }
+  const editingDraft=penSibling(tool2d)&&draft.length>0
+  const penDraftVisible=penSibling(tool2d)
+  // Position the anchor toolbar in viewport pixels, not beside a point in
+  // material metres; moving a corner must never move the controls over it.
+  const dragAnchorToolbar=event=>{
+    if(event.button!==0)return
+    const board=event.currentTarget.closest('.cc-board')?.getBoundingClientRect()
+    const toolbar=event.currentTarget.closest('[data-context-anchor-tools]')?.getBoundingClientRect()
+    if(!board||!toolbar)return
+    event.preventDefault()
+    event.stopPropagation()
+    anchorToolbarDrag.current={pointerId:event.pointerId,dx:event.clientX-toolbar.left,dy:event.clientY-toolbar.top}
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+  const moveAnchorToolbar=event=>{
+    const drag=anchorToolbarDrag.current
+    if(!drag||drag.pointerId!==event.pointerId)return
+    const board=event.currentTarget.closest('.cc-board')?.getBoundingClientRect()
+    if(!board)return
+    setAnchorToolbarPosition({
+      x:Math.max(6,Math.min(board.width-255,event.clientX-board.left-drag.dx)),
+      y:Math.max(6,Math.min(board.height-45,event.clientY-board.top-drag.dy)),
+    })
+  }
+  const addNativeAnchor = () => {
+    if(busy||!selection?.panel)return
+    const panel=s?.template?.panels?.find(item=>item.id===selection.panel)
+    const range=s?.panels?.find(item=>item.id===selection.panel)
+    const edge=selection.edge||panel?.polygon?.edges?.[selection.anchor]
+    const indices=range?.boundaries?.[edge]
+    if(!edge||!Array.isArray(indices)||indices.length<2)return
+    const length=indices.slice(1).reduce((sum,index,i)=>{
+      const a=boardUV[indices[i]],b=boardUV[index]
+      return a&&b?sum+Math.hypot(b[0]-a[0],b[1]-a[1]):sum
+    },0)
+    if(length>.0002)void edit({kind:'SplitBoundary',panel:panel.id,edge,at_m:length/2})
+  }
+  const removeNativeAnchor = () => {
+    if(busy||!selection?.panel||!Number.isInteger(selection.anchor))return
+    void edit({kind:'RemovePoint',panel:selection.panel,point:selection.anchor})
+  }
   useEffect(()=>{
-    if(!isDrawing)return
+    if(!isDrawing&&!editingDraft)return
     const onKey=event=>{
       if(event.target?.closest?.('input,textarea,select,[contenteditable="true"]'))return
       // Uncommitted vertices are the latest drawing actions. Rewind those
       // before touching the Rust document's committed edit history.
       if(draft.length&&(event.metaKey||event.ctrlKey)&&!event.altKey&&!event.shiftKey&&event.key.toLowerCase()==='z'){
         event.preventDefault();event.stopImmediatePropagation()
-        setDraft(points=>points.slice(0,-1))
-        setVectorTangents(points=>points.slice(0,-1))
-        if(draft.length===1)drawingPanel.current=null
+        undoDraftVertex(true)
         return
       }
-      if(event.key==='Escape'&&draft.length){event.preventDefault();event.stopImmediatePropagation();setDraft([]);setVectorTangents([]);setPencilSamples([]);drawingPanel.current=null}
+      if(event.key==='Escape'&&draft.length){
+        event.preventDefault();event.stopImmediatePropagation()
+        // VectorCraft finishes the active gesture on Escape. Preserve the
+        // authored anchors as a separate open path so a blank click begins
+        // an unrelated contour; either endpoint still resumes this path.
+        if(tool2d==='vector-pen'){
+          const parked=parkOpenPenPath(parkedPenPaths,draft,vectorTangents,nextOpenPenId.current)
+          if(parked){setParkedPenPaths(parked);nextOpenPenId.current++}
+          setDraft([]);setVectorTangents([]);setVectorSelectedAnchor(null)
+          setVectorCurveMode(false)
+        }
+        setPenPaused(true)
+        setVectorCursor(null)
+        vectorDrag.current=null
+        setPenPrecisionError('')
+        return
+      }
+      if(penSibling(tool2d)&&draft.length&&(event.metaKey||event.ctrlKey)&&
+        !event.altKey&&!event.shiftKey&&event.key.toLowerCase()==='c'){
+        event.preventDefault();event.stopImmediatePropagation();convertDraftCurve();return
+      }
+      // Plus/Minus are persistent tool selectors, not immediate mutations.
+      // The user must then click a particular segment or anchor, respectively.
       if(event.key==='Enter'&&draft.length>=(mode==='line'?2:3)&&!busy){event.preventDefault();finishDrawing()}
     }
     window.addEventListener('keydown',onKey,true)
     return()=>window.removeEventListener('keydown',onKey,true)
-  },[isDrawing,mode,tool2d,draft,vectorTangents,busy,onPolygon,panels,boardUV])
+  },[isDrawing,editingDraft,mode,tool2d,draft,vectorTangents,vectorSelectedAnchor,parkedPenPaths,busy,onPolygon,panels,boardUV])
+  useEffect(()=>{
+    const focusedOnBoard=()=>document.activeElement?.closest?.('.cc-board')
+    const switchTemporary=(tool)=>{
+      window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',
+        {detail:{tool,temporary:true}}))
+    }
+    const down=event=>{
+      const key=(event.key==='Alt'||event.key==='Option')?'Alt':
+        event.key==='Shift'?'Shift':null
+      if(!key||event.repeat||event.metaKey||event.ctrlKey||
+        temporaryAnchorBorrow.current||
+        !['vector-pen','vector-pencil'].includes(tool2d)||
+        (!focusedOnBoard()&&!svg.current?.matches(':hover'))||
+        event.target?.closest?.('input,textarea,select,[contenteditable="true"]'))return
+      if(key==='Shift'&&event.altKey||key==='Alt'&&event.shiftKey)return
+      temporaryAnchorBorrow.current={key,origin:tool2d}
+      temporaryShiftPen.current=key==='Shift'
+      event.preventDefault()
+      switchTemporary('anchor-point')
+    }
+    const release=event=>{
+      const borrowed=temporaryAnchorBorrow.current
+      if(!borrowed)return
+      const released=(event.key==='Alt'||event.key==='Option')?'Alt':event.key
+      if(event.type==='keyup'&&released!==borrowed.key)return
+      temporaryAnchorBorrow.current=null
+      temporaryShiftPen.current=false
+      if(event.type==='keyup')event.preventDefault()
+      switchTemporary(borrowed.origin)
+    }
+    window.addEventListener('keydown',down,true)
+    window.addEventListener('keyup',release,true)
+    window.addEventListener('blur',release)
+    return()=>{
+      window.removeEventListener('keydown',down,true)
+      window.removeEventListener('keyup',release,true)
+      window.removeEventListener('blur',release)
+    }
+  },[tool2d])
+  useEffect(()=>{
+    const shortcut=event=>{
+      if(event.defaultPrevented||busy||event.repeat||event.metaKey||event.ctrlKey||event.altKey||
+        event.target?.closest?.('input,textarea,select,[contenteditable="true"]'))return
+      // This is the actual 2D drawing SVG, not a global shortcut stealing
+      // keys from the 3D camera, library search, or Rust property inspector.
+      if(!event.target?.closest?.('.cc-board') && !document.activeElement?.closest?.('.cc-board'))return
+      if(tool2d==='vector-pen'&&['i','m','u'].includes(event.key.toLowerCase())){
+        event.preventDefault();event.stopImmediatePropagation()
+        const newUnit=event.key.toLowerCase()==='i'?'in':
+          event.key.toLowerCase()==='m'?'mm':
+            ({mm:'cm',cm:'in',in:'mm',m:'mm'}[penPrecision.unit]||'mm')
+        setPenPrecision(value=>{
+          let length=value.length
+          try{length=convertPenDimension(value.length,value.unit,newUnit)}catch{length=''}
+          return {...value,length,unit:newUnit}
+        })
+        return
+      }
+      const tools={p:'vector-pen',b:'vector-pencil',v:'select',a:'direct-select',c:'curve','+':'split','-':'remove-anchor'}
+      const tool=event.shiftKey&&event.key.toLowerCase()==='c'?'anchor-point':tools[event.key.toLowerCase()]
+      if(!tool||draft.length&&tool==='curve')return
+      event.preventDefault();event.stopImmediatePropagation()
+      window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',{detail:{tool}}))
+    }
+    window.addEventListener('keydown',shortcut,true)
+    return()=>window.removeEventListener('keydown',shortcut,true)
+  },[busy,draft,tool2d,vectorTangents,vectorSelectedAnchor,penPrecision.unit])
   const measuring = mode === 'edit' && ['measure','measure-edit'].includes(tool2d)
   const editingTape = measuring && tool2d === 'measure-edit'
-  const nativeCursor = busy ? 'default' : mode==='edit' && tool2d==='point' ? 'default' : sewingActive || editSewingActive ? SEWING_CURSOR :
-    mode === 'pen' ? cursorForTool('polygon') :
+  const nativeCursor = busy ? 'default' : mode==='edit' && ['point','remove-anchor'].includes(tool2d) ? 'crosshair' : sewingActive || editSewingActive ? SEWING_CURSOR :
+    mode === 'pen' ? cursorForTool(tool2d==='vector-pen'?'vector-pen':'polygon') :
     mode === 'line' ? cursorForTool('internal') :
     mode === 'edit' && tool2d === 'pleat' ? PLEAT_CURSOR :
     mode === 'edit' && tool2d !== 'select' && tool2d !== 'seam-edit' ? cursorForTool(tool2d) : null
   const splitBoundary = (e,panel,edge,indices) => {
-    if(busy || mode!=='edit' || tool2d!=='split')return false
+    if(busy || mode!=='edit' || !['split'].includes(tool2d))return false
     const p=point(e);if(!p)return true
     let total=0,best=Infinity,at=0
     for(let k=1;k<indices.length;k++){
@@ -1439,7 +2313,11 @@ export default function ClothCraftBoardV2({
   const editConstructionEdge = (e,panel,edge,indices) => {
     if(busy||mode!=='edit'||!['notch','allowance'].includes(tool2d))return false
     if(tool2d==='allowance'){
-      void edit({kind:'SeamAllowance',panel:panel.id,edge,width_m:e.altKey?0:allowanceWidthMm/1000})
+      const plan=preflightNativeCutMark20261025(s,{panelId:panel.id,edge,
+        kind:'allowance',widthMm:e.altKey?0:allowanceWidthMm})
+      if(!plan.ok){setFreeCurveStatus('Seam allowance blocked: '+plan.reason);return true}
+      void edit(plan.command)
+      setFreeCurveStatus(`Native allowance: ${e.altKey?'removed':allowanceWidthMm+' mm'} on ${edge} · Undo available.`)
       pick({panel:panel.id,edge})
       return true
     }
@@ -1458,19 +2336,20 @@ export default function ClothCraftBoardV2({
     }
     if(total>.002){
       const t=Math.max(.002,Math.min(.998,at/total))
+      const plan=preflightNativeCutMark20261025(s,{panelId:panel.id,edge,
+        kind:e.altKey?'remove':e.shiftKey?'pair':'notch',t,
+        depthMm:notchDepthMm,spacingMm:notchPairSpacingMm})
+      if(!plan.ok){setFreeCurveStatus('Notch edit blocked: '+plan.reason);return true}
       if(e.altKey){
-        // Removal addresses the original saved fractional arclength exactly.
-        // Never pass a fresh imprecise click fraction to Rust's strict match.
-        const nearest=(panel.polygon?.notches?.[edge]||[]).reduce((closest,item)=>
-          !closest||Math.abs(item.t-t)<Math.abs(closest.t-t)?item:closest,null)
-        if(nearest&&Math.abs(nearest.t-t)<.05)
-          void edit({kind:'RemoveNotch',panel:panel.id,edge,t:nearest.t})
+        // Preflight returns the ORIGINAL saved notch station; Rust removal
+        // requires an exact physical arclength identity, not pointer rounding.
+        void edit(plan.command)
       }else if(e.shiftKey){
-        // One physical double-notch transaction: either both marks persist
-        // at their exact arclength separation or neither is authored.
-        void edit({kind:'NotchPair',panel:panel.id,edge,center_t:t,
-          spacing_m:notchPairSpacingMm/1000,depth_m:notchDepthMm/1000})
-      }else void edit({kind:'Notch',panel:panel.id,edge,t,depth_m:notchDepthMm/1000})
+        // Atomic Rust NotchPair: no partial placement if either mark invalid.
+        void edit(plan.command)
+      }else void edit(plan.command)
+      setFreeCurveStatus(e.altKey?'Existing notch removed · Undo restores it.':
+        `${e.shiftKey?'Double':'Single'} native notch placed at ${(t*100).toFixed(1)}% of ${edge} · ${plan.lengthMm.toFixed(1)} mm physical cutline.`)
       pick({panel:panel.id,edge})
     }
     return true
@@ -1516,6 +2395,12 @@ export default function ClothCraftBoardV2({
       at-=segment.d
     }
     return null
+  }
+  const sewingEdgeLength = indices => {
+    if(!Array.isArray(indices)||indices.length<2)return null
+    const coords=indices.map(index=>boardUV[index])
+    if(coords.some(p=>!Array.isArray(p)||p.length<2||!p.every(Number.isFinite)))return null
+    return coords.slice(1).reduce((length,p,i)=>length+Math.hypot(p[0]-coords[i][0],p[1]-coords[i][1]),0)
   }
   const closestPomStation = p => {
     let best=null
@@ -1578,27 +2463,155 @@ export default function ClothCraftBoardV2({
     e.stopPropagation()
     e.preventDefault()
     if (tool2d==='vector-pencil') {
+      setPencilMirrorMenu(null)
+      setPencilMirrorStatus('')
+      setCompletedPencilMeasure(null)
       vectorDrag.current={start:p,pointerId:e.pointerId,pencil:true}
       setPencilSamples([p])
       svg.current.setPointerCapture(e.pointerId)
       return
     }
     if(isDrawing){
+      if(tool2d==='vector-pen'&&penPaused)setPenPaused(false)
       if(tool2d==='vector-pen'&&draft.length>=3&&Math.hypot(p[0]-draft[0][0],p[1]-draft[0][1])<.014){
         finishDrawing()
         return
       }
-      setDraft(old=>[...old,p])
+      let placed=p
+      if(tool2d==='vector-pen'&&draft.length){
+        try{
+          placed=penHasPrecision?dimensionedPenPoint(draft.at(-1),p,penPrecision):
+            penPreviewAtDisplayedLength(draft.at(-1),p,penPrecision.unit)||p
+          setPenPrecisionError('')
+        }catch(error){setPenPrecisionError(error.message||String(error));return}
+      }
+      setDraft(old=>[...old,placed])
       if(tool2d==='vector-pen'){
         setVectorTangents(old=>[...old,[0,0]])
-        vectorDrag.current={start:p,index:draft.length,pointerId:e.pointerId}
+        setVectorSelectedAnchor(draft.length)
+        setVectorCursor(null)
+        vectorDrag.current={start:placed,index:draft.length,pointerId:e.pointerId}
         svg.current.setPointerCapture(e.pointerId)
       }
     }
     else setTape(old => old.length === 1 ? [old[0],p] : [p])
   }
-  return <div className="cc-board" aria-busy={busy} data-document-revision={s.revision} data-segment-sewing={String(segmentSewing)} data-free-sewing={String(freeSewing)}
+  const showAnchorEditor=(event,kind,panelId=null,index=null)=>{
+    if(busy||tool2d!=='direct-select')return
+    setAnchorEditPopup({kind,panelId,index,cursor:null})
+  }
+  const showNativeAnchorEditor=(event,panel,index)=>{
+    if(busy||!panel?.polygon?.points?.[index])return
+    event.preventDefault();event.stopPropagation()
+    pick({panel:panel.id,anchor:index,edge:panel.polygon.edges[index]})
+    if(tool2d==='select')setTool2d('direct-select')
+    setAnchorEditPopup({kind:'native',panelId:panel.id,index,cursor:null})
+  }
+  const anchorEditVisual=(()=>{
+    const popup=anchorEditPopup
+    if(!popup||tool2d!=='direct-select'||mode!=='edit')return null
+    if(popup.kind==='draft'){
+      const geometry=cornerWidgetGeometry(draft,popup.index,{offset:14*screenUnit})
+      if(!geometry)return null
+      const t=vectorTangents[popup.index]||[0,0]
+      return {anchor:geometry.anchor,knob:popup.cursor||geometry.center,
+        guidelines:Math.hypot(...t)>1e-7?[geometry.anchor.map((v,i)=>v-t[i]),geometry.anchor.map((v,i)=>v+t[i])]:[],geometry}
+    }
+    const entry=panels.find(item=>item.panel.id===popup.panelId)
+    const polygon=entry&&handlePreview?.panelId===popup.panelId&&handlePreview.polygon||entry?.panel.polygon
+    const geometry=cornerWidgetGeometry(polygon?.points,popup.index,{closed:true,offset:14*screenUnit})
+    if(!entry||!geometry)return null
+    const count=polygon.points.length,inc=polygon.edges[(popup.index+count-1)%count],out=polygon.edges[popup.index]
+    const incoming=polygon.curves?.[inc]?.[1],outgoing=polygon.curves?.[out]?.[0]
+    return {anchor:transform(entry.panel,entry.range,geometry.anchor),
+      knob:popup.cursor||transform(entry.panel,entry.range,geometry.center),
+      guidelines:[incoming,outgoing].filter(Boolean).map(p=>transform(entry.panel,entry.range,p)),geometry}
+  })()
+  const beginCornerDrag=e=>{
+    if(e.button!==0||busy||!anchorEditPopup||!anchorEditVisual)return
+    e.stopPropagation();e.preventDefault()
+    const popup=anchorEditPopup
+    const entry=popup.kind==='native'?panels.find(row=>row.panel.id===popup.panelId):null
+    if(popup.kind==='native'&&!entry)return
+    const start=point(e)
+    if(!start)return
+    const baseline=entry?.panel.polygon
+    const vertex=baseline?.points?.[popup.index]
+    const edge=baseline?.edges?.[popup.index]
+    const previous=baseline?.edges?.[(popup.index+baseline.edges.length-1)%baseline.edges.length]
+    const outgoing=baseline?.curves?.[edge]?.[0]
+    const incoming=baseline?.curves?.[previous]?.[1]
+    const initial=popup.kind==='draft'?[...(vectorTangents[popup.index]||[0,0])]:
+      outgoing&&vertex?outgoing.map((v,i)=>v-vertex[i]):
+      incoming&&vertex?incoming.map((v,i)=>vertex[i]-v):[0,0]
+    const toLocal=world=>{
+      if(!entry)return world
+      const a=-(entry.panel.layout_rotation_degrees||0)*Math.PI/180
+      const dx=world[0]-entry.range.layout[0],dy=world[1]-entry.range.layout[1]
+      return [dx*Math.cos(a)-dy*Math.sin(a),dx*Math.sin(a)+dy*Math.cos(a)]
+    }
+    cornerDrag.current={pointerId:e.pointerId,kind:popup.kind,index:popup.index,
+      entry,baseline,start,startLocal:toLocal(start),initial,moved:false,proposal:null}
+    svg.current?.setPointerCapture(e.pointerId)
+  }
+  const moveCornerDrag=e=>{
+    const gesture=cornerDrag.current
+    if(!gesture||gesture.pointerId!==e.pointerId)return false
+    const world=point(e)
+    if(!world||!gesture.start)return true
+    if(Math.hypot(world[0]-gesture.start[0],world[1]-gesture.start[1])<1.2*screenUnit&&!gesture.moved)return true
+    gesture.moved=true
+    if(gesture.kind==='draft'){
+      const geometry=cornerWidgetGeometry(draft,gesture.index,{offset:14*screenUnit})
+      const tangent=cornerWidgetDragHandle(geometry,world,
+        {start:gesture.start,initial:gesture.initial,shift:e.shiftKey,screenUnit})
+      if(tangent){setVectorTangents(old=>old.map((v,i)=>i===gesture.index?tangent:v));setVectorCurveMode(true)}
+    }else{
+      const {entry,baseline}=gesture
+      const a=-(entry.panel.layout_rotation_degrees||0)*Math.PI/180
+      const dx=world[0]-entry.range.layout[0],dy=world[1]-entry.range.layout[1]
+      const local=[dx*Math.cos(a)-dy*Math.sin(a),dx*Math.sin(a)+dy*Math.cos(a)]
+      const proposal=previewNativeCornerDrag(baseline,gesture.index,local,
+        {start:gesture.startLocal,initial:gesture.initial,shift:e.shiftKey,screenUnit})
+      gesture.proposal=proposal
+      setHandlePreview(proposal?{panelId:entry.panel.id,polygon:proposal,anchorIndex:gesture.index}:null)
+    }
+    setAnchorEditPopup(old=>old?{...old,cursor:world}:old)
+    return true
+  }
+  const endCornerDrag=e=>{
+    const gesture=cornerDrag.current
+    if(!gesture||gesture.pointerId!==e.pointerId)return false
+    cornerDrag.current=null
+    try{svg.current?.releasePointerCapture(e.pointerId)}catch{}
+    setAnchorEditPopup(old=>old?{...old,cursor:null}:old)
+    if(gesture.kind==='native'){
+      const proposal=gesture.proposal
+      if(gesture.moved&&proposal)void applyOrStagePatternCurve(gesture.entry.panel,proposal,
+        gesture.baseline.edges[gesture.index])
+      else setHandlePreview(null)
+    }
+    return true
+  }
+  const resumeParkedPath=(id,index)=>{
+    const restored=restoreOpenPenPath(parkedPenPaths,id,index)
+    if(!restored)return null
+    setParkedPenPaths(restored.remaining)
+    setDraft(restored.points)
+    setVectorTangents(restored.tangents)
+    setVectorSelectedAnchor(restored.selected)
+    setVectorCursor(null)
+    setPenPaused(false)
+    return restored
+  }
+  return <div className="cc-board" aria-busy={busy} data-cad-auto-contrast={String(Boolean(adaptiveCad))} data-cad-expanded={String(showRulers)} data-document-revision={s.revision} data-segment-sewing={String(segmentSewing)} data-free-sewing={String(freeSewing)}
+    data-pattern-surface-style={studioPreferences?.twoDPatternSurfaceStyle||'solid'}
+    data-pen-unit={penPrecision.unit}
+    data-pen-paused={String(penPaused)}
+    data-pen-open-contours={parkedPenPaths.length}
+    data-2d-canvas-theme={accumarkGreen?'accumark-green':'classic'} data-2d-grid-style={markerStyle}
     data-edit-sewing={String(editSewingActive)}
+    data-selected-native-seam={selection?.seamId||''}
     data-segment-sew-stage={sewingCommitting?'saving':sewingFirstEdge?'second':'first'}
     data-free-sew-stage={sewingCommitting?'saving':String(freeSewPoints.length)}
     data-free-sew-points-count={freeSewPoints.length}
@@ -1608,7 +2621,30 @@ export default function ClothCraftBoardV2({
     data-native-notches-visible={String(showNativeNotches)}
     data-seam-allowances-visible={String(showNativeAllowances)}
     data-precision-drafting={String(precisionDrafting)}
-    style={{position: 'relative', background: PATTERN_VISUAL.canvas}}>
+    style={{position: 'relative', background:canvasColor,
+      ...(adaptiveCad?{'--cad-adaptive-edge':adaptiveCad.edge,'--cad-adaptive-edge-halo':adaptiveCad.edgeHalo,
+        '--cad-adaptive-grid':adaptiveCad.grid,'--cad-adaptive-measure':adaptiveCad.measure,
+        '--cad-adaptive-measure-halo':adaptiveCad.measurementHalo,'--cad-adaptive-measure-outside':adaptiveCad.measurementOutside,
+        '--cad-adaptive-point':adaptiveCad.point,'--cad-adaptive-selected':adaptiveCad.selection,
+        '--cad-adaptive-notch':adaptiveCad.notch,'--cad-adaptive-paper':adaptiveCad.patternPaper,
+        '--cad-adaptive-ruler':adaptiveCad.ruler,'--cad-adaptive-grade-main':adaptiveCad.gradeMain,
+        '--cad-adaptive-grade-base':adaptiveCad.gradeBase,
+        '--cad-adaptive-grade-other':adaptiveCad.gradeOther,'--cad-adaptive-grade-halo':adaptiveCad.gradeHalo}: {})}}>
+    {nativeWKLineLabels.map(label=><span key={label.key}
+      data-native-pen-inline-length={label.kind==='live'?'true':undefined}
+      data-native-line-measure={label.kind}
+      data-native-measure-panel={label.panelId}
+      data-native-measure-edge={label.edge}
+      data-native-measure-segment={label.segmentIndex}
+      data-pen-inline-visible-metres={label.metres.toFixed(8)}
+      data-line-length-unit={penPrecision.unit}
+      aria-label={`${label.kind==='selected'?'Selected cutline':label.kind==='draft'?'Completed Pen segment':'Current line'} ${label.text}`}
+      style={{position:'absolute',left:label.x,top:label.y,
+        transform:'translate(-50%,0)',whiteSpace:'nowrap',pointerEvents:'none',
+        font:'650 12px/1.2 -apple-system,BlinkMacSystemFont,sans-serif',
+        letterSpacing:'.01em',color:'#f6fbff',
+        textShadow:'0 1px 2px #001524,1px 0 2px #001524,-1px 0 2px #001524,0 -1px 2px #001524',
+        zIndex:7}}>{label.text}</span>)}
     <ClothCraftCornerTools dimension="2d" mode={mode} activeTool={tool2d} onChangeMode={onChangeMode}
       displayLayers={displayLayers} onToggleDisplayLayer={toggleDisplayLayer}
       allowanceWidthMm={allowanceWidthMm} onChangeAllowanceWidth={width=>{
@@ -1629,13 +2665,133 @@ export default function ClothCraftBoardV2({
       selectedGuide={selectedGuide} onCreateGuideLine={()=>{void createNativeLineFromGuide(selectedGuide);setSelectedGuide(null)}}
       onRemoveGuideLine={()=>{if(selectedGuide?.nativeLineId)void edit({kind:'RemoveLine',panel:selectedGuide.panelId,line:selectedGuide.nativeLineId});setSelectedGuide(null)}}
       onClearGuide={()=>setSelectedGuide(null)}
-      onChangeTool={name => {setTool2d(name);setDraft([]);drawingPanel.current=null;setTape([])}} disabled={busy}/>
+      onChangeTool={name => {
+        // A deliberate toolbar selection cancels an Option/Shift borrow:
+        // releasing the modifier must not unexpectedly switch tools back.
+        temporaryAnchorBorrow.current=null
+        temporaryShiftPen.current=false
+        if(name==='shape-builder'&&tool2d==='vector-pen'&&draft.length>=2)
+          setShapeBuilderLine({points:draft.map(p=>[...p]),tangents:draft.map((_,i)=>vectorTangents[i]||[0,0]),revision:s?.revision})
+        if(!(penSibling(tool2d)&&penSibling(name))){
+          setDraft([]);setVectorTangents([]);setVectorSelectedAnchor(null);setVectorCurveMode(false);drawingPanel.current=null
+        }
+        setTool2d(name);setVectorCursor(null);setTape([])
+      }} disabled={busy}/>
     <PatternReferenceImageControls {...reference} unitsPerCm={.01} viewBounds={view} menuOnly editorScope="native"/>
-    {mode==='edit'&&tool2d==='point'&&!precisionDrafting&&!editPatternHintDismissed&&<div className="cc-native-free-curve-guide cc-pattern-compact-hint" data-edit-pattern-guide="true">
+    {tool2d==='shape-builder'&&mode==='edit'&&<div data-native-shape-builder="canvas"
+      role="status" aria-live="polite"
+      style={{position:'absolute',left:12,bottom:12,zIndex:12,maxWidth:'min(400px,75%)',
+        padding:'4px 8px',borderRadius:4,background:'#1b3845db',color:'#d9f0f3',
+        font:'11px/1.35 system-ui',pointerEvents:'none'}}>
+      {shapeBuilderStatus||(shapeBuilderLineValid
+        ?'Open Pen boundary ready. Click a target pattern to turn it into real cut edges. Escape clears selection.'
+        :patternMultiSelection.length>1?'Selected patterns ready · Combine, Subtract or Intersect.'
+        :shapeBuilderSelection.a?'Click or drag across another shape to merge. Option = subtract · Shift = intersect.'
+          :'Shape Builder · Click or drag across shapes to merge. Option = subtract · Shift = intersect.')}
+    </div>}
+    {tool2d==='shape-builder'&&mode==='edit'&&patternMultiSelection.length>1&&<div
+      data-shape-builder-selection-actions="true" role="toolbar" aria-label="Shape Builder selected pattern actions"
+      style={{position:'absolute',bottom:48,left:12,zIndex:14,display:'flex',gap:5,
+        background:'#203946',border:'1px solid #6e9ba8',borderRadius:6,padding:5}}>
+      {['union','difference','intersection'].map(operation=><button key={operation} type="button"
+        aria-label={operation==='union'?'Shape Builder add and combine (+)':operation==='difference'?'Shape Builder subtract and remove (−)':'Shape Builder intersect'}
+        disabled={busy||patternMultiSelection.length!==2}
+        onClick={()=>void applySelectedShapeBuilder(operation)}
+        style={{background:'#395769',color:'#f4fbff',border:'1px solid #7491a1',borderRadius:4,padding:'5px 9px',fontSize:11,cursor:'pointer'}}>
+        {operation==='union'?'+ Combine':operation==='difference'?'− Subtract':'∩ Intersect'}
+      </button>)}
+    </div>}
+    {['vector-pencil','vector-pen'].includes(tool2d)&&pencilMirrorMode&&<div data-pencil-mirror-active="true" role="status"
+      style={{position:'absolute',top:58,left:12,zIndex:8,color:'#f8f6d8',background:'#214258',border:'1px solid #6d9fa8',borderRadius:5,padding:'5px 9px',fontSize:11,pointerEvents:'none'}}>
+      Mirror Half Pattern · first and last pencil points define the fold line
+    </div>}
+    {['vector-pencil','vector-pen'].includes(tool2d)&&pencilMirrorStatus&&<div role="status" data-pencil-mirror-status="true"
+      style={{position:'absolute',left:12,bottom:12,zIndex:8,background:'#283c49',color:'#fff',padding:'6px 9px',borderRadius:4,fontSize:12}}>
+      {pencilMirrorStatus}
+    </div>}
+    {['vector-pencil','vector-pen'].includes(tool2d)&&pencilMirrorMenu&&<div role="menu" aria-label="Pen and Pencil drawing options"
+      data-pencil-context-menu="true"
+      style={{position:'absolute',zIndex:30,left:pencilMirrorMenu.x,top:pencilMirrorMenu.y,minWidth:200,
+        background:'#243846',border:'1px solid #849ba5',borderRadius:6,boxShadow:'0 7px 22px #05192799',padding:4}}
+      onContextMenu={event=>event.preventDefault()} onPointerDown={event=>event.stopPropagation()}>
+      <button type="button" role="menuitemcheckbox" aria-checked={pencilMirrorMode} aria-label="Mirror"
+        data-pencil-mirror-action="true" onClick={()=>{
+          setPencilMirrorMode(value=>!value);setPencilMirrorMenu(null);setPencilMirrorStatus('')
+        }} style={{display:'flex',alignItems:'center',gap:9,width:'100%',border:0,borderRadius:4,textAlign:'left',padding:'8px 10px',background:'#365668',color:'#f6fafc',cursor:'pointer'}}>
+        <span aria-hidden="true" style={{display:'inline-grid',placeItems:'center',width:16,height:16,border:'1px solid #acc5d0',borderRadius:3,background:pencilMirrorMode?'#e2f3fc':'transparent',color:'#163448',fontWeight:800}}>
+          {pencilMirrorMode?'✓':''}
+        </span>
+        <span>Mirror</span>
+      </button>
+      <small style={{display:'block',color:'#b9cbd4',padding:'6px 9px',maxWidth:230}}>
+        Draw from one centerline point around half the pattern to the other centerline point. The opposite half mirrors live.
+      </small>
+    </div>}
+    {false&&mode==='edit'&&tool2d==='point'&&!precisionDrafting&&!editPatternHintDismissed&&<div className="cc-native-free-curve-guide cc-pattern-compact-hint" data-edit-pattern-guide="true">
       <strong>Edit Pattern</strong>
       <span>Click a point: incoming + outgoing handles appear automatically. Drag either endpoint to curve the pattern. Option-drag breaks tangents; Shift snaps angles.</span>
       <button type="button" aria-label="Dismiss Edit Pattern hint" onClick={()=>setEditPatternHintDismissed(true)}>×</button>
     </div>}
+    {false&&mode==='edit'&&tool2d==='point'&&(multiEdit.points.length>0||selection?.edge||precisionPanelOpen)&&
+      <section data-clo-precision-edit="true" aria-label="CLO Edit Pattern precise geometry"
+        style={{position:'absolute',left:14,bottom:15,zIndex:16,width:260,maxWidth:'calc(100% - 28px)',
+          padding:11,borderRadius:7,border:'1px solid #678292',background:'#263745ef',
+          color:'#f1f5f7',boxShadow:'0 5px 20px #0006',fontSize:11}}
+        onPointerDown={e=>e.stopPropagation()}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:7}}>
+          <strong>Edit Pattern · Precision</strong>
+          <button type="button" aria-label="Close precision editor" onClick={()=>{
+            setMultiEdit({panel:null,points:[]});setPrecisionPanelOpen(false);setPrecisionEditStatus('')
+          }} style={{color:'#eef',background:'none',border:0,cursor:'pointer'}}>×</button>
+        </div>
+        <small style={{display:'block',color:'#b4cbd6',marginBottom:8}}>
+          Shift-click points/lines or Shift-drag a box to select a group; arrow keys nudge 0.25 in (Alt for 0.025 in)
+        </small>
+        {multiEdit.points.length>0&&<form data-clo-group-move="true" onSubmit={event=>{
+          event.preventDefault();commitCloMove()
+        }} style={{display:'grid',gap:6,marginBottom:9}}>
+          <strong>{multiEdit.points.length} selected native point(s) · {multiEdit.panel}</strong>
+          <div style={{display:'flex',gap:5}}>
+            <label style={{flex:1}}>Move X ({penPrecision.unit})
+              <input aria-label="Move selected X" value={multiMove.x} inputMode="decimal"
+                onChange={event=>setMultiMove(v=>({...v,x:event.target.value}))}
+                style={{boxSizing:'border-box',width:'100%'}}/></label>
+            <label style={{flex:1}}>Move Y ({penPrecision.unit})
+              <input aria-label="Move selected Y" value={multiMove.y} inputMode="decimal"
+                onChange={event=>setMultiMove(v=>({...v,y:event.target.value}))}
+                style={{boxSizing:'border-box',width:'100%'}}/></label>
+          </div>
+          <button type="submit" data-clo-apply-multi-point="true" disabled={busy}
+            style={{background:'#d5e8f2',color:'#153443',border:0,borderRadius:4,padding:5,cursor:'pointer'}}>
+            Move selected points (native)
+          </button>
+        </form>}
+        {selection?.panel&&selection?.edge&&(()=>{
+          const native=s?.template?.panels?.find(p=>p.id===selection.panel)
+          const current=native&&curveDraftDimensions(native.polygon).find(row=>row.edge===selection.edge)
+          return <form data-clo-change-length="true" onSubmit={e=>{e.preventDefault();void commitCloChangeLength()}}
+            style={{display:'grid',gap:6}}>
+            <strong>Change Length · {selection.edge}</strong>
+            <small>Current: {current?formatPenDistancePrecise(current.length,penPrecision.unit):'—'}</small>
+            <label>Exact length ({penPrecision.unit})
+              <input aria-label="Change Length target" value={editLineLength}
+                placeholder={current?(current.length/(PEN_LENGTH_UNITS[penPrecision.unit]||.001)).toFixed(2):'0'}
+                onChange={e=>setEditLineLength(e.target.value)} inputMode="decimal"
+                style={{boxSizing:'border-box',width:'100%'}}/></label>
+            <label>Location
+              <select aria-label="Change Length location" value={editLengthLocation}
+                onChange={e=>setEditLengthLocation(e.target.value)} style={{width:'100%'}}>
+                <option value="start">Start</option><option value="end">End</option><option value="both">Both</option>
+              </select></label>
+            <button type="submit" data-clo-apply-change-length="true" disabled={busy}
+              style={{background:'#d5e8f2',color:'#153443',border:0,borderRadius:4,padding:5,cursor:'pointer'}}>
+              Apply Change Length (native)
+            </button>
+          </form>
+        })()}
+        {precisionEditStatus&&<small role="status" data-clo-precision-status="true"
+          style={{display:'block',marginTop:7,color:'#ffe0a2'}}>{precisionEditStatus}</small>}
+      </section>}
     {mode==='edit'&&(tool2d==='curve'||pendingCurveCommit)&&<div className="cc-native-free-curve-guide" data-free-curve-tool-guide="true">
       <strong>Edit Curve Point</strong>
       <span>Drag either half of the chest or belly guide to curve ONLY that point-to-point construction interval (saved locally, not sewn) · Drag coral side dots or orange knots to reshape the actual cutline · Apply sewn cutlines to update 3D · Live edge lengths appear during curve edits</span>
@@ -1675,16 +2831,11 @@ export default function ClothCraftBoardV2({
         onClick={()=>{cancelPatternGesture();setPendingCurveCommit(null);setHandlePreview(null);setFreeCurveStatus('Curve proposal discarded; native garment unchanged.')}}>Discard curve proposal</button>}
       {freeCurveStatus&&<small role="status">{freeCurveStatus}</small>}
     </div>}
-    {mode==='edit'&&tool2d==='split'&&<div className="cc-native-free-curve-guide" data-mirrored-split-guide="true">
-      <strong>Add / Split Point</strong>
-      <span>Click a linked orange knot to split both mirrored boundaries together.</span>
-      {freeCurveStatus&&<small role="status">{freeCurveStatus}</small>}
-    </div>}
     {selectedSewingMeasurement?.valid&&<div className="cc-native-sew-pair-readout"
       data-native-selected-sewing-length={selectedSewingMeasurement.seamId} role="status">
       <strong>{selectedSewingMeasurement.seamId}</strong>
-      <span>{selectedSewingMeasurement.firstCm.toFixed(2)} / {selectedSewingMeasurement.secondCm.toFixed(2)} cm</span>
-      <span>{selectedSewingMeasurement.signedDifferenceCm>=0?'+':''}{selectedSewingMeasurement.signedDifferenceCm.toFixed(2)} cm · {selectedSewingMeasurement.differencePercent.toFixed(1)}%</span>
+      <span>{displayMeasurement(selectedSewingMeasurement.firstCm/100)} / {displayMeasurement(selectedSewingMeasurement.secondCm/100)}</span>
+      <span>{selectedSewingMeasurement.signedDifferenceCm>=0?'+':''}{displayMeasurement(selectedSewingMeasurement.signedDifferenceCm/100)} · {selectedSewingMeasurement.differencePercent.toFixed(1)}%</span>
     </div>}
     {measuring&&<section className="cc-native-pom-inspector" aria-label="Native Points of Measure" data-native-pom-editor="true">
       <strong>POINTS OF MEASURE <small>{pomRows.length}</small></strong>
@@ -1719,13 +2870,15 @@ export default function ClothCraftBoardV2({
     {/* Selection metadata lives in the 2D Pattern Display tool menu, never
         in a panel-covering popup over the working pattern. */}
     <div className="cc-v2-orientation cc-v2-board-orientation" role="group" aria-label="2D board view controls">
+      {onTogglePatternStudio&&<button type="button" className="cc-pattern-studio-glass-arrow" aria-label={patternStudioActive?'Return to main studio':'Open Pattern Studio'} title={patternStudioActive?'Return to main studio':'Open Pattern Studio'} aria-pressed={patternStudioActive} onClick={onTogglePatternStudio}>{patternStudioActive?'›':'‹'}</button>}
       <strong title="Metric 2D drawing orientation">2D</strong>
       <button type="button" aria-label="Front" title="Front drafting view" aria-pressed={viewPreset==='FRONT'} className={viewPreset==='FRONT'?'active':''} onClick={()=>setViewPreset('FRONT')}>FR</button>
       <button type="button" aria-label="Grid" title="Neutral grid drafting view" aria-pressed={viewPreset==='GRID'} className={viewPreset==='GRID'?'active':''} onClick={()=>setViewPreset('GRID')}>GR</button>
       <span className="cc-board-orientation-divider" aria-hidden="true"/>
       <button type="button" aria-label="Frame all" title="Frame all patterns and full avatar" onClick={() => focus()}>F</button>
       <button type="button" aria-label="Focus selected" title="Focus selected pattern" onClick={() => focus(true)}>S</button>
-      <button type="button" aria-label="Precision drafting" title="Enlarge pattern drawing, remove avatar and reduce clutter" aria-pressed={precisionDrafting} className={precisionDrafting?'active':''} onClick={()=>{setPrecisionDrafting(value=>!value);setAutoFocusDrafting(!precisionDrafting);setEditPatternHintDismissed(true)}}>CAD</button>
+      <button type="button" aria-label="Precision drafting" title="Enlarge pattern drawing and reduce drafting clutter" aria-pressed={precisionDrafting} className={precisionDrafting?'active':''} onClick={()=>{setPrecisionDrafting(value=>!value);setAutoFocusDrafting(!precisionDrafting);setEditPatternHintDismissed(true)}}>CAD</button>
+      <button type="button" aria-label="Show 2D avatar silhouette" title={avatarAvailable?'Show or hide the avatar silhouette in the 2D drafting view':'Load a 3D avatar to show its 2D silhouette'} aria-pressed={avatarVisible} disabled={!avatarAvailable || (!onToggleSilhouette&&!onToggleAvatar)} className={avatarVisible?'active':''} onClick={()=>{if(avatarVisible)onToggleSilhouette?.(false);else {onToggleAvatar?.(true);onToggleSilhouette?.(true);setViewPreset('FRONT');setAutoFocusDrafting(false);focus(false,true)}}}>BODY</button>
       <button type="button" aria-label="Show contextual pattern nodes" title="Show compact geometry knots on non-selected patterns while editing" aria-pressed={contextNodesInEdit} className={contextNodesInEdit?'active':''} onClick={()=>setContextNodesInEdit(value=>!value)}>PTS</button>
       <button type="button" aria-label="Center axis" title="Center on the 2D front axis" onClick={() => setView(v=>[-v[2]/2,avatarAnchorY-v[3]/2,v[2],v[3]])}>C</button>
     </div>
@@ -1740,20 +2893,207 @@ export default function ClothCraftBoardV2({
         Graphic measurements {showGraphicMeasurements?'ON':'OFF'}
       </button>
     </div>}
-    <svg ref={svg} viewBox={view.join(' ')} preserveAspectRatio="xMidYMid meet"
-      style={{background: PATTERN_VISUAL.canvas,cursor:nativeCursor||undefined}}
+    {['vector-pen','direct-select','anchor-point','split','remove-anchor'].includes(tool2d)&&<div data-context-anchor-tools="liquid-glass"
+      className="cc-vector-anchor-actions cc-anchor-liquid-glass" role="toolbar"
+      aria-label="2D VectorCraft anchor tools"
+      style={anchorToolbarPosition?{left:anchorToolbarPosition.x,top:anchorToolbarPosition.y,right:'auto'}:undefined}>
+      <button type="button" className="cc-anchor-toolbar-grip" aria-label="Move anchor toolbar"
+        title="Drag to reposition this toolbar" onPointerDown={dragAnchorToolbar}
+        onPointerMove={moveAnchorToolbar}
+        onPointerUp={event=>{anchorToolbarDrag.current=null;try{event.currentTarget.releasePointerCapture(event.pointerId)}catch{}}}
+        onPointerCancel={()=>{anchorToolbarDrag.current=null}}>⠿</button>
+      <button type="button" aria-label="Add anchor point" title="Select Add Anchor · click exactly where on the line · +"
+        aria-pressed={tool2d==='split'} disabled={busy}
+        onClick={()=>window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',{detail:{tool:'split'}}))}>+<span> Add</span></button>
+      <button type="button" aria-label="Remove anchor point" title="Select Delete Anchor · click the point to remove · −"
+        aria-pressed={tool2d==='remove-anchor'} disabled={busy}
+        onClick={()=>window.dispatchEvent(new CustomEvent('exo-clothcraft-select-2d-tool',{detail:{tool:'remove-anchor'}}))}>−<span> Remove</span></button>
+      {editingDraft&&<button type="button" aria-label="Convert anchor to curve"
+        title="Convert to smooth curve · ⌘C" aria-pressed={vectorCurveMode}
+        onClick={convertDraftCurve}>⌁<span> Curve</span></button>}
+      {editingDraft&&<button type="button" aria-label="Finish Pen path" title="Commit pattern to native Rust · Enter"
+        disabled={busy||draft.length<3} onClick={finishDrawing}>✓<span> Finish</span></button>}
+    </div>}
+    <svg ref={svg} viewBox={view.join(' ')} preserveAspectRatio="xMidYMid meet" tabIndex={0}
+      style={{background:canvasColor,cursor:nativeCursor||undefined}}
       aria-label="Metric 2D pattern board with linked sewing and measurements" data-native-tool={tool2d}
+      onDragOver={event=>{
+        if(referenceImageDragAvailable(event.dataTransfer)){
+          event.preventDefault()
+          event.dataTransfer.dropEffect='copy'
+        }
+      }}
+      onDrop={event=>{
+        const source=droppedReferenceImage(event.dataTransfer)
+        if(!source)return
+        event.preventDefault()
+        event.stopPropagation()
+        const matrix=svg.current?.getScreenCTM()?.inverse()
+        if(!matrix)return
+        const cursor=svg.current.createSVGPoint()
+        cursor.x=event.clientX
+        cursor.y=event.clientY
+        const at=cursor.matrixTransform(matrix)
+        void reference.importImage(source,{viewBounds:view,unitsPerCm:.01,dropPoint:{x:at.x,y:at.y}})
+      }}
+      data-shift-anchor-active={String(temporaryShiftPen.current)} data-vector-draft-count={draft.length}
+      data-option-anchor-active={String(temporaryAnchorBorrow.current?.key==='Alt')}
       onPointerDownCapture={event=>{
+        event.currentTarget.focus({preventScroll:true})
+        // Let the selected reference photo own its pointer gesture. Starting
+        // the empty-paper marquee here prevents the photo's move handler
+        // from ever receiving pointerdown, even on a direct SVG photo hit.
+        if(mode==='edit'&&tool2d==='select'&&
+          event.target.closest?.('[data-2d-reference-hit],[data-reference-resize-handle]'))return
+        // Resolve a selected native panel before any overlay or root-canvas
+        // pointer handler can turn a group drag into viewport panning.
+        // Initiate once, on capture; paper's bubble handler observes the
+        // owned gesture and cannot replace it with a single-panel drag.
+        if(transform2d&&!busy&&event.button===0&&!event.shiftKey&&!drag.current&&
+          patternMultiSelection.length>1){
+          const xy=point(event),id=xy&&panelAt(xy)
+          const reserved=event.target.closest?.('[data-control-point],[data-2d-rotate],'+
+            '[data-2d-graphic-item],[data-2d-graphic-hit],[data-graphic-transform-box],'+
+            '[data-graphic-resize-handle]')
+          if(id&&patternMultiSelection.includes(id)&&!reserved){
+            const panel=panels.find(row=>row.panel.id===id)?.panel
+            if(panel){start(event,panel);return}
+          }
+        }
+        // CLO Edit Pattern Shift-drag marquee: enclose physical vertices,
+        // never fabricate extra draft geometry or move the garment itself.
+        // A direct click on a vertex/edge is reserved for Shift-add below.
+        if(mode==='edit'&&tool2d==='point'&&event.shiftKey&&event.button===0&&
+          !event.target.closest?.('[data-control-point],[data-2d-edge-hit]')){
+          const xy=point(event)
+          if(xy){
+            event.preventDefault();event.stopPropagation()
+            boxSelectDrag.current={pointerId:event.pointerId,start:xy,end:xy}
+            setBoxSelectPreview({start:xy,end:xy})
+            event.currentTarget.setPointerCapture(event.pointerId)
+            return
+          }
+        }
+        if(mode==='edit'&&['select','shape-builder'].includes(tool2d)&&event.button===0){
+          const xy=point(event)
+          if(xy&&!panelAt(xy)&&!event.target.closest?.('[data-2d-graphic-hit],[data-2d-marquee-move],[data-control-point]')){
+            event.preventDefault();event.stopPropagation()
+            patternMarqueeDrag.current={pointerId:event.pointerId,start:xy,end:xy,additive:event.shiftKey}
+            setPatternMarquee({start:xy,end:xy})
+            event.currentTarget.setPointerCapture(event.pointerId)
+            return
+          }
+        }
+        if(tool2d==='shape-builder'&&mode==='edit'&&event.button===0){
+          event.stopPropagation();event.preventDefault()
+          shapeBuilderIgnoreClick.current=false
+          const location=point(event),id=location&&panelAt(location)
+          shapeBuilderDrag.current={pointerId:event.pointerId,first:id,hovered:id,
+            moved:false,operation:event.altKey?'difference':event.shiftKey?'intersection':'union'}
+          if(id)setShapeBuilderHovered(id)
+          try{event.currentTarget.setPointerCapture(event.pointerId)}catch{}
+          return
+        }
+        if(tool2d==='anchor-point'&&editingDraft&&event.button===0&&
+          !event.target.closest?.('[data-vector-pen-anchor-hit],[data-vector-pen-handle]')){
+          const here=point(event)
+          const hit=here&&penSegmentAt(draft,vectorTangents,here,Math.max(10*screenUnit,.003))
+          if(hit){
+            event.preventDefault();event.stopPropagation()
+            vectorDrag.current={pointerId:event.pointerId,reshapeDraft:true,
+              index:hit.index,t:hit.t,pointerStart:here,
+              startPoints:draft.map(p=>[...p]),startTangents:vectorTangents.map(p=>[...p])}
+            setVectorSelectedAnchor(null)
+            svg.current?.setPointerCapture(event.pointerId)
+            return
+          }
+        }
+        // Hit test the authored draft geometrically before an unrelated
+        // material-paper path consumes pointer input. A draft may overlap a
+        // native garment; VectorCraft Add Anchor must still hit its own line.
+        if(tool2d==='split'&&editingDraft&&splitDraftAt(event)){
+          event.preventDefault();event.stopPropagation();return
+        }
+        if(event.target.closest?.('[data-vector-pen-anchor-hit],[data-vector-pen-handle],[data-vector-draft-split-hit]'))return
         markCanvas(event)
         beginGuideHalfCurve(event)
       }}
       onPointerMoveCapture={event=>{
+        if(patternMarqueeDrag.current?.pointerId===event.pointerId){
+          const xy=point(event)
+          if(xy){patternMarqueeDrag.current.end=xy;setPatternMarquee({start:patternMarqueeDrag.current.start,end:xy})}
+          return
+        }
+        if(tool2d==='shape-builder'&&mode==='edit'){
+          const position=point(event),id=position&&panelAt(position)
+          setShapeBuilderHovered(previous=>previous===id?previous:id)
+          const gesture=shapeBuilderDrag.current
+          if(gesture&&gesture.pointerId===event.pointerId&&id&&id!==gesture.first){
+            gesture.hovered=id;gesture.moved=true
+          }
+          return
+        }
+        // The Add Anchor cursor announces exactly which real Bézier segment
+        // will receive the inserted point. Never highlight empty canvas.
+        if(tool2d==='split'){
+          const here=point(event)
+          let highlight=null
+          if(here&&editingDraft){
+            const hit=penSegmentAt(draft,vectorTangents,here,Math.max(10*screenUnit,.003))
+            if(hit&&!draft.some(anchor=>Math.hypot(anchor[0]-hit.point[0],anchor[1]-hit.point[1])<7*screenUnit))
+              highlight={kind:'draft',p:hit.point}
+          }else if(here){
+            const edgeHit=event.target.closest?.('[data-2d-edge-hit]')
+            const identity=edgeHit?.getAttribute('data-2d-edge-hit')
+            const entry=panels.find(item=>identity?.startsWith(item.panel.id+':'))
+            const edge=entry&&identity.slice(entry.panel.id.length+1)
+            if(entry&&entry.panel.polygon?.edges?.includes(edge)){
+              const angle=(entry.panel.layout_rotation_degrees||0)*Math.PI/180
+              const dx=here[0]-entry.range.layout[0],dy=here[1]-entry.range.layout[1]
+              const local=[dx*Math.cos(angle)+dy*Math.sin(angle),-dx*Math.sin(angle)+dy*Math.cos(angle)]
+              const closest=closestFreeCurveParameter(entry.panel.polygon,edge,local)
+              if(closest&&closest.distance<=Math.max(.003,10*screenUnit)&&closest.t>.005&&closest.t<.995){
+                const snapped=evaluateFreeCurve(entry.panel.polygon,edge,closest.t)
+                if(snapped)highlight={kind:'native',p:transform(entry.panel,entry.range,snapped),panel:entry.panel.id,edge}
+              }
+            }
+          }
+          setHoveredAddAnchor(highlight)
+        }else if(hoveredAddAnchor)setHoveredAddAnchor(null)
         const guide=findGuideUnderPointer(event)
         setHoveredGuideId(guide?.id||null)
-        setHoveredGuideGeometry(guide&&['chest','belly'].includes(guide.kind)?guide:null)
+        setHoveredGuideGeometry(guide)
+        const graphicHit=event.target?.closest?.('[data-2d-graphic-hit]')
+        setHoveredGraphicId(graphicHit?.getAttribute('data-2d-graphic-hit')||null)
       }}
-      onPointerLeave={()=>{setHoveredGuideId(null);setHoveredGuideGeometry(null)}}
+      onPointerLeave={()=>{setHoveredGuideId(null);setHoveredGuideGeometry(null);setHoveredGraphicId(null);setShapeBuilderHovered(null);setHoveredAddAnchor(null);setHoveredNativeAnchor(null)}}
       onClickCapture={e=>{
+        if(patternMarqueeIgnoreClick.current){patternMarqueeIgnoreClick.current=false;e.stopPropagation();e.preventDefault();return}
+        // SVG pointer capture and overlays can retarget a blank-board click.
+        // Resolve the physical paper under the click itself, instead of relying
+        // on event.target===svg or a marquee's pointerup reaching this root.
+        // This runs only in Transform Pattern, never for actual pattern/graphic
+        // hits, Shift-add, drawing tools or canvas drags.
+        if(transform2d&&!busy&&!e.shiftKey){
+          const p=point(e)
+          const graphicHit=e.target.closest?.('[data-2d-graphic-hit],[data-2d-graphic-item],[data-graphic-transform-box],[data-graphic-resize-handle],[data-2d-reference-image]')
+          if(p&&!panelAt(p)&&!graphicHit){
+            clearTransformPatternSelection()
+            e.stopPropagation()
+            return
+          }
+        }
+        if(mode==='edit'&&tool2d==='select'&&e.shiftKey){
+          const p=point(e),id=p&&panelAt(p)
+          if(id){e.stopPropagation();e.preventDefault();return}
+        }
+        if(tool2d==='shape-builder'&&mode==='edit'){
+          e.stopPropagation();e.preventDefault()
+          if(shapeBuilderIgnoreClick.current){shapeBuilderIgnoreClick.current=false;return}
+          const p=point(e),id=p&&panelAt(p)
+          if(id)shapeBuilderClick(id,e)
+          return
+        }
         if(selectGuideUnderPointer(e))return
         if(busy||tool2d!=='pleat'||mode!=='edit')return
         const p=point(e),panelId=p&&panelAt(p)
@@ -1761,26 +3101,122 @@ export default function ClothCraftBoardV2({
         if(panelId){pick({panel:panelId});window.dispatchEvent(new CustomEvent('exo-clothcraft-pleat-target',{detail:{panelId}}))}
       }}
       onDoubleClickCapture={e=>{
-        if(tool2d!=='select'||mode!=='edit')return
+        if(mode!=='edit')return
+        if(e.target?.closest?.('[data-parked-pen-anchor]')){
+          const anchor=e.target.closest('[data-parked-pen-anchor]')
+          const pathId=Number(anchor.getAttribute('data-parked-pen-path'))
+          const index=Number(anchor.getAttribute('data-parked-pen-anchor'))
+          if(tool2d==='direct-select'&&resumeParkedPath(pathId,index)){
+            e.preventDefault();e.stopPropagation()
+            showAnchorEditor(e,'draft',null,index===0?0:parkedPenPaths.find(p=>p.id===pathId)?.points.length-1)
+          }
+          return
+        }
+        // Anchor Point converts on pointer click/drag; a dblclick must not
+        // submit a second, contradictory conversion for the same corner.
+        if(tool2d==='anchor-point')return
+        // A draft Pen vertex can overlap an existing native pattern. The
+        // native-corner fallback runs on the root SVG, so it must give the
+        // unfinished Pen contour first refusal. Pointer capture can also
+        // retarget the double-click to the SVG instead of the draft circle.
+        if(tool2d==='direct-select'&&editingDraft){
+          const here=point(e)
+          let nearest=-1,distance=Infinity
+          if(here)draft.forEach((candidate,index)=>{
+            const d=Math.hypot(candidate[0]-here[0],candidate[1]-here[1])
+            if(d<distance){distance=d;nearest=index}
+          })
+          if(nearest>=0&&distance<=Math.max(.004,11*screenUnit)){
+            e.preventDefault();e.stopPropagation()
+            setVectorSelectedAnchor(nearest)
+            showAnchorEditor(e,'draft',null,nearest)
+            return
+          }
+        }
+        // Material vertex dragging captures the pointer on the ROOT SVG, so
+        // browsers can deliver dblclick to the SVG rather than its original
+        // circle. Resolve the nearest real native anchor by metric position.
+        // This works identically with the Move, Point and Curve tools.
+        if(['select','point','direct-select','curve'].includes(tool2d)){
+          const here=point(e)
+          const targetPanel=e.target?.closest?.('[data-panel-id][data-pattern-anchor-index]')?.getAttribute('data-panel-id')
+          const hit=here&&nativePatternAnchorAt(panels,here,Math.max(.01,13*screenUnit),
+            {preferredPanelId:targetPanel||selection?.panel})
+          if(hit&&!busy){
+            showNativeAnchorEditor(e,hit.panel,hit.index)
+            return
+          }
+        }
+        if(tool2d!=='select')return
         const guide=findGuideUnderPointer(e)
         if(guide){e.stopPropagation();void createNativeLineFromGuide(guide);setSelectedGuide(null)}
       }}
       onClick={e => {if (!busy && (isDrawing || measuring)) e.stopPropagation()}}
       onPointerMove={e=>{
+        if(moveCornerDrag(e))return
+        if(groupMoveDrag.current?.pointerId===e.pointerId){
+          const gesture=groupMoveDrag.current
+          const delta=localCloGroupDelta(e,gesture)
+          if(delta&&Math.hypot(...delta)>=1e-7){
+            const result=moveCloNativePolygonPoints20261025(s.template,{
+              panelId:gesture.panelId,indices:gesture.indices,delta
+            })
+            if(result.ok){
+              const proposed=result.template.panels.find(panel=>panel.id===gesture.panelId)
+              if(proposed)setHandlePreview({panelId:gesture.panelId,
+                anchorIndex:gesture.indices[0],polygon:proposed.polygon,groupMove:true})
+            }
+          }
+          return
+        }
+        if(boxSelectDrag.current?.pointerId===e.pointerId){
+          const xy=point(e)
+          if(xy){
+            boxSelectDrag.current.end=xy
+            setBoxSelectPreview({start:boxSelectDrag.current.start,end:xy})
+          }
+          return
+        }
         if(moveGuideHalfCurve(e))return
         if(moveFoamDrag(e))return
         if(vectorDrag.current?.pointerId===e.pointerId){
           const drag=vectorDrag.current,p=point(e)
           if(p){
-            if(drag.pencil)setPencilSamples(old=>old.length&&Math.hypot(p[0]-old.at(-1)[0],p[1]-old.at(-1)[1])<.001?old:[...old,p])
-            else if(tool2d==='vector-pen'){
-              const delta=[p[0]-drag.start[0],p[1]-drag.start[1]]
-              const tangent=e.shiftKey?(()=>{const radius=Math.hypot(...delta),angle=Math.round(Math.atan2(delta[1],delta[0])/(Math.PI/4))*Math.PI/4;return [radius*Math.cos(angle),radius*Math.sin(angle)]})():delta
-              setVectorTangents(old=>old.map((v,i)=>i===drag.index&&Math.hypot(...delta)>.002?tangent:v))
+            // First Pen anchor drags also update the provisional next edge's
+            // dimension, before a second anchor has been placed.
+            if(tool2d==='vector-pen')setVectorCursor(p)
+            if(drag.reshapeDraft){
+              const delta=p.map((v,i)=>v-drag.pointerStart[i])
+              const reshaped=reshapePenDraftSegment(drag.startPoints,drag.startTangents,
+                drag.index,drag.t,delta,{perpendicular:e.shiftKey})
+              if(reshaped)setVectorTangents(reshaped.tangents)
+            }else if(drag.pencil)setPencilSamples(old=>old.length&&Math.hypot(p[0]-old.at(-1)[0],p[1]-old.at(-1)[1])<.001?old:[...old,p])
+            else if(drag.moveDraft){
+              // VectorCraft direct selection: move just the chosen point in
+              // metre-space; neighboring points and tangents are unchanged.
+              const delta=[p[0]-drag.pointerStart[0],p[1]-drag.pointerStart[1]]
+              if(e.shiftKey){
+                if(Math.abs(delta[0])>=Math.abs(delta[1]))delta[1]=0
+                else delta[0]=0
+              }
+              const position=drag.start.map((value,index)=>value+delta[index])
+              setDraft(old=>old.map((value,index)=>index===drag.index?position:value))
+            }else if(tool2d==='vector-pen'||drag.convert||drag.handleSide!==undefined){
+                // Option is the temporary Convert Anchor shortcut. While
+                // held, its Alt flag must NOT zero out the Bézier tangent.
+                const tangent=penTangent(drag.start,p,{
+                  shift:e.shiftKey,alt:e.altKey&&temporaryAnchorBorrow.current?.key!=='Alt',
+                })
+              if(drag.convert&&Math.hypot(p[0]-drag.start[0],p[1]-drag.start[1])>2*screenUnit)
+                drag.moved=true
+              if(drag.convert&&!drag.moved)return
+              setVectorTangents(old=>old.map((v,i)=>i===drag.index&&drag.handleSide===-1?
+                tangent.map(value=>-value):i===drag.index?tangent:v))
             }
           }
           return
         }
+        if(tool2d==='vector-pen'&&draft.length&&!penPaused)setVectorCursor(point(e))
         if(drag.current?.anchor?.startsWith?.('ft:')){
           move(e)
           return
@@ -1789,15 +3225,83 @@ export default function ClothCraftBoardV2({
         if(tapeDrag.current){const p=point(e);if(p)setTape(old=>old.map((v,i)=>i===tapeDrag.current.index?p:v));return}
         move(e)
       }} onPointerUp={e=>{
+        if(endCornerDrag(e))return
+        if(patternMarqueeDrag.current?.pointerId===e.pointerId){
+          const gesture=patternMarqueeDrag.current
+          patternMarqueeDrag.current=null
+          setPatternMarquee(null)
+          try{svg.current?.releasePointerCapture(e.pointerId)}catch{}
+          completePatternMarquee(gesture,e)
+          return
+        }
+        if(tool2d==='shape-builder'&&mode==='edit'){
+          const gesture=shapeBuilderDrag.current
+          if(gesture?.pointerId===e.pointerId){
+            shapeBuilderDrag.current=null
+            try{svg.current?.releasePointerCapture(e.pointerId)}catch{}
+            if(gesture.moved&&gesture.first&&gesture.hovered!==gesture.first){
+              shapeBuilderIgnoreClick.current=true
+              if(shapeBuilderLineValid)void commitShapeBuilderLine(gesture.first)
+              else void applyShapeBuilder(gesture.first,gesture.hovered,gesture.operation)
+            }
+          }
+          return
+        }
+        if(groupMoveDrag.current?.pointerId===e.pointerId){
+          const gesture=groupMoveDrag.current
+          groupMoveDrag.current=null
+          const delta=localCloGroupDelta(e,gesture)
+          try{svg.current?.releasePointerCapture(e.pointerId)}catch{}
+          setHandlePreview(null)
+          if(delta&&Math.hypot(...delta)>=1e-7){
+            const result=moveCloNativePolygonPoints20261025(s.template,{
+              panelId:gesture.panelId,indices:gesture.indices,delta
+            })
+            if(!result.ok){setPrecisionEditStatus(result.reason);return}
+            const panel=s.template.panels.find(item=>item.id===gesture.panelId)
+            const proposal=result.template.panels.find(item=>item.id===gesture.panelId)
+            if(panel&&proposal)void applyOrStagePatternCurve(panel,proposal.polygon,
+              panel.polygon.edges[gesture.indices[0]])
+          }
+          return
+        }
+        if(boxSelectDrag.current?.pointerId===e.pointerId){
+          const drag=boxSelectDrag.current
+          boxSelectDrag.current=null
+          setBoxSelectPreview(null)
+          try{svg.current?.releasePointerCapture(e.pointerId)}catch{}
+          const lo=[Math.min(drag.start[0],drag.end[0]),Math.min(drag.start[1],drag.end[1])]
+          const hi=[Math.max(drag.start[0],drag.end[0]),Math.max(drag.start[1],drag.end[1])]
+          if(Math.hypot(hi[0]-lo[0],hi[1]-lo[1])<4*screenUnit)return
+          const candidates=panels.map(({panel,range})=>({
+            panel:panel.id,vertices:(panel.polygon?.points||[]).flatMap((uv,index)=>{
+              const xy=transform(panel,range,uv)
+              return xy[0]>=lo[0]&&xy[0]<=hi[0]&&xy[1]>=lo[1]&&xy[1]<=hi[1]?[index]:[]
+            })
+          })).filter(row=>row.vertices.length)
+          // Multi-edit is deliberately single-panel; silently applying one
+          // displacement to different Rust templates would be dangerous.
+          const selected=candidates.find(row=>row.panel===selection?.panel)||candidates[0]
+          if(selected)setMultiEdit(value=>({panel:selected.panel,
+            points:[...new Set([...(e.shiftKey&&value.panel===selected.panel?value.points:[]),...selected.vertices])].sort((a,b)=>a-b)}))
+          return
+        }
         if(finishGuideHalfCurve(e))return
         if(endFoamDrag(e))return
         if(vectorDrag.current?.pointerId===e.pointerId){
           const drag=vectorDrag.current
           vectorDrag.current=null
+          if(drag.convert&&!drag.moved&&drag.wasCurved){
+            // Clicking an existing curved draft anchor restores a corner;
+            // its coordinates and the other Pen vertices stay untouched.
+            setVectorTangents(old=>old.map((v,i)=>i===drag.index?[0,0]:v))
+          }
           if(drag.pencil){
             // Pencil fitting is applied on release; the source sample stream
             // stays temporary and does not pollute the garment's native data.
             const p=point(e),raw=p?[...pencilSamples,p]:pencilSamples
+            const measured=sampledPenLineMetrics(raw)
+            setCompletedPencilMeasure(measured?{...measured,endpoint:raw.at(-1)}:null)
             const toleranceM=Math.max(.0005,view[2]/1000)
             const closed=raw.length>=4&&Math.hypot(raw[0][0]-raw.at(-1)[0],raw[0][1]-raw.at(-1)[1])<=Math.max(.008,view[2]/180)
             const fitted=fitPencilStroke(raw.map(([x,y])=>({x,y})),{toleranceM,closed})
@@ -1811,8 +3315,15 @@ export default function ClothCraftBoardV2({
                 if(previous)return [p[0]-previous.x,p[1]-previous.y]
                 return [0,0]
               })
-              onPolygon(points,tangents)
-            }
+              if(pencilMirrorMode){
+                const reflected=mirrorHalfPencilDraft(points,tangents)
+                if(reflected){
+                  onPolygon(reflected.points,reflected.tangents)
+                  if(measured)setCompletedPencilMeasure({...measured,length:measured.length*2,mirror:true,endpoint:raw.at(-1)})
+                }
+                else setPencilMirrorStatus('Cannot mirror this stroke. Draw a half outline with different start and end points on the centerline.')
+              }else onPolygon(points,tangents)
+            }else if(pencilMirrorMode)setPencilMirrorStatus('Draw a longer half outline to create a mirrored pattern.')
             setPencilSamples([])
           }
           try{svg.current?.releasePointerCapture(e.pointerId)}catch{}
@@ -1821,12 +3332,19 @@ export default function ClothCraftBoardV2({
         if(endGraphicDrag(e)){try{svg.current?.releasePointerCapture(e.pointerId)}catch{};return}
         if(tapeDrag.current){tapeDrag.current=null;try{svg.current?.releasePointerCapture(e.pointerId)}catch{};return}
         up(e)
-      }} onPointerCancel={e => {finishGuideHalfCurve(e,true);foamDrag.current=null;setFoamPreview(null);vectorDrag.current=null;setPencilSamples([]);graphicDrag.current=null;setGraphicPreview(null);tapeDrag.current=null;cancelPatternGesture()}}
+      }} onPointerCancel={e => {if(cornerDrag.current?.pointerId===e.pointerId){cornerDrag.current=null;setHandlePreview(null);setAnchorEditPopup(null)}patternMarqueeDrag.current=null;setPatternMarquee(null);groupMoveDrag.current=null;shapeBuilderDrag.current=null;setShapeBuilderHovered(null);boxSelectDrag.current=null;setBoxSelectPreview(null);finishGuideHalfCurve(e,true);foamDrag.current=null;setFoamPreview(null);vectorDrag.current=null;setPencilSamples([]);graphicDrag.current=null;setGraphicPreview(null);tapeDrag.current=null;cancelPatternGesture()}}
       onLostPointerCapture={e=>{if(drag.current?.pointerId===e.pointerId)cancelPatternGesture()}}
       onContextMenu={e => {
         e.preventDefault()
+        if(tool2d==='vector-pencil'||tool2d==='vector-pen'){
+          e.stopPropagation()
+          window.dispatchEvent(new CustomEvent('exo-clothcraft-pencil-mirror-menu-request',{
+            detail:{clientX:e.clientX,clientY:e.clientY}
+          }))
+          return
+        }
         const element = e.target.closest?.('[data-edit-seam-guide], [data-edge], [data-panel]')
-        const seamId=element?.getAttribute('data-edit-seam-guide')
+        const seamId=element?.getAttribute('data-edit-seam-guide') || e.target.closest?.('[data-sewing-guide-index]')?.getAttribute('data-guide-seam-id')
         const edgeKey=element?.getAttribute('data-edge')
         const panelId=element?.getAttribute('data-panel')
         const [edgePanel, ...edgeParts] = edgeKey ? edgeKey.split(':') : []
@@ -1841,6 +3359,28 @@ export default function ClothCraftBoardV2({
       onPointerDown={e => {
         if (isDrawing || measuring) return
         if (e.button !== 0) return
+        // SVG child overlays (guides, selected marquee boxes, cutlines) can
+        // swallow a panel's own pointerdown. Resolve the real paper beneath
+        // the pointer and begin exactly the same gesture as a paper click.
+        // This is essential after a multi-marquee selection: otherwise the
+        // root overwrites a live group drag with a viewport-pan gesture.
+        if(transform2d&&!busy&&!e.shiftKey&&!drag.current){
+          const xy=point(e),hit=xy&&panelAt(xy)
+          const excluded=e.target.closest?.('[data-control-point],[data-2d-rotate],'+
+            '[data-2d-graphic-item],[data-2d-graphic-hit],[data-graphic-transform-box],'+
+            '[data-graphic-resize-handle],[data-2d-reference-image]')
+          if(hit&&!excluded&&patternMultiSelection.length>1&&patternMultiSelection.includes(hit)){
+            const entry=panels.find(item=>item.panel.id===hit)
+            if(entry){start(e,entry.panel);return}
+          }
+        }
+        if(drag.current)return
+        // A click on any other 2D surface, including drafting paper, ends
+        // artwork selection. Graphic hits and resize handles own their pointer
+        // downs; normal pattern selection continues through its own handlers.
+        if(tool2d==='select'&&!busy&&!e.target.closest?.(
+          '[data-2d-graphic-item],[data-2d-graphic-hit],[data-graphic-transform-box],[data-graphic-resize-handle]'
+        ))onSelectGraphic(null)
         const p = point(e)
         if (!p) return
         drag.current = {pan: true, background: e.target===svg.current, start: p}
@@ -1850,17 +3390,28 @@ export default function ClothCraftBoardV2({
       <defs>
         <pattern id={`${uid}-minor`} width={gridMinorStep} height={gridMinorStep} patternUnits="userSpaceOnUse">
           <path d={`M ${gridMinorStep} 0 L 0 0 0 ${gridMinorStep}`} fill="none"
-            stroke={PATTERN_VISUAL.gridMinor} strokeWidth=".45" vectorEffect="non-scaling-stroke"/>
+            stroke={adaptiveCad?.grid||(studioPreferences?.twoDGridColor==='auto'||!studioPreferences?.twoDGridColor?PATTERN_VISUAL.gridMinor:markerColor)} strokeWidth=".45" vectorEffect="non-scaling-stroke"/>
         </pattern>
         <pattern id={`${uid}-major`} width={gridMajorStep} height={gridMajorStep} patternUnits="userSpaceOnUse">
           <path d={`M ${gridMajorStep} 0 L 0 0 0 ${gridMajorStep}`} fill="none"
-            stroke={PATTERN_VISUAL.gridMajor} strokeWidth=".65" vectorEffect="non-scaling-stroke"/>
+            stroke={adaptiveCad?.grid||(studioPreferences?.twoDGridColor==='auto'||!studioPreferences?.twoDGridColor?PATTERN_VISUAL.gridMajor:markerColor)} strokeWidth=".65" vectorEffect="non-scaling-stroke"/>
+        </pattern>
+        <pattern id={`${uid}-dots`} width={dotStep} height={dotStep} patternUnits="userSpaceOnUse">
+          <circle cx={dotStep/2} cy={dotStep/2} r={screenUnit*.86*dotScale} fill={displayGridColor}/>
+        </pattern>
+        <pattern id={`${uid}-dots-major`} width={dotStep*5} height={dotStep*5} patternUnits="userSpaceOnUse">
+          <circle cx={dotStep*2.5} cy={dotStep*2.5} r={screenUnit*1.45*dotScale} fill={displayGridColor}/>
         </pattern>
       </defs>
-      <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={PATTERN_VISUAL.canvas} pointerEvents="none"/>
-      {showGrid&&<rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-minor)`} opacity={viewPreset==='GRID'?1:.6} pointerEvents="none"/>}
-      {showGrid&&<rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-major)`} opacity={viewPreset==='GRID'?1:.65} pointerEvents="none"/>}
+      <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={canvasColor} pointerEvents="none"/>
+      {showGrid&&dottedGrid&&<g opacity={markerOpacity} pointerEvents="none">
+        <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-dots)`}/>
+        <rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-dots-major)`}/>
+      </g>}
+      {showGrid&&markerStyle==='grid'&&<rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-minor)`} opacity={(viewPreset==='GRID'?1:.6)*markerOpacity} pointerEvents="none"/>}
+      {showGrid&&markerStyle==='grid'&&<rect x={view[0]-view[2]} y={view[1]-view[3]} width={view[2]*3} height={view[3]*3} fill={`url(#${uid}-major)`} opacity={(viewPreset==='GRID'?1:.65)*markerOpacity} pointerEvents="none"/>}
       <PatternReferenceImageLayer image={reference.image} setImage={reference.setImage} unitsPerCm={.01}
+        screenUnit={screenUnit}
         interactive={!busy && tool2d === 'select' && mode === 'edit'}/>
       {!precisionDrafting&&<line x1={view[0]-view[2]} x2={view[0]+view[2]*2} y1=".76" y2=".76" stroke="#9aaeb3" strokeWidth=".6" opacity=".5" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
       {!precisionDrafting&&<line x1="0" x2="0" y1={view[1]-view[3]} y2={view[1]+view[3]*2} stroke="#424b4f" strokeWidth=".8" opacity=".4" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
@@ -1872,35 +3423,82 @@ export default function ClothCraftBoardV2({
         <ClothCraftStudioSilhouette avatar={s.avatar}
           onPick={!busy&&!['pen','line','sew'].includes(mode)?onAvatarPick:undefined}/>
       </g>}
-      <g transform={`translate(${offset[0]} ${offset[1]})`}>
+      <g data-clothcraft-metric-layer="true" transform={`translate(${offset[0]} ${offset[1]})`}>
+      {!(referenceModeActive||(!busy&&mode==='edit'&&['select','direct-select'].includes(tool2d)))&&<g transform="scale(.001)" data-reference-photo-millimeter-layer="true">
+        <PatternReferencesSvgLayer20261025 references={patternReferences} onChange={onUpdatePatternReferences} rootUnitMm={1000}
+          interactive={false}/>
+      </g>}
       {panels.map(({panel, range, color, points}, panelIndex) => {
-        const selected = selection !== undefined ? selection?.panel === panel.id : active?.panel === panel.id
-        const currentPreview=preview?.panelId===panel.id ? preview : null
+        const selected = patternMultiSelection.length>0?patternMultiSelection.includes(panel.id):
+          (selection !== undefined ? selection?.panel === panel.id : active?.panel === panel.id)
+        const currentPreview=preview?.panelId===panel.id ||
+          (preview?.kind==='move'&&preview?.groupIds?.includes(panel.id)) ? preview : null
         const livePoints=points.map(p=>previewPoint(p,currentPreview))
-        const nativePaperPath=trianglePath((s.triangles || []).slice(...range.triangles),boardUV)
         const editablePreview=handlePreview?.panelId===panel.id&&handlePreview.polygon
           ||pendingCurveCommit?.panelId===panel.id&&pendingCurveCommit.polygon||null
-        const shapePath=editablePreview?proposedPaperOutline(panel,range,editablePreview,currentPreview)||nativePaperPath:nativePaperPath
+        // Never render native mesh-triangle subpaths as full-size pattern
+        // paper: overlapping panels can make huge opaque navy rectangles.
+        // A valid authored perimeter is the only filled surface. A panel
+        // without a valid perimeter stays unfilled, with its native cutlines
+        // and independent interaction paths still available.
+        const perimeterPath=proposedPaperOutline(panel,range,editablePreview||panel.polygon,currentPreview)
+        const shapePath=perimeterPath||''
         const clipId=`${uid}-pattern-${panelIndex}`
         const labelBounds=getBounds(livePoints)
         const label=[labelBounds.cx,labelBounds.maxY+16*screenUnit]
+        const transformBounds=selected&&transform2d?getBounds(livePoints):null
         return <g key={panel.id} data-2d-pattern-piece={panel.id} data-2d-pattern-selected={String(selected)}
           onPointerEnter={() => hover({panel: panel.id})} onPointerLeave={() => hover(null)}>
-          <defs><clipPath id={clipId}><path d={shapePath}/></clipPath></defs>
+          <defs>
+            <clipPath id={clipId}><path d={shapePath}/></clipPath>
+            <linearGradient id={`${uid}-pattern-glass-${panelIndex}`} x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#ffffff" stopOpacity=".15"/>
+              <stop offset=".34" stopColor={cadColor20261023(studioPreferences?.twoDPatternColor,'#cce7f5')} stopOpacity=".035"/>
+              <stop offset=".78" stopColor={cadColor20261023(studioPreferences?.twoDPatternColor,'#cce7f5')} stopOpacity=".055"/>
+              <stop offset="1" stopColor="#ffffff" stopOpacity=".12"/>
+            </linearGradient>
+          </defs>
           {/* CLO drafting paper: a soft selected surface and an opaque white
               unselected surface, independent of physical fabric tint. */}
           <path data-panel={panel.id} data-pattern-surface="drafting-paper"
+            data-pattern-outline-valid={String(Boolean(perimeterPath))}
             data-paper-preview-state={editablePreview?'uncommitted-curve':'native-mesh'} d={shapePath}
-            fill={selected?PATTERN_VISUAL.selectedPaper:PATTERN_VISUAL.paper}
-            fillOpacity={reference.image?.visible===false||!reference.image?1:.26}
+            fill={!perimeterPath?'none':studioPreferences?.twoDPatternColor&&studioPreferences.twoDPatternColor!=='auto'?cadColor20261023(studioPreferences.twoDPatternColor,PATTERN_VISUAL.paper):patternStudioActive?'#b7d9f6':selected?PATTERN_VISUAL.selectedPaper:PATTERN_VISUAL.paper}
+            fillOpacity={studioPreferences?.twoDPatternSurfaceStyle==='glass'
+              ?selected?.09:.045:
+              (reference.image?.visible!==false&&reference.image)
+              ||patternReferences.some(item=>item.visible!==false&&!referenceModeActive)?.26:1}
             style={{cursor:busy?'default':nativeCursor||(transform2d?cursorForTool('move'):'default')}}
-            onPointerDown={e => {if (tool2d === 'annotation'||editSewingActive) e.stopPropagation(); else start(e, panel)}}
+            onPointerDown={e => {if (tool2d === 'annotation'||editSewingActive) e.stopPropagation(); else if(!drag.current)start(e, panel)}}
             onClick={e => {if(editSewingActive){e.stopPropagation();return}if (!createAnnotation(e,panel,range)) {e.stopPropagation();
-              if(mode==='edit'&&tool2d==='point'&&panel.polygon?.points?.length){
+              if(mode==='edit'&&['point','anchor-point','direct-select','construction-point'].includes(tool2d)&&panel.polygon?.points?.length){
                 const click=point(e),vertices=panel.polygon.points.map(uv=>transform(panel,range,uv))
                 const index=click?vertices.findIndex(uv=>Math.hypot(uv[0]-click[0],uv[1]-click[1])<=13*screenUnit):-1
                 pick({panel:panel.id,...(index>=0?{anchor:index,edge:panel.polygon.edges[index]}:{})})
-              }else pick({panel: panel.id})}}}/>
+              }else if(!(tool2d==='select'&&e.shiftKey))pick({panel: panel.id})}}}/>
+          {Boolean(perimeterPath)&&studioPreferences?.twoDPatternSurfaceStyle==='glass'&&
+            <path data-pattern-surface-glass="true" d={shapePath}
+              fill={`url(#${uid}-pattern-glass-${panelIndex})`}
+              stroke="#ffffff" strokeOpacity=".45" strokeWidth=".8"
+              vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
+          {transformBounds&&<g data-2d-pattern-transform-box={panel.id} pointerEvents="none">
+            <rect x={transformBounds.minX} y={transformBounds.minY}
+              width={transformBounds.width} height={transformBounds.height}
+              fill="none" stroke="#278dc7" strokeWidth="1.5" strokeDasharray="5 3"
+              vectorEffect="non-scaling-stroke"/>
+            {[[transformBounds.minX,transformBounds.minY],[transformBounds.cx,transformBounds.minY],
+              [transformBounds.maxX,transformBounds.minY],[transformBounds.maxX,transformBounds.cy],
+              [transformBounds.maxX,transformBounds.maxY],[transformBounds.cx,transformBounds.maxY],
+              [transformBounds.minX,transformBounds.maxY],[transformBounds.minX,transformBounds.cy]]
+              .map(([x,y],i)=><rect key={i} data-2d-pattern-transform-handle={`${panel.id}:${i}`}
+                x={x-4*screenUnit} y={y-4*screenUnit} width={8*screenUnit} height={8*screenUnit}
+                fill="#f9fcff" stroke="#278dc7" strokeWidth="1.25" vectorEffect="non-scaling-stroke"/>)}
+          </g>}
+          {tool2d==='shape-builder'&&[shapeBuilderSelection.a,shapeBuilderHovered].includes(panel.id)&&<path
+            data-shape-builder-selected={shapeBuilderSelection.a===panel.id?'base':'hover'} d={shapePath}
+            fill={shapeBuilderHovered===panel.id?'#27c7b5':'none'} fillOpacity=".09"
+            stroke={shapeBuilderSelection.a===panel.id?'#f7d56b':'#66d8ee'} strokeWidth="3"
+            strokeDasharray="8 3" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
           {/* Drafting references are a PAPER underlay. The authored cutline,
               notch marks and native entities later in this panel must retain
               visual priority. Reference hits are resolved at the SVG root,
@@ -1938,7 +3536,8 @@ export default function ClothCraftBoardV2({
             if(!uv.length)return null
             const x=uv.map(p=>p[0]),y=uv.map(p=>p[1])
             const minX=Math.min(...x),maxX=Math.max(...x),maxY=Math.max(...y)
-            const w=Number(g.widthMm)/1000,h=Number(g.heightMm)/1000
+            const graphicSize=graphicPreview?.id===g.id&&graphicPreview.widthMm>0?graphicPreview:g
+            const w=Number(graphicSize.widthMm)/1000,h=Number(graphicSize.heightMm)/1000
             if(!(w>0&&h>0&&Number.isFinite(w)&&Number.isFinite(h)))return null
             // Rust positionMm is the print's top-left material-space offset.
             // Convert to the image center only when building the SVG transform.
@@ -1947,7 +3546,7 @@ export default function ClothCraftBoardV2({
             const center=previewPoint(transform(panel,range,[minX+mx/1000+w/2,maxY-my/1000-h/2]),currentPreview)
             const rotation=(panel.layout_rotation_degrees||0)+(g.rotation||0)
             const topLeft=[center[0]-w/2,center[1]-h/2]
-            const selectable=tool2d==='select'&&!busy
+            const selectable=['select','direct-select'].includes(tool2d)&&!busy
             const selectedGraphic=g.id===selectedGraphicId
             return <g key={g.id} data-2d-graphic-item={g.id} data-graphic-selected={String(selectedGraphic)}>
               <g transform={`rotate(${rotation} ${center[0]} ${center[1]})`}>
@@ -1962,12 +3561,30 @@ export default function ClothCraftBoardV2({
                     surface; it covers precisely the printed image bounds. */}
                 <rect data-2d-graphic-hit={g.id}
                   x={topLeft[0]} y={topLeft[1]} width={w} height={h}
-                  fill="transparent" pointerEvents={selectable?'all':'none'}
+                  fill="transparent" pointerEvents="all"
                   style={{cursor:selectable?'move':'default'}}
+                  onPointerEnter={()=>setHoveredGraphicId(g.id)}
+                  onPointerLeave={()=>setHoveredGraphicId(current=>current===g.id?null:current)}
                   onPointerDown={event=>startGraphicDrag(event,g,panel)}
-                  onClick={event=>{if(!selectable)return;event.stopPropagation();onSelectGraphic(g.id)}}/>
-                {selectedGraphic&&<GraphicMeasurementBox id={g.id} x={topLeft[0]} y={topLeft[1]}
-                  width={w} height={h} enabled={showGraphicMeasurements} screenUnit={screenUnit}/>}
+                  onClick={event=>{if(!selectable)return;event.stopPropagation();onSelectGraphic(g.id)}}
+                  onDoubleClick={event=>{if(!selectable)return;event.stopPropagation();onSelectGraphic(g.id)}}/>
+                {(selectedGraphic||hoveredGraphicId===g.id)&&<GraphicMeasurementBox id={g.id} x={topLeft[0]} y={topLeft[1]}
+                  width={w} height={h} enabled={showGraphicMeasurements||hoveredGraphicId===g.id||graphicPreview?.id===g.id} screenUnit={screenUnit} unit={rulerUnits}/>}
+                {selectedGraphic&&<g data-graphic-transform-box={g.id}>
+                  <rect x={topLeft[0]} y={topLeft[1]} width={w} height={h} fill="none" stroke="#1389c0"
+                    strokeWidth="1.5" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+                  {[
+                    ['nw',0,0,'nwse-resize'],['n',.5,0,'ns-resize'],['ne',1,0,'nesw-resize'],
+                    ['w',0,.5,'ew-resize'],['e',1,.5,'ew-resize'],
+                    ['sw',0,1,'nesw-resize'],['s',.5,1,'ns-resize'],['se',1,1,'nwse-resize'],
+                  ].map(([handle,hx,hy,cursor])=><rect key={handle}
+                    data-graphic-resize-handle={`${g.id}:${handle}`}
+                    x={topLeft[0]+w*hx-4.5*screenUnit} y={topLeft[1]+h*hy-4.5*screenUnit}
+                    width={9*screenUnit} height={9*screenUnit}
+                    fill="#fff" stroke="#147aa4" strokeWidth="1.25" vectorEffect="non-scaling-stroke"
+                    style={{cursor:selectable?cursor:'default'}} pointerEvents={selectable?'all':'none'}
+                    onPointerDown={event=>startGraphicResize(event,g,panel,handle)}/>)}
+                </g>}
               </g>
             </g>
           })}
@@ -1996,11 +3613,27 @@ export default function ClothCraftBoardV2({
             const editingSeam=editSewingActive&&linkedSeams.length>0
             const selectedSeamEdge=editSewingActive&&linkedSeams.some(seam=>seam.id===selection?.seamId)
             const paths=boundarySegments(indices,boardUV).map(points=>points.map(p=>p.join(',')).join(' '))
-            const selectedEdge=selected && selection?.edge === edge
+            const selectedEdge=selected&&measuredNativeEdges(panel).includes(edge)
             const firstSewEdge=segmentSewing&&sewingFirstEdge?.panel===panel.id&&sewingFirstEdge?.edge===edge
             const hoverSewEdge=sewingActive&&active?.panel===panel.id&&active?.edge===edge
+            const firstSewIndices=segmentSewing&&sewingFirstEdge?s?.panels?.find(p=>p.id===sewingFirstEdge.panel)?.boundaries?.[sewingFirstEdge.edge]:null
+            const firstSewLength=firstSewIndices?sewingEdgeLength(firstSewIndices):null
+            const candidateSewLength=segmentSewing?sewingEdgeLength(indices):null
+            const sewLengthDifference=firstSewLength!==null&&candidateSewLength!==null?candidateSewLength-firstSewLength:null
             const edgeClick=e => {
               e.stopPropagation()
+              if(mode==='edit'&&tool2d==='point'&&e.shiftKey&&!busy){
+                const i=panel.polygon?.edges?.indexOf(edge)
+                if(i>=0){
+                  setMultiEdit(value=>{
+                    const vertices=[i,(i+1)%panel.polygon.points.length]
+                    const old=value.panel===panel.id?value.points:[]
+                    return {panel:panel.id,points:[...new Set([...old,...vertices])].sort((a,b)=>a-b)}
+                  })
+                  pick({panel:panel.id,edge})
+                }
+                return
+              }
               if(editSewingActive){
                 if(busy||sewingCommitting)return
                 if(linkedSeams.length){
@@ -2010,11 +3643,17 @@ export default function ClothCraftBoardV2({
                 }
                 return
               }
-              if(segmentSewing){onSegmentSewEdge({panel:panel.id,edge});return}
+              if(segmentSewing){
+                if(busy||sewingCommitting||!Array.isArray(indices)||indices.length<2)return
+                onSegmentSewEdge({panel:panel.id,edge})
+                return
+              }
               if(freeSewing){
                 if(busy||sewingCommitting)return
+                if(!Array.isArray(indices)||indices.length<2)return
                 const candidate=projectFreeSewingPoint(indices,boardUV,point(e))
-                if(candidate)onFreeSewPoint({panel:panel.id,edge,fraction:candidate.fraction})
+                if(candidate&&Number.isFinite(candidate.fraction)&&candidate.fraction>=0&&candidate.fraction<=1)
+                  onFreeSewPoint({panel:panel.id,edge,fraction:candidate.fraction})
                 return
               }
               if(mode==='edit'&&tool2d==='curve'&&!busy){
@@ -2070,39 +3709,87 @@ export default function ClothCraftBoardV2({
                 data-edit-sew-candidate={editSewingActive?'true':undefined}
                 data-seam-link={editingSeam?linkedSeams.map(item=>item.id).join(' '):undefined}
                 points={path} fill="none" stroke="transparent"
-                strokeWidth="10" vectorEffect="non-scaling-stroke" pointerEvents="stroke"
-                style={{cursor:busy?'default':(sewingActive||editSewingActive)&&!sewingCommitting?SEWING_CURSOR:nativeCursor||'pointer'}}
-                onPointerDown={e => e.stopPropagation()}
+                  strokeWidth={sewingOverlayVisible?'14':'10'} vectorEffect="non-scaling-stroke" pointerEvents="stroke"
+                  style={{cursor:busy||sewingCommitting?'wait':(sewingActive||editSewingActive)?SEWING_CURSOR:nativeCursor||'pointer'}}
+                data-anchor-reshape-hit={tool2d==='anchor-point'?`${panel.id}:${edge}`:undefined}
+                onContextMenu={event=>{
+                  if(busy)return
+                  event.preventDefault();event.stopPropagation()
+                  const seamId=editSewingActive?(linkedSeams.find(seam=>seam.id===selection?.seamId)||linkedSeams[0])?.id:null
+                  if(seamId)onSelectSewingSeam(seamId)
+                  else pick({panel:panel.id,edge})
+                  onContextMenuRequest({x:event.clientX,y:event.clientY,dimension:'2d',hit:{panel:panel.id,edge,...(seamId?{seamId}:{})}})
+                }}
+                onPointerDown={e => {
+                  if(mode==='edit'&&tool2d==='point'&&e.shiftKey&&e.button===0){
+                    e.preventDefault();e.stopPropagation()
+                    const i=panel.polygon.edges.indexOf(edge)
+                    if(i>=0){
+                      setMultiEdit(value=>{
+                        const old=value.panel===panel.id?value.points:[]
+                        return {panel:panel.id,
+                          points:[...new Set([...old,i,(i+1)%panel.polygon.points.length])].sort((a,b)=>a-b)}
+                      })
+                      pick({panel:panel.id,edge})
+                    }
+                    return
+                  }
+                  if(mode==='edit'&&tool2d==='anchor-point'&&!busy&&e.button===0){
+                    const xy=point(e)
+                    const angle=(panel.layout_rotation_degrees||0)*Math.PI/180
+                    const dx=(xy?.[0]??0)-range.layout[0],dy=(xy?.[1]??0)-range.layout[1]
+                    const local=[dx*Math.cos(angle)+dy*Math.sin(angle),-dx*Math.sin(angle)+dy*Math.cos(angle)]
+                    const nearest=xy&&closestFreeCurveParameter(panel.polygon,edge,local)
+                    if(nearest&&nearest.distance<=Math.max(.003,10*screenUnit)&&
+                      !panel.polygon.free_curve_points?.[edge]?.length){
+                      start(e,panel,`r:${edge}`,'reshape-segment',{edge,t:nearest.t})
+                      return
+                    }
+                    e.stopPropagation()
+                    pick({panel:panel.id,edge})
+                    return
+                  }
+                  e.stopPropagation()
+                }}
                 onPointerEnter={e => {e.stopPropagation();hover({panel:panel.id,edge})}}
                 onPointerMove={e=>{
                   if(!freeSewing)return
                   const candidate=projectFreeSewingPoint(indices,boardUV,point(e))
-                  if(candidate)setFreeHover({panel:panel.id,edge,fraction:candidate.fraction})
+                  if(candidate&&Number.isFinite(candidate.fraction))setFreeHover({panel:panel.id,edge,fraction:candidate.fraction})
+                  else setFreeHover(null)
                 }}
                 onPointerLeave={e=>{e.stopPropagation();hover(null);if(freeSewing)setFreeHover(null)}}
                 onClick={edgeClick}/>)}
-              {selectedEdge&&!sewingActive&&(()=>{
-                const readout=boundaryDisplayLength(indices,boardUV)
-                if(!readout)return null
-                const fontSize=11*screenUnit
-                const text=`≈ ${(readout.length*100).toFixed(2)} cm`
-                const obstacles=(panel.polygon?.points||[]).map(uv=>previewPoint(transform(panel,range,uv),currentPreview))
-                for(const [edgeName,controls] of Object.entries(editingPolygon(panel)?.curves||{})){
-                  const k=panel.polygon.edges.indexOf(edgeName)
-                  controls.forEach((uv,j)=>{
-                    const origin=previewPoint(transform(panel,range,panel.polygon.points[(k+j)%panel.polygon.points.length]),currentPreview)
-                    obstacles.push(visibleTangent(origin,previewPoint(transform(panel,range,uv),currentPreview),screenUnit).point)
-                  })
-                }
-                const {x,y}=placePatternLabel(readout.midpoint,readout.normal,text,screenUnit,obstacles,
-                  [view[0]-offset[0],view[1]-offset[1],view[2],view[3]])
-                return <text data-2d-boundary-readout={`${panel.id}:${edge}`}
-                  data-2d-readout-approx-cm={(readout.length*100).toFixed(3)}
-                  x={x} y={y} textAnchor="middle" fontSize={fontSize}
-                  fill="#343b40" stroke="#ffffff" strokeWidth={1.8*screenUnit}
-                  paintOrder="stroke" fontWeight="400" pointerEvents="none">
-                  {text}
-                </text>
+              {sewingActive && (hoverSewEdge||firstSewEdge) && (() => {
+                // These are drafting orientation marks only. Direction remains
+                // controlled by the sewing command, and Rust owns stitch data.
+                const at=boundaryMark(indices,freeSewing&&freeHover?.panel===panel.id&&freeHover.edge===edge?freeHover.fraction:.5)
+                if(!at)return null
+                const tangent=[-at.normal[1],at.normal[0]]
+                const size=8*screenUnit
+                const tip=[at.p[0]+tangent[0]*size,at.p[1]+tangent[1]*size]
+                const color=firstSewEdge?'#1579bd':'#ed963d'
+                return <g data-sew-direction-mark={`${panel.id}:${edge}`}
+                  data-sew-direction-kind={segmentSewing?'segment':'free'}
+                  pointerEvents="none" stroke={color} fill="none" strokeWidth="2" vectorEffect="non-scaling-stroke">
+                  <path d={`M${at.p[0]-tangent[0]*size} ${at.p[1]-tangent[1]*size}L${tip[0]} ${tip[1]} M${tip[0]} ${tip[1]}l${-tangent[0]*size*.65+at.normal[0]*size*.5} ${-tangent[1]*size*.65+at.normal[1]*size*.5} M${tip[0]} ${tip[1]}l${-tangent[0]*size*.65-at.normal[0]*size*.5} ${-tangent[1]*size*.65-at.normal[1]*size*.5}`}/>
+                </g>
+              })()}
+              {segmentSewing&&hoverSewEdge&&sewingFirstEdge&&!firstSewEdge&&sewLengthDifference!==null&&(()=>{
+                const midpoint=boundaryMark(indices,.5)?.p
+                if(!midpoint)return null
+                const deltaMm=sewLengthDifference*1000
+                // CLO colors an advisory mismatch above 1 mm; Rust's own
+                // provisional 2 mm preflight is a separate commit gate.
+                const withinTolerance=Math.abs(deltaMm)<=1
+                return <g data-segment-sew-length-preview="true"
+                  data-segment-sew-mismatch-mm={deltaMm.toFixed(2)} pointerEvents="none">
+                  <text x={midpoint[0]} y={midpoint[1]-18*screenUnit} textAnchor="middle"
+                    fontSize={12*screenUnit} fontWeight="600" fill={withinTolerance?'#157a5c':'#b34e2b'}
+                    stroke="#fff" strokeWidth={3*screenUnit} paintOrder="stroke">
+                    {`1: ${(firstSewLength*1000).toFixed(1)} mm · 2: ${(candidateSewLength*1000).toFixed(1)} mm · Δ ${deltaMm>=0?'+':''}${deltaMm.toFixed(1)} mm`}
+                  </text>
+                </g>
               })()}
               {freeSewing&&(()=>{
                 const onEdge=freeSewPoints.filter(marker=>marker.panel===panel.id&&marker.edge===edge)
@@ -2167,6 +3854,10 @@ export default function ClothCraftBoardV2({
                 pointerEvents="none"/>]
             })
           })}
+          {/* No inferred grainline: grain direction is a physical production
+              annotation that must only be drawn from authored native data.
+              The previous SVG reference stroke used metre viewBox units and
+              accidentally painted gigantic navy triangles/squares. */}
           <text data-pattern-piece-label={panel.id} x={label[0]} y={label[1]} textAnchor="middle" fontSize={10*screenUnit} fill={selected?'#47404a':'#697076'}
             fontWeight="400" paintOrder="stroke" stroke="#fff" strokeWidth={1.5*screenUnit} strokeLinejoin="round"
             opacity={selected?1:.85} pointerEvents="none">{panel.name}</text>
@@ -2198,7 +3889,7 @@ export default function ClothCraftBoardV2({
                 strokeLinecap="butt" pointerEvents="none"/>
             })()}
           {showMeasurements && <Dimensions points={livePoints} selected={selected}
-            panel={panel} boundaries={range.boundaries} uv={boardUV} clipId={clipId} preview={currentPreview} screenUnit={screenUnit}/>}
+            panel={panel} boundaries={range.boundaries} uv={boardUV} clipId={clipId} preview={currentPreview} screenUnit={screenUnit} unit={rulerUnits}/>}
           {selected&&mode==='edit'&&curveEditing&&(()=>{
             // CLO-like per-edge measurements appear while an edge is being
             // curved. These are material-space lengths of the exact authored
@@ -2222,7 +3913,7 @@ export default function ClothCraftBoardV2({
                   x={p[0]} y={p[1]} fontSize={10*screenUnit}
                   textAnchor="middle" fill="#5c4315" stroke="#fff8db"
                   strokeWidth={3.1*screenUnit} paintOrder="stroke"
-                  fontWeight="650">{(row.length*100).toFixed(2)} cm</text>
+                  fontWeight="650">{displayMeasurement(row.length)}</text>
               })}
               {(()=>{
                 const top=previewPoint(transform(panel,range,[cornerBounds.cx,cornerBounds.minY-.044]),currentPreview)
@@ -2232,12 +3923,12 @@ export default function ClothCraftBoardV2({
                     x={top[0]} y={top[1]} textAnchor="middle" fontSize={12*screenUnit}
                     fill="#6c4b18" stroke="#fff7da" strokeWidth={4*screenUnit}
                     paintOrder="stroke" fontWeight="700">
-                    Width {(cornerBounds.width*100).toFixed(1)} cm · Height {(cornerBounds.height*100).toFixed(1)} cm
+                    Width {displayMeasurement(cornerBounds.width)} · Height {displayMeasurement(cornerBounds.height)}
                   </text>
                   <text data-curve-perimeter-cm={(total*100).toFixed(3)}
                     x={base[0]} y={base[1]} textAnchor="middle" fontSize={11*screenUnit}
                     fill="#6c4b18" stroke="#fff7da" strokeWidth={4*screenUnit}
-                    paintOrder="stroke">Outline {(total*100).toFixed(2)} cm · 2D cutline</text>
+                    paintOrder="stroke">Outline {displayMeasurement(total)} · 2D cutline</text>
                 </>
               })()}
             </g>
@@ -2338,7 +4029,7 @@ export default function ClothCraftBoardV2({
               stroke={appearance.stroke} strokeWidth={appearance.strokeWidth} vectorEffect="non-scaling-stroke"
               opacity={appearance.opacity} pointerEvents="none"/>)
           })()}
-          {selected && mode === 'edit' && ['point','curve'].includes(tool2d) && panel.polygon?.points?.map((uv, n) => {
+          {(selected||tool2d==='remove-anchor') && mode === 'edit' && ['select','point','anchor-point','direct-select','remove-anchor','curve','construction-point'].includes(tool2d) && panel.polygon?.points?.map((uv, n) => {
             const livePolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||draftPolygon(panel)
             const livePoint=livePolygon.points?.[n]||uv
             const p = previewPoint(transform(panel, range, livePoint),currentPreview)
@@ -2347,18 +4038,47 @@ export default function ClothCraftBoardV2({
             const role=vectorcraftAnchorKind(livePoint,inControl,outControl)==='smooth'?'smooth-curve':'boundary-corner'
             const appearance=patternPointGlyph(role,{state:selection?.panel===panel.id&&selection?.anchor===n?'selected':active?.anchor===n?'hovered':'normal'})
             return <circle key={n} data-control-point="vertex" data-pattern-point-role={role} data-panel-id={panel.id}
+              data-pattern-anchor-index={n}
+              data-clo-multi-selected={multiEdit.panel===panel.id&&multiEdit.points.includes(n)?'true':'false'}
               data-promoted-vertex-id={panel.polygon?.vertex_ids?.[panel.polygon?.edges?.[n]]||undefined}
               cx={p[0]} cy={p[1]} r={pointRadiusInView(selection?.panel===panel.id&&selection?.anchor===n?PATTERN_METRICS.selectedPointRadius:PATTERN_METRICS.editPointRadius,screenUnit)}
               fill={appearance.fill}
-              stroke={appearance.stroke} strokeWidth={appearance.strokeWidth} vectorEffect="non-scaling-stroke" style={{cursor:'default'}}
-              title={tool2d==='curve'?'Drag pattern anchor to reshape curve · Option-click to make a sharp corner':'Drag pattern anchor'}
+              stroke={multiEdit.panel===panel.id&&multiEdit.points.includes(n)?'#ffd52b':appearance.stroke}
+              strokeWidth={multiEdit.panel===panel.id&&multiEdit.points.includes(n)?2.8:appearance.strokeWidth}
+              vectorEffect="non-scaling-stroke" style={{cursor:tool2d==='direct-select'?'move':'default'}}
+              title={tool2d==='select'?'Drag to move this corner · Double-click to edit point and curve handles':'Drag to reshape corner · Double-click to switch straight/curved'}
+              onDoubleClick={event=>{
+                if(tool2d!=='anchor-point')showNativeAnchorEditor(event,panel,n)
+              }}
               onPointerDown={e => {
+                if(tool2d==='point'&&e.shiftKey&&e.button===0){
+                  e.preventDefault();e.stopPropagation()
+                  toggleNativePoint(panel.id,n)
+                  pick({panel:panel.id,anchor:n,edge:panel.polygon.edges[n]})
+                  return
+                }
+                if(tool2d==='point'&&e.button===0&&multiEdit.panel===panel.id&&
+                  multiEdit.points.length>=2&&multiEdit.points.includes(n)&&!busy){
+                  const startPoint=point(e)
+                  if(startPoint){
+                    e.preventDefault();e.stopPropagation()
+                    groupMoveDrag.current={panelId:panel.id,indices:[...multiEdit.points],
+                      start:startPoint,rotation:panel.layout_rotation_degrees||0,pointerId:e.pointerId}
+                    svg.current?.setPointerCapture(e.pointerId)
+                  }
+                  return
+                }
+                if(tool2d==='remove-anchor'){
+                  e.preventDefault();e.stopPropagation()
+                  if(!busy)void edit({kind:'RemovePoint',panel:panel.id,point:n})
+                  return
+                }
                 if(tool2d==='curve'&&e.altKey){
                   e.stopPropagation();e.preventDefault()
                   if(!busy)void edit({kind:'CurvePoint',panel:panel.id,anchor:n,curved:false})
                   return
                 }
-                start(e,panel,n)
+                start(e,panel,n,tool2d==='anchor-point'?'convert-anchor':'move')
               }}/>
           })}
           {selected&&curveEditing&&handlePreview?.panelId===panel.id&&Number.isInteger(handlePreview.anchorIndex)&&
@@ -2391,15 +4111,26 @@ export default function ClothCraftBoardV2({
                     const [start,c1,c2,end]=[a,handles[0],handles[1],b]
                       .map(uv=>previewPoint(transform(panel,range,uv),currentPreview))
                     const measured=cubicLength(a,handles[0],handles[1],b)
+                    const originalControls=panel.polygon.curves?.[edge]
+                    const originalLength=cubicLength(panel.polygon.points[index],
+                      originalControls?.[0]||panel.polygon.points[index].map((v,i)=>v+(panel.polygon.points[(index+1)%panel.polygon.points.length][i]-v)/3),
+                      originalControls?.[1]||panel.polygon.points[(index+1)%panel.polygon.points.length].map((v,i)=>v+(panel.polygon.points[index][i]-v)/3),
+                      panel.polygon.points[(index+1)%panel.polygon.points.length])
+                    const changedBy=measured-originalLength
+                    const label=penInlineLabelPoint(start,end,screenUnit,{controls:[c1,c2],belowPixels:14})
                     return <g key={edge} data-preview-curve-edge={edge}>
                       <path data-active-bezier-contour={`${panel.id}:${edge}`}
                         d={`M ${start[0]} ${start[1]} C ${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${end[0]} ${end[1]}`}
                         fill="none" stroke={CLO_CURVE_ACTIVE_YELLOW} strokeWidth="2.25"
                         strokeLinecap="round" vectorEffect="non-scaling-stroke"/>
-                      {Number.isFinite(measured)&&<text x={(start[0]+end[0])/2} y={(start[1]+end[1])/2-12*screenUnit}
+                      {Number.isFinite(measured)&&label&&<text x={label.x} y={label.y}
                         data-native-cubic-length-cm={(measured*100).toFixed(3)}
-                        textAnchor="middle" fill="#5a4612" stroke="#fff" strokeWidth={2*screenUnit}
-                        paintOrder="stroke" fontSize={11*screenUnit}>{(measured*100).toFixed(2)} cm</text>}
+                        data-native-cubic-length-delta-cm={Number.isFinite(changedBy)?(changedBy*100).toFixed(3):undefined}
+                        data-clo-inline-length="curve-adjust" data-line-length-unit={penPrecision.unit}
+                        {...cloInlineDimensionStyle}>
+                        {formatPenDistancePrecise(measured,penPrecision.unit)}{Number.isFinite(changedBy)&&Math.abs(changedBy)>=.00005
+                          ?`  (${changedBy>=0?'+':''}${formatPenDistancePrecise(changedBy,penPrecision.unit)})`:''}
+                      </text>}
                     </g>
                   })}
               </g>
@@ -2544,7 +4275,7 @@ export default function ClothCraftBoardV2({
                     <text x={midpoint[0]} y={midpoint[1]-12*screenUnit} textAnchor="middle"
                       fill="#46536b" stroke="#fff" strokeWidth={2*screenUnit} paintOrder="stroke"
                       fontSize={11*screenUnit} data-native-free-curve-length-cm={(length*100).toFixed(3)}>
-                      {(length*100).toFixed(2)} cm
+                      {displayMeasurement(length)}
                     </text>
                   </g>
                 })}
@@ -2591,34 +4322,103 @@ export default function ClothCraftBoardV2({
           }))}
         </g>
       })}
-      {sewingOverlayVisible && (s?.seams || []).flatMap((seam, i) => {
-        const spec = s.template?.seams?.find(item => item.id === seam.id)
-        if (!spec) return []
+      {panels.map(({panel,range})=>{
+        // Multi-panel sources can now be either independent editable EXO
+        // sidecar point rules or read-only native affine proposals. Neither
+        // source is committed to the Rust session or factory certified.
+        const multi=nativeGradeRunsByPanel?.[panel.id]
+        const proposal=multi?.ok?multi:
+          nativeGradeProposal?.ok&&nativeGradeProposal.panelId===panel.id?nativeGradeProposal:null
+        if(!proposal?.ok)return null
+        if(nativeGradeVisibility?.allBlocks===false &&
+          panel.id!==nativeGradeVisibility?.selectedPanelId)return null
+        const multiRun=Boolean(multi?.ok)
+        return <g key={panel.id}
+          data-native-grade-proposal-accuracy={proposal.accuracy||'unknown'}
+          data-native-proposal-only={String(proposal.source==='AFFINE_PROPOSAL_NOT_COMMITTED_GRADING')}
+          data-native-grade-source={proposal.source||'SINGLE_PANEL_AFFINE_PREVIEW'}
+          data-native-proposed-size-count={proposal.sizes.length}>
+          <AccuMarkGradingOverlay20261023
+            contrastPalette={adaptiveCad}
+            panelId={panel.id}
+            basePolygon={proposal.basePolygon}
+            sizeRun={proposal.sizeRun}
+            sizes={proposal.sizes}
+            baseSize={proposal.baseSize}
+            selectedSize={proposal.selectedSize}
+            units="m" outputUnits="m"
+            layout={range.layout} boardOffset={[0,0]}
+            rotationDegrees={panel.layout_rotation_degrees||0}
+            zoomUnit={screenUnit}
+            showAllSizes={multiRun&&Boolean(nativeGradeVisibility?.showAllSizes)}
+            visibleSizes={nativeGradeVisibility?.visibleSizes||null}
+            colorsBySize={nativeGradeVisibility?.colorsBySize||null}
+            stackPointIndex={nativeGradeVisibility?.stackPointIndex??null}
+            showPointLabels={!multiRun||Boolean(nativeGradeVisibility?.showGradePoints)}
+            showAllSizePoints={multiRun&&Boolean(nativeGradeVisibility?.showAllSizes)&&Boolean(nativeGradeVisibility?.showGradePoints)}
+            showVectors={!multiRun||Boolean(nativeGradeVisibility?.showVectors)}
+            onPickPoint={({panelId,size,pointIndex})=>{
+              if(typeof size==='string')onPickGradeSize?.(size)
+              if(!busy)pick({panel:panelId,anchor:pointIndex})
+            }}/>
+        </g>
+      })}
+      {sewingOverlayVisible && (s?.template?.seams || []).flatMap((spec, i) => {
+        const seam=(s?.seams||[]).find(item=>item.id===spec.id)
         // A selected *piece* should not flood the board with hundreds of
         // cross-panel correspondence lines. Spotlight full seam structure
         // only when an actual colored boundary is hovered/selected.
-        const chosen=editSewingActive&&selection?.seamId===seam.id
+        const chosen=editSewingActive&&selection?.seamId===spec.id
         const emphasized = chosen || (!!active?.edge && [spec.a, spec.b].some(b => b?.panel === active.panel && b.edge === active.edge))
         const color = SEAM_COLORS[i % SEAM_COLORS.length]
-        const pairs=seam.guides||[]
+        const pairs=Array.isArray(seam?.guides)?seam.guides:[]
         // In normal sewing mode show the eligible cutline, not a net of
         // cross-garment threads. The correspondence is a contextual preview
         // of one hovered/selected seam; Edit Sewing can inspect the others.
-        if (!emphasized) return []
-        return samplePatternSewingGuideIndices(pairs.length,{emphasized}).flatMap(j => {
-          const pair=pairs[j]
-          const a = weighted(pair[0], boardUV), b = weighted(pair[1], boardUV)
+        // CLO Edit Sewing displays selectable seam lines even before a pair
+        // is selected. Keep only a sparse preview for those background pairs;
+        // full correspondence detail remains limited to the selected seam.
+        if (!emphasized && !editSewingActive) return []
+        // Runtime guide weights are optional. When absent, derive a sparse
+        // display-only correspondence from the two real named native edges.
+        // This depicts the configured reverse_b orientation and never creates
+        // seam topology or claims a solver-generated correspondence.
+        const nativeSide=side=>{
+          const indices=s?.panels?.find(panel=>panel.id===side?.panel)?.boundaries?.[side?.edge]
+          if(!Array.isArray(indices)||indices.length<2||indices.some(index=>!boardUV[index]||
+            boardUV[index].some(v=>!Number.isFinite(v))))return null
+          const interval=side.range===undefined?[0,1]:side.range
+          if(!Array.isArray(interval)||interval.length!==2||interval.some(v=>!Number.isFinite(v)||v<0||v>1))return null
+          return {indices,interval}
+        }
+        const first=nativeSide(spec.a),second=nativeSide(spec.b)
+        const sampled=pairs.length?samplePatternSewingGuideIndices(pairs.length,{emphasized}):
+          first&&second?(emphasized?[0,.25,.5,.75,1]:[.25,.5,.75]):[]
+        return sampled.flatMap(j => {
+          const pair=pairs.length?pairs[j]:null
+          const fraction=pairs.length?null:j
+          const a=pair?weighted(pair[0],boardUV):boundaryMark(first.indices,first.interval[0]+fraction*(first.interval[1]-first.interval[0]))?.p
+          const secondFraction=spec.reverse_b?1-fraction:fraction
+          const b=pair?weighted(pair[1],boardUV):boundaryMark(second.indices,second.interval[0]+secondFraction*(second.interval[1]-second.interval[0]))?.p
           if (!a || !b) return []
-          return <g key={`${seam.id}-${j}`} data-sewing-guide-index={j} pointerEvents="none">
+          return <g key={`${spec.id}-${j}`} data-sewing-guide-index={j} data-guide-seam-id={spec.id} data-sewing-guide-source={pair?'native':'boundary-preview'}>
             <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={emphasized ? '#ef6339' : color}
-              strokeWidth={emphasized?1:.65} vectorEffect="non-scaling-stroke" strokeDasharray="4 5" opacity={emphasized ? 1 : .42}/>
-            {editSewingActive&&<line data-edit-seam-guide={seam.id} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
-              fill="none" stroke="transparent" strokeWidth=".013" pointerEvents="stroke"
+              strokeWidth={emphasized?1:.65} vectorEffect="non-scaling-stroke" strokeDasharray="4 5" opacity={emphasized ? 1 : .42} pointerEvents="none"/>
+            {editSewingActive&&<line data-edit-seam-guide={spec.id} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
+              fill="none" stroke="transparent" strokeWidth="12" vectorEffect="non-scaling-stroke" pointerEvents="stroke"
               style={{cursor:SEWING_CURSOR}} onPointerDown={event=>event.stopPropagation()}
-              onClick={event=>{event.stopPropagation();onSelectSewingSeam(seam.id)}}/>}
+              onContextMenu={event=>{
+                event.preventDefault()
+                event.stopPropagation()
+                if(!busy&&!sewingCommitting)onContextMenuRequest({
+                  x:event.clientX,y:event.clientY,dimension:'2d',
+                  hit:{seamId:spec.id,panel:spec.a.panel,edge:spec.a.edge},
+                })
+              }}
+              onClick={event=>{event.stopPropagation();if(!busy&& !sewingCommitting)onSelectSewingSeam(spec.id)}}/>}
             {showSeamDots && <>
-              <circle data-control-point="seam" cx={a[0]} cy={a[1]} r={(emphasized?2.5:1.9)*screenUnit} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".7" vectorEffect="non-scaling-stroke"/>
-              <circle data-control-point="seam" cx={b[0]} cy={b[1]} r={(emphasized?2.5:1.9)*screenUnit} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".7" vectorEffect="non-scaling-stroke"/>
+              <circle data-control-point="seam" cx={a[0]} cy={a[1]} r={(emphasized?2.5:1.9)*screenUnit} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".7" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+              <circle data-control-point="seam" cx={b[0]} cy={b[1]} r={(emphasized?2.5:1.9)*screenUnit} fill={color} stroke={POINT_COLORS.outline} strokeWidth=".7" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
             </>}
           </g>
         })
@@ -2642,23 +4442,228 @@ export default function ClothCraftBoardV2({
           </g>)}
         </g>
       })()}
-      {(draft.length > 0||pencilSamples.length>0) && <polyline data-vector-draft={tool2d==='vector-pencil'?'pencil':tool2d==='vector-pen'?'pen':'pattern'}
+      {parkedPenPaths.map(path=><g key={path.id} data-open-pen-path={path.id}>
+        <path d={penCubicPath(path.points,path.tangents)} fill="none" stroke="#9db2cc"
+          strokeWidth="1.45" strokeDasharray="7 3" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+        {path.points.map((p,index)=><circle key={index} data-vector-pen-anchor={`${path.id}:${index}`}
+          data-vector-pen-anchor-hit={index} data-parked-pen-path={path.id} data-parked-pen-anchor={index}
+          cx={p[0]} cy={p[1]} r={Math.max(5*screenUnit,.004)}
+          fill="#f6f1d9" stroke="#6689ab" strokeWidth="1.3" vectorEffect="non-scaling-stroke"
+          pointerEvents={penSibling(tool2d)?'all':'none'}
+          style={{cursor:'pointer'}} aria-label={`Open contour ${path.id}, anchor ${index+1}`}
+          onPointerDown={e=>{
+            if(e.button!==0||busy||!penSibling(tool2d))return
+            e.preventDefault();e.stopPropagation()
+            const restored=resumeParkedPath(path.id,index)
+            if(!restored)return
+            if(tool2d==='anchor-point'){
+              const start=restored.points[restored.selected]
+              vectorDrag.current={pointerId:e.pointerId,start,index:restored.selected,convert:true,moved:false,
+                wasCurved:Math.hypot(...restored.tangents[restored.selected])>.001}
+              svg.current?.setPointerCapture(e.pointerId)
+            }else if(tool2d==='direct-select'){
+              const start=restored.points[restored.selected]
+              vectorDrag.current={pointerId:e.pointerId,start,pointerStart:point(e)||start,
+                index:restored.selected,moveDraft:true}
+              svg.current?.setPointerCapture(e.pointerId)
+            }
+          }}/>)}</g>)}
+      {penDraftVisible&&draft.length>0&&<path data-vector-pen-preview="cubic" d={penCubicPath(draft,vectorTangents,penPreviewCursor)} fill="none" stroke="#6888bf" strokeWidth="1.2" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
+      {tool2d==='split'&&hoveredAddAnchor?.p&&<g data-anchor-add-preview={hoveredAddAnchor.kind} pointerEvents="none">
+        <circle cx={hoveredAddAnchor.p[0]} cy={hoveredAddAnchor.p[1]} r={7*screenUnit} fill="#ffcf53" fillOpacity=".25" stroke="#ffbe32" strokeWidth="2" vectorEffect="non-scaling-stroke"/>
+        <path d={`M${hoveredAddAnchor.p[0]-4*screenUnit} ${hoveredAddAnchor.p[1]}h${8*screenUnit}M${hoveredAddAnchor.p[0]} ${hoveredAddAnchor.p[1]-4*screenUnit}v${8*screenUnit}`}
+          stroke="#fff5bc" strokeWidth="1.6" vectorEffect="non-scaling-stroke"/>
+      </g>}
+      {tool2d==='split'&&draft.length>=2&&<path data-vector-draft-split-hit="true"
+        d={penCubicPath(draft,vectorTangents)} fill="none" stroke="transparent"
+        strokeWidth={Math.max(12*screenUnit,.007)} pointerEvents="stroke"
+        style={{cursor:'crosshair'}} onPointerDown={e=>{
+          e.preventDefault();e.stopPropagation()
+          splitDraftAt(e)
+        }}/>}
+      {penDraftVisible&&showPenDimensions&&draft.length>0&&<g data-pen-draft-measurements="true" pointerEvents="none">
+        {penSegments.map(segment=>{
+          const label=penInlineLabelPoint(segment.midpoint,segment.midpoint,screenUnit)
+          const adjusting=vectorDrag.current?.reshapeDraft&&vectorDrag.current.index===segment.index
+          const baseline=adjusting?penDraftSegmentMetrics(vectorDrag.current.startPoints,
+            vectorDrag.current.startTangents)[segment.index]?.length:null
+          const change=baseline===null||baseline===undefined?null:segment.length-baseline
+          return label&&<text key={segment.index} data-pen-edge-length={segment.index}
+            data-pen-confirmed-length={segment.index===penSegments.length-1?'true':undefined}
+            data-clo-inline-length="draft" data-line-length-unit={penPrecision.unit}
+            data-pen-edge-length-metres={segment.length.toFixed(8)} x={label.x} y={label.y}
+            {...cloInlineDimensionStyle}>
+            {formatPenDistancePrecise(segment.length,penPrecision.unit)}{segment.curved?' arc':''}
+            {change!==null&&Math.abs(change)>=.00005?` (${change>=0?'+':''}${formatPenDistancePrecise(change,penPrecision.unit)})`:''}
+          </text>
+        })}
+        {draft.length>0&&penPreviewCursor&&Math.hypot(penPreviewCursor[0]-draft.at(-1)[0],penPreviewCursor[1]-draft.at(-1)[1])>.000001&&
+          (()=>{const a=draft.at(-1),b=penPreviewCursor,label=penInlineLabelPoint(a,b,screenUnit)
+            const length=Math.hypot(b[0]-a[0],b[1]-a[1])
+            return label&&<text data-pen-live-length="true" data-pen-live-length-metres={length.toFixed(8)}
+              data-clo-inline-length="live" data-line-length-unit={penPrecision.unit}
+              x={label.x} y={label.y} {...cloInlineDimensionStyle}>
+              {formatPenDistancePrecise(length,penPrecision.unit)}
+              {' · '}{(Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI).toFixed(1)}°
+            </text>
+          })()}
+      </g>}
+      {tool2d==='vector-pencil'&&pencilSamples.length>=2&&(()=>{
+        const at=pencilSamples.at(-1)
+        const metres=pencilSamples.slice(1).reduce((sum,p,index)=>sum+
+          Math.hypot(p[0]-pencilSamples[index][0],p[1]-pencilSamples[index][1]),0)
+        const isMirror=Boolean(pencilMirrorPreview)
+        return <text data-pencil-live-length="true" data-clo-inline-length="pencil"
+          x={at[0]+10*screenUnit} y={at[1]+13*screenUnit}
+          {...cloInlineDimensionStyle} textAnchor="start">
+          {isMirror?'Mirrored outline ':''}{formatPenDistancePrecise(isMirror?metres*2:metres,penPrecision.unit)}
+        </text>
+      })()}
+      {tool2d==='vector-pencil'&&pencilSamples.length<2&&completedPencilMeasure&&(()=>{
+        const at=completedPencilMeasure.endpoint
+        return <text data-pencil-committed-length="true"
+          data-pencil-committed-length-metres={completedPencilMeasure.length.toFixed(8)}
+          data-clo-inline-length="pencil-completed" data-line-length-unit={penPrecision.unit}
+          x={at[0]+10*screenUnit} y={at[1]+13*screenUnit}
+          {...cloInlineDimensionStyle} textAnchor="start">
+          {completedPencilMeasure.mirror?'Mirrored outline':'Stroke'} {formatPenDistancePrecise(completedPencilMeasure.length,penPrecision.unit)}
+        </text>
+      })()}
+      {pencilMirrorPreview&&<g data-pencil-mirror-live-preview="true" pointerEvents="none">
+        <polygon points={pencilMirrorPreview.points.map(p=>p.join(',')).join(' ')}
+          fill="#6eade4" fillOpacity=".16" stroke="#ffe6a3" strokeDasharray="5 3"
+          strokeWidth="1.3" vectorEffect="non-scaling-stroke"/>
+        <line x1={pencilMirrorPreview.axis[0][0]} y1={pencilMirrorPreview.axis[0][1]}
+          x2={pencilMirrorPreview.axis[1][0]} y2={pencilMirrorPreview.axis[1][1]}
+          stroke="#ffcc75" strokeDasharray="3 3" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
+      </g>}
+      {tool2d==='shape-builder'&&shapeBuilderLineValid&&<g data-shape-builder-open-pen="true" pointerEvents="none">
+        <polyline points={shapeBuilderLine.points.map(p=>p.join(',')).join(' ')}
+          fill="none" stroke="#f2a644" strokeWidth="2.2" strokeDasharray="7 3"
+          vectorEffect="non-scaling-stroke" strokeLinecap="round" strokeLinejoin="round"/>
+        {shapeBuilderLine.points.map((p,i)=><circle key={i} cx={p[0]} cy={p[1]}
+          r={4*screenUnit} fill="#fff0c8" stroke="#d38118" strokeWidth="1.1" vectorEffect="non-scaling-stroke"/>)}
+      </g>}
+      {(tool2d!=='vector-pen'&&(draft.length > 0||pencilSamples.length>0)) && <polyline data-vector-draft={tool2d==='vector-pencil'?'pencil':'pattern'}
         points={(pencilSamples.length?pencilSamples:draft).map(p => p.join(',')).join(' ')}
         fill="none" stroke="#6888bf" strokeWidth="1.2" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
-      {tool2d==='vector-pen'&&draft.map((p,i)=>{const t=vectorTangents[i]||[0,0];return <g key={i} data-vector-pen-anchor={i} pointerEvents="none">
-        <circle cx={p[0]} cy={p[1]} r={3*screenUnit} fill="#fff" stroke="#6888bf" strokeWidth=".8" vectorEffect="non-scaling-stroke"/>
-        {Math.hypot(...t)>.001&&<><line x1={p[0]-t[0]} y1={p[1]-t[1]} x2={p[0]+t[0]} y2={p[1]+t[1]} stroke="#6888bf" strokeDasharray="4 3" strokeWidth="1" vectorEffect="non-scaling-stroke"/>
-          <circle cx={p[0]+t[0]} cy={p[1]+t[1]} r={3.5*screenUnit} fill="#fff" stroke="#6888bf" strokeWidth=".8" vectorEffect="non-scaling-stroke"/></>}
+      {penDraftVisible&&draft.map((p,i)=>{const t=vectorTangents[i]||[0,0];return <g key={i} data-vector-pen-anchor={i}>
+        <circle data-vector-pen-anchor-hit={i} role="button" aria-label={`Select drawing anchor ${i+1}`}
+          cx={p[0]} cy={p[1]} r={Math.max(5*screenUnit,.004)} fill={vectorSelectedAnchor===i?'#ffe194':'#fff'} stroke="#6888bf" strokeWidth="1.5" vectorEffect="non-scaling-stroke"
+          pointerEvents={tool2d!=='vector-pen'||vectorCurveMode||penPaused||temporaryShiftPen.current?'all':'none'}
+          data-anchor-remove-target={tool2d==='remove-anchor'?'true':undefined}
+          data-anchor-hovered={hoveredNativeAnchor===`draft:${i}`?'true':undefined}
+          onPointerEnter={()=>setHoveredNativeAnchor(`draft:${i}`)}
+          onPointerLeave={()=>setHoveredNativeAnchor(null)}
+          style={{cursor:'pointer'}} onPointerDown={e=>{
+            e.stopPropagation();e.preventDefault()
+            if(tool2d==='vector-pen'&&penPaused){
+              const resumed=resumePausedPenFromAnchor(draft,vectorTangents,i)
+              if(resumed){
+                setDraft(resumed.points);setVectorTangents(resumed.tangents)
+                setVectorSelectedAnchor(resumed.selected);setPenPaused(false)
+                setVectorCursor(null)
+              }
+              return
+            }
+            if(e.button!==0)return
+            if(tool2d==='remove-anchor'){
+              setDraft(old=>old.filter((_,n)=>n!==i))
+              setVectorTangents(old=>old.filter((_,n)=>n!==i))
+              setVectorSelectedAnchor(Math.max(0,i-1))
+              return
+            }
+            if(tool2d==='split'){setVectorSelectedAnchor(i);return}
+            if(tool2d==='direct-select'){
+              setVectorSelectedAnchor(i)
+              vectorDrag.current={index:i,start:p,pointerStart:point(e)||p,pointerId:e.pointerId,moveDraft:true}
+              svg.current?.setPointerCapture(e.pointerId)
+              return
+            }
+            if(tool2d==='anchor-point'){
+              setVectorSelectedAnchor(i)
+              // Illustrator Convert Anchor: pressing an already smooth point
+              // immediately resets its handles; moving the same press pulls
+              // out the new opposite pair. No pointerup target dependency.
+              const wasCurved=Math.hypot(...t)>.001
+              if(wasCurved)setVectorTangents(old=>old.map((v,index)=>index===i?[0,0]:v))
+              vectorDrag.current={start:p,index:i,pointerId:e.pointerId,convert:true,moved:false,
+                wasCurved}
+              svg.current?.setPointerCapture(e.pointerId)
+              return
+            }
+            // Closing on the first point remains an Illustrator Pen gesture.
+            // Option-click lets you edit the starting anchor instead.
+            if(i===0&&draft.length>=3&&!e.altKey&&!vectorCurveMode)finishDrawing()
+            else setVectorSelectedAnchor(i)
+          }}
+          onDoubleClick={e=>{
+            if(tool2d!=='direct-select'||busy)return
+            e.stopPropagation();e.preventDefault()
+            setVectorSelectedAnchor(i)
+            showAnchorEditor(e,'draft',null,i)
+          }}/>
+        {Math.hypot(...t)>.001&&<><line x1={p[0]-t[0]} y1={p[1]-t[1]} x2={p[0]+t[0]} y2={p[1]+t[1]} stroke="#6888bf" strokeDasharray="4 3" strokeWidth="1" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+          {[1,-1].map(side=><circle key={side} data-vector-pen-handle={`${i}:${side}`} role="button" aria-label={`${side>0?'Outgoing':'Incoming'} curve handle for drawing anchor ${i+1}`}
+            cx={p[0]+side*t[0]} cy={p[1]+side*t[1]} r={4*screenUnit}
+            fill="#fff" stroke="#6888bf" strokeWidth=".9" vectorEffect="non-scaling-stroke"
+            pointerEvents={tool2d!=='vector-pen'||vectorCurveMode||temporaryShiftPen.current?'all':'none'}
+            style={{cursor:'crosshair'}} onPointerDown={e=>{
+              e.stopPropagation();e.preventDefault();setVectorSelectedAnchor(i);setVectorCurveMode(true)
+              vectorDrag.current={start:p,index:i,pointerId:e.pointerId,handleSide:side}
+              svg.current?.setPointerCapture(e.pointerId)
+            }}/>)}</>}
       </g>})}
+      {anchorEditVisual&&<g data-anchor-curve-popup="circle" data-anchor-circle-kind={anchorEditPopup.kind}
+        data-anchor-circle-index={anchorEditPopup.index}>
+        <circle cx={anchorEditVisual.anchor[0]} cy={anchorEditVisual.anchor[1]}
+          r={4.5*screenUnit} fill="#ffdb87" stroke="#316fa8" strokeWidth="1.6"
+          vectorEffect="non-scaling-stroke" pointerEvents="none"/>
+        <line x1={anchorEditVisual.anchor[0]} y1={anchorEditVisual.anchor[1]}
+          x2={anchorEditVisual.knob[0]} y2={anchorEditVisual.knob[1]}
+          stroke="#338fe8" strokeDasharray="4 3" strokeWidth="1.4"
+          vectorEffect="non-scaling-stroke" pointerEvents="none" data-anchor-circle-radius-guide="true"/>
+        {anchorEditVisual.guidelines.map((p,i)=><g key={i} pointerEvents="none">
+          <line x1={anchorEditVisual.anchor[0]} y1={anchorEditVisual.anchor[1]}
+            x2={p[0]} y2={p[1]} stroke="#55a5ff" strokeDasharray="3 2"
+            strokeWidth="1.3" vectorEffect="non-scaling-stroke" data-anchor-circle-tangent-guide={i}/>
+          <circle cx={p[0]} cy={p[1]} r={3*screenUnit} fill="#f1fbff"
+            stroke="#3585d4" strokeWidth="1.1" vectorEffect="non-scaling-stroke"/>
+        </g>)}
+        <circle cx={anchorEditVisual.knob[0]} cy={anchorEditVisual.knob[1]}
+          r={7*screenUnit} role="slider" aria-label="Drag circular corner control to curve the selected anchor"
+          aria-valuemin={0} aria-valuemax={100}
+          aria-valuenow={Math.round(Math.min(100,Math.hypot(anchorEditVisual.knob[0]-anchorEditVisual.anchor[0],anchorEditVisual.knob[1]-anchorEditVisual.anchor[1])/Math.max(anchorEditVisual.geometry.minEdge,1e-8)*250))}
+          data-anchor-curve-handle="true" fill="#e6f5ff" fillOpacity=".92" stroke="#238be1"
+          strokeWidth="2.3" vectorEffect="non-scaling-stroke" pointerEvents="all"
+          style={{cursor:'grab'}} onPointerDown={beginCornerDrag}/>
+      </g>}
       {measuring && tape.map((p,i)=><circle key={i} data-tape-point={i} aria-label={`Measurement endpoint ${i+1}`} cx={p[0]} cy={p[1]} r={(editingTape?4:3)*screenUnit} fill="#fff" stroke="#166478" strokeWidth=".8" vectorEffect="non-scaling-stroke" pointerEvents={editingTape?'all':'none'} style={{cursor:editingTape?'move':'default'}} onPointerDown={e=>{
         if(!editingTape||busy)return
         e.stopPropagation();e.preventDefault()
         tapeDrag.current={index:i}
         svg.current?.setPointerCapture(e.pointerId)
       }}/>)}
+      {boxSelectPreview&&mode==='edit'&&tool2d==='point'&&(()=>{
+        const a=boxSelectPreview.start,b=boxSelectPreview.end
+        return <rect data-clo-native-point-marquee="true"
+          x={Math.min(a[0],b[0])} y={Math.min(a[1],b[1])}
+          width={Math.abs(a[0]-b[0])} height={Math.abs(a[1]-b[1])}
+          fill="#ffe363" fillOpacity=".12" stroke="#f9d82a"
+          strokeWidth="1.4" strokeDasharray="5 3" vectorEffect="non-scaling-stroke"
+          pointerEvents="none"/>
+      })()}
+      {patternMarquee&&mode==='edit'&&['select','shape-builder'].includes(tool2d)&&<rect
+        data-2d-pattern-marquee="true"
+        x={Math.min(patternMarquee.start[0],patternMarquee.end[0])}
+        y={Math.min(patternMarquee.start[1],patternMarquee.end[1])}
+        width={Math.abs(patternMarquee.start[0]-patternMarquee.end[0])}
+        height={Math.abs(patternMarquee.start[1]-patternMarquee.end[1])}
+        fill="#4caee8" fillOpacity=".1" stroke="#52b7e8" strokeWidth="1.2"
+        strokeDasharray="5 3" vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
       {measuring && tape.length===2 && <g data-tape-measurement="true" pointerEvents="none">
         <line x1={tape[0][0]} y1={tape[0][1]} x2={tape[1][0]} y2={tape[1][1]} stroke="#166478" strokeWidth="1" vectorEffect="non-scaling-stroke" strokeDasharray="5 3"/>
-        <text x={(tape[0][0]+tape[1][0])/2} y={(tape[0][1]+tape[1][1])/2-10*screenUnit} textAnchor="middle" fontSize={11*screenUnit} fontWeight="500" fill="#37464d" stroke="#fff" strokeWidth={2*screenUnit} paintOrder="stroke">{formatCm(Math.hypot(tape[1][0]-tape[0][0],tape[1][1]-tape[0][1]))}</text>
+        <text x={(tape[0][0]+tape[1][0])/2} y={(tape[0][1]+tape[1][1])/2-10*screenUnit} textAnchor="middle" fontSize={11*screenUnit} fontWeight="500" fill="#37464d" stroke="#fff" strokeWidth={2*screenUnit} paintOrder="stroke">{displayMeasurement(Math.hypot(tape[1][0]-tape[0][0],tape[1][1]-tape[0][1]))}</text>
       </g>}
       {panels.flatMap(({panel,range})=>(panel.polygon?.measurements||[]).map(measurement=>{
         const a=boundaryMark(range.boundaries?.[measurement.a?.edge]||[],measurement.a?.t)?.p
@@ -2668,10 +4673,177 @@ export default function ClothCraftBoardV2({
         return <g key={`${panel.id}:${measurement.id}`} data-native-pom={measurement.id} data-native-pom-panel={panel.id} pointerEvents="none">
           <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={isSelected?'#f68c35':'#126c79'} strokeWidth={isSelected?1.2:.8} vectorEffect="non-scaling-stroke" strokeDasharray="5 3"/>
           {[a,b].map((p,i)=><circle key={i} cx={p[0]} cy={p[1]} r={2.5*screenUnit} fill="#fff" stroke="#126c79" strokeWidth=".8" vectorEffect="non-scaling-stroke"/>)}
-          <text x={(a[0]+b[0])/2} y={(a[1]+b[1])/2-10*screenUnit} textAnchor="middle" fontSize={11*screenUnit} fill="#37464d" stroke="#fff" strokeWidth={2*screenUnit} paintOrder="stroke">{measurement.label}: {formatCm(Math.hypot(b[0]-a[0],b[1]-a[1]))}</text>
+          <text x={(a[0]+b[0])/2} y={(a[1]+b[1])/2-10*screenUnit} textAnchor="middle" fontSize={11*screenUnit} fill="#37464d" stroke="#fff" strokeWidth={2*screenUnit} paintOrder="stroke">{measurement.label}: {displayMeasurement(Math.hypot(b[0]-a[0],b[1]-a[1]))}</text>
         </g>
       }))}
+      {gradingPOMPreview?.definition&&panels.map(({panel,range})=>{
+        const definition=gradingPOMPreview.definition
+        if(panel.id!==definition.panelId)return null
+        const sized=gradingPOMPreview.byPanel?.[panel.id]?.sizeRun?.[gradingPOMPreview.size]?.polygon
+        if(!sized)return null
+        return <NativeGradingPOMOverlay20261025 key={definition.id}
+          definition={definition} polygon={sized} panel={panel} range={range}
+          size={gradingPOMPreview.size} screenUnit={screenUnit}/>
+      })}
+      {nativeConstructionPreview?.revision===s.revision&&panels.map(({panel,range})=>{
+        if(panel.id!==nativeConstructionPreview.panelId||!Array.isArray(nativeConstructionPreview.position)||
+          nativeConstructionPreview.position.length!==2||nativeConstructionPreview.position.some(v=>!Number.isFinite(v)))return null
+        const destination=transform(panel,range,nativeConstructionPreview.position)
+        const original=panel.polygon?.points?.[nativeConstructionPreview.pointIndex]
+        if(!original)return null
+        const start=transform(panel,range,original)
+        return <g key={panel.id} data-native-construction-preview={panel.id} pointerEvents="none">
+          <line x1={start[0]} y1={start[1]} x2={destination[0]} y2={destination[1]} stroke="#b86b22" strokeDasharray="5 4" strokeWidth="1.6" vectorEffect="non-scaling-stroke"/>
+          <circle cx={destination[0]} cy={destination[1]} r={7*screenUnit} fill="#fff3cf" stroke="#b86b22" strokeWidth="1.8" vectorEffect="non-scaling-stroke"/>
+          <path d={`M${destination[0]-10*screenUnit},${destination[1]}h${20*screenUnit}M${destination[0]},${destination[1]-10*screenUnit}v${20*screenUnit}`} stroke="#b86b22" strokeWidth="1.2" vectorEffect="non-scaling-stroke"/>
+          <text x={destination[0]} y={destination[1]-13*screenUnit} fill="#52310a" fontWeight="700" stroke="white" strokeWidth={2*screenUnit} paintOrder="stroke" fontSize={11*screenUnit} textAnchor="middle">P{nativeConstructionPreview.pointIndex+1} proposal</text>
+        </g>
+      })}
+      {nativeCurveStationPreview?.revision===s.revision&&panels.map(({panel,range})=>{
+        if(panel.id!==nativeCurveStationPreview.panelId||!Array.isArray(nativeCurveStationPreview.position)||
+          nativeCurveStationPreview.position.length!==2||nativeCurveStationPreview.position.some(v=>!Number.isFinite(v)))return null
+        const p=transform(panel,range,nativeCurveStationPreview.position)
+        return <g key={panel.id} data-native-curve-station-preview={panel.id} pointerEvents="none">
+          <circle cx={p[0]} cy={p[1]} r={6*screenUnit} fill="#e6f6ff" stroke="#0789a5" strokeWidth="1.75" vectorEffect="non-scaling-stroke"/>
+          <path d={`M${p[0]-9*screenUnit},${p[1]}h${18*screenUnit}M${p[0]},${p[1]-9*screenUnit}v${18*screenUnit}`} stroke="#0789a5" strokeWidth="1.2" vectorEffect="non-scaling-stroke"/>
+          <text x={p[0]} y={p[1]-13*screenUnit} fill="#07546a" fontWeight="700" stroke="white" strokeWidth={2*screenUnit} paintOrder="stroke" fontSize={11*screenUnit} textAnchor="middle">Arc station · {nativeCurveStationPreview.edge}</text>
+        </g>
+      })}
+      {nativeDartPrecisionPreview?.revision===s.revision&&panels.map(({panel,range})=>{
+        if(panel.id!==nativeDartPrecisionPreview.panelId)return null
+        const source=[nativeDartPrecisionPreview.left,nativeDartPrecisionPreview.apex,nativeDartPrecisionPreview.right]
+        if(source.some(p=>!Array.isArray(p)||p.length!==2||p.some(v=>!Number.isFinite(v))))return null
+        const p=source.map(uv=>transform(panel,range,uv))
+        return <g key={panel.id} data-native-dart-precision-preview={panel.id} pointerEvents="none">
+          <path d={`M${p[0][0]},${p[0][1]}L${p[1][0]},${p[1][1]}L${p[2][0]},${p[2][1]}`} fill="#c9676c" fillOpacity=".18" stroke="#ba2e4b" strokeWidth="2" strokeDasharray="6 3" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
+          {p.map((pt,i)=><circle key={i} cx={pt[0]} cy={pt[1]} r={(i===1?6:4)*screenUnit} fill="#fff1ed" stroke="#ba2e4b" strokeWidth="1.4" vectorEffect="non-scaling-stroke"/>)}
+          <text x={p[1][0]} y={p[1][1]-14*screenUnit} fontWeight="700" fontSize={11*screenUnit} textAnchor="middle" stroke="white" strokeWidth={2*screenUnit} paintOrder="stroke" fill="#9d2545">V-cut proposal · not sewn</text>
+        </g>
+      })}
+      {nativePhysicalPleatPreview?.revision===s.revision&&panels.map(({panel,range})=>{
+        if(panel.id!==nativePhysicalPleatPreview.panelId)return null
+        const entries=nativePhysicalPleatPreview.preview
+        if(!Array.isArray(entries)||entries.length>16)return null
+        return <g key={panel.id} data-native-physical-pleat-board-preview={panel.id}
+          pointerEvents="none">
+          {entries.map((entry,index)=>{
+            if(!Array.isArray(entry.legs)||entry.legs.length!==2||
+              entry.legs.some(leg=>!Array.isArray(leg)||leg.length!==2||
+                leg.some(p=>!Array.isArray(p)||p.length!==2||p.some(n=>!Number.isFinite(n)))))return null
+            const [first,second]=entry.legs.map(([a,b])=>[
+              transform(panel,range,a),transform(panel,range,b)])
+            const label=[(first[0][0]+second[0][0])/2,
+              (first[0][1]+second[0][1])/2]
+            return <g key={index} data-physical-pleat-pair={index}>
+              {[first,second].map(([a,b],n)=><line key={n}
+                x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
+                stroke="#087d8d" strokeWidth="2.5" strokeDasharray="5 3"
+                vectorEffect="non-scaling-stroke"/>)}
+              <line x1={first[0][0]} y1={first[0][1]}
+                x2={second[0][0]} y2={second[0][1]}
+                stroke="#d16b2c" strokeWidth="1.8" vectorEffect="non-scaling-stroke"/>
+              <text x={label[0]} y={label[1]-(13+(index%2)*17)*screenUnit}
+                fill="#07546a" stroke="white" strokeWidth={2*screenUnit}
+                paintOrder="stroke" fontWeight="700" fontSize={10*screenUnit}
+                textAnchor="middle">{nativePhysicalPleatPreview.intakeMm.toFixed(1)} mm · tuck {index+1}</text>
+            </g>
+          })}
+        </g>
+      })}
+      {/* Draw active line dimensions LAST. Selected/hovered yellow cutlines and
+          guide strokes must never paint over their own measurement readout. */}
+      {!sewingActive&&panels.flatMap(({panel,range})=>{
+        const edges=measuredNativeEdges(panel)
+        if(!edges.length)return []
+        const livePolygon=handlePreview?.panelId===panel.id&&handlePreview.polygon||
+          pendingCurveCommit?.panelId===panel.id&&pendingCurveCommit.polygon||panel.polygon
+        const rows=curveDraftDimensions(livePolygon)
+        const baselineRows=livePolygon!==panel.polygon?curveDraftDimensions(panel.polygon):[]
+        const currentPreview=preview?.panelId===panel.id||
+          (preview?.kind==='move'&&preview?.groupIds?.includes(panel.id))?preview:null
+        return edges.map(edge=>{
+          const row=rows.find(item=>item.edge===edge)
+          if(!row)return null
+          const middle=previewPoint(transform(panel,range,row.midpoint),currentPreview)
+          const label=penInlineLabelPoint(middle,middle,screenUnit)
+          if(!label)return null
+          const previous=baselineRows.find(item=>item.edge===edge)
+          const change=previous?row.length-previous.length:null
+          const minX=view[0]-offset[0]+48*screenUnit
+          const maxX=view[0]-offset[0]+view[2]-48*screenUnit
+          const x=minX<maxX?Math.max(minX,Math.min(maxX,label.x)):label.x
+          const y=Math.max(view[1]-offset[1]+16*screenUnit,
+            Math.min(view[1]-offset[1]+view[3]-8*screenUnit,label.y))
+          return <text key={`${panel.id}:${edge}`} data-2d-boundary-readout={`${panel.id}:${edge}`}
+            data-2d-readout-approx-cm={(row.length*100).toFixed(3)}
+            data-clo-inline-length={selection?.panel===panel.id&&edges.includes(edge)?'selected':'hover'}
+            data-line-length-unit={penPrecision.unit} data-2d-measure-top-layer="true"
+            x={x} y={y} {...cloInlineDimensionStyle}>
+            ≈ {formatPenDistancePrecise(row.length,penPrecision.unit)}
+            {change!==null&&Math.abs(change)>=.00005
+              ?` (${change>=0?'+':''}${formatPenDistancePrecise(change,penPrecision.unit)})`:''}
+          </text>
+        }).filter(Boolean)
+      })}
+      {(referenceModeActive||(!busy&&mode==='edit'&&['select','direct-select'].includes(tool2d)))&&<g transform="scale(.001)" data-reference-photo-edit-layer="true">
+        <PatternReferencesSvgLayer20261025 references={patternReferences}
+          onChange={onUpdatePatternReferences} rootUnitMm={1000}
+          interactive={!busy&&['select','direct-select'].includes(tool2d)&&mode==='edit'}/>
+      </g>}
+      {!sewingActive&&(hoveredGuideId||selectedGuide?.points?.length===2)&&(()=>{
+        const guide=hoveredGuideId&&hoveredGuideId===selectedGuide?.id?selectedGuide:
+          hoveredGuideId&&hoveredGuideGeometry?.id===hoveredGuideId?hoveredGuideGeometry:
+          hoveredGuideId?null:selectedGuide
+        if(!guide?.points||guide.points.length!==2)return null
+        const panel=panels.find(item=>item.panel.id===guide.panelId)?.panel
+        const range=panels.find(item=>item.panel.id===guide.panelId)?.range
+        let points=guide.pathPoints||guide.points
+        let baseline=null
+        if(['chest','belly'].includes(guide.kind)){
+          const original=guideHalfCurves[guide.id]||[0,0]
+          const updated=guideHalfCurveDraft?.id===guide.id?guideHalfCurveDraft.offset:original
+          const angle=(panel?.layout_rotation_degrees||0)*Math.PI/180+
+            (preview?.panelId===guide.panelId&&preview?.kind==='rotate'?preview.angle:0)
+          points=sampleGuideHalfCurve(guide.points[0],guide.points[1],updated,angle)?.points||points
+          if(guideHalfCurveDraft?.id===guide.id)
+            baseline=sampledPenLineMetrics(sampleGuideHalfCurve(...guide.points,original,angle)?.points)?.length
+        }else if(guide.nativeLineId&&panel&&range){
+          const line=panel.polygon?.lines?.find(item=>item.id===guide.nativeLineId)
+          const index=Number(guide.id.split(':').at(-1))
+          if(line&&Number.isInteger(index)&&index>=0&&index<line.points.length-1){
+            const tangent=i=>{
+              const t=line.tangents?.[i]||[0,0]
+              return handlePreview?.panelId===panel.id&&handlePreview.anchor===`l:${line.id}:${i}`
+                ?t.map((v,j)=>v+(handlePreview.delta?.[j]||0)):t
+            }
+            points=sampleInternalCurve(line.points[index],line.points[index+1],
+              tangent(index),tangent(index+1)).map(p=>previewPoint(transform(panel,range,p),
+                preview?.panelId===panel.id?preview:null))
+          }
+        }
+        const measured=sampledPenLineMetrics(points)
+        if(!measured)return null
+        const pos=penInlineLabelPoint(measured.midpoint,measured.midpoint,screenUnit)
+        if(!pos)return null
+        const change=baseline===null?null:measured.length-baseline
+        const minX=view[0]-offset[0]+48*screenUnit,maxX=view[0]-offset[0]+view[2]-48*screenUnit
+        return <text data-2d-guide-length={guide.id} data-clo-inline-length={hoveredGuideId===guide.id?'guide-hover':'guide-selected'}
+          data-guide-length-metres={measured.length.toFixed(8)} data-line-length-unit={penPrecision.unit}
+          x={minX<maxX?Math.max(minX,Math.min(maxX,pos.x)):pos.x}
+          y={Math.max(view[1]-offset[1]+16*screenUnit,
+            Math.min(view[1]-offset[1]+view[3]-8*screenUnit,pos.y))}
+          {...cloInlineDimensionStyle}>
+          {formatPenDistancePrecise(measured.length,penPrecision.unit)}
+          {change!==null&&Math.abs(change)>=.00005
+            ?` (${change>=0?'+':''}${formatPenDistancePrecise(change,penPrecision.unit)})`:''}
+        </text>
+      })()}
       </g>
+      <PatternReferenceImageLayer image={reference.image} setImage={reference.setImage} unitsPerCm={.01}
+        screenUnit={screenUnit}
+        interactive={!busy && tool2d === 'select' && mode === 'edit'} handlesOnly/>
     </svg>
+    {showRulers&&<CadViewportRulers20261023 svgRef={svg} view={view} worldToMetres={1} units={rulerUnits} green={accumarkGreen}
+      markColor={adaptiveCad?.ruler||studioPreferences?.twoDRulerMarkColor} glassColor={studioPreferences?.twoDRulerGlassColor} glassOpacity={studioPreferences?.twoDRulerGlassOpacity} glow={studioPreferences?.twoDRulerGlow}/>}
   </div>
 }

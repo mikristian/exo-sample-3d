@@ -1,3 +1,4 @@
+import {composeSvgMatrices,transformSvgPoints} from './rustSvgAffineKernel.js'
 // Imports Illustrator/Inkscape SVG outline paths as editable, UNSEWN EXO
 // pattern pieces. No external script/style/image is ever mounted into the DOM.
 // Convert complex effects or clipping masks to plain outlined paths first.
@@ -13,7 +14,6 @@ const matrixTransform=(value)=>{
   if(!value)return [1,0,0,1,0,0]
   const tokens=[...value.matchAll(/(matrix|translate|scale|rotate)\s*\(([^)]*)\)/gi)]
   let result=[1,0,0,1,0,0]
-  const mul=(x,y)=>[x[0]*y[0]+x[2]*y[1],x[1]*y[0]+x[3]*y[1],x[0]*y[2]+x[2]*y[3],x[1]*y[2]+x[3]*y[3],x[0]*y[4]+x[2]*y[5]+x[4],x[1]*y[4]+x[3]*y[5]+x[5]]
   for(const token of tokens){
     const v=token[2].split(/[\s,]+/).filter(Boolean).map(Number)
     if(v.some(n=>!Number.isFinite(n)))throw new Error('Invalid SVG transformation')
@@ -28,7 +28,7 @@ const matrixTransform=(value)=>{
       }
       default:throw new Error('Unsupported SVG transform')
     }
-    result=mul(result,next)
+    result=composeSvgMatrices(result,next)
   }
   if(tokens.map(t=>t[0]).join('').replace(/\s+/g,'')!==value.replace(/\s+/g,''))throw new Error('Unsupported SVG transform; expand appearances first')
   return result
@@ -88,10 +88,9 @@ export function parseSvgPattern(source,{fileName='Illustrator SVG',maxPieces=64}
     let chain=[1,0,0,1,0,0]
     for(const ancestor of [el,...(function*(node){for(let x=node.parentElement;x&&x!==root;x=x.parentElement)yield x})(el)].reverse()){
       const matrix=matrixTransform(ancestor.getAttribute('transform'))
-      const [a,b,c,d,e,f]=matrix,[A,B,C,D,E,F]=chain
-      chain=[A*a+C*b,B*a+D*b,A*c+C*d,B*c+D*d,A*e+C*f+E,B*e+D*f+F]
+      chain=composeSvgMatrices(chain,matrix)
     }
-    coords=coords.map(p=>({x:(chain[0]*p.x+chain[2]*p.y+chain[4])*scale,y:(chain[1]*p.x+chain[3]*p.y+chain[5])*scale}))
+    coords=transformSvgPoints(chain,coords,scale)
     if(coords.length>1&&Math.hypot(coords[0].x-coords.at(-1).x,coords[0].y-coords.at(-1).y)<.02)coords.pop()
     if(coords.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||Math.abs(p.x)>1e5||Math.abs(p.y)>1e5))throw new Error('Invalid or oversized SVG coordinates')
     const minX=Math.min(...coords.map(p=>p.x)),maxX=Math.max(...coords.map(p=>p.x))

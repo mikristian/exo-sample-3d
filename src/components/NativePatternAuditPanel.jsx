@@ -28,6 +28,7 @@ export default function NativePatternAuditPanel({audit,revision,onClose,onRefres
       <strong>{panel.name}</strong>: {panel.ok?
         <>{panel.pointCount} vertices · {mm(panel.perimeterMm)} perimeter · {Number(panel.areaMm2).toFixed(0)} mm² · {panel.notchMarkCount||0} projected notch marks · {panel.pomMarksMm?.length||0} physical POMs · {panel.stitchLayer?'separate stitch contour':'no stitch contour'}
          <button type="button" disabled={disabled||cutlines.revision!==revision||!panel.svg} onClick={()=>onDownloadCutline(panel,'svg')} aria-label={`Download ${panel.name} Rust engineering SVG`}>Download metric SVG proof</button>
+         {['A4','Letter'].map(format=><button key={format} type="button" disabled={disabled||cutlines.revision!==revision||!panel.svg} onClick={()=>onDownloadCutline(panel,format)} aria-label={`Print ${panel.name} cutline on ${format}`}>Tiled {format} cutline proof</button>)}
          <button type="button" disabled={disabled||cutlines.revision!==revision||!panel.dxf} onClick={()=>onDownloadCutline(panel,'dxf')} aria-label={`Download ${panel.name} Rust engineering DXF`}>Download metric DXF proof</button></>:
         <>Blocked: {panel.error}</>}
     </li>)}</ul>

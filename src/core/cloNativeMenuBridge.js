@@ -35,6 +35,9 @@ const NATIVE_2D_TOOLS = Object.freeze({
   '2d.allowance':{tool:'allowance',section:'Pattern'},
   '2d.measure':{tool:'measure',section:'Pattern'},
   'sewing.sew':{tool:'sew',section:'Sewing'},
+  'sewing.segment':{tool:'segment-sew',section:'Sewing'},
+  'sewing.free':{tool:'free-sew',section:'Sewing'},
+  'sewing.edit':{tool:'seam-edit',section:'Sewing'},
 })
 
 const UNSUPPORTED = Object.freeze({

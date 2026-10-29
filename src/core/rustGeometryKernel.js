@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /**
  * Rust-first drafting/measurement geometry. Existing synchronous editor
  * call-sites retain their shapes and errors; JS operates only until the
@@ -16,6 +17,19 @@ const required=['exo_geometry_abi_version','exo_grid_coordinate',
   'exo_draft_axis_angle_x','exo_draft_axis_angle_y']
 
 export const rustGeometryKernelReady=()=>Boolean(rust)
+// Optional ABI v1 extension. Older modules retain the original DXF arithmetic.
+// Keep multiplication order: changing it can change serialized DXF decimals.
+export function rustDxfNotchCut(point,normal,depthCm){
+  if(rust&&typeof rust.exo_dxf_notch_coordinate==='function'){
+    const coordinate=(axis,outer)=>rust.exo_dxf_notch_coordinate(point[axis],normal[axis],depthCm,outer)
+    return {a:{x:coordinate('x',0),y:coordinate('y',0)},
+      b:{x:coordinate('x',1),y:coordinate('y',1)}}
+  }
+  return {
+    a:{x:point.x-normal.x*depthCm*0.15,y:point.y-normal.y*depthCm*0.15},
+    b:{x:point.x+normal.x*depthCm,y:point.y+normal.y*depthCm},
+  }
+}
 /** Optional v1 extension: half-open scanline intersection with Rust geometry.
  * NaN is a deliberate "no crossing" sentinel; `null` requests JS fallback
  * when loading or when an older installed geometry WASM lacks the export. */
@@ -45,10 +59,7 @@ export async function initializeRustGeometryKernel({bytes,url=WASM_PATH}={}){
   if(loading)return loading
   loading=(async()=>{
     try{
-      const raw=bytes??await fetch(url).then(response=>{
-        if(!response.ok)throw new Error(`Geometry WASM HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const raw=bytes??await fetchWasmBytes(url, "Geometry WASM HTTP ")
       const module=await WebAssembly.instantiate(raw,{})
       const exports=module.instance?.exports??module.exports
       if(required.some(name=>typeof exports?.[name]!=='function') ||
@@ -131,4 +142,48 @@ export function rustCubicPolylineLength([a,b,c,d],start=0,end=1,slices=128){
 
 if(typeof window!=='undefined'&&typeof fetch==='function'&&typeof WebAssembly!=='undefined'){
   void initializeRustGeometryKernel()
+}
+
+// Optional ABI v1 extension; null requests the pre-load/older-module fallback.
+export function rustDeletedPointEdgeIndex(edge, point, count) {
+  if (!rust?.exo_deleted_point_edge) return undefined
+  const mapped = rust.exo_deleted_point_edge(edge, point, count)
+  return mapped === -1 ? null : mapped
+}
+export function rustDeletionTopologyValid(piece) {
+  if (!rust?.exo_deletion_alloc || !rust?.exo_deletion_valid || !rust?.exo_deletion_free) return null
+  // Match draftingTopology's descriptor-only validation. Imported accessors
+  // must never execute during cutline preflight or supply mutable coordinates.
+  const ownValue = (object, key) => {
+    if (!object || typeof object !== 'object') return undefined
+    const descriptor = Object.getOwnPropertyDescriptor(object, key)
+    return descriptor && Object.hasOwn(descriptor, 'value') ? descriptor.value : undefined
+  }
+  const points = ownValue(piece, 'points')
+  if (!Array.isArray(points) || points.length < 3) return false
+  const curvesDescriptor = Object.getOwnPropertyDescriptor(piece, 'curves')
+  if (curvesDescriptor && !Object.hasOwn(curvesDescriptor, 'value')) return false
+  const curves = ownValue(piece, 'curves')
+  if (curves !== undefined && curves !== null &&
+      (typeof curves !== 'object' || Array.isArray(curves))) return false
+  const length = points.length * 5
+  const ptr = rust.exo_deletion_alloc(length)
+  try {
+    const data = new Float64Array(rust.memory.buffer, ptr, length)
+    for (let i = 0; i < points.length; i++) {
+      const point = ownValue(points, i)
+      const x = ownValue(point, 'x'), y = ownValue(point, 'y')
+      const curveDescriptor = curves && Object.getOwnPropertyDescriptor(curves, i)
+      if (curves && i in curves && (!curveDescriptor || !Object.hasOwn(curveDescriptor, 'value'))) return false
+      const curve = curveDescriptor?.value
+      const cx = ownValue(curve, 'cx'), cy = ownValue(curve, 'cy')
+      data.set([Number.isFinite(x) ? x : NaN,
+        Number.isFinite(y) ? y : NaN, curve != null ? 1 : 0,
+        Number.isFinite(cx) ? cx : NaN,
+        Number.isFinite(cy) ? cy : NaN], i * 5)
+    }
+    return Boolean(rust.exo_deletion_valid(ptr, length))
+  } finally {
+    rust.exo_deletion_free(ptr, length)
+  }
 }
