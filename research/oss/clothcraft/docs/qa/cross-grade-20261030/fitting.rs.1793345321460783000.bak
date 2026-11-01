@@ -1,0 +1,1267 @@
+//! Small reproducible fitting project, distinct from legacy single-panel Project.
+use crate::{
+    avatar::{MeshCollider, SurfaceMesh},
+    garment::{
+        CompiledGarment, GarmentTemplate,
+        presets::{self, GarmentKind},
+    },
+    model::State,
+    solver::{Metrics, ReferenceSolver, SolverSettings},
+    native_piece_variant_20261027::PersistedPieceVariant,
+    native_fabric_grade_chart_20261027::PersistedFabricGradeEnvelope,
+    native_facing_dependency_20261027::PersistedFacingDependency,
+    native_cross_piece_link_20261030::NativeCrossPieceLink20261030,
+};
+use serde::{Deserialize, Serialize};
+use std::collections::{HashSet, BTreeMap};
+
+/// Saved 2D construction bindings are design annotations only. Rust retains
+/// the authoritative authored geometry and records the exact source template
+/// for stale-graph detection across Undo, file save and reopen. Formula
+/// evaluation currently belongs to the validated JS construction planner;
+/// this schema is not a native automatic constraint solver.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NativeDraftPointBindings {
+    pub version: u32,
+    pub source_template: GarmentTemplate,
+    pub measurements: BTreeMap<String, NativeDraftMeasurement>,
+    pub bindings: Vec<NativeDraftPointRule>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum NativeDraftMeasurement {
+    Number(f64),
+    Definition(NativeDraftMeasurementDefinition),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NativeDraftMeasurementDefinition {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub formula: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value_mm: Option<f64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NativeDraftPointRule {
+    pub id: String,
+    pub panel_id: String,
+    pub point_index: usize,
+    pub mode: String,
+    pub a: usize,
+    pub b: usize,
+    pub distance_formula: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub angle_deg: Option<f64>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub depends_on: Vec<String>,
+}
+
+impl NativeDraftPointBindings {
+    pub fn valid_against(&self, template: &GarmentTemplate) -> Result<(), String> {
+        // Storage is deliberately a transport for the supported JS arithmetic
+        // subset, NOT executable source code or a general CAD expression AST.
+        // Reject control characters, unexpected operators and unbalanced
+        // parentheses before installing the formula in an imported project.
+        let arithmetic_text = |s: &str| {
+            if s.is_empty() || s.len()>1024 {return false}
+            let mut nesting=0i32;
+            for byte in s.bytes(){
+                match byte {
+                    b'('=>{nesting+=1;if nesting>64{return false}},
+                    b')'=>{nesting-=1;if nesting<0{return false}},
+                    b'a'..=b'z'|b'A'..=b'Z'|b'0'..=b'9'|b'_'|b'.'|
+                    b'+'|b'-'|b'*'|b'/'|b' '|b'\t'|b'\n'|b'\r'=>(),
+                    _=>return false,
+                }
+            }
+            nesting==0
+        };
+        if self.version != 1 || self.measurements.is_empty() || self.measurements.len() > 64
+            || self.bindings.is_empty() || self.bindings.len() > 128
+            || serde_json::to_vec(self).map_err(|e| e.to_string())?.len() > 3_000_000 {
+            return Err("Native measurement bindings exceed supported v1 bounds".into());
+        }
+        let identifier = |s: &str| {
+            let mut chars = s.bytes();
+            chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == b'_')
+                && s.len() <= 64
+                && chars.all(|c| c.is_ascii_alphanumeric() || c == b'_')
+        };
+        for (key,value) in &self.measurements {
+            if !identifier(key) || matches!(key.as_str(), "__proto__" | "constructor" | "prototype" | "_binding_distance") {
+                return Err("Invalid or reserved native measurement name".into());
+            }
+            match value {
+                NativeDraftMeasurement::Number(n) if n.is_finite() && n.abs() <= 100_000.0 => (),
+                NativeDraftMeasurement::Definition(d) if
+                    d.formula.as_ref().is_some_and(|s| arithmetic_text(s))
+                    && d.value_mm.is_none() => (),
+                NativeDraftMeasurement::Definition(d) if d.formula.is_none()
+                    && d.value_mm.is_some_and(|n| n.is_finite() && n.abs()<=100_000.0) => (),
+                _ => return Err("Invalid or ambiguous measurement formula/value".into()),
+            }
+        }
+        let mut ids = HashSet::new();
+        let mut target = HashSet::new();
+        for rule in &self.bindings {
+            let panel = template.panels.iter().find(|panel| panel.id == rule.panel_id)
+                .ok_or("Measurement binding references unknown panel")?;
+            let polygon = panel.polygon.as_ref().ok_or("Bound panel has no native polygon")?;
+            if rule.id.is_empty() || rule.id.len()>128 || !rule.id.is_ascii() || !ids.insert(rule.id.as_str())
+                || !matches!(rule.mode.as_str(),"along" | "normal" | "polar")
+                || rule.point_index>=polygon.points.len() || rule.a>=polygon.points.len()
+                || rule.b>=polygon.points.len()
+                || rule.point_index==rule.a
+                // An authored construction may legitimately use the point
+                // being moved as its ORIGINAL direction-reference B. The
+                // pre-edit coordinates define that direction, so do not
+                // reject target==B; target==A has no stable baseline.
+                || !target.insert((rule.panel_id.as_str(),rule.point_index))
+                || !arithmetic_text(&rule.distance_formula)
+                || rule.angle_deg.is_some_and(|a|!a.is_finite()||a.abs()>36000.0)
+                || rule.depends_on.len()>128 {
+                return Err("Invalid, duplicate or unsupported native point binding".into());
+            }
+        }
+        // Dependency references must resolve; a deterministic bounded DFS
+        // rejects cycles instead of installing an unexecutable rule graph.
+        let by_id:BTreeMap<_,_>=self.bindings.iter().map(|r|(r.id.as_str(),r)).collect();
+        // Never persist a graph that merely *claims* dependency edges. V1
+        // reference A/B indices are local to each panel: the graph must name
+        // exactly the already-bound local anchors used by each construction.
+        // A cross-panel relationship cannot be represented by v1 local
+        // indices and must not masquerade as safe multi-panel regeneration.
+        let by_target:BTreeMap<_,_>=self.bindings.iter()
+            .map(|r|((r.panel_id.as_str(),r.point_index),r.id.as_str()))
+            .collect();
+        for rule in &self.bindings {
+            let used=if rule.mode=="polar"{vec![rule.a]}else{vec![rule.a,rule.b]};
+            let required:HashSet<&str>=used.into_iter()
+                .filter(|point| *point!=rule.point_index)
+                .filter_map(|point|by_target.get(&(rule.panel_id.as_str(),point)).copied())
+                .collect();
+            let declared:HashSet<&str>=rule.depends_on.iter().map(String::as_str).collect();
+            if required!=declared||declared.len()!=rule.depends_on.len() {
+                return Err("Native dependency edges do not match actual same-panel reference anchors".into());
+            }
+        }
+        fn visit<'a>(id:&'a str, graph:&BTreeMap<&'a str,&'a NativeDraftPointRule>,
+            visiting:&mut HashSet<&'a str>,done:&mut HashSet<&'a str>)->Result<(),String>{
+            if done.contains(id) {return Ok(())}
+            if !visiting.insert(id){return Err("Circular native point binding dependency".into())}
+            let rule=graph.get(id).ok_or("Unknown native point binding dependency")?;
+            for dependency in &rule.depends_on {
+                let other=graph.get_key_value(dependency.as_str())
+                    .ok_or("Unknown native point binding dependency")?;
+                visit(*other.0,graph,visiting,done)?;
+            }
+            visiting.remove(id);done.insert(id);Ok(())
+        }
+        let (mut visiting,mut done)=(HashSet::new(),HashSet::new());
+        for id in by_id.keys(){visit(id,&by_id,&mut visiting,&mut done)?}
+        Ok(())
+    }
+    pub fn source_matches(&self,current:&GarmentTemplate)->bool{
+        match (serde_json::to_value(&self.source_template),serde_json::to_value(current)) {
+            (Ok(a),Ok(b))=>a==b,
+            _=>false,
+        }
+    }
+}
+#[cfg(test)]
+mod native_saved_graph_topology_20261028_tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn sample()->NativeDraftPointBindings {
+        let avatar=PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("assets/makehuman/mannequin.obj");
+        let project=FittingProject::basic(GarmentKind::Tshirt,2,avatar);
+        let front=project.template.panels[0].id.clone();
+        let back=project.template.panels[1].id.clone();
+        NativeDraftPointBindings { version:1,source_template:project.template,
+            measurements:BTreeMap::from([("reach".into(),NativeDraftMeasurement::Number(300.))]),
+            bindings:vec![
+                NativeDraftPointRule {id:"front-base".into(),panel_id:front.clone(),
+                    point_index:1,mode:"polar".into(),a:0,b:0,
+                    distance_formula:"reach".into(),angle_deg:Some(0.),depends_on:vec![]},
+                NativeDraftPointRule {id:"front-dependent".into(),panel_id:front,
+                    point_index:2,mode:"polar".into(),a:1,b:0,
+                    distance_formula:"reach".into(),angle_deg:Some(90.),
+                    depends_on:vec!["front-base".into()]},
+                NativeDraftPointRule {id:"back-base".into(),panel_id:back,
+                    point_index:1,mode:"polar".into(),a:0,b:0,
+                    distance_formula:"reach".into(),angle_deg:Some(0.),depends_on:vec![]},
+            ]}
+    }
+    #[test]
+    fn exact_same_panel_dependency_is_accepted_and_does_not_mutate_source(){
+        let graph=sample();let before=serde_json::to_value(&graph).unwrap();
+        graph.valid_against(&graph.source_template).unwrap();
+        assert_eq!(serde_json::to_value(&graph).unwrap(),before);
+    }
+    #[test]
+    fn incomplete_cross_panel_extra_or_duplicate_dependencies_refuse_at_storage(){
+        let source=sample();
+        for case in 0..4{
+            let mut graph=source.clone();
+            match case {
+                0=>graph.bindings[1].depends_on.clear(),
+                1=>graph.bindings[1].depends_on=vec!["back-base".into()],
+                2=>graph.bindings[1].depends_on=vec!["front-base".into(),"back-base".into()],
+                _=>graph.bindings[1].depends_on=vec!["front-base".into(),"front-base".into()],
+            }
+            let before=serde_json::to_value(&graph).unwrap();
+            let error=graph.valid_against(&graph.source_template).unwrap_err();
+            assert!(error.contains("same-panel reference anchors"),"case {case}: {error}");
+            assert_eq!(serde_json::to_value(&graph).unwrap(),before);
+        }
+    }
+}
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FittingProject {
+    pub version: u32,
+    pub template: GarmentTemplate,
+    /// A source-linked catalog only. It never selects a simulated or factory-approved size.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub grade_run: Option<PersistedGradeRun>,
+    /// Authored measurement/rule definitions embedded in the saved fitting
+    /// project; presence never grants a manufacturing or automatic solve claim.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_point_bindings: Option<NativeDraftPointBindings>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fabric_grade_envelope: Option<PersistedFabricGradeEnvelope>,
+    /// Strict source-bound production/3D article membership, not production approval.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub piece_variant: Option<PersistedPieceVariant>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_facing_dependency: Option<PersistedFacingDependency>,
+    /// One durable Rust-owned cross-piece board-space anchor relationship.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_cross_piece_link: Option<NativeCrossPieceLink20261030>,
+    /// Relative paths are resolved against the fitting-project JSON directory.
+    pub avatar_path: PathBuf,
+    pub contact_stiffness: f64,
+    #[serde(default)]
+    pub contact_clearance: f64,
+    #[serde(default)]
+    pub prearrange: bool,
+    /// Assembly relaxation: each incremental minimization starts at zero velocity.
+    #[serde(default)]
+    pub quasistatic: bool,
+    pub solver: SolverSettings,
+    pub state: Option<State>,
+    /// Detect stale vertex caches after remeshing or editing the template.
+    #[serde(default)]
+    pub mesh_signature: Option<String>,
+    #[serde(default, rename = "printGraphics", alias = "print_graphics")]
+    pub print_graphics: Vec<PrintGraphic>,
+    #[serde(default, rename = "importedHardware", alias = "imported_hardware")]
+    pub imported_hardware: Vec<ImportedHardware>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PersistedGradeRun {
+    pub schema_version: u32,
+    pub sizes: Vec<String>,
+    pub base_size: String,
+    pub base_template: GarmentTemplate,
+    pub graded_templates: Vec<GarmentTemplate>,
+    /// Schema v2: external labels resolve to one canonical size. Source size
+    /// geometry remains authoritative and never duplicates under an alias.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub size_correspondence: std::collections::BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pom_specs: Vec<GradedPomSpec>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct GradedPomSpec {
+    pub id: String,
+    pub label: String,
+    pub panel_id: String,
+    pub kind: String,
+    pub tolerance_mm: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_point: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub to_point: Option<usize>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub edge: Option<String>,
+    pub targets_mm: std::collections::BTreeMap<String, Option<f64>>,
+}
+
+impl PersistedGradeRun {
+    pub fn resolve_size<'a>(&'a self, size: &'a str) -> Option<&'a str> {
+        if self.sizes.iter().any(|s| s == size) { return Some(size); }
+        self.size_correspondence.get(size).map(String::as_str)
+    }
+
+    pub fn correspondence_for(&self, size: &str) -> Vec<&str> {
+        self.size_correspondence.iter().filter_map(|(alias, canonical)|
+            (canonical == size).then_some(alias.as_str())).collect()
+    }
+    /// Construct a disposable compilation view for an already-authored size.
+    /// The source envelope and each stored size's pattern metadata stay exact;
+    /// only positive overflow from actual material polygon vertices can widen
+    /// this local copy. Ordinary template compilation remains strict.
+    pub fn compilation_template_for_size(graded: &GarmentTemplate) -> Result<GarmentTemplate, String> {
+        const MAX_GRADE_EXTENT_M: f64 = 10.0;
+        let mut compiled = graded.clone();
+        for panel in &mut compiled.panels {
+            let Some(polygon) = &panel.polygon else { continue };
+            let width = panel.pattern.width;
+            let height = panel.pattern.height;
+            if !width.is_finite() || !height.is_finite()
+                || width <= 0.0 || height <= 0.0
+                || width > MAX_GRADE_EXTENT_M || height > MAX_GRADE_EXTENT_M {
+                return Err(format!("Invalid authored grade envelope on {}", panel.id));
+            }
+            let mut max_x = width;
+            let mut max_y = height;
+            for point in &polygon.points {
+                if !point.is_finite() || point.x < 0.0 || point.y < 0.0
+                    || point.x > MAX_GRADE_EXTENT_M || point.y > MAX_GRADE_EXTENT_M {
+                    return Err(format!("Invalid grade coordinate on {}", panel.id));
+                }
+                max_x = max_x.max(point.x);
+                max_y = max_y.max(point.y);
+            }
+            panel.pattern.width = max_x;
+            panel.pattern.height = max_y;
+        }
+        compiled.compile()?;
+        Ok(compiled)
+    }
+
+    pub fn validate(&self, active: &GarmentTemplate) -> Result<(), String> {
+        if !matches!(self.schema_version, 1 | 2) || self.sizes.len() != self.graded_templates.len()
+            || self.sizes.len() < 2 || self.sizes.len() > 24 {
+            return Err("Grade run requires schema v1/v2 and 2–24 matching sizes/templates".into());
+        }
+        if self.schema_version == 1 && (self.sizes.len() != 6 ||
+            self.sizes.iter().map(String::as_str).ne(["XS", "S", "M", "L", "XL", "XXL"].iter().copied()) ||
+            !self.size_correspondence.is_empty()) {
+            return Err("Legacy schema v1 requires exactly ordered XS–XXL without correspondence".into());
+        }
+        let mut unique = HashSet::new();
+        if self.sizes.iter().any(|s| s.is_empty() || s.len() > 24 || !s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') || !unique.insert(s.as_str()))
+            || !unique.contains(self.base_size.as_str()) {
+            return Err("Invalid, repeated or missing base grade size".into());
+        }
+        if self.size_correspondence.len() > 96 || self.size_correspondence.iter().any(|(alias, canonical)|
+            alias.is_empty() || alias.len() > 24 || !alias.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+            || unique.contains(alias.as_str()) || !unique.contains(canonical.as_str())) {
+            return Err("Invalid, conflicting or unresolved native size correspondence".into());
+        }
+        let encode = |t: &GarmentTemplate| serde_json::to_value(t).map_err(|e| e.to_string());
+        let base = encode(&self.base_template)?;
+        if base != encode(active)? { return Err("Grade run source does not match active template".into()); }
+        // Panel equality alone does not protect template-level metadata such
+        // as garment name and future native manufacturing annotations.
+        // A size may change only its explicitly graded panel geometry.
+        if serde_json::to_vec(self).map_err(|e| e.to_string())?.len() > 8_000_000 {
+            return Err("Grade catalog exceeds 8 MB bound".into());
+        }
+        if self.pom_specs.len() > 64 { return Err("Graded POM count exceeds 64".into()); }
+        let printable = |s: &str, max: usize| !s.is_empty() && s.len() <= max && s.chars().all(|c| !c.is_control() && !c.is_whitespace() || c == ' ');
+        let mut pom_ids = HashSet::new();
+        for pom in &self.pom_specs {
+            if !printable(&pom.id, 64) || !printable(&pom.label, 120) || !printable(&pom.panel_id, 128)
+                || !pom_ids.insert(pom.id.as_str()) || !pom.tolerance_mm.is_finite()
+                || !(0.0..=50.0).contains(&pom.tolerance_mm) {
+                return Err("Invalid, duplicate or unsafe graded POM metadata".into());
+            }
+            if pom.targets_mm.len() != self.sizes.len()
+                || self.sizes.iter().any(|size| !pom.targets_mm.contains_key(size))
+                || pom.targets_mm.values().flatten().any(|v| !v.is_finite() || *v <= 0.0 || *v > 100_000.0) {
+                return Err(format!("Invalid six-size POM targets: {}", pom.id));
+            }
+            let panel = active.panels.iter().find(|p| p.id == pom.panel_id)
+                .ok_or_else(|| format!("POM panel missing: {}", pom.id))?;
+            let polygon = panel.polygon.as_ref().ok_or_else(|| format!("POM requires editable polygon: {}", pom.id))?;
+            match pom.kind.as_str() {
+                "anchor-distance" | "sewline-path" => {
+                    if pom.edge.is_some() || pom.from_point == pom.to_point
+                        || polygon.edges.len()!=polygon.points.len()
+                        || ![pom.from_point, pom.to_point].iter().all(|point| point.is_some_and(|index| index < polygon.points.len())) {
+                        return Err(format!("Invalid POM point references: {}", pom.id));
+                    }
+                }
+                "sewline-edge" => {
+                    if pom.from_point.is_some() || pom.to_point.is_some()
+                        || !pom.edge.as_deref().is_some_and(|edge| printable(edge, 128) && polygon.edges.iter().any(|candidate| candidate == edge)) {
+                        return Err(format!("Invalid POM seam edge: {}", pom.id));
+                    }
+                }
+                _ => return Err(format!("Unsupported POM kind: {}", pom.id)),
+            }
+        }
+        self.base_template.compile()?;
+        for (i, candidate) in self.graded_templates.iter().enumerate() {
+            let mut candidate_meta = encode(candidate)?;
+            let mut source_meta = base.clone();
+            for template_meta in [&mut candidate_meta, &mut source_meta] {
+                if let Some(object) = template_meta.as_object_mut() {
+                    object.remove("panels");
+                }
+            }
+            if candidate_meta != source_meta {
+                return Err(format!("Grade {} changes template-level source or factory metadata", self.sizes[i]));
+            }
+            if candidate.panels.len() != active.panels.len() || candidate.seams.len() != active.seams.len()
+                || serde_json::to_value(&candidate.seams).map_err(|e| e.to_string())? != serde_json::to_value(&active.seams).map_err(|e| e.to_string())?
+                || serde_json::to_value(&candidate.fabrics).map_err(|e| e.to_string())? != serde_json::to_value(&active.fabrics).map_err(|e| e.to_string())? {
+                return Err(format!("Grade {} changes panel, seam or fabric inventory", self.sizes[i]));
+            }
+            for (a, b) in active.panels.iter().zip(&candidate.panels) {
+                if a.id != b.id || a.fabric != b.fabric || a.polygon.is_some() != b.polygon.is_some() {
+                    return Err(format!("Grade {} changes panel identity", self.sizes[i]));
+                }
+                // Only material contour coordinates and authored curve geometry
+                // may differ across this v1 point-grade run. Preserve native
+                // notches, allowances, internal lines, grain, placement,
+                // measurements and all other production/source metadata. A
+                // caller bypassing the JavaScript catalog builder must not be
+                // able to forge these fields in a directly submitted packet.
+                let mut source_meta = serde_json::to_value(a).map_err(|e| e.to_string())?;
+                let mut graded_meta = serde_json::to_value(b).map_err(|e| e.to_string())?;
+                for meta in [&mut source_meta, &mut graded_meta] {
+                    if let Some(polygon) = meta.get_mut("polygon").and_then(serde_json::Value::as_object_mut) {
+                        for field in ["points", "curves", "free_curve_points"] {
+                            polygon.remove(field);
+                        }
+                    }
+                }
+                if source_meta != graded_meta {
+                    return Err(format!("Grade {} changes ungraded panel or factory metadata: {}", self.sizes[i], a.id));
+                }
+                if let (Some(x), Some(y)) = (&a.polygon, &b.polygon) {
+                    if x.points.len() != y.points.len() || x.edges != y.edges || x.vertex_ids != y.vertex_ids {
+                        return Err(format!("Grade {} changes boundary topology", self.sizes[i]));
+                    }
+                    if y.points.iter().any(|p| !p.is_finite() || p.x.abs() > 10. || p.y.abs() > 10.) {
+                        return Err(format!("Grade {} contains invalid/out-of-bounds positions", self.sizes[i]));
+                    }
+                    // A v1 point-grade moves cubic handles by the endpoint
+                    // displacement blend at t=1/3 and 2/3. A direct native
+                    // grade-run payload cannot secretly introduce/reposition
+                    // spline handles while claiming a point-rule catalog.
+                    if x.curves.len() != y.curves.len() || x.free_curve_points.len() != y.free_curve_points.len() {
+                        return Err(format!("Grade {} changes source curve inventory", self.sizes[i]));
+                    }
+                    const EPS_M: f64 = 1e-8;
+                    for (index, edge) in x.edges.iter().enumerate() {
+                        let start = y.points[index] - x.points[index];
+                        let end_index = (index + 1) % x.points.len();
+                        let end = y.points[end_index] - x.points[end_index];
+                        match (x.curves.get(edge), y.curves.get(edge)) {
+                            (Some(source), Some(graded)) => {
+                                let expected = [source[0] + (start * 2. + end) / 3.,
+                                    source[1] + (start + end * 2.) / 3.];
+                                if graded.iter().zip(expected).any(|(point, expected)|
+                                    !point.is_finite() || point.distance(expected) > EPS_M) {
+                                    return Err(format!("Grade {} changes cubic beyond point rules: {}", self.sizes[i], edge));
+                                }
+                            }
+                            (None, None) => {},
+                            _ => return Err(format!("Grade {} changes cubic inventory: {}", self.sizes[i], edge)),
+                        }
+                        match (x.free_curve_points.get(edge), y.free_curve_points.get(edge)) {
+                            (Some(source), Some(graded)) => {
+                                if source.len() != graded.len() {
+                                    return Err(format!("Grade {} changes curve knot inventory: {}", self.sizes[i], edge));
+                                }
+                                for (original, moved) in source.iter().zip(graded.iter()) {
+                                    let blend = start * (1. - original.t) + end * original.t;
+                                    let slope = end - start;
+                                    let same_derivative = |left: Option<glam::DVec2>, right: Option<glam::DVec2>| {
+                                        match (left, right) {
+                                            (None, None) => true,
+                                            (Some(a), Some(b)) => b.is_finite() && b.distance(a + slope) <= EPS_M,
+                                            _ => false,
+                                        }
+                                    };
+                                    if original.id != moved.id
+                                        || !original.t.is_finite() || original.t <= 0. || original.t >= 1.
+                                        || (original.t - moved.t).abs() > 1e-12
+                                        || original.mirror_group != moved.mirror_group
+                                        || !moved.position.is_finite()
+                                        || moved.position.distance(original.position + blend) > EPS_M
+                                        || !same_derivative(original.derivative, moved.derivative)
+                                        || !same_derivative(original.derivative_in, moved.derivative_in)
+                                        || !same_derivative(original.derivative_out, moved.derivative_out) {
+                                        return Err(format!("Grade {} changes free curve beyond point rules: {}", self.sizes[i], edge));
+                                    }
+                                }
+                            }
+                            (None, None) => {},
+                            _ => return Err(format!("Grade {} changes free curve inventory: {}", self.sizes[i], edge)),
+                        }
+                    }
+                }
+            }
+            Self::compilation_template_for_size(candidate)
+                .map_err(|e| format!("Grade {} compile: {e}", self.sizes[i]))?;
+            if self.sizes[i] == self.base_size && encode(candidate)? != base {
+                return Err("Base size must reproduce exact source template".into());
+            }
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod grade_catalog_tests {
+    use super::*;
+
+    #[test]
+    fn named_size_v2_roundtrip_and_bidirectional_correspondence() {
+        let (project, mut run) = catalog();
+        run.schema_version = 2;
+        run.sizes = ["2", "4", "6", "8"].iter().map(|s| s.to_string()).collect();
+        run.base_size = "6".into();
+        run.graded_templates = vec![project.template.clone(); 4];
+        run.size_correspondence.insert("S".into(), "4".into());
+        run.size_correspondence.insert("M".into(), "6".into());
+        run.validate(&project.template).unwrap();
+        assert_eq!(run.resolve_size("M"), Some("6"));
+        assert_eq!(run.resolve_size("8"), Some("8"));
+        assert_eq!(run.correspondence_for("6"), vec!["M"]);
+        let wire = serde_json::to_string(&run).unwrap();
+        let saved: PersistedGradeRun = serde_json::from_str(&wire).unwrap();
+        saved.validate(&project.template).unwrap();
+        assert_eq!(saved.resolve_size("S"), Some("4"));
+        let mut invalid = saved.clone();
+        invalid.size_correspondence.insert("M".into(), "99".into());
+        assert!(invalid.validate(&project.template).is_err());
+        invalid = saved.clone();
+        invalid.size_correspondence.insert("6".into(), "4".into());
+        assert!(invalid.validate(&project.template).is_err());
+        invalid = saved.clone();
+        invalid.sizes.push("10".into());
+        assert!(invalid.validate(&project.template).is_err());
+    }
+
+    fn catalog() -> (FittingProject, PersistedGradeRun) {
+        let p = FittingProject::basic(GarmentKind::Tshirt, 2, PathBuf::from("avatar.obj"));
+        let sizes = ["XS", "S", "M", "L", "XL", "XXL"];
+        let run = PersistedGradeRun {
+            schema_version: 1,
+            sizes: sizes.iter().map(|s| (*s).into()).collect(),
+            base_size: "M".into(),
+            base_template: p.template.clone(),
+            graded_templates: vec![p.template.clone(); 6],
+            size_correspondence: Default::default(),
+            pom_specs: vec![],
+        };
+        (p, run)
+    }
+
+    #[test]
+    fn six_size_catalog_roundtrips_in_fitting_project() {
+        let (mut p, run) = catalog();
+        run.validate(&p.template).unwrap();
+        p.grade_run = Some(run);
+        let encoded = serde_json::to_string(&p).unwrap();
+        let restored: FittingProject = serde_json::from_str(&encoded).unwrap();
+        restored.grade_run.as_ref().unwrap().validate(&restored.template).unwrap();
+        assert_eq!(restored.grade_run.unwrap().sizes.len(), 6);
+    }
+
+    #[test]
+    fn positive_grade_beyond_preset_headroom_compiles_without_changing_source_metadata() {
+        let (mut project, mut run) = catalog();
+        // Simulate a previously saved tight-envelope pattern: no source edit.
+        for panel in &mut project.template.panels {
+            panel.pattern.width = 1.0;
+            panel.pattern.height = 0.66;
+        }
+        run.base_template = project.template.clone();
+        run.graded_templates = vec![project.template.clone(); 6];
+        let source_json = serde_json::to_value(&project.template).unwrap();
+        let factors = [0.97, 0.985, 1.0, 1.06, 1.10, 1.15];
+        for (template, factor) in run.graded_templates.iter_mut().zip(factors) {
+            for panel in &mut template.panels {
+                let points = &mut panel.polygon.as_mut().unwrap().points;
+                let origin = points.iter().fold(glam::DVec2::splat(f64::INFINITY), |a, p| a.min(*p));
+                for point in points {
+                    *point = origin + (*point - origin) * factor;
+                }
+            }
+        }
+        assert!(run.graded_templates[5].compile().is_err());
+        run.validate(&project.template).expect("six sizes compile with disposable expanded bounds");
+        let preview = PersistedGradeRun::compilation_template_for_size(&run.graded_templates[5]).unwrap();
+        assert!(preview.panels[0].pattern.height > 0.75);
+        assert!((preview.panels[0].pattern.width - 1.124).abs() < 1e-12);
+        assert_eq!(serde_json::to_value(&project.template).unwrap(), source_json);
+        for graded in &run.graded_templates {
+            assert_eq!(graded.panels[0].pattern.height, 0.66);
+            assert_eq!(graded.panels[0].pattern.width, 1.0);
+        }
+        project.grade_run = Some(run);
+        let restored: FittingProject = serde_json::from_str(&serde_json::to_string(&project).unwrap()).unwrap();
+        restored.grade_run.as_ref().unwrap().validate(&restored.template).unwrap();
+        assert_eq!(serde_json::to_value(&restored.template).unwrap(), source_json);
+    }
+
+    #[test]
+    fn temporary_grade_envelope_rejects_negative_nonfinite_and_over_ten_metres() {
+        let (_, mut run) = catalog();
+        for invalid in [(-0.000_001, 0.2), (f64::NAN, 0.2), (10.001, 0.2), (0.2, f64::INFINITY)] {
+            let mut grade = run.graded_templates[5].clone();
+            grade.panels[0].polygon.as_mut().unwrap().points[0] = glam::DVec2::new(invalid.0, invalid.1);
+            assert!(PersistedGradeRun::compilation_template_for_size(&grade).is_err());
+        }
+        run.graded_templates[5].panels[0].pattern.width += 0.001;
+        let (project, _) = catalog();
+        assert!(run.validate(&project.template).unwrap_err().contains("factory metadata"));
+    }
+
+    #[test]
+    fn source_drift_incomplete_and_topology_mismatch_fail_closed() {
+        let (mut p, mut run) = catalog();
+        run.sizes.pop();
+        assert!(run.validate(&p.template).is_err());
+        let (_, mut run) = catalog();
+        p.template.name.push_str(" modified");
+        assert!(run.validate(&p.template).is_err());
+        let (p, _) = catalog();
+        run.graded_templates[0].panels.pop();
+        assert!(run.validate(&p.template).is_err());
+    }
+
+    #[test]
+    fn reversed_or_relabelled_grade_sizes_cannot_be_activated() {
+        let (p, mut run) = catalog();
+        run.sizes.swap(0, 1);
+        assert!(run.validate(&p.template).is_err());
+        let (_, mut run) = catalog();
+        run.sizes[0] = "0".into();
+        assert!(run.validate(&p.template).is_err());
+    }
+
+    #[test]
+    fn graded_packet_cannot_rewrite_factory_metadata_across_sizes() {
+        let (project, run) = catalog();
+        let panel = project.template.panels.iter().position(|p| p.polygon.is_some())
+            .expect("preset has an editable pattern panel");
+        let mut changed_grain = run.clone();
+        changed_grain.graded_templates[0].panels[panel].grain_degrees += 15.0;
+        assert!(changed_grain.validate(&project.template).unwrap_err().contains("factory metadata"));
+
+        let mut changed_allowance = run.clone();
+        let polygon = changed_allowance.graded_templates[1].panels[panel].polygon.as_mut().unwrap();
+        let edge = polygon.edges[0].clone();
+        polygon.seam_allowances.insert(edge, 0.009);
+        assert!(changed_allowance.validate(&project.template).unwrap_err().contains("factory metadata"));
+
+        let mut changed_internal = run;
+        changed_internal.graded_templates[3].panels[panel].polygon.as_mut().unwrap().subdivisions += 1;
+        assert!(changed_internal.validate(&project.template).unwrap_err().contains("factory metadata"));
+    }
+
+    #[test]
+    fn grade_cannot_rewrite_template_name_or_ungrouped_metadata() {
+        let (project, mut run) = catalog();
+        run.graded_templates[0].name.push_str(" forged");
+        assert!(run.validate(&project.template).unwrap_err().contains("template-level"));
+    }
+
+    #[test]
+    fn graded_packet_cannot_invent_a_curve_outside_point_grade_rules() {
+        let (project, mut run) = catalog();
+        let panel = project.template.panels.iter().position(|p| p.polygon.is_some()).unwrap();
+        let shape = run.graded_templates[0].panels[panel].polygon.as_mut().unwrap();
+        let edge = shape.edges[0].clone();
+        shape.curves.insert(edge, [shape.points[0], shape.points[1]]);
+        assert!(run.validate(&project.template).unwrap_err().contains("curve inventory"));
+    }
+
+    #[test]
+    fn sized_grade_cannot_forge_an_existing_second_free_curve_knot_id() {
+        use crate::garment::polygon::FreeCurvePoint;
+        let (mut project, mut run) = catalog();
+        let panel_index = project.template.panels.iter().position(|panel| panel.polygon.is_some()).unwrap();
+        let source = project.template.panels[panel_index].polygon.as_mut().unwrap();
+        let edge = source.edges[0].clone();
+        let a = source.points[0];
+        let b = source.points[1];
+        let knots = [(0.35, "knot_first"), (0.65, "knot_second")]
+            .into_iter().map(|(t, id)| FreeCurvePoint {
+                id: id.into(), t, position: a.lerp(b,t),
+                derivative: None, derivative_in: None, derivative_out: None,
+                mirror_group: None,
+            }).collect();
+        source.free_curve_points.insert(edge.clone(),knots);
+        run.base_template = project.template.clone();
+        run.graded_templates = vec![project.template.clone();6];
+        run.validate(&project.template).expect("Authored two free knots are valid before forging");
+        run.graded_templates[5].panels[panel_index].polygon.as_mut().unwrap()
+            .free_curve_points.get_mut(&edge).unwrap()[1].id = "forged_identity".into();
+        assert!(run.validate(&project.template).unwrap_err().contains("free curve beyond point rules"));
+    }
+
+    fn pom(p: &FittingProject) -> GradedPomSpec {
+        let panel = p.template.panels.iter().find(|p| p.polygon.as_ref().is_some()).unwrap();
+        GradedPomSpec {
+            id: "chest-width".into(), label: "Chest width".into(), panel_id: panel.id.clone(),
+            kind: "anchor-distance".into(), tolerance_mm: 5.0,
+            from_point: Some(0), to_point: Some(1), edge: None,
+            targets_mm: ["XS", "S", "M", "L", "XL", "XXL"].iter()
+                .map(|s| (s.to_string(), Some(220.0))).collect(),
+        }
+    }
+
+    #[test]
+    fn authored_pom_survives_native_project_json_reopen() {
+        let (mut project, mut run) = catalog();
+        run.pom_specs.push(pom(&project));
+        run.validate(&project.template).unwrap();
+        project.grade_run = Some(run);
+        let wire = serde_json::to_string(&project).unwrap();
+        assert!(wire.contains("pomSpecs"));
+        let restored: FittingProject = serde_json::from_str(&wire).unwrap();
+        let restored_run = restored.grade_run.as_ref().unwrap();
+        restored_run.validate(&restored.template).unwrap();
+        assert_eq!(restored_run.pom_specs[0].targets_mm["XXL"], Some(220.0));
+        assert_eq!(restored_run.pom_specs[0].from_point, Some(0));
+        assert_eq!(restored_run.pom_specs[0].to_point, Some(1));
+        assert!(wire.contains("\"fromPoint\":0"));
+        let mut legacy: serde_json::Value = serde_json::from_str(&wire).unwrap();
+        legacy["grade_run"].as_object_mut().unwrap().remove("pomSpecs");
+        let old: FittingProject = serde_json::from_value(legacy).unwrap();
+        assert!(old.grade_run.unwrap().pom_specs.is_empty());
+    }
+
+    #[test]
+    fn unsafe_duplicate_or_mismatched_poms_fail_closed() {
+        let (project, mut run) = catalog();
+        run.pom_specs.push(pom(&project));
+        let good = run.pom_specs[0].clone();
+        run.pom_specs.push(good.clone());
+        assert!(run.validate(&project.template).is_err());
+        run.pom_specs.pop();
+        run.pom_specs[0].label = "bad\nlabel".into();
+        assert!(run.validate(&project.template).is_err());
+        run.pom_specs[0] = good.clone();
+        run.pom_specs[0].targets_mm.remove("XXL");
+        assert!(run.validate(&project.template).is_err());
+        run.pom_specs[0] = good.clone();
+        run.pom_specs[0].from_point = Some(project.template.panels.iter().find(|p| p.id == good.panel_id).unwrap().polygon.as_ref().unwrap().points.len());
+        assert!(run.validate(&project.template).is_err());
+        run.pom_specs[0] = good.clone();
+        run.pom_specs[0].to_point = Some(0);
+        assert!(run.validate(&project.template).is_err());
+        run.pom_specs[0] = good.clone();
+        run.pom_specs[0].targets_mm.insert("M".into(), Some(-1.0));
+        assert!(run.validate(&project.template).is_err());
+        run.pom_specs[0] = good;
+        run.pom_specs[0].edge = Some("forbidden".into());
+        assert!(run.validate(&project.template).is_err());
+        let mut wire = serde_json::to_value(&run).unwrap();
+        wire["pomSpecs"][0]["unexpected"] = serde_json::json!(true);
+        assert!(serde_json::from_value::<PersistedGradeRun>(wire).is_err());
+    }
+}
+
+/// Placement of a locally imported hardware asset; GLB bytes remain in the asset library.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ImportedHardware {
+    pub id: String,
+    pub asset_id: String,
+    pub panel: String,
+    pub kind: String,
+    pub position_mm: [f64; 3],
+    pub rotation_degrees: [f64; 3],
+    pub scale: [f64; 3],
+    #[serde(default = "default_true")]
+    pub visible: bool,
+    #[serde(default = "default_color")]
+    pub color: String,
+    #[serde(default = "default_roughness")]
+    pub roughness: f64,
+    #[serde(default)]
+    pub metalness: f64,
+    #[serde(default = "default_opacity")]
+    pub opacity: f64,
+    #[serde(default = "default_reflection_intensity")]
+    pub reflection_intensity: f64,
+    #[serde(default)]
+    pub clearcoat: f64,
+    #[serde(default)]
+    pub weight_grams: f64,
+    #[serde(default = "default_hardware_material_type")]
+    pub material_type: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PrintGraphic {
+    pub id: String,
+    pub name: String,
+    pub panel: String,
+    pub data_url: String,
+    pub width: u32,
+    pub height: u32,
+    pub width_mm: f64,
+    pub height_mm: f64,
+    pub position_mm: [f64; 2],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub center: Option<[f64; 2]>,
+    #[serde(default = "default_true")]
+    pub lock_aspect_ratio: bool,
+    #[serde(default)]
+    pub rotation: f64,
+    #[serde(default = "default_front")]
+    pub side: String,
+    #[serde(default = "default_true")]
+    pub visible: bool,
+    #[serde(default = "default_opacity")]
+    pub opacity: f64,
+    #[serde(default)]
+    pub reflectivity: f64,
+    #[serde(default)]
+    pub metalness: f64,
+    #[serde(default = "default_roughness")]
+    pub roughness: f64,
+    #[serde(default)]
+    pub ink_height_mm: f64,
+    #[serde(default = "default_color")]
+    pub color: String,
+    #[serde(default = "default_display_map", rename = "displayedMap", alias = "displayMap")]
+    pub display_map: String,
+    #[serde(default)]
+    pub normal_map_data_url: Option<String>,
+}
+fn default_true() -> bool { true }
+fn default_front() -> String { "front".into() }
+fn default_opacity() -> f64 { 1.0 }
+fn default_roughness() -> f64 { 0.88 }
+fn default_reflection_intensity() -> f64 { 1.0 }
+fn default_hardware_material_type() -> String { "original".into() }
+fn default_color() -> String { "#ffffff".into() }
+fn default_display_map() -> String { "texture".into() }
+
+impl FittingProject {
+    pub fn validate_imported_hardware(&self, placements: &[ImportedHardware]) -> Result<(), String> {
+        if placements.len() > 2000 { return Err("Too many imported hardware placements".into()); }
+        let mut ids = HashSet::new();
+        for p in placements {
+            if p.id.is_empty() || p.id.len() > 128 || p.id.chars().any(char::is_control)
+                || !ids.insert(&p.id) || p.asset_id.is_empty() || p.asset_id.len() > 512
+                || p.asset_id.contains("..") || p.asset_id.starts_with('/') || p.asset_id.contains('\\')
+                || p.asset_id.chars().any(char::is_control) {
+                return Err("Invalid hardware placement or asset identifier".into());
+            }
+            if !self.template.panels.iter().any(|panel| panel.id == p.panel) {
+                return Err(format!("Unknown hardware placement panel: {}", p.panel));
+            }
+            if !["button", "buttonhole", "zipper", "slider", "stopper", "puller", "trim", "other"].contains(&p.kind.as_str()) {
+                return Err("Unsupported imported hardware kind".into());
+            }
+            if !p.position_mm.iter().all(|v| v.is_finite() && v.abs() <= 100_000.0)
+                || !p.rotation_degrees.iter().all(|v| v.is_finite() && v.abs() <= 360_000.0)
+                || !p.scale.iter().all(|v| v.is_finite() && (0.0001..=1000.0).contains(v))
+                || ![p.roughness, p.metalness, p.opacity, p.clearcoat].iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v))
+                || !p.reflection_intensity.is_finite() || !(0.0..=3.0).contains(&p.reflection_intensity)
+                || !p.weight_grams.is_finite() || !(0.0..=500.0).contains(&p.weight_grams)
+                || !["original","metal","plastic","nylon","textile","ceramic","glass"].contains(&p.material_type.as_str())
+                || p.color.len() != 7 || !p.color.starts_with('#') || !p.color[1..].bytes().all(|c| c.is_ascii_hexdigit()) {
+                return Err("Invalid imported hardware transform or material".into());
+            }
+        }
+        Ok(())
+    }
+    pub fn validate_print_graphics(&self, graphics: &[PrintGraphic]) -> Result<(), String> {
+        if graphics.len() > 100 { return Err("Too many print graphics".into()); }
+        let mut ids = HashSet::new();
+        let mut encoded_bytes = 0usize;
+        for g in graphics {
+            if g.id.is_empty() || g.id.len() > 128 || !ids.insert(&g.id) || g.name.len() > 256 {
+                return Err("Invalid or duplicate graphic identifier/name".into());
+            }
+            if !self.template.panels.iter().any(|p| p.id == g.panel) {
+                return Err(format!("Unknown print graphic panel: {}", g.panel));
+            }
+            if g.width == 0 || g.height == 0 || g.width > 8192 || g.height > 8192 || (g.width as u64) * (g.height as u64) > 16_000_000 {
+                return Err("Invalid graphic pixel dimensions".into());
+            }
+            if ![g.width_mm,g.height_mm,g.rotation,g.opacity,g.reflectivity,g.metalness,g.roughness,g.ink_height_mm,g.position_mm[0],g.position_mm[1]].iter().all(|v| v.is_finite())
+                || g.width_mm < 0.1 || g.height_mm < 0.1 || g.width_mm > 10_000.0 || g.height_mm > 10_000.0
+                || g.ink_height_mm < 0.0 || g.ink_height_mm > 10.0 || g.position_mm.iter().any(|v| v.abs() > 100_000.0) || g.rotation.abs() > 360.0
+                || ![g.opacity,g.reflectivity,g.metalness,g.roughness].iter().all(|v| (0.0..=1.0).contains(v)) {
+                return Err("Invalid physical graphic dimensions, placement or material".into());
+            }
+            if let Some(center) = g.center { if !center.iter().all(|v| v.is_finite() && (0.0..=1.0).contains(v)) { return Err("Invalid legacy graphic center".into()); } }
+            if g.width as f64 * 25.4 / g.width_mm < 1.0 || g.height as f64 * 25.4 / g.height_mm < 1.0 { return Err("Graphic pixel DPI below 1".into()); }
+            if !["front","back","both"].contains(&g.side.as_str()) || !["texture","normal"].contains(&g.display_map.as_str())
+                || g.color.len() != 7 || !g.color.starts_with('#') || !g.color[1..].bytes().all(|c| c.is_ascii_hexdigit()) { return Err("Invalid graphic material options".into()); }
+            for url in std::iter::once(&g.data_url).chain(g.normal_map_data_url.iter()) {
+                let payload = url.strip_prefix("data:image/png;base64,").ok_or("Graphics must be PNG data URLs")?;
+                let padding = payload.bytes().rev().take_while(|c| *c == b'=').count();
+                if payload.is_empty() || payload.len() % 4 != 0 || padding > 2
+                    || !payload[..payload.len()-padding].bytes().all(|c| c.is_ascii_alphanumeric() || c == b'+' || c == b'/')
+                    || !payload[payload.len()-padding..].bytes().all(|c| c == b'=') { return Err("Invalid PNG base64 characters".into()); }
+                encoded_bytes = encoded_bytes.saturating_add(url.len());
+                if encoded_bytes > 6 * 1024 * 1024 { return Err("Print graphics exceed 6 MiB".into()); }
+                // PNG header: signature + IHDR chunk (13 bytes) must match declared pixels.
+                let prefix = &payload[..payload.len().min(48)];
+                let decode = |c: u8| -> Option<u32> { match c { b'A'..=b'Z' => Some((c-b'A') as u32), b'a'..=b'z' => Some((c-b'a'+26) as u32), b'0'..=b'9' => Some((c-b'0'+52) as u32), b'+' => Some(62), b'/' => Some(63), _ => None } };
+                let mut bytes = Vec::new(); let mut chunk = 0u32; let mut n = 0;
+                for c in prefix.bytes() { if c == b'=' { break; } chunk = (chunk << 6) | decode(c).ok_or("Invalid base64")?; n += 1; if n == 4 { bytes.extend_from_slice(&chunk.to_be_bytes()[1..]); chunk = 0; n = 0; } }
+                if bytes.len() < 24 || &bytes[..8] != b"\x89PNG\r\n\x1a\n" || &bytes[12..16] != b"IHDR" { return Err("Invalid PNG signature/IHDR".into()); }
+                if std::ptr::eq(url, &g.data_url) && (u32::from_be_bytes(bytes[16..20].try_into().unwrap()) != g.width || u32::from_be_bytes(bytes[20..24].try_into().unwrap()) != g.height) { return Err("Graphic PNG header dimensions mismatch".into()); }
+            }
+        }
+        Ok(())
+    }
+}
+pub struct FittingScene {
+    pub garment: Arc<CompiledGarment>,
+    pub collider: Arc<MeshCollider>,
+    pub state: State,
+    pub quasistatic: bool,
+    /// Conservative adaptive step cap for this run; reset when loading a project.
+    pub next_dt: f64,
+}
+impl FittingScene {
+    /// A failed Newton solve never silently advances time. Retry from the exact
+    /// previous state with a smaller dt; the accepted dt is recorded in Metrics.
+    pub fn step(&mut self, settings: &SolverSettings) -> Result<(Metrics, usize), String> {
+        settings.validate()?;
+        let previous = self.state.clone();
+        let mut error = String::new();
+        for attempt in 0..7 {
+            self.state = previous.clone();
+            if self.quasistatic {
+                self.state.v.fill(glam::DVec3::ZERO);
+            }
+            let mut settings = settings.clone();
+            settings.dt = settings.dt.min(self.next_dt) / 2.0_f64.powi(attempt as i32);
+            match ReferenceSolver::step_garment_with_collider(
+                &self.garment,
+                &mut self.state,
+                &settings,
+                Some(self.collider.as_ref()),
+            ) {
+                Ok(mut m) if m.converged => {
+                    self.next_dt = settings.dt;
+                    if self.quasistatic {
+                        self.state.v.fill(glam::DVec3::ZERO);
+                        m.kinetic_j = 0.0;
+                    }
+                    return Ok((m, attempt));
+                }
+                Ok(m) => {
+                    error = format!(
+                        "Newton iteration limit: residual {} / {}",
+                        m.residual_rms_n, m.tolerance_n
+                    )
+                }
+                Err(e) => error = e,
+            }
+        }
+        self.state = previous;
+        Err(format!(
+            "Fitting retries exhausted; state unchanged: {error}"
+        ))
+    }
+}
+impl FittingProject {
+    pub fn basic(kind: GarmentKind, subdivisions: u32, avatar_path: PathBuf) -> Self {
+        Self {
+            version: 1,
+            template: presets::basic(kind, subdivisions),
+            grade_run: None,
+            native_point_bindings: None,
+            fabric_grade_envelope: None,
+            piece_variant: None,
+            native_facing_dependency: None,
+            native_cross_piece_link: None,
+            avatar_path,
+            contact_stiffness: 500_000.0,
+            contact_clearance: 0.0,
+            // Planar panels start outside the full avatar bounding box. The old
+            // per-vertex silhouette warp could intersect face interiors.
+            prearrange: false,
+            quasistatic: true,
+            solver: SolverSettings {
+                dt: 1.0 / 240.0,
+                damping: 20.0,
+                newton_iterations: 30,
+                pcg_iterations: 500,
+                ..Default::default()
+            },
+            state: None,
+            mesh_signature: None,
+            print_graphics: Vec::new(),
+            imported_hardware: Vec::new(),
+        }
+    }
+    pub fn load(path: &Path) -> Result<Self, String> {
+        let mut project: Self =
+            serde_json::from_str(&fs::read_to_string(path).map_err(|e| e.to_string())?)
+                .map_err(|e| e.to_string())?;
+        if project.avatar_path.is_relative() {
+            project.avatar_path = path
+                .parent()
+                .unwrap_or(Path::new("."))
+                .join(&project.avatar_path);
+        }
+        project.validate_print_graphics(&project.print_graphics)?;
+        project.validate_imported_hardware(&project.imported_hardware)?;
+        if let Some(run) = &project.grade_run { run.validate(&project.template)?; }
+        if let Some(bindings)=&project.native_point_bindings {
+            bindings.valid_against(&bindings.source_template)?;
+        }
+        if let Some(envelope)=&project.fabric_grade_envelope {envelope.validate(&project)?;}
+        if let Some(variant)=&project.piece_variant {
+            variant.validate(&project.template)?;
+        }
+        if project.native_facing_dependency.is_some() {
+            crate::native_facing_dependency_20261027::verify_native_facing_dependency(&project)?;
+        }
+        if let Some(link)=&project.native_cross_piece_link {
+            if project.grade_run.is_some()||project.native_point_bindings.is_some()||
+                project.native_facing_dependency.is_some()||project.fabric_grade_envelope.is_some() {
+                return Err("Persistent cross-piece link cannot coexist with native grade or measurement graphs".into());
+            }
+            link.validate(&project.template)?;
+        }
+        Ok(project)
+    }
+    pub fn compile(&self) -> Result<FittingScene, String> {
+        if self.version != 1 {
+            return Err("Unsupported fitting project version".into());
+        }
+        self.solver.validate()?;
+        if let Some(run) = &self.grade_run { run.validate(&self.template)?; }
+        if let Some(variant)=&self.piece_variant {
+            variant.validate(&self.template)?;
+        }
+        if let Some(bindings)=&self.native_point_bindings {
+            bindings.valid_against(&bindings.source_template)?;
+        }
+        if let Some(envelope)=&self.fabric_grade_envelope {envelope.validate(self)?;}
+        if self.native_facing_dependency.is_some() {
+            crate::native_facing_dependency_20261027::verify_native_facing_dependency(self)?;
+        }
+        if let Some(link)=&self.native_cross_piece_link {
+            if self.grade_run.is_some()||self.native_point_bindings.is_some()||
+                self.native_facing_dependency.is_some()||self.fabric_grade_envelope.is_some() {
+                return Err("Persistent cross-piece link cannot coexist with native grade or measurement graphs".into());
+            }
+            link.validate(&self.template)?;
+        }
+        let garment = Arc::new(self.template.compile()?);
+        if self.state.is_some()
+            && self.mesh_signature.as_ref() != Some(&mesh_signature(&self.template, &garment)?)
+        {
+            return Err("Stale fitting cache: clear state and mesh_signature, then rebuild".into());
+        }
+        let surface = Arc::new(SurfaceMesh::load_obj(&self.avatar_path)?);
+        let collider = Arc::new(MeshCollider::with_clearance(
+            surface,
+            self.contact_stiffness,
+            self.contact_clearance,
+        )?);
+        let mut state = self
+            .state
+            .clone()
+            .unwrap_or_else(|| garment.initial_state.clone());
+        if self.state.is_none() && self.prearrange {
+            for (panel, range) in self.template.panels.iter().zip(&garment.panels) {
+                let Some(polygon) = &panel.polygon else {
+                    continue;
+                };
+                let names: Vec<_> = self
+                    .template
+                    .seams
+                    .iter()
+                    .flat_map(|s| [&s.a, &s.b])
+                    .filter(|r| r.panel == panel.id)
+                    .filter_map(|r| r.edge.as_ref())
+                    .collect();
+                let curves: Vec<_> = names
+                    .iter()
+                    .map(|name| {
+                        polygon.edge_points(polygon.edges.iter().position(|e| e == *name).unwrap())
+                    })
+                    .collect::<Result<_, _>>()?;
+                let side = panel.placement.translation.z.signum();
+                for i in range.vertices.clone() {
+                    let uv = garment.mesh.uv[i];
+                    let mut distance = f64::INFINITY;
+                    for curve in &curves {
+                        for pair in curve.windows(2) {
+                            let (a, b) = (pair[0], pair[1]);
+                            let d = b - a;
+                            let t = ((uv - a).dot(d) / d.length_squared()).clamp(0., 1.);
+                            distance = distance.min(uv.distance(a + t * d));
+                        }
+                    }
+                    let s = (distance / 0.075).clamp(0.0, 1.0);
+                    let smooth = s * s * (3.0 - 2.0 * s);
+                    let mut z = side * (0.004 + panel.placement.translation.z.abs() * smooth);
+                    if let Some([lo, hi]) = collider.z_bounds(state.x[i].x, state.x[i].y) {
+                        z = if side > 0.0 {
+                            z.max(hi + 0.008)
+                        } else {
+                            z.min(lo - 0.008)
+                        };
+                    }
+                    state.x[i].z = z;
+                }
+            }
+        }
+        if state.x.len() != garment.mesh.uv.len()
+            || state.v.len() != state.x.len()
+            || !state.time.is_finite()
+            || state.x.iter().chain(&state.v).any(|p| !p.is_finite())
+        {
+            return Err("Invalid cached fitting state".into());
+        }
+        Ok(FittingScene {
+            garment,
+            collider,
+            state,
+            quasistatic: self.quasistatic,
+            next_dt: self.solver.dt,
+        })
+    }
+    pub fn save(&self, path: &Path) -> Result<(), String> {
+        self.validate_print_graphics(&self.print_graphics)?;
+        self.validate_imported_hardware(&self.imported_hardware)?;
+        if let Some(run) = &self.grade_run { run.validate(&self.template)?; }
+        if let Some(bindings)=&self.native_point_bindings {
+            bindings.valid_against(&bindings.source_template)?;
+        }
+        if let Some(envelope)=&self.fabric_grade_envelope {envelope.validate(self)?;}
+        if self.native_facing_dependency.is_some() {
+            crate::native_facing_dependency_20261027::verify_native_facing_dependency(self)?;
+        }
+        let mut copy = self.clone();
+        copy.mesh_signature = if copy.state.is_some() {
+            Some(mesh_signature(&copy.template, &copy.template.compile()?)?)
+        } else {
+            None
+        };
+        copy.avatar_path = fs::canonicalize(&self.avatar_path).map_err(|e| e.to_string())?;
+        fs::write(
+            path,
+            serde_json::to_string_pretty(&copy).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())
+    }
+}
+
+fn mesh_signature(template: &GarmentTemplate, g: &CompiledGarment) -> Result<String, String> {
+    // Stable FNV-1a fingerprint, not a security/integrity hash.
+    let mut hash = 0xcbf29ce484222325_u64;
+    let mut append = |bytes: &[u8]| {
+        for b in bytes {
+            hash ^= u64::from(*b);
+            hash = hash.wrapping_mul(0x100000001b3);
+        }
+    };
+    let mut physical_template = template.clone();
+    for panel in &mut physical_template.panels {
+        panel.layout_2d = None;
+        panel.layout_rotation_degrees = 0.;
+        if let Some(polygon) = panel.polygon.as_mut() {
+            polygon.target_lengths.clear();
+        }
+    }
+    append(&serde_json::to_vec(&physical_template).map_err(|e| e.to_string())?);
+    for p in &g.mesh.uv {
+        append(&p.x.to_le_bytes());
+        append(&p.y.to_le_bytes());
+    }
+    for t in &g.mesh.triangles {
+        for i in t.vertices {
+            append(&(i as u64).to_le_bytes());
+        }
+    }
+    Ok(format!("{hash:016x}"))
+}
+
+#[cfg(test)]
+mod imported_hardware_tests {
+    use super::*;
+    #[test]
+    fn placement_roundtrip_and_rejections() {
+        let mut project=FittingProject::basic(GarmentKind::Tshirt,2,PathBuf::from("avatar.obj"));
+        let item=ImportedHardware {
+            id:"hw-1".into(),asset_id:"buttons/sample.glb".into(),panel:project.template.panels[0].id.clone(),
+            kind:"button".into(),position_mm:[20.,30.,1.],rotation_degrees:[0.,0.,45.],scale:[1.,1.,1.],
+            visible:true,color:"#ffbb00".into(),roughness:0.25,metalness:0.7,opacity:0.8,
+            reflection_intensity:1.4,clearcoat:0.3,weight_grams:12.,material_type:"metal".into(),
+        };
+        project.validate_imported_hardware(&[item.clone()]).unwrap();
+        project.imported_hardware.push(item.clone());
+        let encoded=serde_json::to_string(&project).unwrap();
+        assert!(encoded.contains("importedHardware"));
+        let reopened: FittingProject=serde_json::from_str(&encoded).unwrap();
+        assert_eq!(reopened.imported_hardware,vec![item.clone()]);
+        assert!(project.validate_imported_hardware(&[item.clone(),item.clone()]).is_err());
+        let mut invalid=item.clone();invalid.asset_id="../secret.glb".into();
+        assert!(project.validate_imported_hardware(&[invalid]).is_err());
+        let mut invalid=item.clone();invalid.scale=[f64::NAN,1.,1.];
+        assert!(project.validate_imported_hardware(&[invalid]).is_err());
+        let mut invalid=item;invalid.panel="missing".into();
+        assert!(project.validate_imported_hardware(&[invalid]).is_err());
+    }
+}
+
+#[cfg(test)]
+mod print_graphics_tests {
+    use super::*;
+    fn sample() -> (FittingProject, PrintGraphic) {
+        let project = FittingProject::basic(GarmentKind::Tshirt, 2, PathBuf::from("avatar.obj"));
+        let graphic = PrintGraphic {
+            id: "art-1".into(), name: "test".into(), panel: project.template.panels[0].id.clone(),
+            data_url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/XqkAAAAASUVORK5CYII=".into(),
+            width: 1, height: 1, width_mm: 10., height_mm: 10., position_mm: [20., 30.],
+            center: None, lock_aspect_ratio: true, rotation: 0., side: "front".into(), visible: true,
+            opacity: 1., reflectivity: 0., metalness: 0., roughness: 0.88, ink_height_mm: 0.,
+            color: "#ffffff".into(), display_map: "texture".into(), normal_map_data_url: None,
+        };
+        (project, graphic)
+    }
+    #[test]
+    fn valid_graphics_roundtrip_and_reject_bad_dimensions() {
+        let (mut p, graphic) = sample();
+        p.validate_print_graphics(&[graphic.clone()]).unwrap();
+        p.print_graphics.push(graphic.clone());
+        let reopened: FittingProject = serde_json::from_str(&serde_json::to_string(&p).unwrap()).unwrap();
+        assert_eq!(reopened.print_graphics[0].position_mm, [20., 30.]);
+        assert_eq!(reopened.print_graphics[0].width_mm, 10.);
+        let encoded = serde_json::to_value(&p).unwrap();
+        assert!(encoded["printGraphics"][0].get("displayedMap").is_some());
+        assert!(encoded.get("print_graphics").is_none());
+        let mut bad = graphic.clone(); bad.width_mm = f64::NAN;
+        assert!(p.validate_print_graphics(&[bad]).is_err());
+        let mut bad = graphic.clone(); bad.panel = "missing".into();
+        assert!(p.validate_print_graphics(&[bad]).is_err());
+        let mut bad = graphic.clone(); bad.data_url = "data:image/png;base64,AAAA".into();
+        assert!(p.validate_print_graphics(&[bad]).is_err());
+        assert!(p.validate_print_graphics(&[graphic.clone(), graphic]).is_err());
+    }
+}
