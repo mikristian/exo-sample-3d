@@ -48,6 +48,22 @@ if ! cp -cR "$SOURCE_APP" "$APP" 2>/dev/null; then
   cp -R "$SOURCE_APP" "$APP"
 fi
 RES="$APP/Contents/Resources"
+# The installed personal app may carry an old Rust session whose capabilities
+# predate the native document metadata fields required by current workspace.mjs.
+# Only an explicit matching local build may replace it in this isolated copy.
+if [[ -n "${EXO_RELEASE_NATIVE_SESSION_BIN:-}" ]]; then
+  source_session="$EXO_RELEASE_NATIVE_SESSION_BIN"
+  [[ -x "$source_session" ]] || { echo 'Specified release native session is missing' >&2; exit 1; }
+  /usr/bin/file "$source_session" | grep -q 'Mach-O 64-bit executable arm64' || {
+    echo 'Release native session is not macOS arm64' >&2; exit 1;
+  }
+  session_capabilities="$("$source_session" --exo-capabilities)"
+  /usr/local/bin/node -e 'const c=JSON.parse(process.argv[1]);if(c.ok!==true||c.nativePropertyMetadataV1!==true||c.nativeProjectGenerationV1!==true)process.exit(1)' "$session_capabilities" || {
+    echo 'Release native session lacks document ABI capabilities' >&2; exit 1;
+  }
+  cp "$source_session" "$RES/research/oss/clothcraft/target/debug/exo-session"
+  chmod 755 "$RES/research/oss/clothcraft/target/debug/exo-session"
+fi
 
 # The in-use personal app can predate code in the Rust-hosted desktop launcher.
 # The standalone candidate must carry the real local Rust executables and
