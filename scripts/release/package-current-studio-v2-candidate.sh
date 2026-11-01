@@ -97,7 +97,19 @@ rm -rf "$RES/web/clo-hardware-converted" "$RES/web/audit-evidence" \
   "$RES/web/fabric-scans" "$RES/web/fabric-scans-ambientcg" \
   "$RES/web/hand-tracking" "$RES/web/stage-posters" "$RES/web/hangers" \
   "$RES/web/hardware-thumbnails" "$RES/web/garment-previews" \
-  "$RES/web/avatars/opensew"
+  "$RES/web/avatars/opensew" "$RES/web/saved-garments"
+# The installed engineering build contains a local Downloads-only Valentina
+# fixture path. The public-facing copy must not reference the developer's home.
+bridge="$RES/integrations/clothcraft/valentinaSeamlyExecutableBridge20261031.mjs"
+if [[ -f "$bridge" ]]; then
+  python3 - "$bridge" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1]); source = p.read_text()
+source = source.replace("'/Users/mikylecouto/Downloads/pattern-develop.zip'", "'/exo/unavailable-local-fixture/pattern-develop.zip'")
+p.write_text(source)
+PY
+fi
 find "$RES" -depth -type f \( -iname '*thomas*' -o -iname '*theo*' -o -iname '*nora*' \
   -o -iname '*.pem' -o -iname '*.key' -o -iname '*.p12' -o -iname '*.pfx' \
   -o -iname '*.safetensors' -o -iname '*.onnx' -o -iname '*.pt' -o -iname '*.pth' \) \
