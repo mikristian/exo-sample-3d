@@ -1,11 +1,10 @@
-/* Explicitly curated published artifacts only. Never guess a GitHub release URL.
- * This historical beta is not the updated Studio V2 Mac application. */
+/* Explicitly published Mac install package; download directly from GitHub Releases. */
 const RELEASES = Object.freeze({
   mac: Object.freeze({
-    url: 'https://github.com/mikristian/exo-sample-3d/releases/download/v0.3.0-beta.1/EXO-ClothCraft-Studio-V2-macOS-arm64-v0.3.0-beta.1-UNNOTARIZED.dmg',
-    version: 'v0.3.0 Beta 1 (legacy)',
+    url: 'https://github.com/mikristian/exo-sample-3d/releases/download/v0.3.0-dev-20261101/EXO-ClothCraft-Studio-V2-macOS-Apple-Silicon-2026-11-01.dmg',
+    version: 'EXO ClothCraft Studio V2',
     architecture: 'Apple Silicon arm64',
-    label: 'legacy Mac beta',
+    label: 'for Mac',
     verified: true,
     unnotarized: true,
   }),
@@ -24,6 +23,6 @@ for (const [platform, info] of Object.entries(RELEASES)) {
   anchor.removeAttribute('aria-disabled');
   status.textContent = `${info.version} available`;
   note.textContent = info.unnotarized
-    ? `Earlier ${info.architecture} beta only — not the current Studio V2 build. Unnotarized; macOS may block opening it.`
+    ? `${info.architecture} · Apple notarization unavailable; macOS may require Open Anyway.`
     : `Verified ${info.version} · ${info.architecture} · See release notes`;
 }
