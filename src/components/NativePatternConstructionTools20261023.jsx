@@ -2,12 +2,13 @@ import React,{useEffect,useMemo,useState} from 'react'
 import {NATIVE_POINT_CONSTRUCTIONS,buildNativeParametricPointProposal} from '../core/nativeParametricPoint20261023.js'
 import {evaluateNativeDraftWorksheet20261023} from '../core/nativeDraftWorksheet20261023.js'
 import NativePatternBindingsInspector20261023 from './NativePatternBindingsInspector20261023.jsx'
+import NativePersistedCrossPieceStudio20261030 from './NativePersistedCrossPieceStudio20261030.jsx'
 import './NativePatternConstructionTools20261023.css'
 
 /** Seamly-style numerical constructions, applied through Rust's existing
  * validated native Anchor edit. Unlike Seamly source graphs, these are
  * one-time constructions, not live formula constraints. */
-export default function NativePatternConstructionTools20261023({snapshot,selected,onSelect,onApply,onApplyBindingBatch,onApplyNativeMeasurement,onPersistBindings,onClearBindings,onLoadNativeProject,onStoreNativeFabricEnvelope,onRegenerateNativeFabricChart,onInspectNativeFabricEnvelope,disabled=false,onPreview}){
+export default function NativePatternConstructionTools20261023({snapshot,selected,onSelect,onApply,onApplyBindingBatch,onApplyNativeMeasurement,onNativeCrossPiece,onPersistBindings,onClearBindings,onLoadNativeProject,onStoreNativeFabricEnvelope,onRegenerateNativeFabricChart,onInspectNativeFabricEnvelope,disabled=false,onPreview}){
   const [panelId,setPanelId]=useState('')
   const [pointIndex,setPointIndex]=useState(0)
   const [mode,setMode]=useState('along')
@@ -79,6 +80,10 @@ export default function NativePatternConstructionTools20261023({snapshot,selecte
   return <section className="exo-native-construction" aria-label="Seamly-style native numerical drafting" data-native-construction-tool="true">
     <strong>CONSTRUCT · REAL 2D POINT</strong>
     <p>Move an existing corner by an exact geometric construction. Units are millimetres; target pattern stays connected to the Rust 2D/3D document.</p>
+    <details className="exo-construction-worksheet">
+      <summary>Persisted cross-piece point reference · Rust source graph</summary>
+      <NativePersistedCrossPieceStudio20261030 snapshot={snapshot} disabled={disabled} onCommit={onNativeCrossPiece}/>
+    </details>
     <label>Pattern<select aria-label="Construction pattern panel" value={activePanel?.id||''} onChange={e=>{setPanelId(e.target.value);setPointIndex(0);setMessage('');onSelect?.({panel:e.target.value,anchor:0})}}>
       {panels.map(panel=><option key={panel.id} value={panel.id}>{panel.name}</option>)}
     </select></label>

@@ -3,6 +3,7 @@
 export const TECHPACK_ASSET_FOLDERS=Object.freeze([
   {id:'all',name:'All assets',uploadCategory:'reference',categories:null},
   {id:'graphics',name:'Graphics & logos',uploadCategory:'graphic',categories:['graphic','logo','technical flat','mockup']},
+  {id:'mockups',name:'Mockups & technical flats',uploadCategory:'mockup',categories:['mockup','technical flat','drawing','technical drawing']},
   {id:'references',name:'Photo references',uploadCategory:'reference',categories:['reference','fit','construction','inspiration']},
   {id:'fabrics',name:'Fabrics & swatches',uploadCategory:'fabric swatch',categories:['fabric swatch','fabric']},
   {id:'inside-tags',name:'Inside tags & labels',uploadCategory:'brand label',categories:['brand label','care label','size label','inside label','trim']},

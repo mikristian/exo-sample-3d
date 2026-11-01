@@ -99,3 +99,19 @@ test('new Rust post-regeneration CUT, notch and sewing inventory is required to 
     assert.equal(commit(source(),accepted,{...valid,regenerationEvidence:invalid}).ok,false)
   }
 })
+
+
+test('selective one-piece change requires complete six-size evidence and rejects empty edits',()=>{
+  const s=source(),r=report()
+  r.changedPanels=1;r.changedBindings=1;r.panelIds=['front'];r.bindingIds=['front-waist']
+  r.bySize=r.bySize.map(row=>({...row,changes:[row.changes[0]]}))
+  const review=preview(s,overrides,r)
+  assert.equal(review.ok,true,review.reason)
+  assert.equal(commit(s,review,{...result(),regenerationEvidence:r}).ok,true)
+  for(const invalid of [
+    {...r,changedPanels:0},
+    {...r,bySize:r.bySize.slice(1)},
+    {...r,bySize:r.bySize.map((row,i)=>i===5?{...row,changes:[]}:row)},
+    {...r,bySize:r.bySize.map(row=>({...row,changes:row.changes.map(c=>({...c,afterMm:c.beforeMm}))}))},
+  ])assert.equal(preview(s,overrides,invalid).ok,false)
+})

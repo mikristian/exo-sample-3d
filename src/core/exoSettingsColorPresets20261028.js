@@ -36,6 +36,7 @@ export const EXO_PATTERN_UI_PRESETS_20261028=Object.freeze([
  {id:'glass-rose',name:'Liquid Glass Rose',surface:'glass',point:'#ffecf7',edge:'#eb9dcf',selection:'#ffdf85',notch:'#ff829f',paper:'#f4bcda'},
  {id:'glass-violet',name:'Liquid Glass Violet',surface:'glass',point:'#f7ebff',edge:'#c5a7ff',selection:'#ffe392',notch:'#f697c8',paper:'#cbb4f2'},
  {id:'glass-mint',name:'Liquid Glass Mint',surface:'glass',point:'#e7fff9',edge:'#87d7bb',selection:'#ffdf8d',notch:'#ef8d97',paper:'#b1ecda'},
+ {id:'glass-neon-clear',name:'Crystal Neon Glow',surface:'glass',glow:true,glassOpacity:.035,point:'#e6faff',edge:'#75e3ff',selection:'#ffe990',notch:'#ff93ab',paper:'#c9f0ff'},
  {id:'outline-ink',name:'Outlines · Ink',surface:'outline',point:'#263d49',edge:'#263d49',selection:'#b87a24',notch:'#c44551',paper:'#f6f6f4'},
  {id:'outline-blue',name:'Outlines · Blue',surface:'outline',point:'#d8f4ff',edge:'#387fc1',selection:'#ffa939',notch:'#f08086',paper:'#dbe9f5'},
  {id:'outline-white',name:'Outlines · White',surface:'outline',point:'#f3fdff',edge:'#e5f7ff',selection:'#ffd973',notch:'#ffb09c',paper:'#40506b'},

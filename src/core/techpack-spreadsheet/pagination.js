@@ -17,8 +17,13 @@ export function paginateTechPackTable(table,{firstRowCapacity=0,pageStyle='Lette
 /** Approximation for designed boxes: reserve space for frame, header, title,
  * and browser/font metrics. Auto-pagination errs conservatively rather than
  * clipping rows. Tall multiline text may still require print-preview review. */
-export function boxTableRowCapacity(height=180){
+export function boxTableRowCapacity(height=180,{tableOnly=false,compactHeader=false}={}){
   const h=Math.max(0,Number(height)||0)
+  if(compactHeader)return Math.max(0,Math.min(100,Math.floor((h-9)/18)))
+  // A clean embedded table does not have a nested editor toolbar, outer
+  // title bar or note panel. Reserve one column-header row and modest
+  // text/print metrics instead of the full widget's 95px chrome.
+  if(tableOnly)return Math.max(0,Math.min(100,Math.floor((h-39)/22)))
   return Math.max(0,Math.min(25,Math.floor((h-95)/30)))
 }
 export function enumerateWorkspaceOverflowPages(workspace={},orderedPages=[],pageLayout=()=>({pageStyle:'LetterPortrait'})){
@@ -28,7 +33,8 @@ export function enumerateWorkspaceOverflowPages(workspace={},orderedPages=[],pag
     for(const box of (workspace.pageBoxes?.[page.id]||[]).slice(0,24)){
       const t=box?.slot?.spreadsheetTable
       if(!Array.isArray(t?.columns)||!Array.isArray(t?.rows))continue
-      const fragments=paginateTechPackTable(t,{firstRowCapacity:boxTableRowCapacity(box.height),pageStyle:style})
+      const fragments=paginateTechPackTable(t,{firstRowCapacity:boxTableRowCapacity(box.height,{
+        tableOnly:box.slot?.category==='tables',compactHeader:box.slot?.templateRole==='shared-header'}),pageStyle:style})
       for(const part of fragments.slice(1))overflow.push({sourcePageId:page.id,boxId:box.id,title:String(box.title||t.name||t.title||'Specification'),pageStyle:style,...part})
     }
   }

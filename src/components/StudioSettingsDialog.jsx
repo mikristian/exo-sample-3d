@@ -14,6 +14,7 @@ import {planCompleteModarisToolbars20261028} from '../core/modarisToolbarLayout2
 import CadToolIcon from './CadToolIcon.jsx';
 import StudioToolbarBuilder from './StudioToolbarBuilder.jsx';
 import StudioCustomWorkspaceBuilder from './StudioCustomWorkspaceBuilder.jsx';
+import Studio3DEnvironmentPreviews20261029 from './Studio3DEnvironmentPreviews20261029.jsx';
 import {CLO_SETTINGS_NAV,CloSettingsPages} from './CloSettingsPages.jsx';
 import './StudioSettingsDialog.css';
 import './StudioToolIndexGrid.css';
@@ -255,7 +256,7 @@ function TargetedAppearanceSettings({value,onChange,onPickTarget,onHoverTarget})
   </div>;
 }
 
-function TwoDWorkspaceAppearance({ value, onChange, onPreviewTwoDPalette, onPreviewTwoDPattern, onPreviewGradeChart }) {
+function TwoDWorkspaceAppearance({ value, onChange, onPreviewTwoDPalette, onPreviewTwoDPattern, onPreviewGradeChart, onPreview3DEnvironment, show3DEnvironment=false }) {
   const preferences = value.preferences || {};
   const setPreference = (key, next) => onChange({...value,preferences:{...preferences,[key]:next}});
   const chooseTheme = (id) => {
@@ -266,7 +267,9 @@ function TwoDWorkspaceAppearance({ value, onChange, onPreviewTwoDPalette, onPrev
   const choosePatternPreset=preset=>onChange({...value,preferences:{...preferences,
     twoDPatternUiTheme:preset.id,twoDPatternSurfaceStyle:preset.surface||'solid',
     twoDPointColor:preset.point,twoDEdgeColor:preset.edge,
-    twoDSelectionColor:preset.selection,twoDNotchColor:preset.notch,twoDPatternColor:preset.paper}});
+    twoDSelectionColor:preset.selection,twoDNotchColor:preset.notch,twoDPatternColor:preset.paper,
+    ...(preset.glow===true?{twoDPatternOutlineGlow:true}:{}),
+    ...(typeof preset.glassOpacity==='number'?{twoDPatternGlassOpacity:preset.glassOpacity}:{})}});
   const chooseGradePreset=(kind,preset)=>onChange({...value,preferences:{
     ...preferences,
     gradeChartThemeMode:preset.id==='auto'?'auto':'custom',
@@ -319,6 +322,10 @@ function TwoDWorkspaceAppearance({ value, onChange, onPreviewTwoDPalette, onPrev
         </button>)}
       </div>
     </div>
+    {show3DEnvironment&&<Studio3DEnvironmentPreviews20261029
+      appearance={value.appearance}
+      onPreview={onPreview3DEnvironment}
+      onChange={nextAppearance=>onChange({...value,appearance:nextAppearance})}/>}
     <div className="studio-pattern-display-colors" aria-label="2D pattern interface colors">
       <h4>Pattern UI appearance</h4><p>Customize pattern drawings without changing garment materials or pattern geometry.</p>
       <label className="studio-appearance-target studio-appearance-switch">
@@ -330,6 +337,42 @@ function TwoDWorkspaceAppearance({ value, onChange, onPreviewTwoDPalette, onPrev
       <HoverPresetChooser label="Pattern UI" presets={EXO_PATTERN_UI_PRESETS_20261028}
         selected={preferences.twoDPatternUiTheme??'classic'}
         onPreview={onPreviewTwoDPattern} onChoose={choosePatternPreset}/>
+      <section className="studio-pattern-optical-settings" aria-label="Adjustable liquid glass for actual 2D patterns">
+        <strong>Actual pattern Liquid Glass</strong>
+        <small>Transparent pattern fill and luminous cutline edges. This only changes the on-screen pattern appearance; CAD measurements, grading, and print geometry stay exact.</small>
+        <label className="studio-appearance-target studio-appearance-switch">
+          <input type="checkbox" aria-label="Use transparent Liquid Glass pattern pieces"
+            checked={preferences.twoDPatternSurfaceStyle==='glass'||(
+              value.appearance?.patternClearGlass!==false && preferences.twoDPatternSurfaceStyle!=='outline')}
+            onChange={event=>onChange({...value,
+              appearance:{...value.appearance,patternClearGlass:event.target.checked},
+              preferences:{...preferences,twoDPatternSurfaceStyle:event.target.checked?'glass':'solid',
+                twoDPatternUiTheme:'custom'}})}/>
+          <span>Transparent Liquid Glass pattern pieces</span>
+        </label>
+        <label className="studio-pattern-optical-slider">
+          <span>Pattern transparency <output>{Math.round((1-(preferences.twoDPatternGlassOpacity??.08)/.35)*100)}% transparent</output></span>
+          <input type="range" aria-label="Pattern Liquid Glass transparency" min="0" max=".35" step=".005"
+            value={preferences.twoDPatternGlassOpacity??.08}
+            onChange={event=>setPreference('twoDPatternGlassOpacity',Number(event.target.value))}/>
+        </label>
+        <label className="studio-appearance-target studio-appearance-switch">
+          <input type="checkbox" aria-label="Glow around actual pattern outlines"
+            checked={Boolean(preferences.twoDPatternOutlineGlow)}
+            onChange={event=>setPreference('twoDPatternOutlineGlow',event.target.checked)}/>
+          <span>Glowing pattern outlines</span>
+        </label>
+        <label className="studio-pattern-optical-slider">
+          <span>Outline glow strength <output>{Math.round((preferences.twoDPatternOutlineGlowStrength??.55)*100)}%</output></span>
+          <input type="range" aria-label="Pattern outline glow strength" min="0" max="1" step=".05"
+            value={preferences.twoDPatternOutlineGlowStrength??.55}
+            onChange={event=>setPreference('twoDPatternOutlineGlowStrength',Number(event.target.value))}/>
+        </label>
+        <Setting label="Outline glow color">
+          <TwoDAutoColor label="Pattern outline glow" value={preferences.twoDPatternOutlineGlowColor??'auto'}
+            fallback="#75e3ff" onChange={color=>setPreference('twoDPatternOutlineGlowColor',color)}/>
+        </Setting>
+      </section>
       <PatternOutlinePalette value={preferences.twoDEdgeColor??'auto'}
         onPreview={onPreviewTwoDPattern}
         onChoose={color=>onChange({...value,preferences:{...preferences,twoDEdgeColor:color,twoDPatternUiTheme:'custom'}})}/>
@@ -364,7 +407,7 @@ function TwoDWorkspaceAppearance({ value, onChange, onPreviewTwoDPalette, onPrev
   </section>;
 }
 
-export default function StudioSettingsDialog({ value = {}, onChange = () => {}, onClose = () => {}, onApplyWorkspace, onSaveWorkspace, onRestoreWorkspace, onReset, onResetEnvironment, onPreviewTheme, onPreviewIconColor, onPreviewTwoDPalette, onPreviewTwoDPattern, onPreviewGradeChart, onPickTarget, onHoverTarget, contrastAudit = [], onFixContrast, focusKey, initialTab = 'workspace' }) {
+export default function StudioSettingsDialog({ value = {}, onChange = () => {}, onClose = () => {}, onApplyWorkspace, onSaveWorkspace, onRestoreWorkspace, onReset, onResetEnvironment, onPreviewTheme, onPreviewIconColor, onPreviewTwoDPalette, onPreviewTwoDPattern, onPreviewGradeChart, onPreview3DEnvironment, onApplySavedTheme, onPickTarget, onHoverTarget, contrastAudit = [], onFixContrast, focusKey, initialTab = 'workspace' }) {
   const [tab, setTab] = useState(initialTab==='appearance'?'theme':initialTab);
   const [search, setSearch] = useState('');
   const [themeSearch, setThemeSearch] = useState('');
@@ -378,6 +421,8 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
   const [savedThemes,setSavedThemes]=useState(loadSavedThemePresets);
   const [themeName,setThemeName]=useState('');
   const [themeFeedback,setThemeFeedback]=useState('');
+  const [themeSaveOpen,setThemeSaveOpen]=useState(false);
+  const themeNameInputRef=useRef(null);
   const [themeSchedule,setThemeSchedule]=useState(loadThemeSchedule);
   const themeImportRef=useRef(null);
   const [toolIndexSearch,setToolIndexSearch] = useState('');
@@ -409,7 +454,8 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
   useEffect(() => { try { localStorage.setItem('exo.toolIndexWorkspace.v1', toolIndexWorkspace); } catch {} }, [toolIndexWorkspace]);
   useEffect(() => { const recalc = () => setGeometry((g) => bounded(g)); window.addEventListener('resize',recalc); return () => window.removeEventListener('resize',recalc); }, []);
   useEffect(() => { const node = dialogRef.current; if (!node || typeof ResizeObserver === 'undefined') return; const observer = new ResizeObserver(([entry]) => { const width = Math.round(entry.borderBoxSize?.[0]?.inlineSize || entry.contentRect.width); const height = Math.round(entry.borderBoxSize?.[0]?.blockSize || entry.contentRect.height); setGeometry((g) => Math.abs(g.width-width)>1 || Math.abs(g.height-height)>1 ? bounded({...g,width,height}) : g); }); observer.observe(node); return () => observer.disconnect(); }, []);
-  useEffect(()=>()=>{onPreviewTheme?.(null);onPreviewIconColor?.(null);onPreviewTwoDPalette?.(null);onPreviewTwoDPattern?.(null);onPreviewGradeChart?.('values',null);onPreviewGradeChart?.('compare',null);onHoverTarget?.(null)},[onPreviewTheme,onPreviewIconColor,onPreviewTwoDPalette,onPreviewTwoDPattern,onPreviewGradeChart,onHoverTarget]);
+  useEffect(()=>()=>{onPreviewTheme?.(null);onPreviewIconColor?.(null);onPreviewTwoDPalette?.(null);onPreviewTwoDPattern?.(null);onPreviewGradeChart?.('values',null);onPreviewGradeChart?.('compare',null);onPreview3DEnvironment?.(null);onHoverTarget?.(null)},[onPreviewTheme,onPreviewIconColor,onPreviewTwoDPalette,onPreviewTwoDPattern,onPreviewGradeChart,onPreview3DEnvironment,onHoverTarget]);
+  useEffect(()=>{onPreview3DEnvironment?.(null)},[tab,onPreview3DEnvironment]);
   const applyPalette=colors=>onChange({...value,appearance:{...value.appearance,
     panelLibraryColor:colors[0],panelObjectBrowserColor:colors[1],objectBrowserIconColor:colors[3],
     leftRailColor:colors[0],rightRailColor:colors[0],interfaceInkColor:colors[4],
@@ -446,8 +492,11 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
     if(!['mm','cm','in'].includes(unit))return;
     onChange({...value,preferences:{...value.preferences,units:unit},cloSettings:{...value.cloSettings,unitSystem:({mm:'Millimeter',cm:'Centimeter',in:'Inch'})[unit]}});
   };
-  const saveCustomTheme=()=>{try{const preset=saveNamedThemePreset(themeName,value);setSavedThemes(loadSavedThemePresets());setThemeName('');setThemeFeedback(`Saved ${preset.name}`)}catch(error){setThemeFeedback(error.message)}};
-  const importCustomThemes=async(file)=>{if(!file)return;try{if(file.size>128000)throw Error('Theme file exceeds the 128 KB limit');const updated=importSavedThemePresets(await file.text());setSavedThemes(updated);setThemeFeedback(`Imported ${updated.length} total saved themes`)}catch(error){setThemeFeedback(error.message)}};
+  const saveCustomTheme=()=>{try{const preset=saveNamedThemePreset(themeName,value);setSavedThemes(loadSavedThemePresets());setThemeName('');setThemeSaveOpen(false);setThemeGroup('All');setThemeSearch('');setThemeFeedback(`Saved ${preset.name} in Custom Themes · interface, toolbars, 2D, 3D and grading tables`)}catch(error){setThemeFeedback(error.message)}};
+  const openSaveTheme=()=>{setTab('theme');setThemeSaveOpen(true);setThemeFeedback('')};
+  useEffect(()=>{if(tab==='theme'&&themeSaveOpen)themeNameInputRef.current?.focus()},[tab,themeSaveOpen]);
+  const applyCustomTheme=preset=>{try{if(onApplySavedTheme)onApplySavedTheme(preset);else onChange(applySavedThemePreset(value,preset));setThemeFeedback(`Applied ${preset.name} across the studio`)}catch(error){setThemeFeedback(error.message)}};
+  const importCustomThemes=async(file)=>{if(!file)return;try{if(file.size>512000)throw Error('Theme file exceeds the 512 KB limit');const updated=importSavedThemePresets(await file.text());setSavedThemes(updated);setThemeFeedback(`Imported ${updated.length} total saved themes`)}catch(error){setThemeFeedback(error.message)}};
   const downloadCustomThemes=()=>{try{const blob=new Blob([exportSavedThemePresets()],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='exo-custom-themes.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setThemeFeedback('Theme JSON exported')}catch(error){setThemeFeedback(error.message)}};
   const changeSchedule=(key,next)=>{try{const setting=saveThemeSchedule({...themeSchedule,[key]:next});setThemeSchedule(setting);window.dispatchEvent(new Event('exo-theme-schedule-changed'));setThemeFeedback('Day/Night settings saved')}catch(error){setThemeFeedback(error.message)}};
   const jumpToThemeSection = (id) => {
@@ -648,6 +697,7 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
         </>}
         {tab === 'theme' && <>
           <h3>Theme &amp; Color Palettes</h3><p className="studio-settings-intro">Browse real UI color palettes. The cover colors represent the sidebar, Property Editor, accent, labels and text—not decorative photos. Garment colors stay unchanged.</p>
+          <div className="studio-theme-main-heading"><strong>Main Theme</strong><button type="button" onClick={openSaveTheme} aria-label="Save Theme beside Main Theme">Save Theme</button></div>
           <div className="studio-active-palette" aria-label="Current theme color palette">
             <div className="studio-active-palette-copy"><small>ACTIVE COLOR PALETTE · CLICK A COLOR TO EDIT</small><strong>{STUDIO_THEME_PRESETS.find(item=>item.id===lookup(value,'appearance','theme','graphite'))?.name||'Graphite Studio'}</strong><span>Choose any swatch to change that part of the interface. Changes are saved only when you select a color.</span></div>
             <div className="studio-active-palette-mini" data-active-palette-mini="true" aria-label="Active palette indicator">
@@ -660,6 +710,15 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
               </span><small>{role}<b>{color}</b></small>
             </label>)}</div>
           </div>
+          {themeSaveOpen&&<form className="studio-theme-save-composer" aria-label="Save custom theme" onSubmit={event=>{event.preventDefault();saveCustomTheme()}}>
+            <label htmlFor="studio-complete-theme-name">Name your complete theme</label>
+            <div className="studio-saved-theme-actions">
+              <input ref={themeNameInputRef} id="studio-complete-theme-name" aria-label="Custom theme name" maxLength={64} placeholder="My custom theme" value={themeName} onChange={event=>setThemeName(event.target.value)}/>
+              <button type="submit" disabled={!themeName.trim()}>Save complete theme</button>
+              <button type="button" onClick={()=>{setThemeSaveOpen(false);setThemeName('')}}>Cancel</button>
+            </div>
+            <small>Saves your full studio colors, 2D and 3D appearance, toolbars, lighting and grading tables into Custom Themes.</small>
+          </form>}
           <div id="studio-theme-custom-palettes" className="studio-settings-group studio-custom-color-palettes">
             <h4>Build your own color palette</h4>
             <p>Choose five colors, give your palette a name, and save it. Applying one updates the sidebar, Object Browser, icon accent, and interface text without changing your 3D garment materials.</p>
@@ -679,7 +738,7 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
             </div>)}</div>
           </div>
           <nav className="studio-theme-jumps" aria-label="Jump to theme settings">
-            {[['studio-theme-presets','Presets'],['studio-theme-icon-colors','Icon colors'],['studio-theme-2d-pattern','2D workspace'],['studio-theme-custom-palettes','Custom palettes'],['studio-theme-saved','Saved'],['studio-theme-day-night','Day/Night'],['studio-theme-audit','Contrast audit'],['studio-theme-interface','Interface'],['studio-theme-toolbar-colors','Toolbar colors'],['studio-theme-workspace-parts','Workspace parts']].map(([id,label])=><button key={id} type="button" onClick={()=>jumpToThemeSection(id)} aria-label={`Jump to ${label}`}>{label}</button>)}
+            {[['studio-theme-presets','Presets'],['studio-theme-icon-colors','Icon colors'],['studio-theme-2d-pattern','2D workspace'],['studio-theme-custom-palettes','Custom palettes'],['studio-theme-saved','Custom Themes'],['studio-theme-day-night','Day/Night'],['studio-theme-audit','Contrast audit'],['studio-theme-interface','Interface'],['studio-theme-toolbar-colors','Toolbar colors'],['studio-theme-workspace-parts','Workspace parts']].map(([id,label])=><button key={id} type="button" onClick={()=>jumpToThemeSection(id)} aria-label={`Jump to ${label}`}>{label}</button>)}
           </nav>
           <div id="studio-theme-presets" className="studio-settings-group studio-theme-library">
             <h4>Color palette library <span>{STUDIO_THEME_PRESETS.length} palettes</span></h4>
@@ -701,6 +760,13 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
                   {selected&&<span className="studio-theme-selected-mark" aria-hidden="true">✓</span>}
                 </button>})}
             </div>
+            <section id="studio-theme-saved" className="studio-custom-themes-library" aria-label="Custom Themes">
+              <div className="studio-custom-themes-heading"><h5>Custom Themes</h5><span>{savedThemes.length}/40</span><button type="button" onClick={openSaveTheme}>+ Save Theme</button></div>
+              <p>Saved complete themes appear in this library. Apply one in a click without changing garment geometry or panel positions.</p>
+              <div className="studio-saved-theme-list">{savedThemes.map(preset=><div key={preset.id} className="studio-saved-theme-item"><ThemePaletteCover theme={preset.overrides?.appearance?.theme||'graphite'} appearance={preset.overrides?.appearance||{}} compact/><strong>{preset.name}</strong><button type="button" onClick={()=>applyCustomTheme(preset)}>Apply full theme</button><button type="button" aria-label={`Delete ${preset.name}`} onClick={()=>{try{setSavedThemes(deleteSavedThemePreset(preset.id));setThemeFeedback(`Deleted ${preset.name}`)}catch(error){setThemeFeedback(error.message)}}}>Delete</button></div>)}{!savedThemes.length&&<p>No custom themes saved yet. Choose your colors, then select Save Theme.</p>}</div>
+              <div className="studio-saved-theme-actions"><button type="button" onClick={downloadCustomThemes} disabled={!savedThemes.length}>Export JSON</button><button type="button" onClick={()=>themeImportRef.current?.click()}>Import JSON</button><input ref={themeImportRef} type="file" accept="application/json,.json" aria-label="Import saved theme JSON" className="studio-hidden-file" onChange={event=>{importCustomThemes(event.target.files?.[0]);event.target.value=''}}/></div>
+              {themeFeedback&&<small role="status">{themeFeedback}</small>}
+            </section>
           </div>
           <div id="studio-theme-icon-colors" className="studio-settings-group studio-icon-colors-panel">
             <h4>Global icon colors</h4>
@@ -722,15 +788,7 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
                 fallback="#e1a6cf" onChange={color=>set('appearance','globalToolbarIconColor',color)}/>
             </Setting>
           </div>
-          <div id="studio-theme-2d-pattern"><TwoDWorkspaceAppearance value={value} onChange={onChange} onPreviewTwoDPalette={onPreviewTwoDPalette} onPreviewTwoDPattern={onPreviewTwoDPattern} onPreviewGradeChart={onPreviewGradeChart}/></div>
-          <div id="studio-theme-saved" className="studio-settings-group studio-saved-themes">
-            <h4>My saved themes <span>{savedThemes.length}/40</span></h4>
-            <p>Save the interface and 2D canvas colors together. Your workspace and 3D environment stay independent.</p>
-            <div className="studio-saved-theme-actions"><input aria-label="Custom theme name" maxLength={64} placeholder="Name this theme" value={themeName} onChange={e=>setThemeName(e.target.value)}/><button type="button" disabled={!themeName.trim()} onClick={saveCustomTheme}>Save theme preset</button></div>
-            <div className="studio-saved-theme-actions"><button type="button" onClick={downloadCustomThemes} disabled={!savedThemes.length}>Export JSON</button><button type="button" onClick={()=>themeImportRef.current?.click()}>Import JSON</button><input ref={themeImportRef} type="file" accept="application/json,.json" aria-label="Import saved theme JSON" className="studio-hidden-file" onChange={event=>{importCustomThemes(event.target.files?.[0]);event.target.value=''}}/></div>
-            <div className="studio-saved-theme-list">{savedThemes.map(preset=><div key={preset.id} className="studio-saved-theme-item"><ThemePaletteCover theme={preset.overrides?.appearance?.theme||'graphite'} appearance={preset.overrides?.appearance||{}} compact/><strong>{preset.name}</strong><button type="button" onClick={()=>{onChange(applySavedThemePreset(value,preset));setThemeFeedback(`Applied ${preset.name}`)}}>Apply</button><button type="button" aria-label={`Delete ${preset.name}`} onClick={()=>{try{setSavedThemes(deleteSavedThemePreset(preset.id));setThemeFeedback(`Deleted ${preset.name}`)}catch(error){setThemeFeedback(error.message)}}}>Delete</button></div>)}{!savedThemes.length&&<p>No custom themes saved yet.</p>}</div>
-            {themeFeedback&&<small role="status">{themeFeedback}</small>}
-          </div>
+          <div id="studio-theme-2d-pattern"><TwoDWorkspaceAppearance value={value} onChange={onChange} onPreviewTwoDPalette={onPreviewTwoDPalette} onPreviewTwoDPattern={onPreviewTwoDPattern} onPreviewGradeChart={onPreviewGradeChart} onPreview3DEnvironment={onPreview3DEnvironment} show3DEnvironment/></div>
           <div id="studio-theme-day-night" className="studio-settings-group studio-theme-schedule">
             <h4>Automatic Day / Night theme</h4><p>Follow your device appearance, switch at local times, or keep the theme you manually select.</p>
             <Setting label="Switching mode"><Select label="Day and night switching mode" value={themeSchedule.mode} options={[["off","Manual only (default)"],["system","Follow device"],["time","Scheduled times"]]} onChange={v=>changeSchedule('mode',v)}/></Setting>
@@ -791,7 +849,12 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
               </div>
               <div data-theme-field="globalToolbarIconColor" onMouseEnter={()=>onHoverTarget?.('globalToolbarIconColor')} onMouseLeave={()=>onHoverTarget?.(null)}><Setting label="Overall toolbar icons" description="Set the color of the standard toolbar icons across the studio."><TwoDAutoColor label="Overall toolbar icons" value={lookup(value,'appearance','globalToolbarIconColor','auto')} fallback="#c7dcf5" onChange={v=>set('appearance','globalToolbarIconColor',v)}/></Setting></div>
               <Setting label="Overall toolbar glow"><label className="studio-switch"><input type="checkbox" aria-label="Glow on overall toolbar icons" checked={lookup(value,'appearance','globalToolbarGlow',false)} onChange={e=>set('appearance','globalToolbarGlow',e.target.checked)}/>Glow</label></Setting>
-              <Setting label="2D vertical and horizontal icons" description="Customize icon colors inside 2D Liquid Glass toolbars and the 2D side rails."><TwoDAutoColor label="2D toolbar icons" value={lookup(value,'appearance','twoDToolbarIconColor','auto')} fallback="#bceaff" onChange={v=>set('appearance','twoDToolbarIconColor',v)}/></Setting>
+              <Setting label="2D vertical and horizontal icons" description="Auto follows Overall toolbar icons, including its selected blue color, on all 2D rails and horizontal controls. Choose a 2D-specific color only when you want an override.">
+                <TwoDAutoColor label="2D toolbar icons" value={lookup(value,'appearance','twoDToolbarIconColor','auto')} fallback={lookup(value,'appearance','globalToolbarIconColor','auto')==='auto'?'#bceaff':lookup(value,'appearance','globalToolbarIconColor','auto')} onChange={v=>set('appearance','twoDToolbarIconColor',v)}/>
+                <button type="button" className="studio-2d-match-overall-icon-color" data-testid="studio-2d-match-overall-icon-color" onClick={()=>onChange({...value,appearance:{...value.appearance,twoDToolbarIconColor:'auto',twoDViewerHorizontalColor:'auto',twoDViewerVerticalColor:'auto'}})}>
+                  Match overall icon color in 2D
+                </button>
+              </Setting>
               <Setting label="2D Liquid Glass tint" description="A light transparent tint on the 2D toolbar surfaces."><TwoDAutoColor label="2D toolbar glass tint" value={lookup(value,'appearance','twoDToolbarGlassColor','auto')} fallback="#c0edff" onChange={v=>set('appearance','twoDToolbarGlassColor',v)}/></Setting>
               <Setting label="2D toolbar icon glow"><label className="studio-switch"><input type="checkbox" aria-label="Glow on 2D toolbar icons" checked={lookup(value,'appearance','twoDToolbarGlow',false)} onChange={e=>set('appearance','twoDToolbarGlow',e.target.checked)}/>Glow</label></Setting>
             </div>
@@ -814,7 +877,7 @@ export default function StudioSettingsDialog({ value = {}, onChange = () => {}, 
         {tab === 'filesApi' && <><h3>Files & API</h3><p className="studio-settings-intro">Choose local file defaults and configure an API endpoint for supported integrations.</p><div className="studio-settings-group"><h4>Files</h4><Setting label="Auto-save"><label className="studio-switch"><input type="checkbox" checked={!!lookup(value,'preferences','autoSave',false)} onChange={(e) => set('preferences','autoSave',e.target.checked)} />Enable</label></Setting><Setting label="Default folder (saved preference)"><input aria-label="Default folder (saved preference)" value={lookup(value,'preferences','defaultFolder','')} placeholder="Local folder path" onChange={(e) => set('preferences','defaultFolder',e.target.value)} /></Setting></div><div className="studio-settings-group"><h4>API</h4><Setting label="API base URL" description="Saved as a local preference; this does not establish a connection."><input type="url" aria-label="API base URL" value={lookup(value,'preferences','apiBaseUrl','')} placeholder="https://…" onChange={(e) => set('preferences','apiBaseUrl',e.target.value)} /></Setting><span className="studio-status">Not connected</span></div></>}
         {tab === 'plugins' && <><h3>Plugins</h3><p className="studio-settings-intro">Switch locally supported features. External services require a separate connection.</p><div className="studio-settings-group"><h4>Local integration preferences</h4>{[['enableLocalTools','Local design tools'],['enableAssetBridge','Asset bridge']].map(([id,label]) => <Setting key={id} label={label} description={id === 'enableAssetBridge' ? 'Preference only; availability depends on installed integration.' : 'Built-in studio tools'}><label className="studio-switch"><input type="checkbox" checked={!!section('plugins')[id]} onChange={(e) => set('plugins',id,e.target.checked)} />Enabled</label></Setting>)}</div><div className="studio-settings-group"><h4>External connections</h4><p>No external plugin connection is confirmed.</p><span className="studio-status">Not connected</span></div></>}
       </main></div>
-      <footer className="studio-settings-footer" data-testid="studio-settings-footer">{confirmGlobalReset ? <div className="studio-settings-confirm" role="group" aria-label="Confirm reset all settings"><strong>Reset all settings?</strong><button type="button" onClick={() => { setConfirmGlobalReset(false); onReset?.(); }} data-testid="studio-confirm-global-reset">Reset everything</button><button type="button" onClick={() => setConfirmGlobalReset(false)}>Cancel</button></div> : <button type="button" className="studio-settings-reset" data-testid="studio-reset-all" onClick={() => setConfirmGlobalReset(true)}>Reset defaults</button>}<span>Settings are stored locally on this device</span><button type="button" className="studio-settings-done" onClick={() => { onApplyWorkspace?.(value); onClose(); }} data-testid="studio-settings-apply">Apply</button></footer>
+      <footer className="studio-settings-footer" data-testid="studio-settings-footer">{confirmGlobalReset ? <div className="studio-settings-confirm" role="group" aria-label="Confirm reset all settings"><strong>Reset all settings?</strong><button type="button" onClick={() => { setConfirmGlobalReset(false); onReset?.(); }} data-testid="studio-confirm-global-reset">Reset everything</button><button type="button" onClick={() => setConfirmGlobalReset(false)}>Cancel</button></div> : <button type="button" className="studio-settings-reset" data-testid="studio-reset-all" onClick={() => setConfirmGlobalReset(true)}>Reset defaults</button>}<button type="button" className="studio-settings-save-theme" data-testid="studio-save-theme-footer" onClick={openSaveTheme}>Save Theme</button><span>Settings are stored locally on this device</span><button type="button" className="studio-settings-done" onClick={() => { onApplyWorkspace?.(value); onClose(); }} data-testid="studio-settings-apply">Apply</button></footer>
     </div>
   </div>, document.body);
 }

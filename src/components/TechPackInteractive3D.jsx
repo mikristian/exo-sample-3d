@@ -10,6 +10,17 @@ import './TechPackInteractive3D.css'
 
 const finite=p=>Array.isArray(p)&&p.length>=3&&p.slice(0,3).every(Number.isFinite)
 const clamp=n=>Math.max(0,Math.min(1,n))
+// Display only measured values carried by the actual linked POM record.
+// Never derive a measurement from mesh coordinates or a marker position.
+const linkedPOMFields=source=>{
+  if(source?.kind!=='pom'||!source.data||source.stale)return []
+  const data=source.data
+  const unit=typeof data.unit==='string'&&data.unit.trim()?data.unit.trim():''
+  return ['measuredValue','actualValue','value'].filter(key=>
+    (typeof data[key]==='number'&&Number.isFinite(data[key]))||
+    (typeof data[key]==='string'&&data[key].trim()!==''&&Number.isFinite(Number(data[key]))))
+    .map(key=>({label:key==='measuredValue'?'Measured value':key==='actualValue'?'Actual value':'Source value',value:`${data[key]}${unit?' '+unit:''}`}))
+}
 const posFrom=(position,bounds)=>new THREE.Vector3(...[0,1,2].map(axis=>
   bounds.min.getComponent(axis)+clamp(Number(position?.[axis])||0)*Math.max(.0001,bounds.max.getComponent(axis)-bounds.min.getComponent(axis))))
 
@@ -287,6 +298,8 @@ export default function TechPackInteractive3D({snapshot,markers=[],onChange=()=>
   useEffect(()=>{sceneRef.current?.frame()},[selected])
   const selectedMarker=allMarkers.find(item=>item.id===selected)
   const sourceDetail=resolveNative3DSource(snapshot,selectedMarker?.sourceRef)
+  const linkedFields=linkedPOMFields(sourceDetail)
+  const selectedPixel=pixels[selected]
   const updateMarker=(id,update)=>onChange(allMarkers.map(marker=>{
     if(marker.id!==id)return marker
     const currentSource=marker.sourceRef?resolveNative3DSource(snapshot,marker.sourceRef):null
@@ -330,7 +343,13 @@ export default function TechPackInteractive3D({snapshot,markers=[],onChange=()=>
     <div className="tpws-interactive-square">
       <div className={`tpws-interactive-webgl ${adding?'placing':''}`} ref={host}/>
       {Object.entries(pixels).map(([id,pixel])=><button type="button" key={id} ref={element=>{if(element)pinElements.current.set(id,element);else pinElements.current.delete(id)}} className={`tpws-interactive-pin ${selected===id?'selected':''}`} style={{left:pixel.x,top:pixel.y}} title={`Zoom to ${allMarkers.find(m=>m.id===id)?.title||id}`} aria-label={`Zoom to marker ${allMarkers.find(m=>m.id===id)?.label||id}`} onClick={()=>focusMarker(id)}>{allMarkers.find(m=>m.id===id)?.label||'+'}</button>)}
-      {selectedMarker&&<div className="tpws-interactive-popover" role="status"><strong>{selectedMarker.label} · {selectedMarker.title}</strong><p>{selectedMarker.detail}</p><span>{selectedMarker.sourceRef?`${selectedMarker.sourceRef.kind} / ${selectedMarker.sourceRef.id}`:'Manual detail'} · {selectedMarker.verified?'Reviewed':'Review pending'}</span></div>}
+      {selectedMarker&&<aside className={`tpws-interactive-popover tpws-interactive-detail-card ${selectedPixel?'is-anchored':''}`} style={selectedPixel?{'--marker-x':`${selectedPixel.x}px`,'--marker-y':`${selectedPixel.y}px`}:undefined} aria-label={`Marker ${selectedMarker.label} details`}>
+        <div className="tpws-interactive-card-heading"><strong>{selectedMarker.label} · {selectedMarker.title||'Detail marker'}</strong><button type="button" aria-label="Close marker details" onClick={()=>setSelected('')}>×</button></div>
+        <p>{selectedMarker.detail||'No detail notes entered.'}</p>
+        {linkedFields.length>0&&<dl className="tpws-interactive-linked-fields">{linkedFields.map(field=><React.Fragment key={field.label}><dt>{field.label}</dt><dd>{field.value}</dd></React.Fragment>)}</dl>}
+        {selectedMarker.sourceRef?.kind==='pom'&&linkedFields.length===0&&<small>Linked POM value pending in native source.</small>}
+        <span>{selectedMarker.sourceRef?`${selectedMarker.sourceRef.kind} / ${selectedMarker.sourceRef.id}`:'Manual detail'} · {sourceDetail?.stale?'Source revision changed':selectedMarker.verified?'Reviewed':'Review pending'}</span>
+      </aside>}
     </div>
     <p className="tpws-interactive-hint"><Crosshair size={13}/> Drag to orbit. Scroll to zoom. Place a marker by clicking garment geometry. Markers are authored notes and do not imply measured factory tolerances.</p>
     {message&&<p className="tpws-interactive-message" role="status">{message}</p>}

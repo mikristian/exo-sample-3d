@@ -3,6 +3,7 @@
 // validity does not establish that a licensed CAD application ran or authorize
 // cutting. This module does not transmit, persist or release factory records.
 import {inspectIndustrialCadReceivingReexport20261028} from './industrialCadReceivingReexport20261028.mjs'
+import {inspectIndustrialCadReturnedFileIntake20261031} from './industrialCadReturnedFileIntake20261031.mjs'
 import {sha256Bytes} from './sha256Bytes.js'
 
 const encoder=new TextEncoder()
@@ -70,7 +71,8 @@ function decode64(raw){
  */
 export async function inspectIndustrialReceivingSignedEvidence20261028(
  project,explorer,plansByFabric,handoffPacket,outboundWires,evidence,attestation,
- {trustedKeys=null,expectedChallenge=null,nowMs=Date.now()}={},
+ {trustedKeys=null,expectedChallenge=null,nowMs=Date.now(),
+  returnedFilePacket=null,requireReturnedFileBytes=false}={},
 ){
  try{
   if(!plain(attestation)||!exact(attestation,['payload','signature'])||
@@ -145,10 +147,25 @@ export async function inspectIndustrialReceivingSignedEvidence20261028(
   const local=inspectIndustrialCadReceivingReexport20261028(
    project,explorer,plansByFabric,handoffPacket,outboundWires,evidence)
   if(!local.ok)return denied('RECEIVER_SIGNED_GEOMETRY_OR_ORDER_DRIFT',local.issues)
+  // Opt-in strict receiving requires actual returned DXF file bytes in addition
+  // to the signed v2 receipt. Keep the signed receipt schema unchanged.
+  let returnedFiles=null
+  if(requireReturnedFileBytes||returnedFilePacket!==null){
+   if(!recordBound)
+    return denied('RECEIVER_RETURNED_FILES_REQUIRE_V2_SIGNED_RECORDS')
+   if(returnedFilePacket===null)
+    return denied('RECEIVER_RETURNED_FILES_UNVERIFIED','Returned file-byte inventory required')
+   returnedFiles=inspectIndustrialCadReturnedFileIntake20261031(
+    project,explorer,plansByFabric,handoffPacket,outboundWires,evidence,returnedFilePacket)
+   if(!returnedFiles.ok)
+    return denied('RECEIVER_RETURNED_FILES_UNVERIFIED',returnedFiles.issues)
+  }
   return {ok:true,status:'LOCAL_RECEIVER_SIGNED_ARTIFACTS_CROSSCHECKED',issues:[],
    keyId:p.keyId,sizeCount:sizes.length,manifestSha256:p.handoffManifestSha256,
    receiverSignatureVerified:true,receivingGeometryCrosschecked:true,
    importRecordsSignatureBound:recordBound,
+   returnedDxfFileBytesVerified:returnedFiles?.returnedDxfFileBytesVerified===true,
+   returnedDxfFiles:returnedFiles?.returnedDxfFiles||[],
    independentReceiverAuthenticated:false,receiverCadVerified:false,
    aamaCertified:false,astmCertified:false,cuttingAuthorized:false,
    factoryApproved:false,manufacturingApproved:false,

@@ -1,4 +1,6 @@
 // Authored document coverage and explicit review needs. Never infer factory approval.
+import {boxTableRowCapacity} from './techpack-spreadsheet/pagination.js'
+import {evaluateTechPackProductionGovernance} from './techPackProductionGovernance20261031.js'
 const rows = value => Array.isArray(value) ? value : []
 const filled = value => value !== null && value !== undefined && String(value).trim() !== ''
 const meaningful = value => filled(value) && !/^(?:new construction detail|add seam, fabric, trim or placement instructions\.?|not assigned|draft|pending)$/i.test(String(value).trim())
@@ -72,7 +74,11 @@ export function techPackFactoryReadiness(source = {}, draft = {}, workspace = {}
       add(!staleCell, `table-cells-${page}-${box.id}`, page, 'Spreadsheet source review',
         'Review source revisions and authored overrides in this spreadsheet', 'review')
       const availableHeight = Number(box?.height)
-      if (rows(table.rows).length && (!Number.isFinite(availableHeight) || availableHeight < 95 + rows(table.rows).length * 30)) {
+      const capacity = Number.isFinite(availableHeight) ? boxTableRowCapacity(availableHeight, {
+        tableOnly: box?.slot?.category === 'tables',
+        compactHeader: box?.slot?.templateRole === 'shared-header'
+      }) : 0
+      if (rows(table.rows).length > capacity) {
         add(false, `table-overflow-${page}-${box.id}`, page, 'Spreadsheet print overflow',
           'Review continuation sheets and row wrapping in print preview', 'review')
       }
@@ -129,11 +135,15 @@ export function techPackFactoryReadiness(source = {}, draft = {}, workspace = {}
     'packaging', 'packaging', 'Packaging instructions', 'Specify packaging type and handling or folding instructions')
   add(rows(draft?.colorways).length > 0 && rows(draft?.colorways).every(c => meaningful(c?.name) && recordHas(c, 'code', 'hex')),
     'colorways', 'colorways', 'Colorways', 'Name each colorway and specify a color reference')
-  add(false, 'sample-review', 'notes', 'Sample and factory sign-off',
-    'Record physical fit, material tests, label checks and explicit factory approval before release', 'review')
+  const governance = evaluateTechPackProductionGovernance(source, draft?.productionGovernance ?? workspace?.productionGovernance)
+  add(governance.physicalApproved && governance.factoryApproval, 'sample-review', 'notes', 'Sample and factory sign-off',
+    'Record revision-linked physical fit, material tests, label checks and explicit factory approval before release', 'review')
+  for (const gate of governance.issues) if (gate.id !== 'sample-review') {
+    add(false, `governance-${gate.id}`, 'notes', gate.title, gate.reason, 'review')
+  }
   const blocking = missing.length > 0 || review.length > 0
   const items = [...missing, ...review].map(item => ({...item, label: item.title, status: item.severity,
     description: item.reason}))
-  return {ready: !blocking, items, missing, review, issues: [...missing, ...review],
+  return {ready: !blocking && governance.releaseReady, governance, items, missing, review, issues: [...missing, ...review],
     counts: {missing: missing.length, review: review.length}, status: blocking ? 'needs-attention' : 'ready'}
 }

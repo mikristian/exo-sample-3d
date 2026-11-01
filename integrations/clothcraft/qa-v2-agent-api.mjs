@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { PassThrough } from 'node:stream'
 import { createAgentApi, capabilityManifest } from './agent-api.mjs'
+import {createWorkspaceAuth} from './workspace-auth.mjs'
 
 let revision = 7
 let running = false
@@ -21,14 +22,15 @@ const workspace = {
 }
 const audit = []
 const trustedOrigin = 'http://127.0.0.1:5386'
-const api = createAgentApi(workspace, { audit: event => audit.push(event), allowOrigin: origin => origin === trustedOrigin })
+const shell=createWorkspaceAuth()
+const api = createAgentApi(workspace, { audit: event => audit.push(event), allowOrigin: origin => origin === trustedOrigin,authorizeUi:header=>shell.authorize(header) })
 assert.equal(capabilityManifest.version, '1.3.0')
 
 async function call(action) {
   const req = new PassThrough()
   req.method = 'POST'
   req.url = '/agent/v1/actions'
-  req.headers = { origin: trustedOrigin }
+  req.headers = { origin: trustedOrigin,authorization:`Bearer ${shell.token}` }
   const res = { status: null, json: null, writeHead(status) { this.status = status }, end(body) { this.json = JSON.parse(body) } }
   req.end(JSON.stringify(action))
   assert.equal(await api.handle(req, res), true)

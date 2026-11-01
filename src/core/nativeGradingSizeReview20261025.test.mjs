@@ -5,8 +5,8 @@ import {summarizeNativeGradingSizes20261025 as summarize,NATIVE_GRADE_SIZES_2026
 const workflow=()=>({previewReady:true,panelCount:2,seamCount:1,
   geometry:{blocks:['front','back'].map(panelId=>({panelId,rows:SIZES.map(size=>({
     panelId,size,widthMm:300,heightMm:500,perimeterMm:1300,areaMm2:80000,blockers:[],
-  }))}))},sewing:{rows:SIZES.map(size=>({size,seamId:'side',pass:true,mismatchMm:0.3}))}})
-const poms=()=>({rows:SIZES.map(size=>({size,id:'chest',pass:true,actualMm:300}))})
+  }))}))},sewing:{rows:SIZES.map(size=>({size,seamId:'side',pass:true,mismatchMm:0.3,sourceLengthMm:500,targetLengthMm:499.7}))}})
+const poms=()=>({rows:SIZES.map(size=>({size,id:'chest',pass:true,actualMm:300,targetMm:300,toleranceMm:2}))})
 
 test('reports exact per-size graded geometry, seam and POM coverage without approval',()=>{
   const rows=summarize(workflow(),poms(),1)
@@ -70,4 +70,30 @@ test('rejects duplicated panel IDs and reports a missing size-specific POM targe
   const report=summarize(valid,measures,1)
   assert(report.find(row=>row.size==='XL').findings.some(message=>message.includes('target not entered')))
   assert.equal(report.find(row=>row.size==='M').pomPass,true)
+})
+
+test('size-specific seam and POM false passes cannot be manufactured from incomplete measurements',()=>{
+  const source=workflow(),measures=poms()
+  source.sewing.rows.find(row=>row.size==='XL').targetLengthMm=undefined
+  measures.rows.find(row=>row.size==='S').targetMm=299
+  measures.rows.find(row=>row.size==='S').toleranceMm=0.1
+  measures.rows.find(row=>row.size==='XXL').actualMm=-1
+  const rows=summarize(source,measures,1)
+  assert.equal(rows.find(row=>row.size==='XL').sewingPass,false)
+  assert.equal(rows.find(row=>row.size==='XL').seamFailures,1)
+  assert.equal(rows.find(row=>row.size==='S').pomPass,false)
+  assert.equal(rows.find(row=>row.size==='XXL').pomPass,false)
+  assert.equal(rows.find(row=>row.size==='M').draftingChecksPass,true)
+  assert(rows.every(row=>row.nativeCommitted===false&&row.manufacturingApproved===false))
+})
+
+test('all six sizes independently reject a forged sewn mismatch despite pass=true',()=>{
+  for(const size of SIZES){
+    const source=workflow()
+    source.sewing.rows.find(row=>row.size===size).mismatchMm=0
+    const rows=summarize(source,poms(),1)
+    assert.equal(rows.find(row=>row.size===size).sewingPass,false,`forged ${size} seam`)
+    assert.equal(rows.find(row=>row.size===size).seamFailures,1)
+    assert.equal(rows.filter(row=>row.draftingChecksPass).length,SIZES.length-1)
+  }
 })

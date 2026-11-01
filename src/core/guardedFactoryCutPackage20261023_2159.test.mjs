@@ -11,6 +11,18 @@ const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 const encoder = new TextEncoder()
 const copyFiles = files => Object.fromEntries(Object.entries(files).map(([name, bytes]) => [name, new Uint8Array(bytes)]))
 const patternNames = files => Object.keys(files).filter(path => /^patterns\/[^/]+\.dxf$/i.test(path)).sort()
+// Synthetic receiving-side bytes, never produced by the guarded factory builder.
+const cutDxf = rectangles => [
+  '0','SECTION','2','ENTITIES',
+  ...rectangles.flatMap(([layer,x0,y0,x1,y1]) => [
+    '0','LWPOLYLINE','8',layer,'90','4','70','1',
+    '10',String(x0),'20',String(y0),
+    '10',String(x1),'20',String(y0),
+    '10',String(x1),'20',String(y1),
+    '10',String(x0),'20',String(y1),
+  ]),
+  '0','ENDSEC','0','EOF','',
+].join('\n')
 
 function overlapProject() {
   const base = createTeeTemplate()
@@ -55,15 +67,50 @@ test('guarded builder preserves source and never grants manufacturing approval',
   assert.deepEqual(project, snapshot)
 })
 
-test('two 20cm rectangles with 6cm allowances fail independently and produce no guarded package', () => {
+test('two 20cm rectangles with 6cm allowances are rejected before any factory bytes exist', () => {
   const project = overlapProject()
   const snapshot = structuredClone(project)
-  const files = buildFactoryPackageFiles(project)
-  rejected(audit(files, sizes), 'overlapping CUT contours')
+  assert.throws(() => buildFactoryPackageFiles(project),
+    /Factory package refused: unsafe physical CUT contours.*PHYSICAL_CUT_INTERIOR_OVERLAP/,
+    'unguarded builder must fail closed before returning unsafe bytes')
   assert.throws(() => guardedBuild(project), error =>
-    error?.code === 'UNSAFE_FACTORY_DXF' && Array.isArray(error.diagnostics),
+    error?.code === 'UNSAFE_FACTORY_DXF' &&
+    error.diagnostics?.some(issue => issue.code === 'FACTORY_PACKAGE_BUILD_FAILED'),
   'cannot expose unsafe factory package bytes')
   assert.deepEqual(project, snapshot)
+})
+
+test('receiving audit rejects independent disposable CUT overlap and containment bytes', () => {
+  const source = buildFactoryPackageFiles(createTeeTemplate())
+  const target = patternNames(source).find(path => path.endsWith('-xs.dxf'))
+  assert.ok(target?.endsWith('-xs.dxf'))
+  const cases = [
+    [['CUT_XS_SHELL',0,0,20,20],['CUT_XS_LINING',10,10,30,30]],
+    [['CUT_XS_SHELL',0,0,20,20],['CUT_XS_LINING',5,5,10,10]],
+  ]
+  for (const [index, contours] of cases.entries()) {
+    const files = copyFiles(source)
+    files[target] = encoder.encode(cutDxf(contours))
+    const before = copyFiles(files)
+    const result = audit(files, sizes)
+    rejected(result, `synthetic unsafe CUT case ${index}`)
+    assert.ok(result.diagnostics.some(issue => issue.code === 'PHYSICAL_CUT_INTERIOR_OVERLAP'),
+      JSON.stringify(result.diagnostics))
+    assert.equal(result.checks.find(check => check.path === target)?.physicalCutOk, false)
+    assert.deepEqual(files, before, 'inspection must not modify synthetic factory bytes')
+  }
+})
+
+test('receiving audit accepts disjoint disposable CUT contours without authorizing cutting', () => {
+  const files = copyFiles(buildFactoryPackageFiles(createTeeTemplate()))
+  const [target] = patternNames(files)
+  files[target] = encoder.encode(cutDxf([
+    ['CUT_XS_SHELL',0,0,20,20],['CUT_XS_LINING',25,0,45,20],
+  ]))
+  const result = audit(files, sizes)
+  assert.equal(result.ok, true, JSON.stringify(result.diagnostics))
+  assert.equal(result.manufacturingApproved, false)
+  assert.equal(result.checks.find(check => check.path === target)?.contourCount, 2)
 })
 
 test('one missing size DXF blocks whole package', () => {

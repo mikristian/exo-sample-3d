@@ -1,4 +1,7 @@
 import {reviewNativeBindingMeasurements} from '../core/nativeBindingMeasurementReview20261027.js'
+import {prepareModarisNativeWorksheetCommit20261030 as prepareWorksheetNative} from '../core/modarisNativeWorksheetCommit20261030.js'
+import {witnessModarisNativeMeasurementCommit20261027 as witnessNativeMeasurement} from '../core/modarisNativeMeasurementCommit20261027.js'
+import {witnessModarisNativeMultiPanelMeasurementCommit20261030 as witnessMultiPanel} from '../core/modarisNativeMultiPanelMeasurementCommit20261030.js'
 import React,{useEffect,useMemo,useState} from 'react'
 import {
   createNativePatternConstraintSidecar20261023,
@@ -98,6 +101,9 @@ export default function NativePatternBindingsInspector20261023({snapshot,panelId
     try{return reviewNativeBindingMeasurements(snapshot,stored,worksheetToMeasurements(worksheet))}
     catch(error){return {ok:false,reason:error.message}}
   },[snapshot,stored,worksheet])
+  const nativeWorksheetReview=useMemo(()=>stored&&measurementReview?.ok?
+    prepareWorksheetNative(snapshot,stored,measurementReview):null,
+    [snapshot,stored,measurementReview])
   const reviewPending=Boolean(stored)&&(!measurementReview?.ok||measurementReview.changes.some(change=>change.deltaMm.some(value=>Math.abs(value)>1e-8)))
   const updateMeasurements=async()=>{
     if(applying||!measurementReview?.ok)return
@@ -139,7 +145,36 @@ export default function NativePatternBindingsInspector20261023({snapshot,panelId
     finally{setApplying(false)}
   }
   const applyAtomic=()=>{if(!reviewPending&&atomic?.ok)void commitAtomic(stored)}
-  const applyReviewed=()=>{if(measurementReview?.ok&&measurementReview.atomic&&!measurementReview.noGeometryChanges)void commitAtomic(measurementReview.sidecar)}
+  const applyReviewed=async()=>{
+    if(applying||!nativeWorksheetReview?.ok||!stored||typeof onApplyNativeMeasurement!=='function')return
+    setApplying(true);setMessage('')
+    let submitted=false
+    try{
+      const freshlyReviewed=prepareWorksheetNative(snapshot,stored,measurementReview)
+      if(!freshlyReviewed.ok||JSON.stringify(freshlyReviewed)!==JSON.stringify(nativeWorksheetReview))
+        throw Error('The worksheet or native source changed after review; inspect the latest garment')
+      submitted=true
+      const result=await onApplyNativeMeasurement(freshlyReviewed.request)
+      if(!result?.ok||!result.before||!result.after)
+        throw Error('Native measurement operation did not return a complete before/after receipt')
+      const witness=freshlyReviewed.request.op==='bindings-multipanel-measurement-recompute'?
+        witnessMultiPanel(result.before,result.after,stored,freshlyReviewed):
+        witnessNativeMeasurement(result.before,result.after,stored,freshlyReviewed)
+      if(!witness.ok)throw Error(`Rust committed but postcommit validation failed: ${witness.reason}`)
+      const accepted=createNativePatternConstraintSidecar20261023(result.after,{
+        measurements:result.after.nativePointBindings.measurements,
+        bindings:result.after.nativePointBindings.bindings,
+      })
+      if(!accepted.ok)throw Error(`Rust committed, but the updated source graph could not be reloaded: ${accepted.reason}`)
+      try{localStorage.setItem(key,JSON.stringify({schema:'exo-native-draft-point-bindings-v1',
+        sidecar:serializeNativePatternConstraintSidecar20261023(accepted.sidecar)}))}catch{}
+      setStored(accepted.sidecar)
+      setMessage(`Rust updated ${witness.measurement} to ${witness.valueMm} mm and recomputed ${witness.correctedBindingIds.length} linked point(s)${witness.affectedPanels?.length?` across ${witness.affectedPanels.length} pieces`:''} in one native Undo revision ${witness.committedRevision}. Source rules and geometry were independently checked.`)
+    }catch(error){setMessage(submitted?
+      `Native measurement update needs inspection before retrying: ${error?.message||String(error)}. It may already be committed; check the garment and Undo history.`:
+      `Native measurement update refused: ${error?.message||String(error)}`)}
+    finally{setApplying(false)}
+  }
   const save=async()=>{
     if(applying)return
     setApplying(true)
@@ -190,16 +225,17 @@ export default function NativePatternBindingsInspector20261023({snapshot,panelId
     </div>
     {stored&&<section aria-label="Linked measurement change review" className="exo-construction-result">
       <strong>WORKSHEET → LINKED POINT REVIEW</strong>
-      {reviewPending&&<span>Review the worksheet below, then apply the chart and linked native point geometry atomically. You can alternatively save just the chart without moving the pattern.</span>}
-      <p>Changes below compare the saved chart with the edited worksheet, in millimetres. A reviewed atomic apply commits the chart and geometric source together in one Rust Undo transaction.</p>
+      {reviewPending&&<span>Review the worksheet. A single qualified direct measurement can update Rust geometry and chart together. For other edits, saving only chart definitions leaves pattern geometry unchanged until a separate validated edit.</span>}
+      <p>Changes compare the saved chart with your edited worksheet, in millimetres. The one-Undo action uses Rust-owned dependent coordinates for qualified single panels or multiple independent ungraded pieces with named formulas and cubic handles. Sewn pieces and full industrial grading still require separate verification.</p>
       {measurementReview?.ok?<>
         <div style={{overflowX:'auto'}}><table><thead><tr><th>Bound point</th><th>Planned X / Y</th><th>New X / Y</th><th>Change X / Y</th></tr></thead>
           <tbody>{measurementReview.changes.map(change=><tr key={change.bindingId}><td>{change.bindingId}</td>
             <td>{change.beforeMm.map(v=>v.toFixed(2)).join(' / ')}</td><td>{change.afterMm.map(v=>v.toFixed(2)).join(' / ')}</td>
             <td>{change.deltaMm.map(v=>v.toFixed(2)).join(' / ')}</td></tr>)}</tbody></table></div>
-        <button type="button" disabled={applying} onClick={updateMeasurements}>Update measurements · keep point rules</button>
-        <button type="button" disabled={applying||!reviewPending||!measurementReview.atomic||measurementReview.noGeometryChanges||typeof onApplyBatch!=='function'}
-          onClick={applyReviewed}>Apply reviewed chart + linked point geometry · ONE native Undo</button>
+        <button type="button" disabled={applying} onClick={updateMeasurements}>Save chart definitions only · geometry unchanged</button>
+        <button type="button" disabled={applying||!reviewPending||!nativeWorksheetReview?.ok||typeof onApplyNativeMeasurement!=='function'}
+          onClick={applyReviewed}>Apply qualified measurement + linked geometry · ONE native Undo</button>
+        {reviewPending&&!nativeWorksheetReview?.ok&&<span role="status">One-step native recompute unavailable: {nativeWorksheetReview?.reason||'A saved, qualified Rust binding graph is required'}. Separate chart-only saves do not regenerate garment geometry.</span>}
       </>:<p role="alert">{measurementReview?.reason||'No measurement proposal available.'}</p>}
     </section>}
     {stored&&<div className="exo-construction-result" data-native-binding-status={plan?.ok?'ready':'stale'} role="status">

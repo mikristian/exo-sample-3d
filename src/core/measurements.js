@@ -1,5 +1,5 @@
 import { edgeLength, samplePieceBoundary } from './project.js'
-import { gradeProject } from './grading.js'
+import { gradeProject, buildSizeRun } from './grading.js'
 import { buildFabricMarkers } from './marker.js'
 import { measureHorizontalSpans } from './rustMeasurementKernel.js'
 
@@ -90,7 +90,8 @@ export function measureProject(project) {
 
 export function buildMeasurementSizeRun(project) {
   const sizes = project.grading?.sizes || [project.grading?.baseSize || 'M']
-  return Object.fromEntries(sizes.map((size) => [size, measureProject(gradeProject(project, size))]))
+  const linkedRun=project.modarisSizeLinkedGrade===undefined?null:buildSizeRun(project)
+  return Object.fromEntries(sizes.map((size) => [size, measureProject(linkedRun?linkedRun[size]:gradeProject(project, size))]))
 }
 
 export function measurementRunToCSV(project) {
@@ -138,8 +139,9 @@ export function buildTechPack(project) {
   }
   const markerWidth = project.markerSettings?.fabricWidthCm ?? 150
   const markerGap = project.markerSettings?.gapCm ?? 1.5
+  const linkedRun=project.modarisSizeLinkedGrade===undefined?null:buildSizeRun(project)
   const markers = Object.fromEntries(sizes.map((size) => {
-    const graded = gradeProject(project, size)
+    const graded = linkedRun?linkedRun[size]:gradeProject(project, size)
     const fabricMarkers = buildFabricMarkers(graded, markerWidth, markerGap)
     const marker = fabricMarkers.main || Object.values(fabricMarkers)[0] || {
       width: markerWidth,

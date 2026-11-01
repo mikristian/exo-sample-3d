@@ -8,7 +8,7 @@ export const MAX_TECHPACK_PAGES=60
 const customId=id=>typeof id==='string'&&/^custom-[a-z0-9_-]{3,72}$/i.test(id)
 
 export function resolveTechPackPages(workspace={},defaults=[]){
-  const standard=arr(defaults).filter(p=>validId(p?.id))
+  const standard=(workspace.factoryPagesHidden===true?[]:arr(defaults)).filter(p=>validId(p?.id))
   const existing=new Set(standard.map(p=>p.id))
   const custom=arr(workspace.customPages).slice(0,Math.max(0,MAX_TECHPACK_PAGES-standard.length)).filter(p=>{
     if(!customId(p?.id)||existing.has(p.id))return false

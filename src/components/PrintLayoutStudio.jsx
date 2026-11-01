@@ -95,6 +95,7 @@ export default function PrintLayoutStudio({source,native=false,graphics=[],revis
   const utilization=rollWidth*totalLength>0?100*fabricArea/(rollWidth*totalLength):0
   const printResult=useMemo(()=>{if(mixedFabricOverview)return {error:'Select a fabric roll to print. All Pieces is an overview of separate fabric types.'};try{return {plan:planPrintPages20261025({widthCm:rollWidth,heightCm:totalLength,paper,orientation,customWidthCm:customWidth,customHeightCm:customHeight,marginCm:margin,scale:printScale})}}catch(error){return {error:error.message}}},[rollWidth,totalLength,paper,orientation,customWidth,customHeight,margin,printScale,mixedFabricOverview])
   const printPlan=printResult.plan
+  const pdfCalibrationFits=!!printPlan&&printPlan.sheetWidthCm>=13&&printPlan.sheetHeightCm>=15
   // Paper guides are a proof even in All Pieces. Mixed fabrics remain
   // deliberately non-printable until the user selects their real fabric roll.
   const paperProofPlan=useMemo(()=>{
@@ -112,7 +113,7 @@ export default function PrintLayoutStudio({source,native=false,graphics=[],revis
   const readyToPrint=!!active.length&&!issues.length&&!sourceIssues.length&&!mixedFabricOverview&&!!printPlan
   const saveFile=(content,name,mime)=>{const url=URL.createObjectURL(new Blob([content],{type:mime}));const link=document.createElement('a');link.href=url;link.download=name;document.body.append(link);link.click();link.remove();window.setTimeout(()=>URL.revokeObjectURL(url),15000)}
   const exportSheetSVG=()=>{if(!readyToPrint)return;const page=selectedPage||printPlan.pages[0];saveFile(renderPrintPageSvg20261025({pieces:active,placements,plan:printPlan,page,revision,fabricId}),`exo-${fabricId.replace(/[^a-z0-9_-]/gi,'-')}-page-${page.number}.svg`,'image/svg+xml;charset=utf-8')}
-  const downloadPDF=()=>{if(!readyToPrint)return;const bytes=createPrintPdf20261025({pieces:active,placements,plan:printPlan,revision,fabricId});saveFile(bytes,`exo-${fabricId.replace(/[^a-z0-9_-]/gi,'-')}-pattern-pages.pdf`,'application/pdf')}
+  const downloadPDF=()=>{if(!readyToPrint)return;const bytes=createPrintPdf20261025({pieces:active,placements,plan:printPlan,revision,fabricId,includeCalibrationPage:pdfCalibrationFits});saveFile(bytes,`exo-${fabricId.replace(/[^a-z0-9_-]/gi,'-')}-pattern-pages.pdf`,'application/pdf')}
   const pngDetails=useMemo(()=>{try{return printPlan?{value:printPngDimensions20261025(printPlan,pngDpi)}:{error:'Set valid paper settings'}}catch(error){return {error:error.message}}},[printPlan,pngDpi])
   const downloadPagePng=async()=>{
     if(!readyToPrint||pngBusy||!pngDetails.value)return
@@ -274,6 +275,7 @@ ${active.filter(p=>placements[p.id]).map(p=>`<g transform="translate(${placement
       <label>PNG resolution <select aria-label="PNG export DPI" value={pngDpi} onChange={e=>setPngDpi(Number(e.target.value))}><option value={150}>150 DPI</option><option value={300}>300 DPI</option></select></label>
       <span role="status">{pngDetails.value?`PNG sheet ${pngDetails.value.widthCm.toFixed(2)} × ${pngDetails.value.heightCm.toFixed(2)} cm = ${pngDetails.value.width} × ${pngDetails.value.height} px`:pngDetails.error}{pngStatus?` · ${pngStatus}`:''}</span>
       <span>{printPlan?`${printPlan.cols} columns × ${printPlan.rows} rows · ${printPlan.pages.length} pages · ${printPlan.sheetWidthCm.toFixed(2)} × ${printPlan.sheetHeightCm.toFixed(2)} cm`:printResult.error}</span>
+      {printPlan&&<span>{pdfCalibrationFits?'PDF download includes a 100 × 100 mm actual-size calibration sheet. Measure both axes before cutting.':'This paper is too small for the 100 × 100 mm PDF scale check; measure the existing 5 cm bar before using the pattern.'}</span>}
     </div>
         </details>
         <strong>ROLL</strong>

@@ -30,6 +30,11 @@ const digest=value=>`sha256:${sha256Bytes(new TextEncoder().encode(typeof value=
  */
 export function auditModarisIndustrialSixSizeWitness20261027(project,{expectedRevision,wireForSize}={}){
   try{
+    // The witness samples the ordinary per-piece grader. For a linked Modaris
+    // source that geometry can disagree with the final dependency DAG, so
+    // never promote it into an apparently successful six-size DXF witness.
+    if(project?.modarisSizeLinkedGrade!==undefined)
+      throw Error('Connected Modaris linked source requires authoritative final-size industrial witness')
     if(!project||!Number.isSafeInteger(project.revision)||project.revision!==expectedRevision)
       throw Error('Stale or absent source project revision')
     const sourceSignature=digest(project)

@@ -77,7 +77,7 @@ test('matches generated six-size Foundation Tee ZIP central inventory to indepen
   assert.equal(built.manufacturingApproved, false)
   const entries = centralOffsets(built.bytes).entries
   const actualPaths = entries.map(({path}) => path).sort()
-  assert.ok(entries.length <= 80, `factory archive exceeds 80-entry resource budget: ${entries.length}`)
+  assert.ok(entries.length <= 1024, `factory archive exceeds 1024-entry resource budget: ${entries.length}`)
   assert.equal(new Set(actualPaths).size, entries.length, 'duplicate central-directory file paths')
   assert.deepEqual(actualPaths, expectedPaths, 'missing or extra central-directory file paths')
   const altered = built.bytes.slice()
@@ -128,11 +128,11 @@ test('rejects compact high-ratio DEFLATE entry despite a small ZIP archive', () 
 })
 
 test('rejects excessive number of tiny entries', () => {
-  const items = Object.fromEntries(Array.from({length: 81}, (_, i) => [
+  const items = Object.fromEntries(Array.from({length: 1025}, (_, i) => [
     `patterns/s${String(i).padStart(4, '0')}.dxf`, utf8.encode('x')
   ]))
   const bytes = zip(items)
-  assert.equal(centralOffsets(bytes).entries.length, 81)
+  assert.equal(centralOffsets(bytes).entries.length, 1025)
   assert.equal(audit(bytes).diagnostics[0]?.code, 'RESOURCE_ENTRY_BUDGET')
   verifyRejection(bytes, 'too many ZIP entries')
 })

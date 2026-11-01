@@ -1,5 +1,9 @@
+import {useNativeWorkspaceRequest} from '../hooks/useNativeWorkspaceRequest.js'
+import {nativeAnchorCoordinateRequest20261030,nativeBoardResetBatchRequest20261030,nativeFacadeWireRequest20261030} from '../core/nativeWorkspaceCommandFacade20261030.mjs'
+import {nativeBridgeFetch,nativeWorkspaceHeaders as workspaceHeaders} from '../core/nativeWorkspaceTransport.js'
 import {patternTiledPrint,nativeCutlineTiledPrint} from '../core/patternTiledPrint.js'
 import {patternPrintReference} from '../core/patternPrintReference.js'
+import {selectNativePatternPrintSnapshot20261030} from '../core/nativePatternPrintSnapshot20261030.mjs'
 import {nativeGradePlan} from '../core/nativeGradePlan.js'
 import {buildAccuMarkNativeGradeProposal20261023} from '../core/accumarkNativeGradeProposal20261023.js'
 import {buildAccuMarkNativeMultiPanelNest20261023} from '../core/accumarkNativeMultiPanelNest20261023.js'
@@ -70,8 +74,12 @@ import AccuMarkNativeUnifiedWorkflow20261024 from './AccuMarkNativeUnifiedWorkfl
 import NativePatternAuditPanel from './NativePatternAuditPanel.jsx'
 import NativePatternConstructionTools20261023 from './NativePatternConstructionTools20261023.jsx'
 import {fingerprintNativePatternBindingsSource20261023} from '../core/nativePatternConstraintBindings20261023.js'
+import {resolveModaris2DHistoryPriority20261029} from '../core/modaris2DHistoryPriority20261029.js'
+import {persistModaris2DGradeDraftJournal20261029,decodeModaris2DGradeDraftJournal20261029,clearModaris2DGradeDraftJournal20261029} from '../core/modaris2DGradeDraftJournal20261029.js'
+import {inspectInterruptedModaris2DGradeDraftStage20261030,recoverInterruptedModaris2DGradeDraftStage20261030} from '../core/modaris2DGradeDraftJournal20261029.js'
 import {routeModarisNativeNumericalAnchor20261027} from '../core/modarisNativeAutomaticAnchor20261027.js'
 import {witnessModarisNativeReferenceCommit20261027} from '../core/modarisNativeReferenceCommitWitness20261027.js'
+import {verifyNativeCrossPieceCommit20261030} from '../core/nativeCrossPieceCommitWitness20261030.js'
 import {verifyNativePerSizeChartStore20261027} from '../core/modarisNativePerSizeChartStoreWitness20261027.js'
 import {verifyNativeSixSizePreview20261028,verifyNativeSixSizeCommit20261028} from '../core/nativeSixSizeCommandContract20261028.js'
 import NativeCurveStationTool20261023 from './NativeCurveStationTool20261023.jsx'
@@ -180,7 +188,7 @@ function Board({s,active,pick,hover,edit,mode,busy,onPolygon}){
   {draft.length>0&&<polyline points={draft.map(p=>p.join(',')).join(' ')} fill="none" stroke="#ef6339" strokeWidth=".005" pointerEvents="none"/>}
  </svg></div>
 }
-export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern',exoObjectTab='Scene',exoLayout='split',exoSplit=50,environmentPreset='studio',stageId='none',stageSettings=null,onRemoveStage, onCollapse3D, onTogglePatternStudio, patternStudioActive=false, onToggle3DStudio, onToggle3DStudioFullscreen, studio3DActive=false, studio3DFullscreenActive=false, animationWorkspaceActive=false, printLayoutActive=false, onExitPrintLayout, patternReferences=[], onUpdatePatternReferences=()=>{}, cameraSettings=null,sceneLight=null,sceneLight2=null,exposure=1.1,studioAppearance=null,studioPreferences=null,workspaceGrid=true,workspaceSeams=true}){
+export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern',exoObjectTab='Scene',exoLayout='split',exoSplit=50,environmentPreset='studio',stageId='none',stageSettings=null,onRemoveStage, onCollapse3D, onTogglePatternStudio, patternStudioActive=false, onToggle3DStudio, onToggle3DStudioFullscreen, studio3DActive=false, studio3DFullscreenActive=false, animationWorkspaceActive=false, printLayoutActive=false, onExitPrintLayout, patternReferences=[], onUpdatePatternReferences=()=>{}, cameraSettings=null,sceneLight=null,sceneLight2=null,exposure=1.1,studioAppearance=null,studioPreferences=null,customAvatar=null,workspaceGrid=true,workspaceSeams=true}){
  const [s,setS]=useState(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[selected,setSelected]=useState(null),[hovered,setHovered]=useState(null),[mode,setMode]=useState('edit'),[pair,setPair]=useState([]),[reverse,setReverse]=useState(true),[ease,setEase]=useState(false),[sewingVariant,setSewingVariant]=useState('free'),[playing,setPlaying]=useState(false),[size,setSize]=useState([300,400]),[shape,setShape]=useState('rectangle'),[basePolygonOpen,setBasePolygonOpen]=useState(false),[fillPanelOpen,setFillPanelOpen]=useState(false),[fillPanelTarget,setFillPanelTarget]=useState(''),[fillFabricId,setFillFabricId]=useState(''),[gradeMode,setGradeMode]=useState(''),[gradePanelTarget,setGradePanelTarget]=useState(''),[gradeWidthDelta,setGradeWidthDelta]=useState(20),[gradeHeightDelta,setGradeHeightDelta]=useState(10),[gradeStep,setGradeStep]=useState(1),[gradeWidthStep,setGradeWidthStep]=useState('20'),[gradeHeightStep,setGradeHeightStep]=useState('10'),[walkOpen,setWalkOpen]=useState(false),[walkSeamId,setWalkSeamId]=useState(''),[walkFraction,setWalkFraction]=useState(0),[fullnessOpen,setFullnessOpen]=useState(false),[fullnessPanel,setFullnessPanel]=useState(''),[fullnessLine,setFullnessLine]=useState(''),[toolPanel,setToolPanel]=useState(''),[lineId,setLineId]=useState(''),[ruffleWidth,setRuffleWidth]=useState(60),[ruffleRatio,setRuffleRatio]=useState(1.5),[edgeLength,setEdgeLength]=useState(100),[ranges,setRanges]=useState([[0,1],[0,1]])
  const [showBoundingBox,setShowBoundingBox]=useState(false),[showContactDots,setShowContactDots]=useState(true),[showMeasurements,setShowMeasurements]=useState(true),[showSilhouette,setShowSilhouette]=useState(true)
  const [sewingGroupMode,setSewingGroupMode]=useState('single')
@@ -256,11 +264,23 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const [nativeGradeCatalogMessage,setNativeGradeCatalogMessage]=useState('')
  const nativeGradeLastError=useRef('')
  const [nativeGradeRuleMessage,setNativeGradeRuleMessage]=useState('')
+ const [nativeGradeInterruptedStageWitness,setNativeGradeInterruptedStageWitness]=useState(null)
  const nativeRuleDraftKey=useMemo(()=>{
    if(!s?.template?.panels?.length)return null
    const available=createAccuMarkNativeRuleSet(s)
    return available.ok?`exo-native-grade-sidecar:${available.ruleSet.templateFingerprint}`:null
  },[s?.template])
+ const nativeGradeDraftJournalKey=nativeRuleDraftKey?`${nativeRuleDraftKey}:history-v1`:null
+ const validateNativeGradeDraftEntry=rule=>{
+   if(!rule||!s?.template)return false
+   const checked=compileAccuMarkNativeRuleSizeRun(s,rule,{selectedSize:rule.baseSize})
+   return checked.ok===true
+ }
+ const persistNativeGradeDraftJournal=(current,history,expected)=>
+   persistModaris2DGradeDraftJournal20261029(localStorage,{
+     key:nativeRuleDraftKey,current,undo:history.undo,redo:history.redo,
+     validate:validateNativeGradeDraftEntry,expected,
+   })
  useEffect(()=>{
    const panels=s?.template?.panels||[]
    if(panels.length&&!panels.some(panel=>panel.id===gradePanelTarget))
@@ -505,21 +525,63 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
    nativeGradeDraftHistory.current={undo:[],redo:[]}
    setGradeDraftHistoryRevision(value=>value+1)
    setNativeGradeRuleMessage('')
+   setNativeGradeInterruptedStageWitness(null)
    if(!nativeRuleDraftKey||!s?.template)return
    try{
      const stored=JSON.parse(localStorage.getItem(nativeRuleDraftKey)||'null')
-     if(!stored)return
-     const checked=compileAccuMarkNativeRuleSizeRun(s,stored,{
-       selectedSize:stored.sizes?.includes('L')?'L':stored.baseSize,
-     })
-     if(!checked.ok)throw Error(checked.reason)
-     setNativeGradeRules(stored)
-    nativeGradeRulesRef.current=stored
-     setNativeGradeRuleMessage('Recovered matching per-point grading draft from local workspace storage.')
+     if(stored){
+       const checked=compileAccuMarkNativeRuleSizeRun(s,stored,{
+         selectedSize:stored.sizes?.includes('L')?'L':stored.baseSize,
+       })
+       if(!checked.ok)throw Error(checked.reason)
+       setNativeGradeRules(stored)
+       nativeGradeRulesRef.current=stored
+     }
+     let recoveredHistory=false
+     try{
+       const journal=nativeGradeDraftJournalKey&&localStorage.getItem(nativeGradeDraftJournalKey)
+       if(journal){
+         nativeGradeDraftHistory.current=decodeModaris2DGradeDraftJournal20261029(journal,{
+           key:nativeRuleDraftKey,current:stored,validate:validateNativeGradeDraftEntry,
+         })
+         setGradeDraftHistoryRevision(value=>value+1)
+         recoveredHistory=true
+       }
+     }catch{
+       const interrupted=inspectInterruptedModaris2DGradeDraftStage20261030(localStorage,{
+         key:nativeRuleDraftKey,validate:validateNativeGradeDraftEntry,
+       })
+       if(interrupted.ok){
+         setNativeGradeInterruptedStageWitness(interrupted)
+         setNativeGradeRuleMessage('An interrupted local grading-history write was detected. The current grading draft is preserved. Close other EXO workspaces, then choose Recover Interrupted Draft to discard only the incomplete Undo/Redo stage.')
+       }else setNativeGradeRuleMessage('Current grading draft recovered, but the local Undo/Redo journal was stale or invalid and was not restored.')
+       return
+     }
+     if(stored||recoveredHistory)setNativeGradeRuleMessage(recoveredHistory?
+       'Recovered matching grading draft and local Undo/Redo history. Rust garment history remains separate.':
+       'Recovered matching per-point grading draft from local workspace storage.')
    }catch(error){
      setNativeGradeRuleMessage('Stored grade draft not loaded: '+(error?.message||String(error)))
    }
- },[nativeRuleDraftKey])
+ },[nativeRuleDraftKey,nativeGradeDraftJournalKey])
+ const recoverInterruptedNativeGradeDraft=()=>{
+   if(!nativeGradeInterruptedStageWitness||!nativeRuleDraftKey||busy||playing||s?.activeGradedSize)return false
+   try{
+     recoverInterruptedModaris2DGradeDraftStage20261030(localStorage,{
+       key:nativeRuleDraftKey,validate:validateNativeGradeDraftEntry,
+       witness:nativeGradeInterruptedStageWitness,
+     })
+   }catch(error){
+     setNativeGradeInterruptedStageWitness(null)
+     setNativeGradeRuleMessage('Grading recovery refused: '+(error?.message||String(error))+' Reopen the workspace to inspect the latest saved draft.')
+     return false
+   }
+   nativeGradeDraftHistory.current={undo:[],redo:[]}
+   setGradeDraftHistoryRevision(value=>value+1)
+   setNativeGradeInterruptedStageWitness(null)
+   setNativeGradeRuleMessage('Interrupted local history stage discarded after source and storage checks. The existing grading draft was preserved; previous local Undo/Redo entries were not recovered. Rust garment history was unchanged.')
+   return true
+ }
  const commitNativeGradeRuleSet=next=>{
    if(!nativeRuleDraftKey||!next||!s?.template)return false
    const checked=compileAccuMarkNativeRuleSizeRun(s,next,{
@@ -530,28 +592,39 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
      setNativeGradeRuleMessage('Grade rule source fingerprint changed. Re-import against the matching garment.')
      return false
    }
-   if(nativeGradeRulesRef.current!==next){
-     const history=nativeGradeDraftHistory.current
-     history.undo=[...history.undo,nativeGradeRulesRef.current].slice(-40)
-     history.redo=[]
+   const changed=nativeGradeRulesRef.current!==next
+   const previous=nativeGradeDraftHistory.current
+   const history=changed?{
+     undo:[...previous.undo,nativeGradeRulesRef.current].slice(-40),redo:[],
+   }:previous
+   // Do not mutate the visible draft or history until BOTH browser-local
+   // storage writes succeed. A storage quota or privacy-mode failure must
+   // not be misreported as a durable grading edit.
+   try{persistNativeGradeDraftJournal(next,history,{
+     current:nativeGradeRulesRef.current,undo:previous.undo,redo:previous.redo,
+   })}catch(error){
+     setNativeGradeRuleMessage('Grading edit blocked: '+(error?.message||String(error)))
+     return false
+   }
+   if(changed){
+     nativeGradeDraftHistory.current=history
      setGradeDraftHistoryRevision(value=>value+1)
    }
    nativeGradeRulesRef.current=next
    setNativeGradeRules(next)
    setNativeGradeCatalogStatus(null)
    setNativeGradeCatalogMessage('Grading point rules changed. Recheck or save the native size catalog before activating a size.')
-   try{localStorage.setItem(nativeRuleDraftKey,JSON.stringify(next))
-     setNativeGradeRuleMessage('Independent point rules saved to local draft storage. Export a JSON copy for your garment archive.')
-   }catch{setNativeGradeRuleMessage('Updated in memory, but local draft storage unavailable. Export JSON now.')}
+   setNativeGradeRuleMessage('Grading draft and local Undo/Redo journal saved. Export JSON for an independent garment archive.')
    setGradeNestPinned(true)
    setGradeNestEnabled(true)
    return true
  }
  const restoreNativeGradeDraft=direction=>{
-   if(busy||playing||s?.activeGradedSize||!nativeRuleDraftKey||!s?.template)return false
+   // React's busy/playing updates render later than the native RPC lock.
+   // Draft history must not advance while a native edit or solver step is live.
+   if(busy||playing||lock.current||running.current||s?.activeGradedSize||!nativeRuleDraftKey||!s?.template)return false
    const history=nativeGradeDraftHistory.current
    const from=direction==='undo'?history.undo:history.redo
-   const to=direction==='undo'?history.redo:history.undo
    if(!from.length)return false
    const next=from[from.length-1]
    if(next){
@@ -561,21 +634,39 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
        return false
      }
    }
-   from.pop()
-   to.push(nativeGradeRulesRef.current)
+   const revised={undo:[...history.undo],redo:[...history.redo]}
+   const source=direction==='undo'?revised.undo:revised.redo
+   const destination=direction==='undo'?revised.redo:revised.undo
+   source.pop()
+   destination.push(nativeGradeRulesRef.current)
+   try{persistNativeGradeDraftJournal(next,revised,{
+     current:nativeGradeRulesRef.current,undo:history.undo,redo:history.redo,
+   })}catch(error){
+     setNativeGradeRuleMessage(`Cannot ${direction} grading: `+(error?.message||String(error)))
+     return false
+   }
+   nativeGradeDraftHistory.current=revised
    nativeGradeRulesRef.current=next
    setNativeGradeRules(next)
    setGradeDraftHistoryRevision(value=>value+1)
    setNativeGradeCatalogStatus(null)
    setNativeGradeCatalogMessage(`Grading ${direction} applied to the draft and visible nest. Save the size catalog to Rust again after reviewing all sizes.`)
-   try{if(next)localStorage.setItem(nativeRuleDraftKey,JSON.stringify(next))
-     else localStorage.removeItem(nativeRuleDraftKey)}catch{}
+   setNativeGradeRuleMessage('Local grading Undo/Redo and recovery journal saved. Rust geometry history remains separate.')
    setGradeNestPinned(true)
    setGradeNestEnabled(true)
    return true
  }
  const clearNativeGradeRuleSet=()=>{
-   if(nativeRuleDraftKey)try{localStorage.removeItem(nativeRuleDraftKey)}catch{}
+   if(nativeRuleDraftKey)try{
+     clearModaris2DGradeDraftJournal20261029(localStorage,nativeRuleDraftKey,{
+       expected:{current:nativeGradeRulesRef.current,
+         undo:nativeGradeDraftHistory.current.undo,redo:nativeGradeDraftHistory.current.redo},
+       validate:validateNativeGradeDraftEntry,
+     })
+   }catch(error){
+     setNativeGradeRuleMessage('Cannot clear saved grading draft: '+(error?.message||String(error)))
+     return false
+   }
    nativeGradeRulesRef.current=null
    nativeGradeDraftHistory.current={undo:[],redo:[]}
    setGradeDraftHistoryRevision(value=>value+1)
@@ -583,6 +674,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
    setNativeGradeCatalogStatus(null)
    setNativeGradeCatalogMessage('Local grade draft cleared; reopen or recover the saved native catalog to verify its size rules.')
    setNativeGradeRuleMessage('Local point-rule sidecar cleared; Rust garment was not changed.')
+   return true
  }
  const ensureNativeOptitexGradeRules=()=>{
    if(!s?.template||!s.template.panels?.length||busy||playing||s.activeGradedSize){
@@ -814,7 +906,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const [cloHardwareCatalog,setCloHardwareCatalog]=useState([])
  useEffect(()=>{
   let active=true
-  fetch('/clo-hardware-converted/manifest.json').then(response=>response.ok?response.json():null)
+  nativeBridgeFetch('/clo-hardware-converted/manifest.json').then(response=>response.ok?response.json():null)
     .then(value=>{if(active&&Array.isArray(value?.items))setCloHardwareCatalog(value.items)})
     .catch(()=>{})
   return()=>{active=false}
@@ -1028,6 +1120,9 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const [graphicThumbnailVersion,setGraphicThumbnailVersion]=useState(0)
  const graphicsDocumentRef=useRef(null)
  const graphicsSaveTimer=useRef(null),graphicsPending=useRef(null),graphicsEditVersion=useRef(0)
+ // An open can replace a garment with another having the same template ID,
+ // revision and panel names. A key or revision comparison alone is insufficient.
+ const graphicsProjectEpoch=useRef(0)
  // Rust's panel material UVs are in metres. These are the permanent cutting
  // dimensions, independent of zoom or how far the garment is draped.
  const nativeGraphicPanelBounds=panelId=>{
@@ -1081,12 +1176,26 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   let calibrated
   try{calibrated=next.map(preparePrintGraphic)}catch(error){setError(error.message);return}
   const version=++graphicsEditVersion.current
+  const sourceKey=graphicsDocumentRef.current
+  const sourceEpoch=graphicsProjectEpoch.current
+  const sourceSignature=source=>JSON.stringify({revision:source?.revision,
+   template:source?.template,projectId:source?.projectId,documentId:source?.documentId})
+  const sourceBeforeEdit=sourceSignature(state.current)
   setNativeGraphics(calibrated)
-  if(graphicsDocumentRef.current)void saveNativeGraphics(graphicsDocumentRef.current,calibrated).catch(()=>{})
   graphicsPending.current=calibrated
   if(graphicsSaveTimer.current)clearTimeout(graphicsSaveTimer.current)
   graphicsSaveTimer.current=setTimeout(()=>{void (async()=>{
    while(lock.current)await new Promise(resolve=>setTimeout(resolve,25))
+   if(version!==graphicsEditVersion.current)return
+   // Never let a delayed graphic write attach to a newly opened garment or
+   // a newer native edit. A cache is not authoritative persistence either.
+   if(!sourceKey||graphicsDocumentRef.current!==sourceKey||
+      graphicsProjectEpoch.current!==sourceEpoch||
+      sourceSignature(state.current)!==sourceBeforeEdit){
+    graphicsPending.current=null
+    setNotice('Artwork was not saved to Rust: the native garment changed before the delayed edit. Review the current project and reapply the artwork if needed.')
+    return
+   }
    if(running.current){setError('Pause simulation before saving graphics. The current preview is not yet stored in Rust.');return}
    const latest=graphicsPending.current
    graphicsPending.current=null
@@ -1095,8 +1204,12 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
    // format and old relief aliases must never enter the signed project JSON.
    const printGraphics=latest.map(({format,scale,reliefHeightMm,...graphic})=>graphic)
    const response=await request({op:'graphics-set',printGraphics,graphics:true})
-   if(response?.printGraphics&&version===graphicsEditVersion.current){
+   if(response?.printGraphics&&version===graphicsEditVersion.current&&
+      graphicsDocumentRef.current===sourceKey&&graphicsProjectEpoch.current===sourceEpoch){
     setNativeGraphics(response.printGraphics)
+    // Cache only Rust-confirmed artwork. An optimistic cache could otherwise
+    // migrate a rejected edit into another project on the next open.
+    void saveNativeGraphics(sourceKey,response.printGraphics).catch(()=>{})
     setNotice('Rust saved the artwork, its material settings, and exact millimetre print dimensions with this garment.')
    }
   })()},260)
@@ -1214,7 +1327,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   fitAfterReset.current=false
   window.dispatchEvent(new CustomEvent('exo-clothcraft-fit-camera'))
  },[s?.revision,stageId])
- const request=useCallback(async(data)=>{if(lock.current)return null;lock.current=true;setBusy(true);setError('');nativeGradeLastError.current='';try{const res=await fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:state.current?.revision,...data})});const result=await res.json();if(result.data?.template){const next={...result.data,avatar:result.data.avatar||(data.op==='open'?null:state.current?.avatar)};state.current=next;setS(next)}if(!res.ok||!result.ok)throw Error(result.error||'ClothCraft request failed');return result.data}catch(e){nativeGradeLastError.current=e.message;setError(e.message.includes('OGC initial intersection')?'A panel overlaps the avatar or another panel. Use Move to place it fully clear, then switch to Hand or press SIM. Reset Panels restores the initial arrangement.':e.message);running.current=false;setPlaying(false);return null}finally{lock.current=false;setBusy(false)}},[])
+ const request=useNativeWorkspaceRequest({BASE,state,lock,setBusy,setError,nativeGradeLastError,graphicsProjectEpoch,setS,running,setPlaying})
  // On project reopen, a valid grade catalog lives in the Rust project even
  // when the browser's verification badge has not been restored. Perform one
  // read-only comparison per exact revision/rule/POM draft so saved XS–XXL
@@ -1404,7 +1517,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   window.addEventListener('exo-clothcraft-imported-hardware-command',action)
   return()=>window.removeEventListener('exo-clothcraft-imported-hardware-command',action)
  },[embedded,cloAssetsById,request])
- useEffect(()=>{request({op:'snapshot',avatar:true,graphics:true});const pause=()=>{running.current=false;fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'pause'}),keepalive:true}).catch(()=>{})};window.addEventListener('pagehide',pause);return()=>{running.current=false;window.removeEventListener('pagehide',pause)}},[request])
+ useEffect(()=>{request({op:'snapshot',avatar:true,graphics:true});const pause=()=>{running.current=false;nativeBridgeFetch(BASE+'/workspace',{method:'POST',headers:workspaceHeaders(),body:JSON.stringify({op:'pause'}),keepalive:true}).catch(()=>{})};window.addEventListener('pagehide',pause);return()=>{running.current=false;window.removeEventListener('pagehide',pause)}},[request])
  const edit=async c=>{
   // A mode transition or a previous edit may still own the native request.
   // Queue this user edit rather than silently dropping its button click.
@@ -1415,6 +1528,19 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   }
   while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
   return request({op:'edit',command:c})
+ }
+ const runNativeFacadeSafely=async command=>{
+  // UI revision/units are validated by the facade. Use the same serialized
+  // pause/lock discipline as every other editing action, then recheck that
+  // the source revision has not advanced during the asynchronous wait.
+  while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
+  if(running.current){
+   running.current=false;setPlaying(false)
+   const paused=await request({op:'pause'})
+   if(!paused)throw Error('Pause native simulation before changing the 2D document')
+  }
+  while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
+  return nativeFacadeWireRequest20261030(request,state.current,command)
  }
  const editPatternLayoutBatch=async commands=>{
   if(!Array.isArray(commands)||commands.length<2||commands.length>256||
@@ -1984,10 +2110,59 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  }
  const requestHistory=async op=>{
   if(running.current)return
+  // Finish any in-flight native edit before deciding which history owns the
+  // next operation. Never restore a local draft concurrently with Rust.
+  while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
+  // The separate local grading and Rust journals cannot prove cross-domain
+  // chronological ordering. Mixed history must fail closed; users can still
+  // operate explicit grading-table Undo/Redo after inspecting their draft.
+  const history=nativeGradeDraftHistory.current
+  // Native history flags in React may lag a just-committed Rust edit. Refresh
+  // before choosing draft history; if the authoritative snapshot is missing,
+  // never assume the native journal is empty.
+  if(history.undo.length||history.redo.length){
+   const sourceSignature=source=>JSON.stringify({
+    revision:source?.revision,template:source?.template,
+    activeGradedSize:source?.activeGradedSize,
+    gradeRunPersisted:source?.gradeRunPersisted,
+    documentId:source?.documentId,projectId:source?.projectId,
+   })
+   // Capture before the await: an in-place source mutation must not rewrite
+   // the comparison baseline while the native snapshot is in flight.
+   const sourceBeforeRefresh=sourceSignature(state.current)
+   const latest=await request({op:'snapshot'})
+   if(!latest?.template){
+    setNotice('2D Undo/Redo blocked: native history could not be verified. Reconnect and retry or use explicit grading-table history after reviewing the source.')
+    return null
+   }
+   // Snapshot may reveal an external edit, reopened garment, or concurrent
+   // local grading operation. The callback still closes over the PRE-refresh
+   // draft key and rules; applying them to a changed source is unsafe even
+   // when the refreshed Rust history advertises no Undo entries.
+   if(sourceSignature(latest)!==sourceBeforeRefresh||
+      nativeGradeDraftHistory.current!==history||
+      sourceSignature(state.current)!==sourceSignature(latest)){
+    setNotice('2D Undo/Redo blocked: native source or grading history changed during verification. Recheck the current garment before restoring a draft.')
+    return null
+   }
+  }
+  const route=resolveModaris2DHistoryPriority20261029({
+   direction:op,draftUndoCount:history.undo.length,draftRedoCount:history.redo.length,
+   draftEligible:Boolean(nativeRuleDraftKey&&state.current?.template&&!state.current?.activeGradedSize&&!busy&&!playing),
+   nativeUndoAvailable:Boolean(state.current?.canUndo),nativeRedoAvailable:Boolean(state.current?.canRedo),
+  })
+  if(route.route==='blocked'){
+   setNotice('2D Undo/Redo blocked: '+route.reason)
+   return null
+  }
+  if(route.route==='draft'){
+   const restored=restoreNativeGradeDraft(op)
+   if(!restored)setNotice('2D grading history was not restored. Native geometry history was preserved.')
+   return restored?{gradeDraftHistoryApplied:true,direction:op}:null
+  }
   // React updates the panel list slightly before the prior backend request's
   // busy flag clears. Keyboard repeat/rapid Undo→Redo must wait for the lock
   // rather than silently dropping the second native history operation.
-  while(lock.current)await new Promise(resolve=>setTimeout(resolve,20))
   let current=state.current
   // A qualified Rust measurement regeneration can commit from a grading
   // workbench before React's canUndo/canRedo flags have rendered. Refresh the
@@ -2001,12 +2176,14 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
    return request({op})
   return null
  }
+ const canUndo2D=Boolean(s?.canUndo||nativeGradeDraftHistory.current.undo.length>0)
+ const canRedo2D=Boolean(s?.canRedo||nativeGradeDraftHistory.current.redo.length>0)
  const contextItems=(()=>{
   if(!contextMenu)return []
   const item=(id,label,shortcut,disabled=false,danger=false,title='')=>({id,label,shortcut,disabled,danger,title})
   if(contextMenu.dimension==='shortcuts')return [
-    item('undo','Undo','⌘Z',!s?.canUndo||busy||playing),
-    item('redo','Redo','⌘⇧Z',!s?.canRedo||busy||playing),
+    item('undo','Undo','⌘Z',!canUndo2D||busy||playing),
+    item('redo','Redo','⌘⇧Z',!canRedo2D||busy||playing),
     item('save','Save project','⌘S',busy),
     item('select','Select / edit','V'),item('draw','Draw pattern','B'),
     item('sew','Sew boundaries','E'),item('internal','Internal line','I'),
@@ -2044,8 +2221,8 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
     : seamActions
   }
   const common=[
-    item('undo','Undo','⌘Z',!s?.canUndo||!canEdit),
-    item('redo','Redo','⌘⇧Z',!s?.canRedo||!canEdit),
+    item('undo','Undo','⌘Z',!canUndo2D||!canEdit),
+    item('redo','Redo','⌘⇧Z',!canRedo2D||!canEdit),
     {separator:true},
   ]
   if(isPatternSurface){
@@ -2076,8 +2253,8 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
       contextMenu.hasBackgroundImage?'Replace Background Image…':'Add Background Image…'),
     ...(contextMenu.hasBackgroundImage?[item('background-format','Format 2D Background…')]:[]),
     {separator:true},
-    item('undo','Undo','⌘Z',!s?.canUndo||!canEdit),
-    item('redo','Redo','⌘⇧Z',!s?.canRedo||!canEdit),
+    item('undo','Undo','⌘Z',!canUndo2D||!canEdit),
+    item('redo','Redo','⌘⇧Z',!canRedo2D||!canEdit),
    ]
   }
   const panelActions=hasPanel ? [
@@ -2245,14 +2422,14 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   document.addEventListener('pointerdown',activate,true)
   window.addEventListener('keydown',keyboard,true)
   return()=>{document.removeEventListener('pointerdown',activate,true);window.removeEventListener('keydown',keyboard,true)}
- },[busy,playing,selected,s?.canUndo,s?.canRedo,contextMenu])
+ },[busy,playing,selected,s?.canUndo,s?.canRedo,contextMenu,gradeDraftHistoryRevision,nativeRuleDraftKey])
  const downloadText=(content,filename,type)=>{const url=URL.createObjectURL(new Blob([content],{type}));const link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
  const exportClothObj=()=>{if(!s)return;const lines=['# EXO ClothCraft Studio research cloth OBJ (not factory fit)','o cloth'];s.positions.forEach(p=>lines.push(`v ${p.join(' ')}`));s.triangles.forEach(t=>lines.push(`f ${t.map(n=>n+1).join(' ')}`));downloadText(lines.join('\n'),'exo-clothcraft-simulation.obj','text/plain');setNotice('Exported the current Rust cloth mesh as a reference OBJ (not fit certified).')}
  const exportTiledPattern=format=>{
   if(!s)return
   try{
-   const lines=s.panels.flatMap(range=>Object.values(range.boundaries).map(indices=>indices.map(index=>boardPoint(s,index).map(n=>n*1000))))
-   const sheet=patternTiledPrint(lines,{format,revision:s.revision})
+   const printSource=selectNativePatternPrintSnapshot20261030(s)
+   const sheet=patternTiledPrint(printSource.linesMm,{format,revision:printSource.sourceRevision})
    downloadText(sheet.html,`exo-pattern-reference-${format.toLowerCase()}.html`,'text/html')
    setNotice(`Saved ${sheet.pageCount} ${format} pages including calibration. Open the HTML and print at 100% with headers/footers off. Measure the square before use; reference only.`)
   }catch(error){setError(error.message)}
@@ -2260,8 +2437,8 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const exportPatternSvg=()=>{
   if(!s)return
   try{
-   const lines=s.panels.flatMap(range=>Object.values(range.boundaries).map(indices=>indices.map(index=>boardPoint(s,index).map(n=>n*1000))))
-   const sheet=patternPrintReference(lines)
+   const printSource=selectNativePatternPrintSnapshot20261030(s)
+   const sheet=patternPrintReference(printSource.linesMm)
    downloadText(sheet.svg,'exo-clothcraft-pattern-reference.svg','image/svg+xml')
    setNotice(`Saved ${sheet.widthMm.toFixed(1)} × ${sheet.heightMm.toFixed(1)} mm reference sheet. Print at 100% and measure the 100 mm square. Not tiled or factory-approved; seam allowances are not included.`)
   }catch(error){setError(error.message)}
@@ -2276,7 +2453,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
   try{
    while(q.pending!==undefined){
     const grab=q.pending;q.pending=undefined
-    const response=await fetch(BASE+'/workspace',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'grab',grab})})
+    const response=await nativeBridgeFetch(BASE+'/workspace',{method:'POST',headers:workspaceHeaders(),body:JSON.stringify({op:'grab',grab})})
     const result=await response.json()
     if(!response.ok||!result.ok)throw Error(result.error||'Live cloth grab failed')
    }
@@ -2327,12 +2504,12 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const resetBoardArrangement=async()=>{
   if(lock.current){setNotice('Wait for the current operation before resetting the 2D arrangement.');return}
   if(running.current){running.current=false;setPlaying(false);await request({op:'pause'})}
-  let x=0
-  const commands=(state.current?.template?.panels||[]).map(panel=>{
-   const command={kind:'BoardTransform',panel:panel.id,origin:[x,0],rotation_degrees:0}
-   x+=panel.pattern.width+.15;return command
-  })
-  if(commands.length){const result=await request({op:'edit-batch',commands});if(result)setNotice('Reset all 2D panel layouts. Drape, rest patterns and materials preserved. Undo restores all layouts together.')}
+  try{
+   const source=state.current
+   if(!source)return
+   const command=nativeBoardResetBatchRequest20261030(source)
+   if(command.commands.length){const result=await runNativeFacadeSafely(command);if(result)setNotice('Reset all 2D panel layouts. Drape, rest patterns and materials preserved. Undo restores all layouts together.')}
+  }catch(error){setError(error.message)}
  }
  const pullClothPoint=grab=>{
   livePointer.current.target=grab
@@ -3039,6 +3216,9 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
          </div>
          </>}
          {nativeGradeRuleMessage&&gradeStudioTab!=='resize'&&<small role="status">{nativeGradeRuleMessage}</small>}
+         {nativeGradeInterruptedStageWitness&&gradeStudioTab!=='resize'&&<button type="button"
+           disabled={busy||playing||Boolean(s?.activeGradedSize)}
+           onClick={recoverInterruptedNativeGradeDraft}>Recover Interrupted Draft (discard incomplete local history)</button>}
         </div>
        </div>
        {optitexGradeMessage&&<p role="status" className="optitex-native-grade-message">{optitexGradeMessage}</p>}
@@ -3203,8 +3383,57 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
          return {ok:true,before,after:{revision:result.revision,template:result.template,
            nativePointBindings:result.nativePointBindings}}
        }}
+       onNativeCrossPiece={async payload=>{
+         const allowed={
+           'native-cross-piece-install':['op','revision','sourcePanelId','sourcePointIndex','targetPanelId','targetPointIndex'],
+           'native-cross-piece-move':['op','revision','sourcePanelId','expectedPosition','position'],
+           'native-cross-piece-clear':['op','revision'],
+         }
+         const keys=allowed[payload?.op]
+         if(!keys||Object.keys(payload).length!==keys.length||
+            !keys.every(key=>Object.hasOwn(payload,key))||
+            !Number.isSafeInteger(payload.revision)||
+            !state.current||state.current.revision!==payload.revision||
+            busy||playing||running.current||lock.current)
+           return {ok:false,reason:'Cross-piece native request is stale, modified or the workspace is busy'}
+         const before=structuredClone(state.current)
+         if(nativeGradeRules){
+           const status=await request({op:'grade-run-status',revision:before.revision})
+           const checked=status?.persistedInProject&&verifyNativeGradeCatalog20261025(before,nativeGradeRules,status,
+             {durablySaved:true,pomDefinitions:nativePOMDefinitions})
+           if(!checked?.ok||state.current?.revision!==before.revision)
+             return {ok:false,reason:'Save or recover your grading draft before changing linked source geometry'}
+         }
+         const after=await request(payload)
+         if(!after?.template||after.revision!==before.revision+1)
+           return {ok:false,reason:'Native cross-piece result has no witnessed source revision; inspect Undo'}
+         if(payload.op==='native-cross-piece-clear'){
+           if(after.nativeCrossPieceLink!=null)return {ok:false,reason:'Rust did not clear the persisted link'}
+         }else if(after.nativeCrossPieceLink?.active!==true||
+           after.nativeCrossPieceCommit?.nativeAuthoritative!==true||
+           after.nativeCrossPieceCommit?.oneUndoStep!==true||
+           after.nativeCrossPieceCommit?.operation!==
+             (payload.op==='native-cross-piece-install'?'install':'move')){
+           return {ok:false,reason:'Native cross-piece transaction is unverified; inspect the garment and Undo'}
+         }
+         const geometryWitness=verifyNativeCrossPieceCommit20261030(before,payload,after)
+         if(!geometryWitness.ok)
+           return {ok:false,reason:`Native cross-piece geometry witness failed after commit: ${geometryWitness.reason}. Inspect Undo and reopen the garment.`}
+         if(after.gradeRunPersisted){
+           const status=await request({op:'grade-run-status',revision:after.revision})
+           const recovered=status?.persistedInProject?recoverNativeGradeRules20261025(state.current,status):{ok:false}
+           if(!recovered.ok){
+             nativeGradeRulesRef.current=null;setNativeGradeRules(null)
+             return {ok:false,reason:'Native commit completed, but grading-table recovery failed; inspect Undo and reload saved grading'}
+           }
+           commitNativeGradeRuleSet(recovered.ruleSet)
+           setNativeGradeCatalogStatus(null)
+           setNativeGradeCatalogMessage('Cross-piece source and six-size catalog regenerated together in Rust.')
+         }
+         return {ok:true,revision:after.revision,oneUndoStep:true}
+       }}
        onApplyNativeMeasurement={async payload=>{
-         if(!payload||payload.op!=='bindings-measurement-recompute'||
+         if(!payload||!['bindings-measurement-recompute','bindings-multipanel-measurement-recompute'].includes(payload.op)||
             Object.keys(payload).length!==5||
             !['op','revision','measurement','expectedValueMm','valueMm'].every(key=>Object.hasOwn(payload,key))||
             !Number.isSafeInteger(payload.revision)||
@@ -3640,10 +3869,10 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
          onClick={restoreQuickGradingToolbar}><Grid2X2 size={13} aria-hidden="true"/>Grading Toolbar</button>
        <span className="exo-grade-top-separator" aria-hidden="true"/>
 	       <button type="button" className="exo-bottom-dock-tab" data-native-history-action="undo"
-	         aria-label="Undo native pattern edit" title="Undo native pattern edit" disabled={playing||!s}
+	         aria-label="Undo latest 2D pattern or grading edit" title="Undo latest 2D pattern or grading edit" disabled={playing||!s||!canUndo2D}
 	         onClick={()=>void requestHistory('undo')}><Undo2 size={13} aria-hidden="true"/>Undo</button>
 	       <button type="button" className="exo-bottom-dock-tab" data-native-history-action="redo"
-	         aria-label="Redo native pattern edit" title="Redo native pattern edit" disabled={playing||!s}
+	         aria-label="Redo latest 2D pattern or grading edit" title="Redo latest 2D pattern or grading edit" disabled={playing||!s||!canRedo2D}
 	         onClick={()=>void requestHistory('redo')}><Redo2 size={13} aria-hidden="true"/>Redo</button>
 	       <span className="exo-grade-top-separator" aria-hidden="true"/>
        <button type="button" className="exo-bottom-dock-tab" aria-pressed={constructionOpen}
@@ -3663,11 +3892,11 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
    <div ref={cameraViewport} className="cc-embedded-main">
 
     <CameraFabricHand viewportRef={cameraViewport} onActivate={()=>changeViewportMode('stretch3d')} disabled={busy&&!playing||!s?.template?.panels?.length}/>
-    <section className="cc-view cc-viewport-3d" aria-label="ClothCraft 3D garment viewport" style={{position:'relative'}}><ClothCraftSceneV2 onCollapse3D={onCollapse3D} onToggle3DStudio={onToggle3DStudio} studio3DActive={studio3DActive} onToggle3DStudioFullscreen={onToggle3DStudioFullscreen} studio3DFullscreenActive={studio3DFullscreenActive} animationWorkspaceActive={animationWorkspaceActive} foamPads={nativeFoamPads} onFoamSelect={id=>{setSelectedFoamId(id);if(!embedded)setFoamOpen(true)}} importedHardware={sceneImportedHardware} graphics={nativeGraphics} analysisMode={analysisMode} snapshot={s} active={hovered||selected} selected={selected} mode={mode==='stretch3d'?'stretch3d':playing||busy?'edit':mode} seamEditing={seamEditing} onContextMenuRequest={event=>openViewportContext({...event,dimension:'3d'})} onCanvasActivate={()=>{shortcutsFocused.current=true}} onChangeMode={changeViewportMode} toolsDisabled={busy&&!playing} onPick={pickInSewingMode} onHover={setHovered} onPlace={placeVisiblePanel} showAvatar={showAvatar} showSeams={showSeams} sewingToolsActive={mode==='sew'||seamEditing} wireframe={wireframe} showBoundingBox={showBoundingBox} showContactDots={showContactDots} onStretchStart={startClothGrab} onStretchCancel={cancelClothGrab} onStretchDrag={pullClothPoint} environmentPreset={environmentPreset} stageId={stageId} stageSettings={stageSettings} cameraSettings={cameraSettings} sceneLight={sceneLight} sceneLight2={sceneLight2} exposure={exposure} studioAppearance={studioAppearance} studioPreferences={studioPreferences}/></section>
+    <section className="cc-view cc-viewport-3d" aria-label="ClothCraft 3D garment viewport" style={{position:'relative'}}><ClothCraftSceneV2 customAvatar={customAvatar} onCollapse3D={onCollapse3D} onToggle3DStudio={onToggle3DStudio} studio3DActive={studio3DActive} onToggle3DStudioFullscreen={onToggle3DStudioFullscreen} studio3DFullscreenActive={studio3DFullscreenActive} animationWorkspaceActive={animationWorkspaceActive} foamPads={nativeFoamPads} onFoamSelect={id=>{setSelectedFoamId(id);if(!embedded)setFoamOpen(true)}} importedHardware={sceneImportedHardware} graphics={nativeGraphics} analysisMode={analysisMode} snapshot={s} active={hovered||selected} selected={selected} mode={mode==='stretch3d'?'stretch3d':playing||busy?'edit':mode} seamEditing={seamEditing} onContextMenuRequest={event=>openViewportContext({...event,dimension:'3d'})} onCanvasActivate={()=>{shortcutsFocused.current=true}} onChangeMode={changeViewportMode} toolsDisabled={busy&&!playing} onPick={pickInSewingMode} onHover={setHovered} onPlace={placeVisiblePanel} showAvatar={showAvatar} showSeams={showSeams} sewingToolsActive={mode==='sew'||seamEditing} wireframe={wireframe} showBoundingBox={showBoundingBox} showContactDots={showContactDots} onStretchStart={startClothGrab} onStretchCancel={cancelClothGrab} onStretchDrag={pullClothPoint} environmentPreset={environmentPreset} stageId={stageId} stageSettings={stageSettings} cameraSettings={cameraSettings} sceneLight={sceneLight} sceneLight2={sceneLight2} exposure={exposure} studioAppearance={studioAppearance} studioPreferences={studioPreferences}/></section>
    {layout==='2d'&&<section className="exo-grade-side-dock-host" data-exo-grade-dock-host="true" data-exo-dock-edge="left" aria-label="Left vertical grading toolbar dock"/>}
    {layout==='2d'&&<section className="exo-grade-side-dock-host" data-exo-grade-dock-host="true" data-exo-dock-edge="right" aria-label="Right vertical grading toolbar dock"/>}
    {printLayoutActive ? <section className="cc-view cc-viewport-2d exo-print-viewport" style={{position:'relative'}} aria-label="ClothCraft Print Layout viewport replacing 2D pattern editor">
-      <PrintLayoutStudio source={s} nativeGraphics={nativeGraphics} revision={s?.revision??'current'} onClose={onExitPrintLayout} embedded/>
+      <PrintLayoutStudio source={s} native graphics={nativeGraphics} revision={s?.revision??'current'} onClose={onExitPrintLayout} embedded/>
     </section> : <section className="cc-view cc-viewport-2d" style={{position:'relative'}} aria-label="ClothCraft 2D pattern viewport">{s&&<ClothCraftBoardV2 studioPreferences={studioPreferences} onTogglePatternStudio={onTogglePatternStudio} patternStudioActive={patternStudioActive} showGrid={workspaceGrid} nativeGradeProposal={nativeGradeRules?null:nativeGradeProposal} nativeGradeRunsByPanel={multiPanelGradeNest?.ok?multiPanelGradeNest.byPanel:null} nativeGradeVisibility={nativeGradeVisibility} nativeConstructionPreview={nativeConstructionPreview} nativeCurveStationPreview={nativeCurveStationPreview} nativeDartPrecisionPreview={nativeDartPrecisionPreview} nativePhysicalPleatPreview={nativePhysicalPleatPreview} gradingPOMPreview={gradedPOMSource} onPickGradeSize={setGradeNestSelectedSize} showMeasurements={showMeasurements} showSilhouette={layout==='2d'?false:showSilhouette} onToggleSilhouette={setShowSilhouette} showAvatar={layout==='2d'?false:showAvatar} onToggleAvatar={setShowAvatar} showSeamDots={showContactDots} walkSeamId={walkOpen?walkSeamId:null} walkFraction={walkFraction} onAvatarPick={()=>{pick({avatar:true});activateSection('Avatar')}} graphics={nativeGraphics} foamPads={nativeFoamPads} onMoveFoamPad={editNativeFoamPad} sewingVariant={sewingVariant} editSewing={seamEditing} onSelectSewingSeam={selectExistingSewingSeam} sewingFirstEdge={pair[0]||null} sewingCommitting={segmentCommitting} onSegmentSewEdge={selectSegmentEdge} freeSewPoints={freeSewPoints} onFreeSewPoint={selectFreeSewPoint} onClearFreeSew={clearFreeSew} allowFreeSewEase={ease} onChangeFreeSewEase={setEase} selectedGraphicId={selectedGraphicId} onSelectGraphic={selectGraphicOnBoard} onMoveGraphic={moveGraphicOnBoard} onResizeGraphic={resizeGraphicOnBoard} patternReferences={patternReferences} onUpdatePatternReferences={onUpdatePatternReferences} referenceModeActive={exoObjectTab==='Reference'} showGraphicMeasurements={showGraphicMeasurements} showGraphicMeasurementToggle={false} s={s} selection={selected} active={hovered||selected} pick={pick} hover={setHovered} edit={edit} editBatch={editPatternLayoutBatch} onEnableCurveSeamEase={enableCurveSeamEase} mode={mode} onChangeMode={changeViewportMode} onContextMenuRequest={openViewportContext} busy={busy||playing} onPolygon={(points,tangents)=>{if(mode==='line'){if(!selectedPanel){setDrawingError('Select a pattern before drawing an internal line.');return}const r=s.panels.find(p=>p.id===selectedPanel.id),a=-(selectedPanel.layout_rotation_degrees||0)*Math.PI/180;const local=points.map(p=>{const u=p[0]-r.layout[0],v=p[1]-r.layout[1];return[u*Math.cos(a)-v*Math.sin(a),u*Math.sin(a)+v*Math.cos(a)]});edit({kind:'InternalLine',panel:selectedPanel.id,points:local,tangents:local.map(()=>[0,0])})}else edit({kind:'Polygon',points,tangents:Array.isArray(tangents)&&tangents.length===points.length?tangents:points.map(()=>[0,0]),fabric:s.template.fabrics[0].id})}}/>}<NativePatternAuditPanel audit={patternAudit} revision={s?.revision} onClose={()=>setPatternAudit(null)} onRefresh={runPatternAudit} onGenerateCutlines={runProductionCutlines} onDownloadCutline={downloadCutlineProof} cutlines={cutlineProof} disabled={busy}/><NativeSewingGestureDock20261025
      mode={mode} variant={sewingVariant} firstEdge={pair[0]||null}
      freePoints={freeSewPoints} reverse={reverse} onReverse={setReverse}
@@ -3685,8 +3914,8 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
 	     <div className="exo-bottom-dock-rail" role="toolbar" aria-label="Inside board bottom docking bar">
        <span className="exo-bottom-dock-handle" aria-hidden="true">⋮⋮</span>
 	       <span data-native-history-controls="true">
-	         <button type="button" className="exo-bottom-dock-tab" aria-label="Undo native pattern edit" title="Undo native pattern edit" disabled={playing||!s} onClick={()=>void requestHistory('undo')}><Undo2 size={13} aria-hidden="true"/> Undo</button>
-	         <button type="button" className="exo-bottom-dock-tab" aria-label="Redo native pattern edit" title="Redo native pattern edit" disabled={playing||!s} onClick={()=>void requestHistory('redo')}><Redo2 size={13} aria-hidden="true"/> Redo</button>
+	         <button type="button" className="exo-bottom-dock-tab" aria-label="Undo latest 2D pattern or grading edit" title="Undo latest 2D pattern or grading edit" disabled={playing||!s||!canUndo2D} onClick={()=>void requestHistory('undo')}><Undo2 size={13} aria-hidden="true"/> Undo</button>
+	         <button type="button" className="exo-bottom-dock-tab" aria-label="Redo latest 2D pattern or grading edit" title="Redo latest 2D pattern or grading edit" disabled={playing||!s||!canRedo2D} onClick={()=>void requestHistory('redo')}><Redo2 size={13} aria-hidden="true"/> Redo</button>
 	       </span>
        <button type="button" className="exo-bottom-dock-tab" aria-pressed={gradeBottomTableOpen} onClick={()=>setGradeBottomTableOpen(value=>!value)}>Grading Table</button>
        <button type="button" className="exo-bottom-dock-tab" aria-pressed={gradeBottomCompareOpen} onClick={()=>setGradeBottomCompareOpen(value=>!value)}>Compare Length</button>
@@ -3725,7 +3954,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  }
  return <main ref={workspaceRoot} className={`cc-workspace cc-exo-shell ${patternFocus?'cc-pattern-studio-focus':''} ${standalone3DFullscreen?'cc-3d-studio-focus':''}`}><ClothCraftContextMenu context={contextMenu} items={contextItems} onChoose={executeContextAction} onClose={()=>setContextMenu(null)}/>{focusDock}{nativeGradingPortal}<header className="cc-header"><div className="cc-brand"><Box size={18}/><strong>EXO <span>SAMPLE 3D</span></strong><small>× CLOTHCRAFT ENGINE</small></div><div className="cc-exo-menus"><button onClick={()=>setLibraryOpen(v=>!v)} aria-label="Toggle asset library"><FolderOpen size={15}/> LIBRARY</button><button onClick={()=>setInspectorOpen(v=>!v)} aria-label="Toggle property editor"><Settings2 size={15}/> PROPERTIES</button><select aria-label="EXO workspace section" value={section} onChange={e=>activateSection(e.target.value)}>{EXO_SECTIONS.map(([name])=><option key={name}>{name}</option>)}</select><select aria-label="Viewport layout" value={layout} onChange={e=>setLayout(e.target.value)}><option value="split">3D + 2D</option><option value="3d">3D focus</option><option value="2d">2D focus</option></select></div><div className="cc-header-actions"><button type="button" onClick={patternFocus?exitPatternFocus:enterPatternFocus} aria-label={patternFocus?'Exit full-screen 2D pattern studio':'Open full-screen 2D pattern studio'}><Maximize2 size={14}/> {patternFocus?'Exit 2D Studio':'2D Grading Studio'}</button><label className="cc-button" title="Open ClothCraft or compatible EXO garment project"><FolderOpen size={14}/> Open project<input type="file" accept=".json" hidden disabled={busy||playing} onChange={importFile}/></label><button onClick={()=>save(false)} disabled={busy||playing||!s} title="Save current Rust garment project"><Save size={15}/> Save</button><button onClick={()=>save(true)} disabled={busy||playing||!s}><Download size={15}/> Save / export</button><a href="?desktop=1" title="Open the full EXO interface">FULL EXO <ChevronRight size={14}/></a></div></header>
  <div className="cc-project-bar"><div><strong>GARMENT STUDIO</strong><span>{s?.template.name||'Loading ClothCraft project…'}</span><small>REV {s?.revision??'—'} · {s?.template.panels.length??0} PANELS · {s?.template.seams.length??0} SEAMS</small></div><div className="cc-project-fittings"><span className="cc-online-dot"/> RUST VBD + OGC <span className="cc-project-status">{playing?'SIMULATING':busy?'WORKING':'READY'}</span></div></div>
- <nav className="cc-toolbar"><div>{[['edit','Select / edit',MousePointer2],['sew','Sew edges',Scissors],['pen','Draw pattern',PenTool],['line','Internal line',Layers],['move3d','Move 3D',Move3D],['rotate3d','Rotate 3D',Rotate3D]].map(([key,label,Icon])=><button key={key} title={label} aria-pressed={mode===key} className={mode===key?'active':''} onClick={()=>{setMode(key);setPair([]);if(key==='sew')setSection('Sewing');else if(key==='line')setSection('Sewing');else if(key==='pen')setSection('Pattern')}}><Icon size={15}/>{label}</button>)}<button type="button" title="Foam Padding / Trapunto" aria-label="Foam Padding / Trapunto" aria-pressed={foamOpen} onClick={()=>{setFoamOpen(v=>!v);setSection('Pattern')}}><Layers size={15}/>Foam Padding / Trapunto</button><button type="button" disabled={busy||!s} onClick={runPatternAudit} aria-label="Run native Rust pattern QA">Pattern QA</button></div><div><button disabled={busy||playing||!s?.canUndo} onClick={()=>requestHistory('undo')}><Undo2 size={15}/>Undo</button><button disabled={busy||playing||!s?.canRedo} onClick={()=>requestHistory('redo')}><Redo2 size={15}/>Redo</button><button disabled={(!playing&&busy)||!s} className="cc-primary" onClick={play}>{playing?<Pause size={15}/>:<Play size={15}/>} {playing?'Pause':'Simulate'}</button><button disabled={busy||playing||!s} onClick={()=>request({op:'step',steps:1})}>Single step</button><button disabled={busy||playing||!s} onClick={()=>void resetPatternPosition()}><RotateCcw size={15}/>Reset arrangement</button></div></nav>
+ <nav className="cc-toolbar"><div>{[['edit','Select / edit',MousePointer2],['sew','Sew edges',Scissors],['pen','Draw pattern',PenTool],['line','Internal line',Layers],['move3d','Move 3D',Move3D],['rotate3d','Rotate 3D',Rotate3D]].map(([key,label,Icon])=><button key={key} title={label} aria-pressed={mode===key} className={mode===key?'active':''} onClick={()=>{setMode(key);setPair([]);if(key==='sew')setSection('Sewing');else if(key==='line')setSection('Sewing');else if(key==='pen')setSection('Pattern')}}><Icon size={15}/>{label}</button>)}<button type="button" title="Foam Padding / Trapunto" aria-label="Foam Padding / Trapunto" aria-pressed={foamOpen} onClick={()=>{setFoamOpen(v=>!v);setSection('Pattern')}}><Layers size={15}/>Foam Padding / Trapunto</button><button type="button" disabled={busy||!s} onClick={runPatternAudit} aria-label="Run native Rust pattern QA">Pattern QA</button></div><div><button disabled={busy||playing||!canUndo2D} onClick={()=>requestHistory('undo')}><Undo2 size={15}/>Undo</button><button disabled={busy||playing||!canRedo2D} onClick={()=>requestHistory('redo')}><Redo2 size={15}/>Redo</button><button disabled={(!playing&&busy)||!s} className="cc-primary" onClick={play}>{playing?<Pause size={15}/>:<Play size={15}/>} {playing?'Pause':'Simulate'}</button><button disabled={busy||playing||!s} onClick={()=>request({op:'step',steps:1})}>Single step</button><button disabled={busy||playing||!s} onClick={()=>void resetPatternPosition()}><RotateCcw size={15}/>Reset arrangement</button></div></nav>
  {(error||notice)&&<div className={error?'cc-error':'cc-notice'} role="status">{error||notice}<button onClick={()=>{setError('');setNotice('')}}>×</button></div>}
  <div className={`cc-body cc-layout-${patternFocus?'2d':layout} ${libraryOpen?'':'cc-no-library'} ${inspectorOpen?'':'cc-no-inspector'}`}>
  <nav className="cc-exo-rail" aria-label="EXO tool categories">{EXO_SECTIONS.map(([name,Icon])=><button key={name} className={section===name?'active':''} aria-pressed={section===name} title={name} onClick={()=>activateSection(name)}><Icon size={19}/><span>{name}</span></button>)}</nav>
@@ -3733,9 +3962,9 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  {libraryTab==='Pieces'&&<><h3>GARMENT · {s?.template.panels.length??0} PANELS</h3><p>{s?.template.name||'Connecting…'}</p>{s?.template.panels.filter(p=>filtered(p.name)).map((p,i)=><button data-piece={p.id} key={p.id} className={active?.panel===p.id?'active':''} onMouseEnter={()=>setHovered({panel:p.id})} onMouseLeave={()=>setHovered(null)} onClick={()=>showPiece(p.id)}><i style={{background:COLORS[i%COLORS.length]}}/>{p.name}<ChevronRight size={13}/></button>)}</>}
  {libraryTab==='Seams'&&<><h3>SEWING RELATIONSHIPS · {s?.template.seams.length??0}</h3>{s?.template.seams.filter(item=>filtered(item.id)).map(seam=><div className="cc-seam-row" key={seam.id} onMouseEnter={()=>setHovered({panel:seam.a.panel,edge:seam.a.edge})} onMouseLeave={()=>setHovered(null)}><button onClick={()=>{setSelected({panel:seam.a.panel,edge:seam.a.edge,kind:'sewing',seamId:seam.id});activateSection('Sewing')}}>{seam.id}</button><button aria-label={`Delete seam ${seam.id}`} disabled={busy||playing} onClick={()=>edit({kind:'RemoveSeam',seam:seam.id})}>×</button></div>)}</>}
  {libraryTab==='Library'&&<><h3>STARTING BLOCKS</h3>{[['T-shirt','tshirt'],['Dress','dress']].filter(([name])=>filtered(name)).map(([name,preset])=><button key={preset} disabled={busy||playing} onClick={()=>openPreset(preset)}><Shirt size={15}/>{name} fixture</button>)}<h3>NEW PATTERN ELEMENTS</h3><button onClick={()=>{activateSection('Pattern');setShape('rectangle')}}><FilePlus2 size={14}/> Rectangle</button><button onClick={()=>{activateSection('Pattern');setShape('ellipse')}}><FilePlus2 size={14}/> Ellipse</button><button onClick={()=>{activateSection('Pattern');setMode('pen')}}><PenTool size={14}/> Draw custom outline</button></>}
- {libraryTab==='History'&&<><h3>SESSION HISTORY</h3><p>Revision {s?.revision??0}</p><button disabled={!s?.canUndo||busy||playing} onClick={()=>requestHistory('undo')}><Undo2 size={15}/> Undo last edit</button><button disabled={!s?.canRedo||busy||playing} onClick={()=>requestHistory('redo')}><Redo2 size={15}/> Redo last edit</button><p>The Rust editing history supports undo/redo; save a project for persistent revisions.</p></>}
+ {libraryTab==='History'&&<><h3>SESSION HISTORY</h3><p>Revision {s?.revision??0}</p><button disabled={!canUndo2D||busy||playing} onClick={()=>requestHistory('undo')}><Undo2 size={15}/> Undo last edit</button><button disabled={!canRedo2D||busy||playing} onClick={()=>requestHistory('redo')}><Redo2 size={15}/> Redo last edit</button><p>Grading drafts and Rust geometry have separate history journals. When both contain operations, global Undo/Redo is blocked because chronological ordering cannot be proven. Use the grading table's explicit draft Undo/Redo after review; native project and grading catalog must be saved separately.</p></>}
  <footer>EXO asset workspace · ClothCraft physics<br/>Unsupported EXO-specific production features remain in Full EXO</footer></aside>}
- <section className="cc-view cc-viewport-3d" style={{position:'relative'}}><h2><span><Box size={14}/> 3D GARMENT</span><small>ClothCraft linked viewport · Orbit / select</small></h2><ClothCraftSceneV2 onCollapse3D={onCollapse3D} onToggle3DStudio={toggleStandalone3DStudio} studio3DActive={layout==='3d'} onToggle3DStudioFullscreen={toggleStandalone3DStudioFullscreen} studio3DFullscreenActive={standalone3DFullscreen} foamPads={nativeFoamPads} onFoamSelect={id=>{setSelectedFoamId(id);if(!embedded)setFoamOpen(true)}} importedHardware={sceneImportedHardware} analysisMode={analysisMode} snapshot={s} active={active} selected={selected} mode={mode==='stretch3d'?'stretch3d':playing||busy?'edit':mode} seamEditing={seamEditing} onContextMenuRequest={event=>openViewportContext({...event,dimension:'3d'})} onCanvasActivate={()=>{shortcutsFocused.current=true}} onChangeMode={changeViewportMode} toolsDisabled={busy&&!playing} onPick={pickInSewingMode} onHover={setHovered} onPlace={placeVisiblePanel} showAvatar={showAvatar} showSeams={showSeams} wireframe={wireframe} showBoundingBox={showBoundingBox} showContactDots={showContactDots} onStretchStart={startClothGrab} onStretchCancel={cancelClothGrab} onStretchDrag={pullClothPoint} environmentPreset={environmentPreset} stageId={stageId} stageSettings={stageSettings} cameraSettings={cameraSettings} sceneLight={sceneLight} sceneLight2={sceneLight2} exposure={exposure} studioAppearance={studioAppearance} studioPreferences={studioPreferences}/></section><section className="cc-view cc-viewport-2d" style={{position:'relative'}}><h2><span><Grid2X2 size={14}/> 2D PATTERN</span><small>True material geometry · metres</small></h2>{s&&<ClothCraftBoardV2 studioPreferences={studioPreferences} patternStudioActive={patternFocus} showGrid={workspaceGrid} nativeGradeProposal={nativeGradeRules?null:nativeGradeProposal} nativeGradeRunsByPanel={multiPanelGradeNest?.ok?multiPanelGradeNest.byPanel:null} nativeGradeVisibility={nativeGradeVisibility} nativeConstructionPreview={nativeConstructionPreview} nativeCurveStationPreview={nativeCurveStationPreview} nativeDartPrecisionPreview={nativeDartPrecisionPreview} nativePhysicalPleatPreview={nativePhysicalPleatPreview} gradingPOMPreview={gradedPOMSource} onPickGradeSize={setGradeNestSelectedSize} showMeasurements={showMeasurements} showSilhouette={showSilhouette} onToggleSilhouette={setShowSilhouette} showAvatar={showAvatar} onToggleAvatar={setShowAvatar} showSeamDots={showContactDots} walkSeamId={walkOpen?walkSeamId:null} walkFraction={walkFraction} onAvatarPick={()=>{pick({avatar:true});activateSection('Avatar')}} graphics={nativeGraphics} foamPads={nativeFoamPads} onMoveFoamPad={editNativeFoamPad} sewingVariant={sewingVariant} editSewing={seamEditing} onSelectSewingSeam={selectExistingSewingSeam} sewingFirstEdge={pair[0]||null} sewingCommitting={segmentCommitting} onSegmentSewEdge={selectSegmentEdge} freeSewPoints={freeSewPoints} onFreeSewPoint={selectFreeSewPoint} onClearFreeSew={clearFreeSew} allowFreeSewEase={ease} onChangeFreeSewEase={setEase} selectedGraphicId={selectedGraphicId} onSelectGraphic={selectGraphicOnBoard} onMoveGraphic={moveGraphicOnBoard} onResizeGraphic={resizeGraphicOnBoard} patternReferences={patternReferences} onUpdatePatternReferences={onUpdatePatternReferences} referenceModeActive={exoObjectTab==='Reference'} showGraphicMeasurements={showGraphicMeasurements} onToggleGraphicMeasurements={toggleGraphicMeasurements} s={s} selection={selected} active={active} pick={pick} hover={setHovered} edit={edit} editBatch={editPatternLayoutBatch} onEnableCurveSeamEase={enableCurveSeamEase} mode={mode} onChangeMode={changeViewportMode} onContextMenuRequest={openViewportContext} busy={busy||playing} onPolygon={(points,tangents)=>{if(mode==='line'){if(!selectedPanel){setDrawingError('Select a pattern before drawing an internal line.');return}const r=s.panels.find(p=>p.id===selectedPanel.id),a=-(selectedPanel.layout_rotation_degrees||0)*Math.PI/180;const local=points.map(p=>{const u=p[0]-r.layout[0],v=p[1]-r.layout[1];return[u*Math.cos(a)-v*Math.sin(a),u*Math.sin(a)+v*Math.cos(a)]});edit({kind:'InternalLine',panel:selectedPanel.id,points:local,tangents:local.map(()=>[0,0])})}else edit({kind:'Polygon',points,tangents:Array.isArray(tangents)&&tangents.length===points.length?tangents:points.map(()=>[0,0]),fabric:s.template.fabrics[0].id})}}/>}<NativePatternAuditPanel audit={patternAudit} revision={s?.revision} onClose={()=>setPatternAudit(null)} onRefresh={runPatternAudit} onGenerateCutlines={runProductionCutlines} onDownloadCutline={downloadCutlineProof} cutlines={cutlineProof} disabled={busy}/><NativeSewingGestureDock20261025
+ <section className="cc-view cc-viewport-3d" style={{position:'relative'}}><h2><span><Box size={14}/> 3D GARMENT</span><small>ClothCraft linked viewport · Orbit / select</small></h2><ClothCraftSceneV2 customAvatar={customAvatar} onCollapse3D={onCollapse3D} onToggle3DStudio={toggleStandalone3DStudio} studio3DActive={layout==='3d'} onToggle3DStudioFullscreen={toggleStandalone3DStudioFullscreen} studio3DFullscreenActive={standalone3DFullscreen} foamPads={nativeFoamPads} onFoamSelect={id=>{setSelectedFoamId(id);if(!embedded)setFoamOpen(true)}} importedHardware={sceneImportedHardware} analysisMode={analysisMode} snapshot={s} active={active} selected={selected} mode={mode==='stretch3d'?'stretch3d':playing||busy?'edit':mode} seamEditing={seamEditing} onContextMenuRequest={event=>openViewportContext({...event,dimension:'3d'})} onCanvasActivate={()=>{shortcutsFocused.current=true}} onChangeMode={changeViewportMode} toolsDisabled={busy&&!playing} onPick={pickInSewingMode} onHover={setHovered} onPlace={placeVisiblePanel} showAvatar={showAvatar} showSeams={showSeams} wireframe={wireframe} showBoundingBox={showBoundingBox} showContactDots={showContactDots} onStretchStart={startClothGrab} onStretchCancel={cancelClothGrab} onStretchDrag={pullClothPoint} environmentPreset={environmentPreset} stageId={stageId} stageSettings={stageSettings} cameraSettings={cameraSettings} sceneLight={sceneLight} sceneLight2={sceneLight2} exposure={exposure} studioAppearance={studioAppearance} studioPreferences={studioPreferences}/></section><section className="cc-view cc-viewport-2d" style={{position:'relative'}}><h2><span><Grid2X2 size={14}/> 2D PATTERN</span><small>True material geometry · metres</small></h2>{s&&<ClothCraftBoardV2 studioPreferences={studioPreferences} patternStudioActive={patternFocus} showGrid={workspaceGrid} nativeGradeProposal={nativeGradeRules?null:nativeGradeProposal} nativeGradeRunsByPanel={multiPanelGradeNest?.ok?multiPanelGradeNest.byPanel:null} nativeGradeVisibility={nativeGradeVisibility} nativeConstructionPreview={nativeConstructionPreview} nativeCurveStationPreview={nativeCurveStationPreview} nativeDartPrecisionPreview={nativeDartPrecisionPreview} nativePhysicalPleatPreview={nativePhysicalPleatPreview} gradingPOMPreview={gradedPOMSource} onPickGradeSize={setGradeNestSelectedSize} showMeasurements={showMeasurements} showSilhouette={showSilhouette} onToggleSilhouette={setShowSilhouette} showAvatar={showAvatar} onToggleAvatar={setShowAvatar} showSeamDots={showContactDots} walkSeamId={walkOpen?walkSeamId:null} walkFraction={walkFraction} onAvatarPick={()=>{pick({avatar:true});activateSection('Avatar')}} graphics={nativeGraphics} foamPads={nativeFoamPads} onMoveFoamPad={editNativeFoamPad} sewingVariant={sewingVariant} editSewing={seamEditing} onSelectSewingSeam={selectExistingSewingSeam} sewingFirstEdge={pair[0]||null} sewingCommitting={segmentCommitting} onSegmentSewEdge={selectSegmentEdge} freeSewPoints={freeSewPoints} onFreeSewPoint={selectFreeSewPoint} onClearFreeSew={clearFreeSew} allowFreeSewEase={ease} onChangeFreeSewEase={setEase} selectedGraphicId={selectedGraphicId} onSelectGraphic={selectGraphicOnBoard} onMoveGraphic={moveGraphicOnBoard} onResizeGraphic={resizeGraphicOnBoard} patternReferences={patternReferences} onUpdatePatternReferences={onUpdatePatternReferences} referenceModeActive={exoObjectTab==='Reference'} showGraphicMeasurements={showGraphicMeasurements} onToggleGraphicMeasurements={toggleGraphicMeasurements} s={s} selection={selected} active={active} pick={pick} hover={setHovered} edit={edit} editBatch={editPatternLayoutBatch} onEnableCurveSeamEase={enableCurveSeamEase} mode={mode} onChangeMode={changeViewportMode} onContextMenuRequest={openViewportContext} busy={busy||playing} onPolygon={(points,tangents)=>{if(mode==='line'){if(!selectedPanel){setDrawingError('Select a pattern before drawing an internal line.');return}const r=s.panels.find(p=>p.id===selectedPanel.id),a=-(selectedPanel.layout_rotation_degrees||0)*Math.PI/180;const local=points.map(p=>{const u=p[0]-r.layout[0],v=p[1]-r.layout[1];return[u*Math.cos(a)-v*Math.sin(a),u*Math.sin(a)+v*Math.cos(a)]});edit({kind:'InternalLine',panel:selectedPanel.id,points:local,tangents:local.map(()=>[0,0])})}else edit({kind:'Polygon',points,tangents:Array.isArray(tangents)&&tangents.length===points.length?tangents:points.map(()=>[0,0]),fabric:s.template.fabrics[0].id})}}/>}<NativePatternAuditPanel audit={patternAudit} revision={s?.revision} onClose={()=>setPatternAudit(null)} onRefresh={runPatternAudit} onGenerateCutlines={runProductionCutlines} onDownloadCutline={downloadCutlineProof} cutlines={cutlineProof} disabled={busy}/><NativeSewingGestureDock20261025
      mode={mode} variant={sewingVariant} firstEdge={pair[0]||null}
      freePoints={freeSewPoints} reverse={reverse} onReverse={setReverse}
      ease={ease} onEase={setEase} committing={segmentCommitting}
@@ -3836,7 +4065,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  {section==='Sewing'&&<fieldset><legend>Sewing correspondence</legend><p>{pair.map(p=>`${p.panel} / ${p.edge}`).join(' → ')||'Pick two edges in either view'}</p><label><input type="checkbox" checked={reverse} onChange={e=>setReverse(e.target.checked)}/> Reverse second edge</label><label><input type="checkbox" checked={ease} onChange={e=>setEase(e.target.checked)}/> Allow easing / unequal lengths</label>{ranges.map((range,i)=><label key={i}>Edge {'AB'[i]} interval{range.map((n,j)=><input key={j} aria-label={`Edge ${'AB'[i]} ${j?'end':'start'}`} type="number" min="0" max="1" step=".05" value={n} onChange={e=>setRanges(v=>v.map((r,k)=>k===i?r.map((n,l)=>l===j?Number(e.target.value):n):r))}/>)}</label>)}<button disabled={busy||pair.length!==2} onClick={async()=>{const r=await edit({kind:'Sew',a:boundary(pair[0],0),b:boundary(pair[1],1),reverse,ease});if(r)setPair([])}}>Create seam</button><button onClick={()=>setPair([])}>Cancel</button></fieldset>}
  {section==='Pattern'&&<fieldset><legend>Add pattern</legend><select value={shape} onChange={e=>setShape(e.target.value)}><option value="rectangle">Rectangle</option><option value="ellipse">Ellipse</option><option value="sector">Arc sector</option></select>{size.map((n,i)=><label key={i}>{i?'Height':'Width'} (mm)<input type="number" value={n} min="5" max="10000" onChange={e=>setSize(v=>v.map((n,k)=>k===i?Number(e.target.value):n))}/></label>)}<button disabled={busy||!s} onClick={()=>edit({kind:'Primitive',shape,size:size.map(n=>n/1000),origin:[0,0],fabric:s.template.fabrics[0].id})}>Create piece</button></fieldset>}
  {selectedPanel&&['Pattern','Fabric'].includes(section)&&<>{section==='Pattern'&&<><fieldset><legend>Pattern operations</legend><button disabled={busy||playing} onClick={()=>edit({kind:'Duplicate',panel:selectedPanel.id})}>Duplicate</button>{['x','y'].map(axis=><button key={axis} disabled={busy||playing} onClick={()=>edit({kind:'Mirror',panel:selectedPanel.id,axis,copy_side:1})}>Mirror {axis.toUpperCase()}</button>)}<button disabled={busy||playing} onClick={()=>{if(confirm('Remove this panel and its sewing relationships?'))edit({kind:'RemovePanel',panel:selectedPanel.id})}}>Remove piece</button></fieldset><fieldset><legend>3D arrangement</legend>{['translation','rotation_degrees'].map(key=><div key={key}><small>{key==='translation'?'Position (m)':'Rotation (°)'}</small>{selectedPanel.placement[key].map((n,i)=><label key={`${selectedPanel.id}-${key}-${i}-${n}`}>{'XYZ'[i]}<input type="number" step={key==='translation'?'.01':'5'} defaultValue={n} disabled={busy||playing} onBlur={e=>edit({kind:'Place',panel:selectedPanel.id,placement:{...selectedPanel.placement,[key]:selectedPanel.placement[key].map((n,j)=>i===j?Number(e.target.value):n)}})}/></label>)}</div>)}</fieldset></>}{section==='Fabric'&&<ClothCraftFabricLibrary snapshot={s} panel={selectedPanel} busy={busy||playing} onEdit={edit}/>}</>}
- {section==='Pattern'&&selectedPanel?.polygon&&<fieldset><legend>Points and curves</legend><select aria-label="Pattern point" value={selected?.anchor??0} onChange={e=>setSelected({panel:selectedPanel.id,anchor:Number(e.target.value)})}>{selectedPanel.polygon.points.map((_,i)=><option key={i} value={i}>Point {i+1}</option>)}</select>{selectedPanel.polygon.points[selected?.anchor??0]?.map((n,i)=><label key={`${selectedPanel.id}-${selected?.anchor}-${i}-${n}`}>{i?'Y':'X'} (mm)<input type="number" defaultValue={n*1000} disabled={busy||playing} onBlur={e=>{const anchor=selected?.anchor??0,position=[...selectedPanel.polygon.points[anchor]];position[i]=Number(e.target.value)/1000;edit({kind:'Anchor',panel:selectedPanel.id,anchor,position})}}/></label>)}<button disabled={busy||playing} onClick={()=>edit({kind:'CurvePoint',panel:selectedPanel.id,anchor:selected?.anchor??0,curved:true})}>Curve point</button><button disabled={busy||playing} onClick={()=>edit({kind:'CurvePoint',panel:selectedPanel.id,anchor:selected?.anchor??0,curved:false})}>Straighten point</button><button disabled={busy||playing} onClick={()=>edit({kind:'RemovePoint',panel:selectedPanel.id,point:selected?.anchor??0})}>Remove point</button></fieldset>}
+ {section==='Pattern'&&selectedPanel?.polygon&&<fieldset><legend>Points and curves</legend><select aria-label="Pattern point" value={selected?.anchor??0} onChange={e=>setSelected({panel:selectedPanel.id,anchor:Number(e.target.value)})}>{selectedPanel.polygon.points.map((_,i)=><option key={i} value={i}>Point {i+1}</option>)}</select>{selectedPanel.polygon.points[selected?.anchor??0]?.map((n,i)=><label key={`${selectedPanel.id}-${selected?.anchor}-${i}-${n}`}>{i?'Y':'X'} (mm)<input type="number" defaultValue={n*1000} disabled={busy||playing} onBlur={e=>{try{const anchor=selected?.anchor??0,positionMm=selectedPanel.polygon.points[anchor].map(n=>n*1000);positionMm[i]=Number(e.target.value);const command=nativeAnchorCoordinateRequest20261030(state.current,{panel:selectedPanel.id,anchor,positionMm});void runNativeFacadeSafely(command).catch(error=>setError(error.message))}catch(error){setError(error.message)}}}/></label>)}<button disabled={busy||playing} onClick={()=>edit({kind:'CurvePoint',panel:selectedPanel.id,anchor:selected?.anchor??0,curved:true})}>Curve point</button><button disabled={busy||playing} onClick={()=>edit({kind:'CurvePoint',panel:selectedPanel.id,anchor:selected?.anchor??0,curved:false})}>Straighten point</button><button disabled={busy||playing} onClick={()=>edit({kind:'RemovePoint',panel:selectedPanel.id,point:selected?.anchor??0})}>Remove point</button></fieldset>}
  {section==='Sewing'&&selected?.edge&&<fieldset><legend>Boundary length</legend><label>Length (mm)<input type="number" min="1" value={edgeLength} onChange={e=>setEdgeLength(Number(e.target.value))}/></label><button disabled={busy||playing} onClick={()=>edit({kind:'TargetLength',panel:selected.panel,edge:selected.edge,target_m:edgeLength/1000})}>Set target length</button><button disabled={busy||playing} onClick={()=>edit({kind:'SplitBoundary',panel:selected.panel,edge:selected.edge,at_m:edgeLength/1000})}>Split at distance</button></fieldset>}
  {section==='Pattern'&&selectedPanel&&<fieldset><legend>Combine patterns / cut holes</legend><select aria-label="Boolean tool panel" value={toolPanel} onChange={e=>setToolPanel(e.target.value)}><option value="">Choose second panel</option>{s.template.panels.filter(p=>p.id!==selectedPanel.id).map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select>{['union','difference','intersection'].map(operation=><button key={operation} disabled={busy||!toolPanel} onClick={()=>edit({kind:'Boolean',a:selectedPanel.id,b:toolPanel,operation,keep_tool:true})}>{operation==='union'?'Join':operation==='difference'?'Subtract / hole':'Intersection'}</button>)}</fieldset>}
  {section==='Sewing'&&selectedPanel?.polygon?.lines?.length>0&&<fieldset><legend>Internal sewing / ruffle</legend><select value={lineId||selectedPanel.polygon.lines[0].id} onChange={e=>setLineId(e.target.value)}>{selectedPanel.polygon.lines.map(l=><option key={l.id} value={l.id}>{l.id}</option>)}</select><label>Width (mm)<input type="number" value={ruffleWidth} onChange={e=>setRuffleWidth(Number(e.target.value))}/></label><label>Gather ratio<input type="number" step=".1" value={ruffleRatio} onChange={e=>setRuffleRatio(Number(e.target.value))}/></label><button disabled={busy||playing} onClick={()=>edit({kind:'Ruffle',panel:selectedPanel.id,line:lineId||selectedPanel.polygon.lines[0].id,width:ruffleWidth/1000,ratio:ruffleRatio})}>Create and sew ruffle</button><button disabled={busy||playing} onClick={()=>edit({kind:'RemoveLine',panel:selectedPanel.id,line:lineId||selectedPanel.polygon.lines[0].id})}>Remove internal line</button></fieldset>}

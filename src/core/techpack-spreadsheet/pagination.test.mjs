@@ -1,6 +1,19 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {paginateTechPackTable,enumerateWorkspaceOverflowPages,boxTableRowCapacity,paperRowsPerSheet} from './pagination.js'
+
+test('compact embedded grid does not generate continuation pages for four blank rows',()=>{
+  const table={id:'blank',columns:[{id:'one',label:'REFERENCE'}],rows:Array.from({length:4},(_,i)=>({id:'row-'+i,cells:{one:{input:''}}}))}
+  assert.equal(boxTableRowCapacity(139,{tableOnly:true}),4)
+  assert.equal(boxTableRowCapacity(139),1,'legacy full-widget conservatism remains')
+  const workspace={pageBoxes:{'custom-sheet':[{
+    id:'bottom',height:139,slot:{category:'tables',spreadsheetTable:table}
+  }]}}
+  assert.equal(enumerateWorkspaceOverflowPages(workspace,[{id:'custom-sheet'}]).length,0)
+  assert.equal(enumerateWorkspaceOverflowPages({...workspace,
+    pageBoxes:{'custom-sheet':[{id:'bottom',height:139,slot:{category:'custom',spreadsheetTable:table}}]}},
+    [{id:'custom-sheet'}]).length,1)
+})
 const table={id:'pom',columns:[{id:'ref',label:'POM'},{id:'s',label:'S (cm)'}],rows:Array.from({length:99},(_,i)=>({id:`row-${i}`,cells:{ref:{input:`PO-${i+1}`},s:{input:i}}}))}
 test('100-row workbook never truncates data in Letter portrait',()=>{
  const parts=paginateTechPackTable(table,{firstRowCapacity:4,pageStyle:'LetterPortrait'})

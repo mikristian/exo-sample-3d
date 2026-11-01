@@ -6,7 +6,10 @@ import {sha256Bytes} from './sha256Bytes.js'
 const MAX_ZIP_BYTES=20*1024*1024
 const MAX_TOTAL_BYTES=40*1024*1024
 const MAX_ENTRY_BYTES=8*1024*1024
-const MAX_FILES=320
+// The real six-size / 18-fabric exporter emits 503 files. Preserve a finite
+// pre-inflation entry ceiling alongside the existing 20/40 MiB byte limits;
+// this local source-recovery ceiling is NOT a signed receiving-CAD approval.
+const MAX_FILES=1024
 const canonicalPath=path=>typeof path==='string'&&path.length>0&&path.length<240&&
   !path.startsWith('/')&&!path.includes('\\')&&!path.includes('\0')&&
   !path.split('/').some(part=>!part||part==='.'||part==='..')

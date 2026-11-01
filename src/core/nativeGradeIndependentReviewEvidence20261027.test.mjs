@@ -52,11 +52,11 @@ async function makeFixture(){
  return {sourceRevision:12,sourceTemplate,fullRuleSet,pomDefinitions,evidence,trustedPublicKeys,now,sign,keys}
 }
 
-test('verified distinct Ed25519 role attestations reach review-ready but never factory-approved',async()=>{
+test('verified distinct Ed25519 role attestations do not alone establish artifact-audit readiness or factory approval',async()=>{
  const fixture=await makeFixture()
  const result=await verify(fixture)
  assert.equal(result.ok,true,JSON.stringify(result))
- assert.equal(result.releaseReadyForIndependentAudit,true)
+ assert.equal(result.releaseReadyForIndependentAudit,false)
  assert.deepEqual(result.verifiedRoles,ROLES)
  assert.deepEqual(result.verifiedSizes,SIZES)
  for(const k of ['factoryApproved','manufacturingApproved','cuttingAuthorized','physicalTruthVerified'])assert.equal(result[k],false)

@@ -2,7 +2,12 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {qualifyIndustrialCutterStudy20261028 as qualify} from './industrialCutterQualification20261028.mjs'
 const profile={profileId:'test-cutter',manufacturer:'Fixture',model:'One',bedWidthMm:500,bedLengthMm:600,supportsNotches:true,supportsDrills:false}
-const study={ok:true,format:'exo.machine-neutral-CUT-inspection.v1',fabricWidthMm:400,records:[{pieceId:'front',instance:0,physicalCutPathMm:[{xMm:10,yMm:10},{xMm:200,yMm:10},{xMm:200,yMm:300},{xMm:10,yMm:10}]}]}
+const study={ok:true,format:'exo.machine-neutral-CUT-inspection.v1',units:'mm',
+ fabricWidthMm:400,commandProtocol:null,hardwareDriver:null,
+ cuttingAuthorized:false,manufacturingApproved:false,
+ records:[{pieceId:'front',instance:0,units:'mm',closed:true,
+ notchCuttingVerified:false,drillVerified:false,materialVerificationRequired:true,
+ physicalCutPathMm:[{xMm:10,yMm:10},{xMm:200,yMm:10},{xMm:200,yMm:300},{xMm:10,yMm:10}]}]}
 const marks={ok:true,placements:[{pieceId:'front',instance:0,notches:[{startCm:{x:1,y:1},endCm:{x:2,y:2}}],drills:[]}]}
 const evidence={calibration:{referenceLengthMm:100,measuredLengthMm:100,operatorId:'operator1',measuredAt:'2026-10-28'},receiverAcceptance:{accepted:true,application:'SampleCAD',version:'v1',operatorId:'operator1',evidenceFiles:['receiver-report.txt']}}
 test('documented review can pass while physical cutting stays prohibited',()=>{const r=qualify(study,marks,profile,evidence);assert.equal(r.ok,true,JSON.stringify(r));assert.equal(r.cuttingAuthorized,false);assert.equal(r.machineReady,false);assert.equal(r.cutterProtocolVerified,false)})

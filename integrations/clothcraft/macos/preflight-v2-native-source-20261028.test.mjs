@@ -97,7 +97,7 @@ test('insufficient disk blocks both source modes and missing files fail closed',
  }finally{f.close()}
 })
 
-test('desktop packaging invokes preflight before any installed-app shutdown and again before Cargo',()=>{
+test('desktop packaging checks source before shutdown, before Cargo and after Cargo',()=>{
  const shell=readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)),
   'build-workspace-v2-app.sh'),'utf8')
  const gate='node integrations/clothcraft/macos/preflight-v2-native-source-20261028.mjs "$ROOT"'
@@ -106,6 +106,10 @@ test('desktop packaging invokes preflight before any installed-app shutdown and 
  assert(first<shell.indexOf('kill -TERM'),'Installed app must not be stopped before source/disk preflight')
  assert(second<shell.indexOf('(cd research/oss/clothcraft && cargo build'),
   'Native source must be rechecked immediately before compilation')
+ const cargo=shell.indexOf('(cd research/oss/clothcraft && cargo build')
+ const third=shell.indexOf(gate,second+gate.length)
+ assert(third>cargo&&third<shell.indexOf('cargo build --locked --offline --manifest-path'),
+  'Source must be rechecked after native Cargo to reject concurrent edits before packaging')
  assert(shell.includes('cmp -s integrations/clothcraft/exo-session-v2-authoritative-20261028.rs'),
   'Default packaging must verify the tracked V2 source, not the old adapter')
  assert(!/\bcp integrations\/clothcraft\/exo-session\.rs\b/.test(shell),

@@ -9,6 +9,45 @@ const hash=value=>sha256Bytes(new TextEncoder().encode(stringify(value)))
 const same=(a,b)=>stringify(a)===stringify(b)
 const fail=reason=>({ok:false,reason,externalApprovalVerified:false,
   manufacturerReady:false,manufacturingApproved:false,cuttingAuthorized:false})
+const actualCutArea=points=>{
+  let twiceArea=0
+  for(let index=0;index<points.length;index++){
+    const a=points[index],b=points[(index+1)%points.length]
+    twiceArea+=a.x*b.y-b.x*a.y
+  }
+  return Math.abs(twiceArea)/2
+}
+const orient=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x)
+const onSegment=(a,b,p)=>p.x>=Math.min(a.x,b.x)-1e-12&&p.x<=Math.max(a.x,b.x)+1e-12&&
+  p.y>=Math.min(a.y,b.y)-1e-12&&p.y<=Math.max(a.y,b.y)+1e-12
+const intersects=(a,b,c,d)=>{
+  const abC=orient(a,b,c),abD=orient(a,b,d),cdA=orient(c,d,a),cdB=orient(c,d,b)
+  if(((abC>0&&abD<0)||(abC<0&&abD>0))&&
+     ((cdA>0&&cdB<0)||(cdA<0&&cdB>0)))return true
+  return (Math.abs(abC)<=1e-12&&onSegment(a,b,c))||
+    (Math.abs(abD)<=1e-12&&onSegment(a,b,d))||
+    (Math.abs(cdA)<=1e-12&&onSegment(c,d,a))||
+    (Math.abs(cdB)<=1e-12&&onSegment(c,d,b))
+}
+const simpleCutPolygon=points=>{
+  const n=points.length
+  // Keep an engineering review request bounded even when the supplied CUT
+  // object is not an authentic native export. Intersection checks are O(n²).
+  if(n>4096)return false
+  // Geometric checks must reject an explicitly repeated closing vertex;
+  // the traversal closes the last edge itself, so a repeated vertex creates
+  // a zero-length extra segment. This also prevents double-counted edges.
+  if(Math.hypot(points[0].x-points[n-1].x,points[0].y-points[n-1].y)<=1e-12)return false
+  for(let i=0;i<n;i++){
+    const a=points[i],b=points[(i+1)%n]
+    if(Math.hypot(a.x-b.x,a.y-b.y)<=1e-12)return false
+    for(let j=i+1;j<n;j++){
+      if(j===i+1||(i===0&&j===n-1))continue
+      if(intersects(a,b,points[j],points[(j+1)%n]))return false
+    }
+  }
+  return true
+}
 
 /**
  * Creates a read-only, reproducible evidence REQUEST for an independent
@@ -40,7 +79,16 @@ export function buildNativeGradeExternalReviewRequest20261027(snapshot,ruleSet,p
     const identities=new Set(snapshot.template.panels.map(panel=>panel.id))
     if(identities.size!==snapshot.template.panels.length||!Array.from(identities).every(Boolean)||
       cutResponse.sizes.some(size=>!Array.isArray(size.panels)||size.panels.length!==identities.size||
-        size.panels.some(panel=>!identities.has(panel.panel_id))))
+        new Set(size.panels.map(panel=>panel?.panel_id)).size!==identities.size||
+        size.panels.some(panel=>!identities.has(panel?.panel_id)||
+          !Array.isArray(panel?.cut?.points)||panel.cut.points.length<3||
+          panel.cut.points.length>4096||
+          panel.cut.points.some(point=>!Number.isFinite(point?.x)||!Number.isFinite(point?.y))||
+          !Number.isFinite(panel.cut.area_m2)||panel.cut.area_m2<=0||
+          !Number.isFinite(actualCutArea(panel.cut.points))||
+          !simpleCutPolygon(panel.cut.points)||
+          Math.abs(actualCutArea(panel.cut.points)-panel.cut.area_m2)>
+            Math.max(1e-8,panel.cut.area_m2*1e-4))))
       return fail('Physical CUT panel identities incomplete or inconsistent with source')
     // Bound the factory handoff size to avoid sending large, potentially
     // forged binary/base64 or a full simulation snapshot as a grading proof.

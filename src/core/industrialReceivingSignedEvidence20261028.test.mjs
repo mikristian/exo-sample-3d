@@ -170,6 +170,37 @@ test('v2 signed two-size two-fabric import receipts bind the complete records wi
  assert.equal(result.factoryApproved,false)
 })
 
+test('opt-in signed receiving requires actual returned file bytes, not filenames or self-reported hashes',async()=>{
+ const evidence=makeBoundEvidence(),attestation=await sign(boundPayloadFor(evidence))
+ const makePacket=()=>({records:sizes.map(size=>{
+  const bytes=encoder.encode(evidence.reexportWiresBySize[size])
+  return {size,filename:`received/${size}.dxf`,bytes:bytes.length,sha256:sha256Bytes(bytes)}
+ }),files:Object.fromEntries(sizes.map(size=>[
+  `received/${size}.dxf`,encoder.encode(evidence.reexportWiresBySize[size])]))})
+ await blocked(evidence,attestation,{requireReturnedFileBytes:true},'RECEIVER_RETURNED_FILES_UNVERIFIED')
+ const returnedFilePacket=makePacket()
+ await blocked(evidence,await sign(payloadFor(evidence)),
+  {requireReturnedFileBytes:true,returnedFilePacket},
+  'RECEIVER_RETURNED_FILES_REQUIRE_V2_SIGNED_RECORDS')
+ const valid=await verify(evidence,attestation,{requireReturnedFileBytes:true,returnedFilePacket})
+ assert.equal(valid.ok,true,JSON.stringify(valid.issues))
+ assert.equal(valid.returnedDxfFileBytesVerified,true)
+ assert.equal(valid.returnedDxfFiles.length,2)
+ assert.equal(valid.importRecordsSignatureBound,true)
+ assert.equal(valid.receiverCadVerified,false)
+ assert.equal(valid.cuttingAuthorized,false)
+ assert.equal(valid.factoryApproved,false)
+ const missing=makePacket();delete missing.files['received/M.dxf']
+ await blocked(evidence,attestation,{requireReturnedFileBytes:true,returnedFilePacket:missing},
+  'RECEIVER_RETURNED_FILES_UNVERIFIED')
+ const tampered=makePacket();tampered.files['received/S.dxf'][10]^=1
+ await blocked(evidence,attestation,{requireReturnedFileBytes:true,returnedFilePacket:tampered},
+  'RECEIVER_RETURNED_FILES_UNVERIFIED')
+ const renamed=makePacket();renamed.records[0].filename='other.dxf'
+ await blocked(evidence,attestation,{requireReturnedFileBytes:true,returnedFilePacket:renamed},
+  'RECEIVER_RETURNED_FILES_UNVERIFIED')
+})
+
 test('v2 rejects post-signature substitution of import operator, session and locally reconstructed records',async()=>{
  const evidence=makeBoundEvidence()
  const attestation=await sign(boundPayloadFor(evidence))

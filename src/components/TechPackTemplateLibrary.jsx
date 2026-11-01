@@ -2,41 +2,42 @@ import React,{useEffect,useMemo,useState} from 'react'
 import {ChevronDown,ChevronRight,Folder,Layers,Plus,Save,Search,Trash2,Table2,Square,LayoutTemplate} from 'lucide-react'
 import LibraryAssetHover from './LibraryAssetHover.jsx'
 import TechPackTemplatePreview from './TechPackTemplatePreview.jsx'
-import {TECHPACK_HEADERS,TECHPACK_LAYOUTS,TECHPACK_THEMES,TECHPACK_TEMPLATES,TECHPACK_BOX_TEMPLATES,TECHPACK_TABLE_TEMPLATES,loadTechPackUserPresets,saveTechPackUserPreset,deleteTechPackUserPreset} from '../core/techPackTemplatePresets.js'
+import TechPackMiddleTemplatePreview from './TechPackMiddleTemplatePreview20261031.jsx'
+import {TECHPACK_MIDDLE_TEMPLATES} from '../core/techPackMiddleTemplates20261031.js'
+import {loadTechPackUserPresets,saveTechPackUserPreset,deleteTechPackUserPreset} from '../core/techPackTemplatePresets.js'
+import {getNewTechPackTemplates} from '../core/techPackPageTemplates20261031.js'
+import {TECHPACK_OBJECT_TEMPLATES} from '../core/techPackObjectTemplateCatalog20261031.js'
 import {captureTechPackPageLayout} from '../core/techPackPageComposer.js'
+import {FRAMED_HEADER_PRESETS,FRAMED_TABLE_GALLERY} from '../core/techPackVisualThemes20261031.js'
+import {techPackPageLayout} from '../core/techPackPageLayout.js'
 import './TechPackTemplateLibrary.css'
 
 const FOLDERS=[
-  {id:'packs',name:'Full techpacks',sub:'Apply a layout across all pages'},
-  {id:'pages',name:'Page templates',sub:'Patterns, fabric, measurements and more'},
+  {id:'packs',name:'Full techpacks',sub:'Production page sequences with real deliverable requirements'},
+  {id:'pages',name:'Page templates',sub:'Individual production spec and pattern pages'},
   {id:'headers',name:'Header templates',sub:'Change the title block only'},
-  {id:'boxes',name:'Boxes & frames',sub:'Insert editable visual detail boxes'},
+  {id:'middle',name:'Middle layouts',sub:'Swatches, reference photos and numbered drawing callouts'},
+  {id:'boxes',name:'Objects & frames',sub:'Real photo, flat, fabric, color and fine-line objects'},
   {id:'tables',name:'Table templates',sub:'Insert preformatted specification tables'},
-  {id:'garments',name:'Garment types',sub:'Layout recipes by category'},
-  {id:'themes',name:'Color palettes',sub:'Document or page color systems'},
-  {id:'interactive',name:'Interactive pages',sub:'3D viewer and annotated details'},
   {id:'custom',name:'Saved presets',sub:'Your reusable layouts'},
 ]
-const options=(collection,chosen,onChange,label)=><select aria-label={label} value={chosen} onChange={e=>onChange(e.target.value)}>{collection.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select>
-const itemsFor=(id,custom)=>id==='headers'?TECHPACK_HEADERS.map(item=>({...item,kind:'header',category:'headers',header:item.id,layout:'balanced',theme:'mono',description:item.detail})):
-  id==='themes'?TECHPACK_THEMES.map(item=>({...item,kind:'theme',category:'themes',theme:item.id,layout:'balanced',header:'seville',description:'Page accent, ruling and title block wash',colors:item})):
-  id==='boxes'?TECHPACK_BOX_TEMPLATES:id==='tables'?TECHPACK_TABLE_TEMPLATES:id==='custom'?custom:TECHPACK_TEMPLATES.filter(item=>item.category===id)
+const MINIMAL_FRAME_PRESET=Object.freeze({id:'mikristian-minimal-frame',kind:'minimal-frame-page',category:'pages',name:'Blank framed sheet · Mikristian-inspired',description:'Letter-sized ruled sheet with empty drawing space and optional specification area'})
+const itemsFor=(id,custom)=>id==='headers'?FRAMED_HEADER_PRESETS.map(item=>({...item,kind:'framed-header-variant',category:'headers',description:item.description})):
+  id==='packs'?getNewTechPackTemplates('packs'):
+  id==='middle'?TECHPACK_MIDDLE_TEMPLATES.map(item=>({...item,kind:'middle-page',category:'middle'})):
+  id==='boxes'?TECHPACK_OBJECT_TEMPLATES:id==='tables'?FRAMED_TABLE_GALLERY.map(item=>({...item,kind:'canonical-gallery-table',category:'tables',description:item.description})):id==='custom'?custom.filter(item=>['page-layout','pack-layout'].includes(item.kind)):id==='pages'?[MINIMAL_FRAME_PRESET,...getNewTechPackTemplates('pages')]:[]
 
-export default function TechPackTemplateLibrary({workspace={},page,onApply,onNavigate,onInsertBox=()=>{},onInsertTable=()=>{},onCreatePage=()=>{},onCreatePack=()=>{},onRestyle=()=>{}}){
-  const [folder,setFolder]=useState('packs')
+export default function TechPackTemplateLibrary({workspace={},page,onApply,onNavigate,onInsertBox=()=>{},onInsertTable=()=>{},onApplyFramedHeader=()=>{},onApplyMiddleTemplate=()=>{},onCreatePage=()=>{},onCreatePack=()=>{},onCreateProductionPage=()=>{},onCreateProductionPack=()=>{},onCreateNikeDemo,onRestyle=()=>{},onCreateMinimalFrame=()=>{},onRestyleMinimalFrame,onRestoreOriginalPages=()=>{}}){
+  const currentPaper=techPackPageLayout(workspace,page)
+  const currentBottomTop=Math.min(currentPaper.orientation==='landscape'?455:591,...(workspace.pageBoxes?.[page]||[])
+    .filter(box=>box.slot?.templateRole==='bottom-table').map(box=>Number(box.y)||591))
+  const [folder,setFolder]=useState('pages')
   const [custom,setCustom]=useState(loadTechPackUserPresets)
   useEffect(()=>{const reload=()=>setCustom(loadTechPackUserPresets());window.addEventListener('exo-techpack-user-templates-changed',reload);window.addEventListener('storage',reload);return ()=>{window.removeEventListener('exo-techpack-user-templates-changed',reload);window.removeEventListener('storage',reload)}},[])
   const [search,setSearch]=useState('')
   const [builderOpen,setBuilderOpen]=useState(false)
   const [name,setName]=useState('My studio layout')
-  const [layout,setLayout]=useState('square')
-  const [header,setHeader]=useState('technical')
-  const [theme,setTheme]=useState('mono')
-  const [colors,setColors]=useState(null)
   const [notice,setNotice]=useState('')
-  const themePalette=TECHPACK_THEMES.find(item=>item.id===theme)||TECHPACK_THEMES[0]
-  const palette={...themePalette,...colors}
-  const recipe={name,layout,header,theme,colors:palette}
   const saveCurrentArtboard=()=>{
     if(!name.trim()){setNotice('Name your blank artboard before saving.');return}
     if(!page){setNotice('Select an artboard to save its layout.');return}
@@ -58,7 +59,12 @@ export default function TechPackTemplateLibrary({workspace={},page,onApply,onNav
     setNotice(`${item.name} inserted on the selected page.`)
   }
   const usePreset=item=>{
-    if(item.category==='boxes'||item.category==='tables')insert(item)
+    if(item.kind==='minimal-frame-page')onCreateMinimalFrame(item)
+    else if(item.kind==='middle-page')onApplyMiddleTemplate(item.id)
+    else if(item.kind==='framed-header-variant')onApplyFramedHeader(item.id)
+    else if(item.kind==='production-page-recipe')onCreateProductionPage(item)
+    else if(item.kind==='production-pack-recipe')onCreateProductionPack(item)
+    else if(item.category==='boxes'||item.category==='tables')insert(item)
     else if(item.kind==='pack-layout')onCreatePack(item)
     else if(item.kind==='page-layout')onCreatePage(item)
     else apply(item,['pages','interactive'].includes(item.category)?item.pageId||page:page)
@@ -71,6 +77,7 @@ export default function TechPackTemplateLibrary({workspace={},page,onApply,onNav
     event.dataTransfer.effectAllowed='copy'
   }
   const list=useMemo(()=>itemsFor(folder,custom).filter(item=>(item.name+' '+(item.description||'')+' '+(item.pageId||'')).toLowerCase().includes(search.toLowerCase().trim())),[folder,custom,search])
+  const visibleList=list
   return <div className="tpws-template-library" aria-label="Techpack templates and layout builder">
     <header className="tpws-template-library-title"><Layers size={16}/><div><strong>TEMPLATE LIBRARY</strong><small>EXO / REUSABLE SHEETS & COMPONENTS</small></div></header>
     <label className="tpws-template-search"><Search size={14}/><input aria-label="Search Techpack templates" placeholder="Search pages, headers, tables..." value={search} onChange={e=>setSearch(e.target.value)}/>{search&&<button type="button" onClick={()=>setSearch('')} aria-label="Clear template search">×</button>}</label>
@@ -81,17 +88,28 @@ export default function TechPackTemplateLibrary({workspace={},page,onApply,onNav
     </nav>
     <div className="tpws-template-collection">
       <div className="tpws-template-collection-heading"><strong>{FOLDERS.find(item=>item.id===folder)?.name}</strong><small>{FOLDERS.find(item=>item.id===folder)?.sub}</small><span>{list.length} {list.length===1?'PRESET':'PRESETS'}</span></div>
-      {folder==='pages'&&<p className="tpws-template-page-note">Page templates apply to their matching page, including Pattern Drawing, Grading, Measurement and Fabric Specification.</p>}
-      <div className="tpws-template-card-grid">{list.map(item=><LibraryAssetHover key={item.id} category="Techpack" id={item.id} title={item.name} description={item.description||item.detail||'Reusable document composition'}
-        details={[["Type",FOLDERS.find(f=>f.id===folder)?.name],["Destination",item.pageId||'Selected page / complete pack'],["Paper","US Letter 8.5 × 11"]]}
+      {folder==='pages'&&<p className="tpws-template-page-note">Current connected media-object pages only. Add a blank framed sheet or a production worksheet; previous fixed-box page templates are no longer offered.</p>}
+      {folder==='packs'&&<p className="tpws-template-page-note">Each complete pack contains an ordered, distinct set of production pages for its garment workflow. Choose a pack to create its pages, then populate the editable specifications and approvals.</p>}
+      {folder==='packs'&&typeof onCreateNikeDemo==='function'&&<div className="tpws-template-demo"><strong>Graphic tee sample project</strong><p>Build Nike graphic tee demo Tech Pack using the saved EXO T-shirt garment. Includes illustrative sample data. Nike marks are third-party trademarks; confirm artwork rights before manufacture or distribution.</p><button type="button" onClick={onCreateNikeDemo}><Plus size={12}/> Build Nike graphic tee demo Tech Pack</button></div>}
+      {folder==='headers'&&<p className="tpws-template-page-note">{FRAMED_HEADER_PRESETS.length} editable factory-style header compositions with different row proportions, merged heading bands and typography. Hover to preview.</p>}
+      {folder==='middle'&&<p className="tpws-template-page-note">Place clean images, technical flats, color and fabric swatches. Empty placeholders accept project assets; filled media has its own editable transform bounds and appearance.</p>}
+      {folder==='boxes'&&<p className="tpws-template-page-note">Only new unframed media, color, fabric, and note objects. The former bordered detail cards and placeholder frames are no longer available.</p>}
+      {folder==='tables'&&<p className="tpws-template-page-note">The same table presets as Table Studio. Every cell, size, border and row is editable after insertion.</p>}
+      <div className="tpws-template-card-grid">{visibleList.map(item=><LibraryAssetHover key={item.id} category="Techpack" id={item.id} title={item.name} description={item.description||item.detail||'Reusable document composition'}
+        details={[["Type",FOLDERS.find(f=>f.id===folder)?.name],["Destination",item.pageId||'Selected page / complete pack'],["Paper",`${currentPaper.paperSize} · ${currentPaper.orientation}`]]}
         source="Visual template preview only. Factory measurements and source patterns are not replaced."
-        preview={<TechPackTemplatePreview preset={item}/>}>
-        <article className="tpws-template-card" tabIndex={0} draggable onDragStart={event=>startDrag(event,item)} onDoubleClick={event=>{if(event.target.closest('button'))return;usePreset(item)}} onKeyDown={event=>{if(event.target!==event.currentTarget)return;if(event.key==='Enter'){event.preventDefault();usePreset(item)}}} aria-label={`${item.name} template. Double click or press Enter to use. Drag to a sheet to place.`} title="Double-click to use · Drag onto a page">
-          <TechPackTemplatePreview preset={item} compact/>
+        preview={item.kind==='middle-page'?<TechPackMiddleTemplatePreview templateId={item.id} orientation={currentPaper.orientation} paperSize={currentPaper.paperSize} bottomTop={currentBottomTop}/>:<TechPackTemplatePreview preset={item}/>}>
+        <article className={`tpws-template-card ${item.kind==='minimal-frame-page'?'tpws-template-card-featured':''}`} tabIndex={0} draggable={item.kind!=='minimal-frame-page'&&item.kind!=='middle-page'} onDragStart={event=>{if(item.kind!=='minimal-frame-page'&&item.kind!=='middle-page')startDrag(event,item)}} onDoubleClick={event=>{if(event.target.closest('button'))return;usePreset(item)}} onKeyDown={event=>{if(event.target!==event.currentTarget)return;if(event.key==='Enter'){event.preventDefault();usePreset(item)}}} aria-label={`${item.name} template. Double click or press Enter to use.`} title="Double-click to use">
+          {item.kind==='middle-page'?<TechPackMiddleTemplatePreview templateId={item.id} orientation={currentPaper.orientation} paperSize={currentPaper.paperSize} bottomTop={currentBottomTop}/>:<TechPackTemplatePreview preset={item} compact/>}
           <div className="tpws-template-card-copy"><strong>{item.name}</strong><small>{item.description||item.detail}</small></div>
           <div className="tpws-template-card-actions">
-            {['boxes','tables'].includes(folder)?<button type="button" onClick={()=>insert(item)}><Plus size={12}/> Insert {folder==='boxes'?'box':'table'}</button>:
+            {item.kind==='minimal-frame-page'?<><button type="button" onClick={()=>onCreateMinimalFrame(item)}><Plus size={12}/> Create framed artboard</button>{typeof onRestyleMinimalFrame==='function'&&<button type="button" onClick={()=>onRestyleMinimalFrame(item)}>Restyle active page</button>}</>:
+              item.kind==='framed-header-variant'?<button type="button" onClick={()=>onApplyFramedHeader(item.id)}><LayoutTemplate size={12}/> Apply header</button>:
+              item.kind==='middle-page'?<button type="button" onClick={()=>onApplyMiddleTemplate(item.id)}><Plus size={12}/> Place middle layout</button>:
+              ['boxes','tables'].includes(folder)?<button type="button" onClick={()=>insert(item)}><Plus size={12}/> Insert {folder==='boxes'?'box':'table'}</button>:
               item.kind==='pack-layout'?<button type="button" title="Apply all page layouts and Excel schemas from this saved studio Techpack system to the current garment" onClick={()=>onCreatePack(item)}>Use complete system</button>:
+              item.kind==='production-pack-recipe'?<button type="button" onClick={()=>onCreateProductionPack(item)}><Plus size={12}/> Create {item.pageRecipeIds.length} pages</button>:
+              item.kind==='production-page-recipe'?<button type="button" onClick={()=>onCreateProductionPage(item)}><Plus size={12}/> Create production page</button>:
               item.kind==='page-layout'?<><button type="button" title="Create a completely new page from this saved design" onClick={()=>onCreatePage(item)}><Plus size={12}/> New artboard</button><button type="button" title="Retain all information and objects; only adopt this template's theme, paper and header" onClick={()=>onRestyle(item)}>Restyle only</button></>:
               folder==='pages'||folder==='interactive'?<button type="button" onClick={()=>apply(item,item.pageId||page)}>Use on {item.pageId||'page'}</button>:
               <><button type="button" onClick={()=>apply(item,page)}>This page</button><button type="button" className="tpws-apply-pack" onClick={()=>apply(item,null)}>Whole pack</button></>}
@@ -106,14 +124,11 @@ export default function TechPackTemplateLibrary({workspace={},page,onApply,onNav
       <button type="button" className="tpws-template-builder-toggle" aria-expanded={builderOpen} onClick={()=>setBuilderOpen(open=>!open)}><Plus size={14}/><strong>CREATE YOUR OWN TEMPLATE</strong>{builderOpen?<ChevronDown size={13}/>:<ChevronRight size={13}/>}</button>
       {builderOpen&&<div className="tpws-template-builder-body">
         <label>Preset name<input aria-label="Custom template name" maxLength={70} value={name} onChange={e=>setName(e.target.value)}/></label>
-        <label>Page composition{options(TECHPACK_LAYOUTS,layout,setLayout,'Custom layout type')}</label>
-        <label>Header style{options(TECHPACK_HEADERS,header,setHeader,'Custom header style')}</label>
-        <label>Color theme{options(TECHPACK_THEMES,theme,v=>{setTheme(v);setColors(null)},'Custom color theme')}</label>
-        <div className="tpws-template-swatches">{[['accent','Accent'],['line','Rules'],['wash','Tint']].map(([key,label])=><label key={key}><span>{label}</span><input type="color" aria-label={`${label} template color`} value={palette[key]} onChange={e=>setColors(current=>({...current,[key]:e.target.value}))}/></label>)}</div>
-        <div className="tpws-template-builder-actions"><button type="button" onClick={()=>apply(recipe,page)}>This page</button><button type="button" onClick={()=>apply(recipe,null)}>Whole pack</button><button type="button" className="tpws-template-save" onClick={()=>{if(!name.trim()){setNotice('Name the preset before saving.');return}try{setCustom(saveTechPackUserPreset(recipe));setFolder('custom');setNotice('Saved to My templates.')}catch{setNotice('Local storage unavailable; export the document to preserve this layout.')}}}><Save size={13}/> Save preset</button><button type="button" className="tpws-template-save" onClick={saveCurrentArtboard}><LayoutTemplate size={13}/> Save current artboard as blank template</button></div>
+        <p className="tpws-template-page-note">Save the current editable artboard as a reusable object-based layout. Photos, color swatches, fabric and table positions are kept; document-specific values are omitted.</p>
+        <div className="tpws-template-builder-actions"><button type="button" className="tpws-template-save" onClick={saveCurrentArtboard}><LayoutTemplate size={13}/> Save current artboard as template</button></div>
       </div>}
       {notice&&<p className="tpws-template-notice" role="status">{notice}</p>}
-      <p className="tpws-template-helper">Double-click a saved page to make a fresh artboard; drag a table into a box to insert the widget. Restyle changes appearance while preserving existing cell values and photos.</p>
+      <p className="tpws-template-helper">Use new object-based production pages and media components. Double-click a saved artboard to reuse its geometry; source garment values and artwork remain independently editable.</p>
     </section>
   </div>
 }

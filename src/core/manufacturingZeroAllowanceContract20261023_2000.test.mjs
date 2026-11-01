@@ -124,7 +124,13 @@ test('zero allowance reference import must have explicit coincident contour poli
 })
 
 test('coincident labeled contours expose independent strict-area importer rejection (regression)', () => {
-  const { wire } = contours(fixture([['Front', 0]]))
+  const exported = contours(fixture([['Front', 0]])).wire
+  // Remove the exporter's now-present STITCH before constructing an independent
+  // coincident pair. Otherwise this fixture would manufacture a duplicate.
+  const stitchStart = exported.indexOf('0\nPOLYLINE\n8\nSTITCH_FRONT\n')
+  const stitchEnd = exported.indexOf('0\nSEQEND\n8\nSTITCH_FRONT', stitchStart) + '0\nSEQEND\n8\nSTITCH_FRONT\n'.length
+  assert.ok(stitchStart >= 0 && stitchEnd > stitchStart)
+  const wire = exported.slice(0, stitchStart) + exported.slice(stitchEnd)
   const first = wire.indexOf('0\nPOLYLINE\n')
   const end = wire.indexOf('0\nSEQEND\n8\nCUT_FRONT_M', first)
   assert.ok(first >= 0 && end > first, 'complete zero CUT record')

@@ -5,10 +5,10 @@ import {auditFactoryZipCrcGuard20261024_0500} from './factoryZipCrcGuard20261024
 const MAX_ARCHIVE = 16 * 1024 * 1024
 const MAX_ENTRY = 4 * 1024 * 1024
 const MAX_TOTAL = 16 * 1024 * 1024
-// A six-size marker can now require six independently identified X/Y
-// calibration witness pairs. Keep a finite entry ceiling while retaining the
-// existing 16 MiB total, 4 MiB per-entry and 100x expansion caps.
-const MAX_COUNT = 80
+// Factory exporter legitimately emits >500 files for multi-fabric six-size
+// garments. Match the 1024-file manifest/source-recovery ceiling while keeping
+// the stricter 16 MiB total, 4 MiB per-entry and 100x expansion caps intact.
+const MAX_COUNT = 1024
 const MAX_RATIO = 100
 const fail = (code, message) => ({ok: false, diagnostics: [{code, message}], manufacturingApproved: false})
 
@@ -30,7 +30,7 @@ export function auditFactoryZipResourceBudget20261024_0600(bytes) {
     }
     if (eocd < 0) return fail('RESOURCE_STRUCTURE', 'ZIP directory not found')
     const count = u16(eocd + 10)
-    if (count < 1 || count > MAX_COUNT) return fail('RESOURCE_ENTRY_BUDGET', 'ZIP entry count exceeds 80')
+    if (count < 1 || count > MAX_COUNT) return fail('RESOURCE_ENTRY_BUDGET', 'ZIP entry count exceeds 1024')
     const centralStart = u32(eocd + 16)
     const centralSize = u32(eocd + 12)
     if (!Number.isSafeInteger(centralStart + centralSize) || centralStart + centralSize !== eocd)

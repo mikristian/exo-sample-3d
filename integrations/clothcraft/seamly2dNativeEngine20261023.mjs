@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { parseSeamlyConstructionReference } from '../../src/core/seamlyConstructionReference.js'
 import { parseSeamlyMeasurements } from '../../src/core/seamlyMeasurements.js'
+import {withSeamlyNativeProcessGuard20261031} from './seamlyNativeProcessGuard20261031.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const sourceEngine = path.join(ROOT, 'research/oss/pattern-cad/runtime/Seamly2D.app/Contents/MacOS/Seamly2D')
@@ -101,10 +102,14 @@ export function evaluateSeamly2DPattern20261023({
       ...(heightCm !== undefined ? ['--gheight', String(heightCm)] : []),
       input,
     ]
-    const run = spawn(executablePath, args, {
+    // The standalone upstream app has shared macOS backup/lock state even
+    // when EXO supplies distinct temporary input/output directories.
+    // Serialize only its native process lifetime, across independent EXO
+    // test and desktop processes, without holding the lock while parsing.
+    const run = withSeamlyNativeProcessGuard20261031(()=>spawn(executablePath, args, {
       cwd: sourceDir, encoding: 'utf8', timeout: 60000, maxBuffer: 512 * 1024,
       windowsHide: true,
-    })
+    }))
     if (run.error || run.status !== 0) throw new Error(`Seamly2D calculation failed (${run.error?.code ?? run.status ?? 'unknown'}): ${String(run.stderr || run.error?.message || '').slice(-800)}`)
     const files = fs.readdirSync(exportsDir).filter(name =>
       name.startsWith('exo-seamly-evaluated') && name.endsWith(fmt.extension))

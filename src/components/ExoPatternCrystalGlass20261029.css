@@ -26,6 +26,28 @@
   background:rgba(255,255,255,.065)!important;
   box-shadow:inset 0 -2px var(--studio-accent,#6cc1e6)!important;
 }
+/* FR/GR/F/CAD/BODY/PTS are TEXT icons rather than SVGs. They previously kept
+   the hard-coded blue letter color even while Overall Toolbar Icons changed.
+   Preview wins over every individual override, and a saved explicit 2D
+   horizontal swatch wins over the global color outside hover preview. */
+#exo-pattern-glass-shell[data-studio-customized="true"]:not([data-global-toolbar-color-custom="true"]):not([data-2d-horizontal-custom="true"]) :is(.cc-board,.pattern-editor-shell) .cc-v2-orientation.cc-v2-board-orientation :is(button,strong){
+  color:var(--studio-text,#f0f3f7)!important;
+  -webkit-text-fill-color:var(--studio-text,#f0f3f7)!important;
+}
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"]:not([data-icon-color-preview="true"]):not([data-2d-horizontal-custom="true"]) :is(.cc-board,.pattern-editor-shell) .cc-v2-orientation.cc-v2-board-orientation :is(button,strong),
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"]:not([data-icon-color-preview="true"]):not([data-2d-horizontal-custom="true"]) :is(.cc-board,.pattern-editor-shell) .cc-v2-orientation.cc-v2-board-orientation :is(button,strong):is(:hover,:focus-visible,.active,[aria-pressed="true"]){
+  color:var(--exo-ui-icon-ink)!important;
+  -webkit-text-fill-color:var(--exo-ui-icon-ink)!important;
+}
+#exo-pattern-glass-shell[data-studio-customized="true"][data-2d-horizontal-custom="true"]:not([data-icon-color-preview="true"]) :is(.cc-board,.pattern-editor-shell) .cc-v2-orientation.cc-v2-board-orientation :is(button,strong){
+  color:var(--exo-2d-horizontal-ink)!important;
+  -webkit-text-fill-color:var(--exo-2d-horizontal-ink)!important;
+}
+#exo-pattern-glass-shell[data-studio-customized="true"][data-icon-color-preview="true"] :is(.cc-board,.pattern-editor-shell) .cc-v2-orientation.cc-v2-board-orientation :is(button,strong),
+#exo-pattern-glass-shell[data-studio-customized="true"][data-icon-color-preview="true"] :is(.cc-board,.pattern-editor-shell) .cc-v2-orientation.cc-v2-board-orientation :is(button,strong):is(:hover,:focus-visible,.active,[aria-pressed="true"]){
+  color:var(--exo-preview-icon-color)!important;
+  -webkit-text-fill-color:var(--exo-preview-icon-color)!important;
+}
 /* A glass rail consists of transparent individual lenses and a quiet rim.
    No solid #394650 backing or CSS frosted-color mask is permitted. */
 #exo-pattern-glass-shell[data-pattern-clear-glass="true"] .cc-board .cc-corner-tool-host
@@ -68,16 +90,10 @@
   box-shadow:none!important;
   -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
 }
-/* Outside the board, keep the right pattern tool palette genuinely see-through
-   without making text labels or controls individually translucent. */
-#exo-pattern-glass-shell[data-pattern-clear-glass="true"] .clo-right-tool-palette{
-  background:linear-gradient(145deg,rgba(255,255,255,.085),rgba(255,255,255,.012) 54%)!important;
-  background-color:transparent!important;
-  border-color:rgba(255,255,255,.32)!important;
-  -webkit-backdrop-filter:blur(2px) saturate(112%)!important;
-  backdrop-filter:blur(2px) saturate(112%)!important;
-  box-shadow:inset 0 1px rgba(255,255,255,.3),0 4px 12px rgba(5,8,14,.13)!important;
-}
+/* The docked 2D tool palette belongs to Studio chrome, not the pattern
+   canvas. Its surface must follow --studio-sidebar (or the explicitly chosen
+   right-rail color) just like the 3D rail, even with clear pattern glass on.
+   Only controls physically inside .cc-board get the clear optical material. */
 #exo-pattern-glass-shell[data-pattern-clear-glass="true"] .clo-right-tool-palette :is(
   .clo-palette-scroll,.clo-palette-workflows,.clo-reference-dual-bars,
   .clo-reference-column,.clo-right-tool-grid,.clo-tool-palette-group-divider){
@@ -104,8 +120,7 @@
 @media (prefers-reduced-transparency:reduce){
   #exo-pattern-glass-shell[data-pattern-clear-glass="true"] .cc-board :is(.cc-v2-board-orientation,.cc-vector-anchor-actions.cc-anchor-liquid-glass),
   #exo-pattern-glass-shell[data-pattern-clear-glass="true"] .cc-board .cc-corner-tool-host .clo-corner-toolkit-2d.exo-viewport-inline-tools .clo-corner-tool-group > button,
-  #exo-pattern-glass-shell[data-pattern-clear-glass="true"] .cc-board .cc-corner-tool-host .clo-corner-toolkit-2d.exo-viewport-inline-tools .clo-corner-tool-options,
-  #exo-pattern-glass-shell[data-pattern-clear-glass="true"] .clo-right-tool-palette{
+  #exo-pattern-glass-shell[data-pattern-clear-glass="true"] .cc-board .cc-corner-tool-host .clo-corner-toolkit-2d.exo-viewport-inline-tools .clo-corner-tool-options{
     background:#d3dce3!important;
     -webkit-backdrop-filter:none!important;backdrop-filter:none!important;
     color:#1f3546!important;

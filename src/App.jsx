@@ -1,3 +1,4 @@
+import {nativeBridgeFetch} from './core/nativeWorkspaceTransport.js'
 import PatternDesignToolPanel from './components/PatternDesignToolPanel.jsx'
 import AccuMark2DLibrary from './components/AccuMark2DLibrary.jsx'
 import {offsetGradePoint,distributeGradePoint,smoothGradePoint,redistributeSizeLine} from './core/accumarkGradeRuleOperations20261023.js'
@@ -90,9 +91,11 @@ import {checkModarisToolbarPreconditions20261028} from './core/modarisToolbarPre
 import {studioResolvedPalette} from './core/studioThemePresets.js'
 import {resolveExoGradeChartThemes20261028} from './core/exoSettingsColorPresets20261028.js'
 import {resolveExoPatternCrystalSurface20261029} from './core/exoPatternCrystalGlass20261029.js'
+import {inspectMetaHumanGlb20261029,EXO_META_HUMAN_GLB_LIMIT_BYTES_20261029} from './core/metaHumanGlbBridge20261029.js'
 import {STUDIO_THEME_IDS} from './core/studioThemePresets.js'
 import {initializeRustThemeKernel,rustThemeKernelReady,rustThemeGlowEnabled,rustThemeNestVisible,rustThemeColorTokens} from './core/rustThemeKernel.js'
 import {readableUiInk} from './core/interfaceColorContrast.js'
+import './twoDOverallIconSync20261029.css'
 import {contrastRatio} from './core/interfaceColorContrast.js'
 import {cadAutoContrastColors} from './core/cadAutoContrast.js'
 import {loadThemeSchedule,resolveScheduledTheme,applySavedThemePreset} from './core/themePresetManager.js'
@@ -161,6 +164,7 @@ import { createTemplateProject, GARMENT_TEMPLATES } from './data/templates.js'
 import { arrangePatternProject, inferPatternBodyRole } from './core/patternBodyArrangement.js'
 import { prepareNativePatternExport } from './core/nativePatternExportPreparation.js'
 import {templateMatchesFolder} from './data/libraryFolderTree.js'
+import {buildLinkedMirror} from './core/appLinkedMirror20261030.mjs'
 import { cloneProject, closestEdgeFraction, edgeLength, getEdgeSeamAllowance, makeRectanglePiece, pieceArea, projectArea, samplePieceBoundary, seamLengthReport, seamWalkReport, touchProject, uniqueId } from './core/project.js'
 import { auditSewingConstruction, validateNewSeam } from './core/sewingConstruction.js'
 import { draftingSplitFractions, splitParameterAtArcFraction } from './core/draftingSplit.js'
@@ -175,18 +179,30 @@ import { exportIndustrialGradeCsv, parseIndustrialGradeCsv } from './core/indust
 import { buildFabricMarkers, buildMarker } from './core/marker.js'
 import {inspectIndustrialCadInterchange20261028} from './core/industrialCadRoundtripGate20261028.mjs'
 import {inspectIndustrialMarkerCutWorkflow20261028} from './core/industrialMarkerCutWorkflow20261028.mjs'
-import { parseDxfPatterns, projectToDxf } from './core/dxf.js'
+import { parseDxfPatterns, projectToDxf, connectedSourceToManufacturingDxf } from './core/dxf.js'
 import { inspectModarisNativeIntake20261028 } from './core/modarisNativeFormatIntake20261028.mjs'
 import { CAD_FORMAT_AVAILABILITY_20261028 } from './core/cadFormatAvailability20261028.mjs'
 import { buildMeasurementSizeRun, buildTechPack, measurementRunToCSV } from './core/measurements.js'
 import { parseSeamlyMeasurements, applySeamlyMeasurements } from './core/seamlyMeasurements.js'
 import { parseSeamlyConstructionReference } from './core/seamlyConstructionReference.js'
+import { parseValentinaConstructionReference20261031 } from './core/valentinaConstructionReference20261031.js'
+import { parseValentinaMeasurements as parseValentinaMeasurements20261031 } from './core/valentinaMeasurements20261031.js'
 import SeamlyNativeEngineStudio20261023 from './components/SeamlyNativeEngineStudio20261023.jsx'
+import ValentinaUpstreamEngineStudio20261031 from './components/ValentinaUpstreamEngineStudio20261031.jsx'
+import ValentinaNativeConnectedDraft20261031 from './components/ValentinaNativeConnectedDraft20261031.jsx'
+import {editValentinaConstructionFormula20261031} from './core/valentinaConstructionEdit20261031.js'
+import {transferValentinaNativeReference20261031} from './core/valentinaNativeReferenceTransfer20261031.js'
+import {transferValentinaConnectedNativeDraft20261031} from './core/valentinaConnectedNativeTransfer20261031.js'
+import {transferValentinaSemanticNativeDraft20261031} from './core/valentinaSemanticNativeTransfer20261031.js'
+import {refreshValentinaSemanticCutDraft20261031} from './core/valentinaSemanticCutRefresh20261031.js'
+import ValentinaSourceRelink20261031 from './components/ValentinaSourceRelink20261031.jsx'
 import { parseSeamlyUpstreamDxfReference } from './core/seamlyUpstreamDxfReference20261023.js'
 import { createSeamlyAamaExoDraft20261023 } from './core/seamlyAamaToExoDraft20261023.js'
 import { WORKSPACE_PROFILES, WORKSPACE_PROFILE_KEY, WORKSPACE_VIEW_KEY, VIEWPORT_LAYOUTS, normalizeWorkspaceProfile, patternFocusToolbarIds } from './core/workspaceProfiles.js'
 import { indexWorkspaceCommands } from './core/workspaceCommandIndex.js'
 import { buildFactoryPackageZip } from './core/factoryPackage.js'
+import {buildModarisConnectedDevelopmentZip20261101} from './core/modarisConnectedDevelopmentPackage20261101.js'
+import {inspectConnectedDevelopmentZip20261101} from './core/modarisConnectedDevelopmentReceiver20261101.js'
 import { downloadAccuMarkGuardedFactoryPackage20261023 } from './core/accumarkGuardedFactoryDownload20261023.js'
 import { projectToBomXml } from './core/bomXml.js'
 import { markerToPdf, markerToSvg } from './core/markerArtifacts.js'
@@ -209,58 +225,12 @@ import { classifyFabricPbrFilename } from './core/fabricPbrFileNaming.js'
 
 // First-fit tests use an isolated autosave slot; opening a test tee must never
 // replace the user's previously saved jeans, hoodie, or other working garment.
+import {buttonValuesFromPreset,zipperValuesFromPreset} from './core/appHardwarePresetValues20261030.mjs'
 const TEE_TEST_SESSION = new URLSearchParams(window.location.search).get('testSession') === 'tee'
 // Public builds must not advertise optional private or unbundled avatar assets.
 const PUBLIC_DISTRIBUTION = import.meta.env.VITE_PUBLIC_DISTRIBUTION === '1'
 const STUDIO_SAVED_WORKSPACE_KEY='exo.savedDesignerWorkspace.v1'
 const FABRIC_PRESET_GROUPS = groupApparelPresets(FABRIC_PRESETS)
-const buttonValuesFromPreset = (preset,style=null) => ({
-  name:preset?.name||'Custom Button',hardwarePresetId:preset?.id||'four-hole-shirt-button',
-  diameterCm:(style?.widthMm??preset?.dimensionsMm.diameter??preset?.dimensionsMm.capDiameter??18)/10,
-  widthMm:style?.widthMm??preset?.dimensionsMm.width??preset?.dimensionsMm.diameter??preset?.dimensionsMm.capDiameter??18,
-  heightMm:style?.heightMm??preset?.dimensionsMm.height??preset?.dimensionsMm.diameter??preset?.dimensionsMm.capDiameter??18,
-  thicknessMm:style?.thicknessMm??preset?.dimensionsMm.thickness??preset?.dimensionsMm.frontThickness??preset?.dimensionsMm.capHeight??2,
-  weightGrams:preset?.dimensionsMm.weightGrams??1,
-  holes:preset?.holes??0,holeDiameterMm:preset?.dimensionsMm.holeDiameter??1.4,
-  holeSpacingMm:preset?.dimensionsMm.holeSpacing??4,
-  color:style?.color??preset?.pbr.baseColor??'#222222',roughness:style?.roughness??preset?.pbr.roughness??.5,
-  metalness:style?.metalness??preset?.pbr.metalness??0,reflectionIntensity:style?.reflectionIntensity??1,clearcoat:style?.clearcoat??.12,
-  materialType:style?.materialType??preset?.material??'Custom',
-  angleDeg:0,threadLengthMm:2,threadType:'Cross',threadColor:'#e5e5e5',
-})
-const zipperValuesFromPreset = preset => {
-  const d=preset?.dimensionsMm||{}
-  const isInvisible=preset?.zipperType==='invisible-coil'
-  const isMetal=preset?.zipperType==='metal'
-  return {
-    name:preset?.name||'Zipper',hardwarePresetId:preset?.id||'coil-zipper-5',
-    widthCm:(d.tapeWidthEachSide??14)/10,tapeWidthMm:d.tapeWidthEachSide??14,
-    chainWidthMm:d.nominalChainWidth??5,tapeThicknessMm:0.55,
-    toothPitchMm:isMetal?2.8:2.2,
-    toothThicknessMm:isMetal?1.5:0.8,
-    sliderWidthMm:d.sliderWidth??Math.max(5,(d.nominalChainWidth??5)*1.38),
-    sliderLengthMm:d.sliderLength??Math.max(6,(d.nominalChainWidth??5)*1.85),
-    sliderThicknessMm:1.8,
-    pullerWidthMm:d.pullWidth??Math.max(4,(d.nominalChainWidth??5)*.84),
-    pullerLengthMm:d.pullLength??Math.max(6,(d.nominalChainWidth??5)*2.7),
-    pullerThicknessMm:0.8,stopperThicknessMm:1.65,
-    weightGrams:d.weightGrams??undefined,
-    type:preset?.zipperType||'coil',separating:Boolean(preset?.separating),
-    offsetCm:0,startExtensionMm:0,endExtensionMm:0,
-    twoWay:Boolean(preset?.twoWay),sliderFraction:1,bottomSliderFraction:0,fastened:true,openFrom:'end',
-    tapeColor:isInvisible?'#d8d1c6':'#282c32',
-    teethColor:isInvisible?'#d4cec5':isMetal?'#c29a58':(preset?.pbr.baseColor||'#899096'),
-    sliderColor:isMetal?'#b99351':'#a4a9ae',pullerColor:isMetal?'#c4a164':'#b8bdc2',
-    stopperColor:isMetal?'#b08b4c':'#7a8188',
-    tapeMaterialType:'polyester',
-    teethMaterialType:isMetal?'metal':'nylon',sliderMaterialType:'metal',
-    metalness:preset?.pbr.metalness??0.65,roughness:preset?.pbr.roughness??0.38,
-    tapeRoughness:.89,teethRoughness:isMetal?.28:.56,
-    sliderRoughness:.27,pullerRoughness:.3,stopperRoughness:.33,
-    reflectionIntensity:1,clearcoat:.12,tapeSheen:.55,
-    color:preset?.pbr.baseColor||'#777777',
-  }
-}
 const zipperCompatibleSeams=(project,pieceId,edgeIndex)=> (project?.seams||[]).filter(seam=>
   ['normal','zipper',undefined].includes(seam.type) && [seam.a,seam.b].some(edge=>edge?.pieceId===pieceId&&edge.edgeIndex===edgeIndex))
 const syncPairedZipperSeam=(project,zipper)=>{
@@ -743,10 +713,6 @@ function MiniStat({ label, value }) {
   return <div className="mini-stat"><span>{label}</span><strong>{value}</strong></div>
 }
 
-function mirroredEdgeIndex(edgeIndex, edgeCount) {
-  return (edgeCount - 2 - Number(edgeIndex) + edgeCount) % edgeCount
-}
-
 function seamRange(endpoint) {
   let start = clamp(Number(endpoint?.startT ?? 0), 0, 1)
   let end = clamp(Number(endpoint?.endT ?? 1), 0, 1)
@@ -767,72 +733,6 @@ function mapFractionAcrossSeam(seam, fromSide, fraction) {
   const seamProgress = fromSide === 'b' && seam?.reverseB ? 1 - naturalProgress : naturalProgress
   const targetSide = fromSide === 'a' ? 'b' : 'a'
   return seamFractionAtProgress(seam, targetSide, seamProgress)
-}
-
-function buildLinkedMirror(source, target) {
-  if (!source?.points?.length || !target) return target
-  const xs = source.points.map((point) => point.x)
-  const centerX = (Math.min(...xs) + Math.max(...xs)) * 0.5
-  const edgeCount = source.points.length
-  const mirrorPoint = (point) => ({ ...point, x: centerX - (point.x - centerX) })
-  const keep = {
-    id: target.id,
-    name: target.name,
-    layout2d: cloneProject(target.layout2d),
-    arrangement3d: cloneProject(target.arrangement3d),
-    linkedMirrorSourceId: source.id,
-  }
-  const next = cloneProject(source)
-  Object.assign(next, keep)
-  next.points = source.points.map(mirrorPoint).reverse()
-  next.curves = source.curves
-    ? Object.fromEntries(Object.entries(source.curves).map(([edgeIndex, curve]) => [
-      mirroredEdgeIndex(edgeIndex, edgeCount),
-      { cx: centerX - (curve.cx - centerX), cy: curve.cy },
-    ]))
-    : undefined
-  next.internalLines = (source.internalLines || []).map((line) => ({
-    ...cloneProject(line),
-    id: `${target.id}-${line.id}`,
-    a: mirrorPoint(line.a),
-    b: mirrorPoint(line.b),
-  }))
-  next.pins = (source.pins || []).map((pin) => ({ ...cloneProject(pin), id: `${target.id}-${pin.id}`, x: centerX - (pin.x - centerX) }))
-  next.buttons = (source.buttons || []).map((button) => ({ ...cloneProject(button), id: `${target.id}-${button.id}`, x: centerX - (button.x - centerX) }))
-  next.buttonholes = (source.buttonholes || []).map((buttonhole) => ({
-    ...cloneProject(buttonhole),
-    id: `${target.id}-${buttonhole.id}`,
-    x: centerX - (buttonhole.x - centerX),
-    orientationDeg: -(buttonhole.orientationDeg || 0),
-  }))
-  next.graphics = (source.graphics || []).map((graphic) => ({
-    ...cloneProject(graphic),
-    id: `${target.id}-${graphic.id}`,
-    x: centerX - (graphic.x - centerX),
-    rotationDeg: -(graphic.rotationDeg || 0),
-  }))
-  next.foamPads = (source.foamPads || []).map(pad=>({
-    ...cloneProject(pad),
-    id:`${target.id}-${pad.id}`,
-    x:centerX-(Number(pad.x||0)-centerX),
-    rotationDeg:-(Number(pad.rotationDeg)||0),
-    points:(pad.points||[]).map(point=>({...point,x:-point.x})).reverse(),
-  }))
-  next.notches = (source.notches || []).map((notch) => ({
-    ...cloneProject(notch),
-    id: `${target.id}-${notch.id}`,
-    edgeIndex: mirroredEdgeIndex(notch.edgeIndex, edgeCount),
-    t: 1 - (notch.t ?? 0.5),
-  }))
-  for (const collection of ['topstitches', 'bindings', 'zippers']) {
-    next[collection] = (source[collection] || []).map((item) => ({
-      ...cloneProject(item),
-      id: `${target.id}-${item.id}`,
-      edgeIndex: mirroredEdgeIndex(item.edgeIndex, edgeCount),
-    }))
-  }
-  next.grainAngleDeg = -(source.grainAngleDeg || 0)
-  return next
 }
 
 function syncLinkedMirrors(project) {
@@ -907,6 +807,10 @@ export default function App() {
   const [previewStudioTheme,setPreviewStudioTheme] = useState(null)
   const [previewIconColor,setPreviewIconColor]=useState(null)
   const [previewTwoDPalette,setPreviewTwoDPalette]=useState(null)
+  const [preview3DEnvironment,setPreview3DEnvironment]=useState(null)
+  const liveStudioAppearance=useMemo(()=>preview3DEnvironment
+    ?{...studioCustomization.appearance,...preview3DEnvironment}
+    :studioCustomization.appearance,[studioCustomization.appearance,preview3DEnvironment])
   const [previewTwoDPattern,setPreviewTwoDPattern]=useState(null)
   const [previewGradeChartThemes,setPreviewGradeChartThemes]=useState({values:null,compare:null})
   const previewGradeChart=useCallback((kind,preset)=>{
@@ -958,6 +862,11 @@ export default function App() {
       '--exo-library-panel-icon-ink':readable(a.libraryIconColor!=='auto'?rustThemeTokens['--exo-library-icon-color']:inherited,libraryBg),
       '--exo-object-panel-icon-ink':readable(a.objectBrowserIconColor!=='auto'?rustThemeTokens['--exo-object-icon-color']:inherited,objectBg),
       '--exo-ui-icon-ink':readable(a.globalToolbarIconColor!=='auto'?rustThemeTokens['--exo-ui-icon-ink']:ink,appearancePalette.sidebarColor),
+      // The 2D icon swatch may be saved as pure black while the user chooses
+      // Obsidian Night. Resolve it against the ACTUAL 2D rail, not the canvas.
+      // Keep their chosen raw swatch in preferences; only displayed ink is
+      // contrast-corrected. Applies to the regular and fullscreen A/B rails.
+      '--exo-2d-toolbar-ink':readable(rustThemeTokens['--exo-2d-toolbar-ink'],rightBg),
       '--exo-2d-horizontal-ink':readable(rustThemeTokens['--exo-2d-horizontal-ink'],studioCustomization.preferences.twoDCanvasColor!=='auto'?rustThemeTokens['--exo-2d-canvas-color']:'#c6c7c9'),
       '--exo-2d-vertical-ink':readable(rustThemeTokens['--exo-2d-vertical-ink'],studioCustomization.preferences.twoDCanvasColor!=='auto'?rustThemeTokens['--exo-2d-canvas-color']:'#c6c7c9'),
       '--exo-3d-horizontal-ink':readable(rustThemeTokens['--exo-3d-horizontal-ink'],'#2a343f'),
@@ -984,6 +893,8 @@ export default function App() {
     ...(previewTwoDPattern?.selection?{twoDSelectionColor:previewTwoDPattern.selection}:{}),
     ...(previewTwoDPattern?.notch?{twoDNotchColor:previewTwoDPattern.notch}:{}),
     ...(previewTwoDPattern?.paper?{twoDPatternColor:previewTwoDPattern.paper}:{}),
+    twoDPatternGlassOpacity:previewTwoDPattern?.glassOpacity??studioCustomization.preferences.twoDPatternGlassOpacity,
+    twoDPatternOutlineGlow:previewTwoDPattern?.glow??studioCustomization.preferences.twoDPatternOutlineGlow,
     twoDPatternSurfaceStyle:resolveExoPatternCrystalSurface20261029(
       studioCustomization.appearance,studioCustomization.preferences,previewTwoDPattern),
     twoDRulerMarkColor:rustThemeTokens && studioCustomization.preferences.twoDRulerMarkColor!=='auto'
@@ -1020,7 +931,7 @@ export default function App() {
   })())
   const [studioSettingsOpen,setStudioSettingsOpen] = useState(false)
   const [studioSettingsTab,setStudioSettingsTab] = useState('workspace')
-  const closeStudioSettings=useCallback(()=>{setPreviewStudioTheme(null);setThemeHoveredTarget(null);setStudioSettingsOpen(false)},[])
+  const closeStudioSettings=useCallback(()=>{setPreviewStudioTheme(null);setPreview3DEnvironment(null);setThemeHoveredTarget(null);setStudioSettingsOpen(false)},[])
   const beginThemePick=useCallback(key=>{setPreviewStudioTheme(null);setThemeHoveredTarget(null);setThemePickRequestedKey(key||'globalToolbarIconColor');setStudioSettingsOpen(false)},[])
   const pickThemePart=useCallback(event=>{
     if(!themePickRequestedKey)return
@@ -1042,6 +953,8 @@ export default function App() {
   },[themePickRequestedKey])
   useEffect(()=>{saveStudioCustomization(studioCustomization)},[studioCustomization])
   const [project, setProject] = useState(loadProject)
+  const valentinaCurrentProjectRef=useRef(project)
+  valentinaCurrentProjectRef.current=project
   const [techPackOpen,setTechPackOpen]=useState(()=>new URLSearchParams(window.location.search).get('techpack')==='1')
   const [techPackWorkspaceOpen,setTechPackWorkspaceOpen]=useState(()=>new URLSearchParams(window.location.search).get('techpackWorkspace')==='1')
   const [nativeTechPackSnapshot,setNativeTechPackSnapshot]=useState(null)
@@ -1459,7 +1372,7 @@ export default function App() {
     // the source checkout. Do not offer nonexistent CLO/rigged meshes as usable.
     void Promise.all(Object.entries(OPTIONAL_AVATAR_URLS).map(async ([model, url]) => {
       try {
-        const response = await fetch(url, { method: 'HEAD', cache: 'no-store' })
+        const response = await nativeBridgeFetch(url, { method: 'HEAD', cache: 'no-store' })
         return [model, response.ok]
       } catch { return [model, false] }
     })).then(entries => {
@@ -1498,6 +1411,8 @@ export default function App() {
   const industrialGradeCsvInputRef = useRef(null)
   const seamlyMeasureInputRef = useRef(null)
   const seamlyPatternInputRef = useRef(null)
+  const valentinaPatternInputRef = useRef(null)
+  const valentinaMeasureInputRef = useRef(null)
   const svgPatternInputRef = useRef(null)
   const graphicInputRef = useRef(null)
   const fabricTextureInputRef = useRef(null)
@@ -1561,13 +1476,13 @@ export default function App() {
   }
   const endPanelResize = () => { panelDragRef.current = null }
 
-  const updateStudioCustomization = (nextValue,{applyTheme=true}={}) => {
+  const updateStudioCustomization = (nextValue,{applyTheme=true,preserveEnvironmentMode=false}={}) => {
     const next=normalizeStudioCustomization(nextValue)
     if(applyTheme){
       const palette=studioResolvedPalette(next.appearance.theme,next.appearance.panelFinish)
       next.appearance={...next.appearance,accent:palette.accent,sidebarColor:palette.sidebarColor,panelColor:palette.panelColor}
     }
-    if(next.appearance.studioColor!==studioCustomization.appearance.studioColor
+    if(!preserveEnvironmentMode&&next.appearance.studioColor!==studioCustomization.appearance.studioColor
       &&next.appearance.backgroundMode===studioCustomization.appearance.backgroundMode){
       next.appearance.backgroundMode='color'
     }
@@ -1583,6 +1498,18 @@ export default function App() {
     if(next.preferences.showGrid!==studioCustomization.preferences.showGrid)setShow2DGrid(next.preferences.showGrid)
     if(next.preferences.showGuides!==studioCustomization.preferences.showGuides)setShowSewingGuides(next.preferences.showGuides)
     setStudioCustomization(next)
+  }
+  const applyCompleteSavedTheme=preset=>{
+    setPreviewStudioTheme(null)
+    setPreviewIconColor(null)
+    setPreviewTwoDPalette(null)
+    setPreviewTwoDPattern(null)
+    setPreview3DEnvironment(null)
+    setPreviewGradeChartThemes({values:null,compare:null})
+    // Applying a saved preset must preserve its exact custom surfaces and
+    // scene mode, rather than treating a background swatch as a manual edit.
+    updateStudioCustomization(applySavedThemePreset(studioCustomization,preset),
+      {applyTheme:false,preserveEnvironmentMode:true})
   }
 
   const resetStudioCustomization = () => {
@@ -1745,7 +1672,7 @@ export default function App() {
         if(prepared.report.removedSeams)throw Error(`Cannot export: ${prepared.report.removedSeams} sewing relationships touch microscopic cutline edges. Inspect those seams in 2D before converting.`)
         const bridgeUrl = window.location.port === '5486' ? 'http://127.0.0.1:5485' : window.location.port === '5386' ? 'http://127.0.0.1:5385'
           : (import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193')
-        const response = await fetch(`${bridgeUrl}/export`, {
+        const response = await nativeBridgeFetch(`${bridgeUrl}/export`, {
           method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({document:prepared.document}),
         })
@@ -1896,10 +1823,15 @@ export default function App() {
   const fabric = project.fabrics?.[selectedFabricId] || project.fabrics?.main || FABRIC_PRESETS.fleece
   const totalArea = useMemo(() => projectArea(project), [project])
   const selectedArea = selectedPiece ? pieceArea(selectedPiece) : 0
-  const productionProject = useMemo(
-    () => gradeProject(project, gradePreviewSize || project.grading?.baseSize || 'M'),
-    [project, gradePreviewSize],
-  )
+  // All production preview consumers (2D surface and markers) must inspect
+  // the same linked final-size geometry as the source-pinned DXF exporter.
+  const connectedProductionRun = useMemo(() =>
+    project.modarisSizeLinkedGrade === undefined ? null : buildSizeRun(project), [project])
+  const productionProject = useMemo(() =>
+    connectedProductionRun
+      ? connectedProductionRun[gradePreviewSize || project.grading?.baseSize || 'M']
+      : gradeProject(project, gradePreviewSize || project.grading?.baseSize || 'M'),
+    [project, gradePreviewSize, connectedProductionRun])
   const productionPreflight = useMemo(() => inspectProduction(project), [project])
   // Run this heavier, independent all-size audit only in production mode.
   // An ordinary structural preflight may pass while stitch lengths diverge
@@ -1936,8 +1868,9 @@ export default function App() {
     // grading every piece twice (once for the old selected-only nest).
     if (viewportLayout === '2d') return []
     if ((activeSection !== 'Production' && viewportLayout !== '2d') || !showGradeNest) return []
-    return (project.grading?.sizes || []).map((size) => gradeProject(project, size))
-  }, [activeSection, viewportLayout, showGradeNest, project])
+    return (project.grading?.sizes || []).map((size) =>
+      connectedProductionRun ? connectedProductionRun[size] : gradeProject(project, size))
+  }, [activeSection, viewportLayout, showGradeNest, project, connectedProductionRun])
   const fabricMarkers = useMemo(() => buildFabricMarkers(
     productionProject,
     productionProject.markerSettings?.fabricWidthCm ?? 150,
@@ -2151,6 +2084,7 @@ export default function App() {
   // Keep every skipped state on the Redo branch in its original order, so a
   // history jump is reversible by the same undo/redo engine as toolbar edits.
   const restoreHistorySnapshot = (index) => {
+    if (clothcraftHybrid) return
     if (!Number.isInteger(index) || index < 0 || index >= undoStack.length) return
     const target = cloneProject(undoStack[index])
     const forward = undoStack.slice(index + 1).map(cloneProject).reverse()
@@ -5231,14 +5165,26 @@ export default function App() {
       setCommandResult('Export the CLO avatar to OBJ or GLB first. Native .avt files are not supported by the 3D viewport.')
       return
     }
-    if (file.size > 80 * 1024 * 1024) {
-      setCommandResult('Avatar file exceeds the 80 MB interactive import limit. Optimize the mesh before import.')
+    if (file.size > (extension==='glb'?EXO_META_HUMAN_GLB_LIMIT_BYTES_20261029:80 * 1024 * 1024)) {
+      setCommandResult('Avatar exceeds the interactive import limit (120 MB GLB / 80 MB OBJ). Export a smaller body LOD.')
+      return
+    }
+    let glbMetadata=null
+    if(extension==='glb'){
+      try{glbMetadata=inspectMetaHumanGlb20261029(await file.arrayBuffer())}
+      catch(error){setCommandResult(`Avatar import rejected: ${error.message}`);return}
+    }
+    if(clothcraftHybrid&&extension!=='glb'){
+      setCommandResult('Native 3D can display GLB avatar previews. Convert OBJ/FBX in your DCC to GLB before importing.')
       return
     }
     const url = URL.createObjectURL(file)
-    setCustomAvatar((previous) => { if (previous?.url) URL.revokeObjectURL(previous.url); return { url, type: extension, name: file.name } })
-    setAvatarModel('custom-export')
-    setCommandResult(`Loaded ${file.name} as the visual avatar. Physics remains on the measurement-based collision body.`)
+    setCustomAvatar((previous) => { if (previous?.url) URL.revokeObjectURL(previous.url); return { url, type: extension, name: file.name, glbMetadata } })
+    // The native Rust engine has only MakeHuman/CLO collision bodies. Do NOT
+    // route a user-imported MetaHuman through setAvatarModel() in native mode,
+    // where the function would reject it and misrepresent its physical fit.
+    if(!clothcraftHybrid)setAvatarModel('custom-export')
+    setCommandResult(`Imported ${file.name} for visual preview (${glbMetadata?.jointCount||0} skin joints). MetaHuman and other GLB avatars are NOT native Rust collision bodies. Fit and animation need separate verification.`)
   }
 
   const setAvatarModel = (model) => {
@@ -5731,7 +5677,7 @@ export default function App() {
       const operation = bake ? 'bake' : 'validate'
       const bridgeUrl = window.location.port === '5486' ? 'http://127.0.0.1:5485' : window.location.port === '5386' ? 'http://127.0.0.1:5385'
         : (import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193')
-      const response = await fetch(`${bridgeUrl}/${operation}`, {
+      const response = await nativeBridgeFetch(`${bridgeUrl}/${operation}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ document: project }),
       })
@@ -5747,7 +5693,7 @@ export default function App() {
       }
       download(JSON.stringify(result.template, null, 2), `${project.name.replace(/[^\w-]+/g, '-').toLowerCase()}-clothcraft-template.json`, 'application/json')
       if (bake && result.baking?.artifacts?.includes('cloth.obj')) {
-        const meshResponse = await fetch(`${bridgeUrl}/artifacts/cloth.obj`)
+        const meshResponse = await nativeBridgeFetch(`${bridgeUrl}/artifacts/cloth.obj`)
         if (!meshResponse.ok) throw new Error('ClothCraft baking passed, but the generated OBJ could not be downloaded')
         const obj = await meshResponse.text()
         download(obj, 'clothcraft-baked-geometry.obj', 'text/plain')
@@ -5768,7 +5714,7 @@ export default function App() {
     try {
       const bridgeUrl = window.location.port === '5486' ? 'http://127.0.0.1:5485' : window.location.port === '5386' ? 'http://127.0.0.1:5385'
         : (import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193')
-      const response = await fetch(`${bridgeUrl}/contact-simulate`, {
+      const response = await nativeBridgeFetch(`${bridgeUrl}/contact-simulate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ document: project, avatarModel: project.avatar?.model,
           steps: clothCraftContactSteps }),
@@ -5780,8 +5726,8 @@ export default function App() {
         throw new Error('Rust OGC did not produce the mesh and avatar diagnostic pair')
       }
       const [clothResponse, avatarResponse] = await Promise.all([
-        fetch(`${bridgeUrl}${result.artifacts.cloth}`),
-        fetch(`${bridgeUrl}${result.artifacts.avatar}`),
+        nativeBridgeFetch(`${bridgeUrl}${result.artifacts.cloth}`),
+        nativeBridgeFetch(`${bridgeUrl}${result.artifacts.avatar}`),
       ])
       if (!clothResponse.ok || !avatarResponse.ok) throw new Error('Generated contact mesh could not be fetched')
       const [obj, avatarObj] = await Promise.all([clothResponse.text(), avatarResponse.text()])
@@ -5832,6 +5778,22 @@ export default function App() {
       return
     }
     try {
+      // Connected patterns must derive manufacturing curves from the authored
+      // graph, not the ordinary productionProject grade preview. Single-piece
+      // export would lose linked source dependencies and is refused here.
+      if (project.modarisSizeLinkedGrade !== undefined) {
+        if (exportSelectedPatternOnly) throw Error('Connected DXF requires full source-linked garment; disable selected-pattern-only export.')
+        const dxf = connectedSourceToManufacturingDxf(project, gradePreviewSize)
+        const blob = new Blob([dxf], { type: 'application/dxf' })
+        const url = URL.createObjectURL(blob)
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.download = `${project.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'garment'}-${gradePreviewSize.toLowerCase()}-linked-cut-stitch.dxf`
+        anchor.click()
+        URL.revokeObjectURL(url)
+        setCommandResult(`Connected ${gradePreviewSize} CUT/STITCH DXF exported from verified final linked geometry. Development-only: independent CAD receiving and physical cutting approval remain required.`)
+        return
+      }
       const exportedProject = exportSelectedPatternOnly
         ? { ...productionProject, pieces: productionProject.pieces.filter((piece) => piece.id === selectedPiece.id) }
         : productionProject
@@ -5883,7 +5845,7 @@ export default function App() {
   const inspectVerifiedNativeProductionSource = async () => {
     try {
       const bridge = import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193'
-      const reply = await fetch(`${bridge}/production/native-verified/v1/source`, {
+      const reply = await nativeBridgeFetch(`${bridge}/production/native-verified/v1/source`, {
         method:'POST',headers:{'Content-Type':'application/json'},body:'{}',
       })
       const payload=await reply.json()
@@ -5897,7 +5859,7 @@ export default function App() {
   const createVerifiedNativeProductionStudy = async () => {
     try {
       const bridge=import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193'
-      const inspect=await fetch(`${bridge}/production/native-verified/v1/source`,{
+      const inspect=await nativeBridgeFetch(`${bridge}/production/native-verified/v1/source`,{
         method:'POST',headers:{'Content-Type':'application/json'},body:'{}',
       })
       const inspected=await inspect.json()
@@ -5910,7 +5872,7 @@ export default function App() {
       const materials=Object.fromEntries(source.panels.map(panel=>[
         panel.id,{fabricId:panel.sourceFabricId,groupId:panel.sourceFabricId}]))
       const packet=prepareNativeProductionOrderRequest(source,quantities,materials)
-      const response=await fetch(`${bridge}/production/native-verified/v1/order`,{
+      const response=await nativeBridgeFetch(`${bridge}/production/native-verified/v1/order`,{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(packet),
       })
       const answer=await response.json()
@@ -5924,7 +5886,7 @@ export default function App() {
   const exportVerifiedNativeProductionStudy = async () => {
     try {
       const bridge=import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193'
-      const inspect=await fetch(`${bridge}/production/native-verified/v1/source`,{
+      const inspect=await nativeBridgeFetch(`${bridge}/production/native-verified/v1/source`,{
         method:'POST',headers:{'Content-Type':'application/json'},body:'{}',
       })
       const inspected=await inspect.json()
@@ -5936,7 +5898,7 @@ export default function App() {
       const materials=Object.fromEntries(source.panels.map(panel=>[
         panel.id,{fabricId:panel.sourceFabricId,groupId:panel.sourceFabricId}]))
       const packet=prepareNativeProductionOrderRequest(source,quantities,materials)
-      const response=await fetch(`${bridge}/production/native-verified/v1/export`,{
+      const response=await nativeBridgeFetch(`${bridge}/production/native-verified/v1/export`,{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(packet),
       })
       const answer=await response.json()
@@ -6047,6 +6009,23 @@ export default function App() {
 
   const exportFactoryPackage = () => {
     try {
+      if(project.modarisSizeLinkedGrade!==undefined){
+        const bytes=buildModarisConnectedDevelopmentZip20261101(project)
+        // Receive our own ZIP bytes through the independent read-back path
+        // before handing out a development artifact; not factory approval.
+        const receipt=inspectConnectedDevelopmentZip20261101(bytes)
+        if(!receipt.ok||receipt.factoryCertified!==false)
+          throw new Error('Connected ZIP digital read-back failed')
+        const blob=new Blob([bytes],{type:'application/zip'})
+        const url=URL.createObjectURL(blob)
+        const anchor=document.createElement('a')
+        anchor.href=url
+        anchor.download=`${project.name.toLowerCase().replace(/[^a-z0-9]+/g,'-')||'garment'}-connected-development-review.zip`
+        anchor.click()
+        URL.revokeObjectURL(url)
+        setCommandResult(`Connected development ZIP passed internal digital receipt for ${receipt.sizes.length} sizes (${receipt.filesVerified} files) and was downloaded. NOT factory certified: licensed CAD receiving, calibrated printing, sample cutting and factory approval remain mandatory.`)
+        return
+      }
       const result = downloadAccuMarkGuardedFactoryPackage20261023(project)
       if (!result.ok) throw new Error(result.reason)
       setCommandResult(`Guarded factory ZIP downloaded: ${result.filename}. Size DXFs and physical CUT outlines passed the guarded preflight. External receiver CAD and physical sample approval are still required.`)
@@ -6247,6 +6226,50 @@ export default function App() {
     }
   }
 
+  const importValentinaConstructionGraph = async (event) => {
+    const file=event.target.files?.[0]
+    event.target.value=''
+    if(!file)return
+    try{
+      if(!/\.val$/i.test(file.name)||file.size>4*1024*1024)throw Error('Choose a Valentina .val pattern under 4 MB')
+      const originalXml=await file.text()
+      const graph=parseValentinaConstructionReference20261031(originalXml,{filename:file.name})
+      graph.sourceXml=originalXml
+      graph.originalSourceXml=originalXml
+      mutateProject(next=>{next.valentinaConstructionReference=graph})
+      setCommandResult(`Imported original Valentina construction reference ${file.name}: ${graph.toolCount} tools, ${graph.blocks.length} drafting blocks, ${graph.incrementCount} increment formulas. Native EXO geometry is unchanged; full Valentina calculation requires the original GPL engine.`)
+    }catch(error){setCommandResult(`Valentina pattern import refused: ${error.message}`)}
+  }
+
+  const importValentinaMeasurements = async (event) => {
+    const file=event.target.files?.[0]
+    event.target.value=''
+    if(!file)return
+    try{
+      if(!/\.(vit|vst)$/i.test(file.name)||file.size>2*1024*1024)throw Error('Choose Valentina .vit or .vst measurements under 2 MB')
+      const measurements=parseValentinaMeasurements20261031(await file.text(),{filename:file.name})
+      mutateProject(next=>{
+        next.measurementLibrary={...(next.measurementLibrary||{}),valentina:measurements}
+      })
+      setCommandResult(`Imported original Valentina ${measurements.kind.toUpperCase()} measurement reference: ${measurements.measurementCount} measurements, source units ${measurements.sourceUnit}. Native geometry and avatar are unchanged until an evaluated source conversion is verified.`)
+    }catch(error){setCommandResult(`Valentina measurements import refused: ${error.message}`)}
+  }
+
+  const editValentinaConnectedSource20261031=(edit)=>{
+    try {
+      const current=project.valentinaConstructionReference
+      if(!current?.sourceXml)throw Error('Re-import the original .val file to enable source-linked editing')
+      const updated=editValentinaConstructionFormula20261031(current.sourceXml,edit)
+      const parsed=parseValentinaConstructionReference20261031(updated,{filename:current.sourceName||'edited.val'})
+      parsed.originalSourceXml=current.originalSourceXml||current.sourceXml
+      parsed.sourceXml=updated
+      mutateProject(next=>{next.valentinaConstructionReference=parsed})
+      setCommandResult(`Changed Valentina ${edit.incrementName||edit.toolId} construction formula; source XML and dependency points updated. Undo restores the previous graph; garment CUT/STITCH remains unchanged until verified source calculation.`)
+    }catch(error){
+      setCommandResult(`Valentina connected source edit refused: ${error.message}`)
+    }
+  }
+
   const openSeamlyCalculatedDraft = (file, engine, {editable=false,unit}={}) => {
     try {
       const {project:next,semantic}=createSeamlyAamaExoDraft20261023(project,{file,engine,editable,unit})
@@ -6258,6 +6281,62 @@ export default function App() {
       setLayout2DSignal(value=>value+1)
       setCommandResult(`Opened ${next.pieces.length} upstream Seamly CUT pieces as ${editable?'editable UNAPPROVED draft':'locked references'} in EXO draft workspace. Layer 8 DRAW guides and notches/grainlines preserved in provenance, not duplicated as patterns. Native Rust session is unchanged. Sewing roles, allowance widths and grading remain unapproved; factory export blocked. Undo restores previous draft.`)
     } catch(error){setCommandResult(`Seamly2D 2D import refused: ${error.message}`)}
+  }
+
+  const openValentinaCalculatedDraft = async (file, engine, {editable=false,patternXml,measurementsXml}={}) => {
+    try {
+      const connected=engine?.bridge==='verified-connected-maleshirt'
+      const semantic=engine?.bridge==='semantic-source-translation'
+      const {project:next,source}=semantic
+        ?await transferValentinaSemanticNativeDraft20261031(project,{
+          patternXml,measurementsXml,engineResult:engine,editable,artifactName:file?.name,
+        })
+        :connected
+          ?{...(await transferValentinaConnectedNativeDraft20261031(project,{
+            baselinePatternXml:patternXml,measurementsXml,engineResult:engine,editable,
+          })),source:{identity:'MaleShirt (connected)'}}
+          :await transferValentinaNativeReference20261031(project,{
+            patternXml,measurementsXml,engineResult:engine,editable,artifactName:file?.name,
+          })
+      pushUndo(cloneProject(project))
+      setProject(next)
+      setSelectedPieceId(next.pieces[0]?.id||null)
+      setRunning(false);setHasSimulated(false);setTool('select')
+      setActiveSection('Pattern');setObjectTab('Pattern');setViewportLayout('2d')
+      setLayout2DSignal(value=>value+1)
+      setCommandResult(`Opened ${next.pieces.length} source-verified ${source.identity} CUT draft pieces. The original Valentina graph, measurements, formulas, SVG/DXF source identity and SHA-256 are preserved in the project. ${editable?'Draft outlines are editable in legacy 2D.':'Pieces remain locked references.'} Undo restores the previous garment. Factory export is blocked.`)
+    } catch(error) {
+      setCommandResult(`Original Valentina source-to-EXO draft refused: ${error.message}`)
+    }
+  }
+
+  const refreshValentinaLinkedCut20261031=async ({
+    patternXml,measurementsXml,engineResult,expectedProjectIdentity,
+    expectedOriginalPatternSha256,expectedOriginalMeasurementsSha256,
+    expectedOriginalAamaSha256,
+  }={})=>{
+    const before=valentinaCurrentProjectRef.current
+    const source=before?.patternSource
+    if(source?.type!=='valentina-semantic-upstream-cut-draft-v1'||
+      expectedProjectIdentity!==`${before.id}@${before.revision}`||
+      source.originalPatternSha256!==expectedOriginalPatternSha256||
+      source.originalMeasurementsSha256!==expectedOriginalMeasurementsSha256||
+      source.originalAamaSha256!==expectedOriginalAamaSha256)
+      throw Error('The active source draft changed while calculating. Reopen this source panel and recalculate from the latest saved revision.')
+    const result=await refreshValentinaSemanticCutDraft20261031(before,{
+      patternXml,measurementsXml,engineResult,
+    })
+    if(valentinaCurrentProjectRef.current!==before)
+      throw Error('The active EXO project changed during source verification; CUT replacement was not committed')
+    pushUndo(cloneProject(before))
+    valentinaCurrentProjectRef.current=result.project
+    setProject(result.project)
+    setSelectedPieceId(result.project.pieces[0]?.id||null)
+    setRunning(false);setHasSimulated(false);setTool('select')
+    setActiveSection('Pattern');setObjectTab('Pattern');setViewportLayout('2d')
+    setLayout2DSignal(value=>value+1)
+    setCommandResult(`SOURCE CUT RECALCULATED: ${result.project.pieces.length} source CUT pieces updated; ${result.changedCount} outlines changed after original executable evaluation. Original .val/.vit and source hashes retained; Undo restores the previous CUT. 3D sewing, native Rust construction and factory approvals remain unchanged/blocked.`)
+    return {pieceCount:result.project.pieces.length,changedCount:result.changedCount}
   }
 
   const runCommand = (event) => {
@@ -7266,6 +7345,8 @@ export default function App() {
           <input ref={svgPatternInputRef} hidden type="file" accept=".svg,image/svg+xml" onChange={importSvgPattern}/>
           <input ref={seamlyMeasureInputRef} hidden type="file" accept=".smis,.smms" onChange={importSeamlyMeasurements} />
           <input ref={seamlyPatternInputRef} hidden type="file" accept=".sm2d" onChange={importSeamlyConstructionGraph} />
+          <input ref={valentinaPatternInputRef} hidden type="file" accept=".val" onChange={importValentinaConstructionGraph} />
+          <input ref={valentinaMeasureInputRef} hidden type="file" accept=".vit,.vst" onChange={importValentinaMeasurements} />
           <input ref={graphicInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={importGraphic} />
           <input ref={fabricTextureInputRef} hidden type="file" accept="image/png,image/jpeg,image/webp" onChange={importFabricTexture} />
           <input ref={fabricEvidenceInputRef} hidden type="file" accept="application/json,.json" onChange={importFabricLabMeasurements} />
@@ -7304,7 +7385,7 @@ export default function App() {
       </section>}
 
       {studioSettingsOpen&&<StudioSettingsDialog value={studioCustomization} initialTab={studioSettingsTab}
-        onPreviewTheme={setPreviewStudioTheme} onPreviewIconColor={setPreviewIconColor} onPreviewTwoDPalette={setPreviewTwoDPalette} onPreviewTwoDPattern={setPreviewTwoDPattern} onPreviewGradeChart={previewGradeChart} onHoverTarget={setThemeHoveredTarget} onPickTarget={beginThemePick} focusKey={themePickFocusKey}
+        onPreviewTheme={setPreviewStudioTheme} onPreviewIconColor={setPreviewIconColor} onPreviewTwoDPalette={setPreviewTwoDPalette} onPreviewTwoDPattern={setPreviewTwoDPattern} onPreviewGradeChart={previewGradeChart} onPreview3DEnvironment={setPreview3DEnvironment} onApplySavedTheme={applyCompleteSavedTheme} onHoverTarget={setThemeHoveredTarget} onPickTarget={beginThemePick} focusKey={themePickFocusKey}
         contrastAudit={themeContrastAudit} onFixContrast={fixThemeContrast}
         onChange={updateStudioCustomization} onClose={closeStudioSettings}
         onApplyWorkspace={updateStudioCustomization} onSaveWorkspace={saveCustomWorkspace}
@@ -7332,19 +7413,19 @@ export default function App() {
             onOpenProfile={()=>{setStudioSettingsTab('profile');setStudioSettingsOpen(true)}}
           /> : sidebarView === 'history' ? <section className="clo-history-browser">
             <header>History</header>
-            <p>Recorded garment snapshots · current session</p>
+            <p>{clothcraftHybrid?'Native Rust garment history · current session':'Recorded garment snapshots · current session'}</p>
             <div className="clo-history-actions">
               <button type="button" onClick={undoForVisibleEngine} disabled={clothcraftHybrid ? !clothcraftLive?.canUndo : !undoStack.length}><Undo2 size={15}/> Undo <span>{clothcraftHybrid ? clothcraftLive?.canUndo ? '1+' : '0' : undoStack.length}</span></button>
               <button type="button" onClick={redoForVisibleEngine} disabled={clothcraftHybrid ? !clothcraftLive?.canRedo : !redoStack.length}><Redo2 size={15}/> Redo <span>{clothcraftHybrid ? clothcraftLive?.canRedo ? '1+' : '0' : redoStack.length}</span></button>
             </div>
             <div className="clo-history-timeline" role="list" aria-label="Recent garment history">
-              <div className="clo-history-current" role="listitem"><strong>Current · revision {project.revision ?? '—'}</strong><span>{project.pieces.length} patterns · {project.seams.length} seams</span></div>
-              {undoStack.map((snapshot, index) => ({snapshot,index})).reverse().slice(0, 20).map(({snapshot,index}) => <button role="listitem" type="button" key={`${index}-${snapshot.id || ''}-${snapshot.revision || ''}`} data-undo-index={index} title={`Restore garment revision ${snapshot.revision ?? index}`} onClick={() => restoreHistorySnapshot(index)}>
+              <div className="clo-history-current" role="listitem"><strong>Current · revision {clothcraftHybrid?(clothcraftLive?.revision??'—'):(project.revision??'—')}</strong><span>{clothcraftHybrid?`${clothcraftLive?.panelRefs?.length??clothcraftLive?.panels??'—'} native patterns`:`${project.pieces.length} patterns · ${project.seams.length} seams`}</span></div>
+              {!clothcraftHybrid&&undoStack.map((snapshot, index) => ({snapshot,index})).reverse().slice(0, 20).map(({snapshot,index}) => <button role="listitem" type="button" key={`${index}-${snapshot.id || ''}-${snapshot.revision || ''}`} data-undo-index={index} title={`Restore garment revision ${snapshot.revision ?? index}`} onClick={() => restoreHistorySnapshot(index)}>
                 <span>Revision {snapshot.revision ?? '—'}</span><small>{snapshot.pieces?.length ?? 0} patterns · {snapshot.seams?.length ?? 0} seams</small>
               </button>)}
-              {!undoStack.length && <div className="clo-history-empty">Edit a pattern to create an undo checkpoint.</div>}
+              {clothcraftHybrid?<div className="clo-history-empty">Native revision listing is unavailable. Use Undo and Redo above to navigate the current Rust history.</div>:!undoStack.length&&<div className="clo-history-empty">Edit a pattern to create an undo checkpoint.</div>}
             </div>
-            <div className="clo-history-note">Select a revision to restore it. Skipped edits remain accessible through Redo. Session history is not a replacement for saving your project.</div>
+            <div className="clo-history-note">{clothcraftHybrid?'Native Undo and Redo use Rust garment history. Individual previous revisions cannot be selected until a native revision listing is available. Save the garment to preserve it.':'Select a revision to restore it. Skipped edits remain accessible through Redo. Session history is not a replacement for saving your project.'}</div>
           </section> : <>
           <LibraryChrome category={assetCategory} setCategory={setAssetCategory} folder={libraryFolder} setFolder={setLibraryFolder}
             fabricGroups={FABRIC_PRESET_GROUPS} search={librarySearch} setSearch={setLibrarySearch} thumbnails={libraryThumbnails} setThumbnails={setLibraryThumbnails}>
@@ -7693,6 +7774,7 @@ export default function App() {
             seamMeasurements={clothcraftLive?.seamMeasurements||[]}
             onSelectSeam={seamId=>window.dispatchEvent(new CustomEvent('exo-clothcraft-select-seam',{detail:{seamId}}))}/>
           {clothcraftHybrid ? <ClothCraftWorkspace embedded exoSection={activeSection} exoObjectTab={objectTab} exoLayout={viewportLayout} exoSplit={viewportSplit}
+            customAvatar={customAvatar}
             environmentPreset={project.render?.environmentPreset || 'studio'} stageId={normalizeStageId(project.render?.stageId)}
             stageSettings={project.render?.stageSettings||{}}
             onRemoveStage={()=>updateRenderSetting('stageId','none')}
@@ -7701,7 +7783,7 @@ export default function App() {
             animationWorkspaceActive={animationWorkspaceActive} printLayoutActive={printLayoutActive} onExitPrintLayout={exitFocusedWorkspace}
             patternReferences={nativePatternReferences} onUpdatePatternReferences={updateNativePatternReferences}
             cameraSettings={project.render?.camera||null} sceneLight={project.render?.light||null}
-            sceneLight2={project.render?.light2||null} exposure={project.render?.exposure??1.1} studioAppearance={studioCustomization.appearance} studioPreferences={rustUiPreferences} workspaceGrid={show2DGrid} workspaceSeams={showSewingGuides}/> : <>
+            sceneLight2={project.render?.light2||null} exposure={project.render?.exposure??1.1} studioAppearance={liveStudioAppearance} studioPreferences={rustUiPreferences} workspaceGrid={show2DGrid} workspaceSeams={showSewingGuides}/> : <>
           {zozoReference ? <div className="viewport-shell zozo-reference-shell" data-testid="zozo-reference-workspace">
             <div className="workspace-head viewport-head">
               <div><strong>ZOZO GITHUB DRESS · RUST/METAL REFERENCE</strong><span>14 original panels · 851 sewing constraints · read-only cached simulation</span></div>
@@ -7712,7 +7794,7 @@ export default function App() {
             project={displayProject}
             stageSettings={project.render?.stageSettings||{}}
             onRemoveStage={()=>updateRenderSetting('stageId','none')}
-            studioAppearance={studioCustomization.appearance}
+            studioAppearance={liveStudioAppearance}
             studioPreferences={studioCustomization.preferences}
             ppfPreview={ppfPreview}
             running={running}
@@ -8022,6 +8104,33 @@ export default function App() {
                 </div>}
                 <p className="panel-copy">The .sm2d tool graph is a different parametric model from a cut-and-sewn garment. Seamly2D is still required to execute construction formulas and resolve details until an equivalent tested graph evaluator exists.</p>
               </div>
+              <div className="panel-section" aria-label="Valentina source interoperability">
+                <div className="panel-title"><span>Valentina connected drafting</span><strong>SOURCE GRAPH + SIZE RUN</strong></div>
+                <p className="panel-copy">Load an original Valentina .val construction and .vit/.vst body measurements. Edit its source variables and supported point tools, preview recalculated dependencies and compare actual source-point positions across five measurement size increments. Complete spline, seam and production grading still require independent validation.</p>
+                <button className="wide-action compact-action" onClick={()=>valentinaPatternInputRef.current?.click()}><Upload size={14}/>LOAD VALENTINA .VAL PATTERN</button>
+                <button className="wide-action compact-action" onClick={()=>valentinaMeasureInputRef.current?.click()}><Ruler size={14}/>LOAD VALENTINA .VIT / .VST MEASUREMENTS</button>
+                {project.valentinaConstructionReference&&<div className="seamly-construction-reference" aria-label="Imported Valentina construction reference">
+                  <p className="panel-copy"><strong>{project.valentinaConstructionReference.sourceName||'Valentina pattern'}</strong> · {project.valentinaConstructionReference.toolCount} construction tools · {project.valentinaConstructionReference.incrementCount} formulas · {project.valentinaConstructionReference.blocks.length} blocks</p>
+                  {project.valentinaConstructionReference.blocks.slice(0,30).map(block=><details key={block.id} className="seamly-reference-block">
+                    <summary>{block.name} · {block.toolCount} tools</summary>
+                    <ol>{block.nodes.slice(0,20).map(node=><li key={node.id}><strong>{node.name||node.id}</strong> · {node.family}/{node.type}</li>)}</ol>
+                  </details>)}
+                  <p className="panel-copy">{project.valentinaConstructionReference.note}</p>
+                </div>}
+                {project.measurementLibrary?.valentina&&<p className="panel-copy">Valentina {project.measurementLibrary.valentina.kind.toUpperCase()} source: {project.measurementLibrary.valentina.measurementCount} measurements · original {project.measurementLibrary.valentina.sourceUnit} units · preserved as a reference.</p>}
+                {project.valentinaConstructionReference&&<ValentinaNativeConnectedDraft20261031
+                  reference={project.valentinaConstructionReference}
+                  measurementReference={project.measurementLibrary?.valentina}
+                  onEditSource={editValentinaConnectedSource20261031}/>}
+                <p className="panel-copy">The connected point preview is a partial source-graph evaluator; unsupported operations are diagnosed, not guessed. For verified physical CUT geometry, use the original executable drafting engine below. Neither preview nor export implies production approval.</p>
+              </div>
+              {project.patternSource?.type==='valentina-semantic-upstream-cut-draft-v1'&&
+                <ValentinaSourceRelink20261031
+                  key={project.patternSource.originalAamaSha256}
+                  patternSource={project.patternSource}
+                  projectIdentity={`${project.id}@${project.revision}`}
+                  onRefresh={refreshValentinaLinkedCut20261031}/>}
+              <ValentinaUpstreamEngineStudio20261031 nativeMode={clothcraftHybrid} onReferenceImport={openValentinaCalculatedDraft}/>
               <SeamlyNativeEngineStudio20261023 nativeMode={clothcraftHybrid} onReferenceImport={openSeamlyCalculatedDraft} onNativeImport={detail=>window.dispatchEvent(new CustomEvent('exo-seamly-native-cut-import-request',{detail}))}/>
               {project.templateId === 'tee' && <div className="panel-section" aria-label="Foundation Tee pattern correction">
                 <div className="panel-title"><span>T-shirt pattern engineering</span><strong>SIZE M · SAMPLE</strong></div>
@@ -8811,7 +8920,7 @@ export default function App() {
               <div className="panel-section">
                 <div className="panel-title"><span>Avatar</span><strong>{project.avatar.name}</strong></div>
                 <div className="avatar-card"><div className="avatar-silhouette"><i /><i /><i /></div><div><span>BODY PROFILE</span><strong>{project.avatar.heightCm} cm</strong><em>{project.avatar.model === 'theo' || project.avatar.model === 'nora' ? 'Rigged CC0 fitting body' : 'CC0 MakeHuman fitting body'}</em></div></div>
-                <label className="select-field"><span>Fitting avatar</span><select value={clothcraftHybrid ? (clothcraftLive?.avatarModel || 'makehuman-base') : (project.avatar.model || 'makehuman-base')} onChange={(event) => setAvatarModel(event.target.value)}>{AVAILABLE_AVATARS.map(({ name, model }) => <option key={model} value={model} disabled={avatarAvailability[model] !== true || (clothcraftHybrid && !['makehuman-base','clo-thomas'].includes(model))}>{name}{model === 'makehuman-base' ? ' · Neutral base' : model === 'clo-thomas' ? ' · CLO3D Export' : ' · Rigged fitting'}{avatarAvailability[model] === false ? ' · Not installed' : ''}</option>)}{project.avatar.model === 'custom-export' && <option value="custom-export">Imported OBJ / GLB mesh</option>}</select></label><button className="wide-action" onClick={() => avatarMeshInputRef.current?.click()}><Upload size={14}/>IMPORT AVATAR OBJ / GLB</button><p className="panel-copy">Imported meshes are visual until mesh-to-body collision fitting is implemented. Use assets you have permission to import.</p>
+                <label className="select-field"><span>Fitting avatar</span><select value={clothcraftHybrid ? (clothcraftLive?.avatarModel || 'makehuman-base') : (project.avatar.model || 'makehuman-base')} onChange={(event) => setAvatarModel(event.target.value)}>{AVAILABLE_AVATARS.map(({ name, model }) => <option key={model} value={model} disabled={avatarAvailability[model] !== true || (clothcraftHybrid && !['makehuman-base','clo-thomas'].includes(model))}>{name}{model === 'makehuman-base' ? ' · Neutral base' : model === 'clo-thomas' ? ' · CLO3D Export' : ' · Rigged fitting'}{avatarAvailability[model] === false ? ' · Not installed' : ''}</option>)}{project.avatar.model === 'custom-export' && <option value="custom-export">Imported OBJ / GLB mesh</option>}</select></label><button className="wide-action" onClick={() => avatarMeshInputRef.current?.click()}><Upload size={14}/>IMPORT AVATAR / METAHUMAN GLB</button>{customAvatar&&<p className="panel-copy">Visual preview: {customAvatar.name} · {customAvatar.glbMetadata?.meshCount||'?'} meshes · {customAvatar.glbMetadata?.jointCount||0} skin joints. Not the collision body.</p>}<p className="panel-copy">Unreal: MetaHuman Creator → Geometry Export → Full Body Skeletal Mesh → export as GLB with glTF Exporter. This is visual only; native Rust collision remains MakeHuman/CLO. Unreal .uasset, .dna, facial RigLogic and grooms are not imported.</p>
                 {(project.avatar.model === 'theo' || project.avatar.model === 'nora') && <p className="panel-copy">Rigged OpenSew/MPFB fitting body · CC0. Selecting it also moves the analytic collision arms to the matching 60° apparel fitting pose.</p>}
               </div>
               <div className="panel-section measure-list">

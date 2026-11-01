@@ -15,3 +15,40 @@
 .exo-four-column-pattern-toolbar .exo-combined-toolbar-header button{display:grid;place-items:center;width:19px;height:21px;flex:0 0 19px;border:1px solid #394a59;border-radius:3px;background:#17202a;color:#dce8f5;cursor:pointer}
 .exo-four-column-pattern-toolbar .clo-palette-workflows,.exo-four-column-pattern-toolbar .clo-palette-count,.exo-four-column-pattern-toolbar .clo-reset-fabric-panels{display:none!important}
 .exo-four-column-pattern-toolbar .exo-two-column-combined-bars[data-tools-collapsed="true"]{display:none!important}
+
+/* Entering full 2D Studio used to force both A/B icon columns to #0b0e13
+   regardless of the saved Studio theme. The two bars must be readable in
+   light themes and match the 3D/2D tool rails in dark themes. Keep all
+   column positions, button hit areas, disabled states and tool commands. */
+.app-shell[data-studio-customized="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar,
+.app-shell[data-studio-customized="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-two-column-combined-bars>.clo-observed-column.clo-right-tool-grid,
+.app-shell[data-studio-customized="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-combined-toolbar-header{
+  background:var(--studio-sidebar,#292d33)!important;
+  background-color:var(--studio-sidebar,#292d33)!important;
+  color:var(--studio-text,#e5e9f1)!important;
+}
+.app-shell[data-studio-customized="true"][data-right-rail-custom="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar,
+.app-shell[data-studio-customized="true"][data-right-rail-custom="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-two-column-combined-bars>.clo-observed-column.clo-right-tool-grid{
+  background:var(--exo-right-rail-color,var(--studio-sidebar))!important;
+  background-color:var(--exo-right-rail-color,var(--studio-sidebar))!important;
+}
+.app-shell[data-studio-customized="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-two-column-combined-bars :is(.clo-observed-column,.exo-pattern-studio-embedded-column)>button{
+  color:var(--studio-text,#e5e9f1)!important;
+  -webkit-text-fill-color:currentColor;
+}
+.app-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-two-column-combined-bars :is(.clo-observed-column,.exo-pattern-studio-embedded-column)>button{
+  color:var(--exo-ui-icon-ink,var(--studio-text))!important;
+}
+.app-shell[data-studio-customized="true"][data-2d-toolbar-color-custom="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-two-column-combined-bars :is(.clo-observed-column,.exo-pattern-studio-embedded-column)>button{
+  color:var(--exo-2d-toolbar-ink,var(--studio-text))!important;
+}
+.app-shell[data-studio-customized="true"][data-icon-color-preview="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-two-column-combined-bars :is(.clo-observed-column,.exo-pattern-studio-embedded-column)>button{
+  color:var(--exo-preview-icon-color,var(--studio-text))!important;
+}
+.app-shell[data-studio-customized="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-two-column-combined-bars :is(.clo-observed-column,.exo-pattern-studio-embedded-column)>button :is(svg,.cad-tool-icon-mask){
+  color:inherit!important;
+  stroke:currentColor!important;
+}
+.app-shell[data-studio-customized="true"] .main-layout[data-pattern-workspace="true"] .clo-right-tool-palette.exo-four-column-pattern-toolbar .exo-two-column-combined-bars :is(.clo-observed-column,.exo-pattern-studio-embedded-column)>button .cad-tool-icon-mask{
+  background-color:currentColor!important;
+}

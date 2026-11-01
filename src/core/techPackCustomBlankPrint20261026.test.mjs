@@ -31,6 +31,25 @@ test('custom print retains authored boxes, tables, linked assets and transforms'
   assert.doesNotMatch(sheet,/seville-block|seville-footer|PAGE NOTES|seville-page-number/)
 })
 
+test('populated photo and color swatch print as clean media without template borders',()=>{
+  const media='data:image/png;base64,AAAA'
+  const workspace={...pages,pageBoxes:{[customId]:[
+    {id:'photo',title:'Drafting placeholder title',assetId:'photo-asset',width:220,height:140,border:'dashed',slot:{contentType:'photo'}},
+    {id:'color',title:'Color block',width:120,height:100,border:'dashed',slot:{contentType:'swatch',swatchHex:'#ff0000'}},
+    {id:'empty',title:'Empty photo',width:120,height:100,border:'dashed',slot:{contentType:'photo'}}
+  ]}}
+  const sheet=customSheet(renderTechPackWorkspacePrintHTML(source,{},workspace,[{id:'photo-asset',dataUrl:media}]))
+  const blocks=[...sheet.matchAll(/<section class="custom-artboard-box[^>]*style="([^"]*)">([\s\S]*?)<\/section>/g)]
+  assert.equal(blocks.length,3)
+  for(const block of blocks.slice(0,2)){
+    assert.match(block[1],/border:0;padding:0/)
+    assert.doesNotMatch(block[0],/<strong>|<p>|2px dashed/)
+  }
+  assert.match(blocks[0][2],/class="exo-composed-photo"/)
+  assert.match(blocks[1][2],/background:#ff0000/)
+  assert.match(blocks[2][1],/2px dashed/)
+})
+
 test('custom box table slot prints authored cells escaped and uses normalized box placement',()=>{
   const workspace={...pages,pageBoxes:{[customId]:[{id:'detail',title:'Size details',width:320,height:180,
     slot:{category:'tables',title:'Spec',headers:['Size <XS>','Chest & body'],rows:[{id:'one',cells:['<script>alert(1)</script>','20" & fit']}]}}]},
@@ -41,7 +60,7 @@ test('custom box table slot prints authored cells escaped and uses normalized bo
   assert.match(sheet,/<th>Chest &amp; body<\/th>/)
   assert.match(sheet,/<td>&lt;script&gt;alert\(1\)&lt;\/script&gt;<\/td>/)
   assert.match(sheet,/<td>20&quot; &amp; fit<\/td>/)
-  assert.match(sheet,/translate\(400px,-400px\) scale\(3,0\.25\)/)
+  assert.match(sheet,/translate\(0px,0px\) scale\(2\.475,0\.25\)/)
   assert.doesNotMatch(sheet,/<script>|PAGE NOTES|seville-footer/)
 })
 

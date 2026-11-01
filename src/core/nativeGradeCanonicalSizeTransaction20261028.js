@@ -4,8 +4,20 @@ import {migrateNativeGradeNamedSizePom20261028} from './nativeGradeNamedSizePomM
 const fail=(reason,{dispatched=false,committed=false}={})=>({ok:false,reason,
  nativeCommitted:committed,needsNativeRecovery:dispatched,factoryApproved:false})
 const equal=(a,b)=>{
+ // Array length and dense indexed ownership are part of the authoritative
+ // graded catalog. Object.keys alone misses sparse trailing slots: a native
+ // save reply with an extra unenumerated size could otherwise pass the
+ // durable catalog witness and incorrectly report a successful commit.
+ if(Array.isArray(a)||Array.isArray(b)){
+  if(!Array.isArray(a)||!Array.isArray(b)||a.length!==b.length||
+   Object.keys(a).length!==a.length||Object.keys(b).length!==b.length)return false
+  for(let i=0;i<a.length;i++){
+   if(!Object.hasOwn(a,i)||!Object.hasOwn(b,i)||!equal(a[i],b[i]))return false
+  }
+  return true
+ }
  if(Object.is(a,b))return true
- if(!a||!b||typeof a!=='object'||typeof b!=='object'||Array.isArray(a)!==Array.isArray(b))return false
+ if(!a||!b||typeof a!=='object'||typeof b!=='object')return false
  const keys=Object.keys(a)
  return keys.length===Object.keys(b).length&&keys.every(key=>Object.hasOwn(b,key)&&equal(a[key],b[key]))
 }

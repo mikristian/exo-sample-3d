@@ -23,6 +23,18 @@ test('photo updates keep authored contents and do not allow remote image preview
   assert.match(component,/onDoubleClick/)
 })
 
+test('populated artboard media has no permanent editor chrome or photo card border',()=>{
+  const css=fs.readFileSync(new URL('./TechPackBoxContent.css',import.meta.url),'utf8')
+  assert.match(component,/const pureMedia=/)
+  assert.match(component,/tpbc-pure-media/)
+  assert.match(component,/!pureMedia&&<div className="tpbc-topline"/)
+  assert.match(component,/editable&&!safeSrc&&<button type="button" className="tpbc-photo-overlay"/)
+  assert.match(component,/kind==='module'&&!pureMedia&&<div className="tpbc-template-module"/)
+  assert.match(component,/editable&&!safeSrc&&!pureMedia&&\(kind==='asset'/)
+  assert.match(css,/\.tpbc\.tpbc-pure-media\{padding:0!important/)
+  assert.match(css,/\.tpbc-pure-media \.tpbc-photo-frame\{[^}]*border:0!important/)
+})
+
 test('read-only preview computes formulas, applies theme and cell styles, and preserves source warnings',async()=>{
   const filename=fileURLToPath(new URL('./TechPackBoxContent.jsx',import.meta.url))
   const output=await build({entryPoints:[filename],bundle:true,write:false,platform:'node',format:'cjs',packages:'external',loader:{'.jsx':'jsx','.css':'empty'},logLevel:'silent'})
@@ -49,4 +61,64 @@ test('read-only preview computes formulas, applies theme and cell styles, and pr
   assert.equal(view.palette.header,'#243449')
   assert.equal(view.columns[0].width,190)
   assert.equal(JSON.stringify(original),before,'preview must leave source data untouched')
+})
+test('embedded preview keeps merged heading cells and suppresses covered boxes',async()=>{
+  const filename=fileURLToPath(new URL('./TechPackBoxContent.jsx',import.meta.url))
+  const output=await build({entryPoints:[filename],bundle:true,write:false,platform:'node',format:'cjs',
+    packages:'external',loader:{'.jsx':'jsx','.css':'empty'},logLevel:'silent'})
+  const mod=new Module(filename)
+  mod.filename=filename
+  mod.paths=Module._nodeModulePaths(fileURLToPath(new URL('.',import.meta.url)))
+  mod.require=createRequire(import.meta.url)
+  mod._compile(output.outputFiles[0].text,filename)
+  const table={columns:[{id:'a',label:'A'},{id:'b',label:'B'},{id:'c',label:'C'}],
+    rows:[{id:'r1',cells:{a:{input:'FACTORY NOTES'},b:{input:''},c:{input:''}}}],
+    mergedCells:[{r:0,c:0,rowSpan:1,colSpan:3}]}
+  const preview=mod.exports.spreadsheetBoxPreview(table)
+  assert.equal(preview.rows[0].cells[0].merge.colSpan,3)
+  assert.equal(preview.rows[0].cells[1].covered,true)
+  assert.equal(preview.rows[0].cells[2].covered,true)
+})
+test('embedded grid fits all columns to 100% of placed object instead of clipping wider pixel widths',async()=>{
+  const filename=fileURLToPath(new URL('./TechPackBoxContent.jsx',import.meta.url))
+  const output=await build({entryPoints:[filename],bundle:true,write:false,platform:'node',format:'cjs',
+    packages:'external',loader:{'.jsx':'jsx','.css':'empty'},logLevel:'silent'})
+  const mod=new Module(filename)
+  mod.filename=filename
+  mod.paths=Module._nodeModulePaths(fileURLToPath(new URL('.',import.meta.url)))
+  mod.require=createRequire(import.meta.url)
+  mod._compile(output.outputFiles[0].text,filename)
+  const fitted=mod.exports.fittedEmbeddedColumnWidths([{width:44},{width:63},{width:466}])
+  assert.equal(fitted.length,3)
+  assert.ok(Math.abs(fitted.map(parseFloat).reduce((sum,n)=>sum+n,0)-100)<1e-8)
+  assert.equal(fitted[0],String(44/573*100)+'%')
+  assert.deepEqual(mod.exports.fittedEmbeddedColumnWidths([]),[])
+  assert.match(component,/style=\{\{width:fittedColumns\[index\]\}\}/)
+  assert.match(component,/setSelectionRange\?\.\(0,0\)/)
+})
+test('direct clicks edit authored table headers and cells without changing linked source values',async()=>{
+  const filename=fileURLToPath(new URL('./TechPackBoxContent.jsx',import.meta.url))
+  const output=await build({entryPoints:[filename],bundle:true,write:false,platform:'node',format:'cjs',
+    packages:'external',loader:{'.jsx':'jsx','.css':'empty'},logLevel:'silent'})
+  const mod=new Module(filename);mod.filename=filename
+  mod.paths=Module._nodeModulePaths(fileURLToPath(new URL('.',import.meta.url)))
+  mod.require=createRequire(import.meta.url)
+  mod._compile(output.outputFiles[0].text,filename)
+  const {patchInlineSpreadsheet,canInlineEditSpreadsheet}=mod.exports
+  const authored={columns:[{id:'a',label:'POM'},{id:'b',label:'Measurement'}],
+    rows:[{id:'r1',cells:{a:{input:'Chest'},b:{input:''}}}],
+    mergedCells:[],origin:'authored'}
+  assert.equal(canInlineEditSpreadsheet(authored),true)
+  const heading=patchInlineSpreadsheet(authored,'header',-1,1,'CM')
+  assert.equal(heading.columns[1].label,'CM')
+  assert.equal(authored.columns[1].label,'Measurement')
+  const edited=patchInlineSpreadsheet(heading,'cell',0,1,'56')
+  assert.equal(edited.rows[0].cells.b.input,'56')
+  assert.equal(edited.rows[0].cells.b.value,'56')
+  assert.equal(authored.rows[0].cells.b.input,'')
+  const linked={...authored,rows:[{id:'r1',sourceRef:'pom:chest',cells:authored.rows[0].cells}]}
+  assert.equal(canInlineEditSpreadsheet(linked),false)
+  assert.equal(patchInlineSpreadsheet(linked,'cell',0,1,'999'),null)
+  const merged={...authored,mergedCells:[{r:0,c:0,rowSpan:1,colSpan:2}]}
+  assert.equal(patchInlineSpreadsheet(merged,'cell',0,1,'999'),null)
 })

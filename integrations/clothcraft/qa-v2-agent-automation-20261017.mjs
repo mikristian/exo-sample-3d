@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { PassThrough } from 'node:stream'
 import { createAgentApi } from './agent-api.mjs'
+import {createWorkspaceAuth} from './workspace-auth.mjs'
 
 let revision = 4
 const commands = []
@@ -14,8 +15,9 @@ const workspace = {
   },
 }
 const allowedOrigin = 'http://127.0.0.1:5386'
-const api = createAgentApi(workspace, { allowOrigin: origin => origin === allowedOrigin })
-async function post(url, payload, headers = { origin: allowedOrigin }) {
+const shell=createWorkspaceAuth()
+const api = createAgentApi(workspace, { allowOrigin: origin => origin === allowedOrigin,authorizeUi:header=>shell.authorize(header) })
+async function post(url, payload, headers = { origin: allowedOrigin, authorization:`Bearer ${shell.token}` }) {
   const req = new PassThrough()
   Object.assign(req, { method: 'POST', url, headers })
   const res = { writeHead(status, responseHeaders) { this.status = status; this.responseHeaders = responseHeaders }, end(payload) { this.body = JSON.parse(payload) } }
@@ -23,10 +25,10 @@ async function post(url, payload, headers = { origin: allowedOrigin }) {
   assert.equal(await api.handle(req, res), true)
   return { status: res.status, headers: res.responseHeaders, ...res.body }
 }
-const allowedSuccess = await post('/agent/v1/actions', { action: 'workspace.summary' }, { origin: allowedOrigin })
+const allowedSuccess = await post('/agent/v1/actions', { action: 'workspace.summary' }, { origin: allowedOrigin,authorization:`Bearer ${shell.token}` })
 assert.equal(allowedSuccess.headers['Access-Control-Allow-Origin'], allowedOrigin)
 assert.equal(allowedSuccess.headers.Vary, 'Origin')
-const allowedError = await post('/agent/v1/batch', { actions: [] }, { origin: allowedOrigin })
+const allowedError = await post('/agent/v1/batch', { actions: [] }, { origin: allowedOrigin,authorization:`Bearer ${shell.token}` })
 assert.equal(allowedError.status, 400)
 assert.equal(allowedError.headers['Access-Control-Allow-Origin'], allowedOrigin)
 assert.equal(allowedError.headers.Vary, 'Origin')
@@ -61,7 +63,9 @@ try {
   process.env.EXO_AGENT_API_TOKEN = 'test-only-token'
   assert.equal((await post('/agent/v1/actions', { action: 'workspace.summary' }, {})).code, 'UNAUTHORIZED')
   const authError = await post('/agent/v1/actions', { action: 'workspace.summary' }, { origin: allowedOrigin })
-  assert.equal(authError.status, 200)
+  assert.equal(authError.status, 401)
+  const signed=await post('/agent/v1/actions', { action: 'workspace.summary' }, { origin: allowedOrigin,authorization:`Bearer ${shell.token}` })
+  assert.equal(signed.status,200)
   assert.equal(authError.headers['Access-Control-Allow-Origin'], allowedOrigin)
   assert.equal((await post('/agent/v1/actions', { action: 'workspace.summary' }, { 'x-clothcraft-token': 'test-only-token' })).ok, true)
   assert.equal((await post('/agent/v1/batch', { actions: [{ action: 'workspace.save', expectedRevision: 6 }] }, {})).code, 'UNAUTHORIZED')

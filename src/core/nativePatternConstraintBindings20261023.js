@@ -34,7 +34,11 @@ function snapshotPanels(snapshot){
      snapshot.template.panels.length<1||snapshot.template.panels.length>128)
     throw Error('Native source revision or panels unavailable')
   const ids=new Set()
-  const panels={}
+  // Panel IDs are authored strings. An ordinary object silently treats
+  // `__proto__` as a prototype setter, omitting that panel from the source
+  // fingerprint and making valid bindings to it appear missing. Keep the
+  // identity dictionary prototype-free so every panel is fingerprinted.
+  const panels=Object.create(null)
   for(const panel of snapshot.template.panels){
     if(!plain(panel)||!str(panel.id)||ids.has(panel.id)||!plain(panel.polygon))throw Error('Invalid or duplicate native panel')
     ids.add(panel.id)

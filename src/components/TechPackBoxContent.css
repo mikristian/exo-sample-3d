@@ -15,7 +15,24 @@
 .tpbc.tpbc-table .tps-footer{padding:4px 8px;font-size:9px}
 .tpbc.tpbc-table .tps-scroll{min-height:60px}
 .tpbc.tpbc-table .tpbc-table-scroll{overflow:auto;min-height:0;max-height:100%}
+/* Embedded tables are artwork only: no input chrome, padding, frame or title. */
+.tpbc.tpbc-table{background:transparent!important;border:0!important;overflow:visible;pointer-events:auto;padding:0!important;gap:0!important}
+.tpbc.tpbc-table .tpbc-table-scroll{flex:1;overflow:hidden;min-height:0;max-height:none}
+.tpbc.tpbc-table .tpbc-table{height:100%;width:100%;margin:0;table-layout:fixed}
+.tpbc.tpbc-table .tpbc-table th,.tpbc.tpbc-table .tpbc-table td{padding:3px 5px;line-height:1.1;vertical-align:middle}
+.tpbc.tpbc-table .tpbc-table td.tpbc-merged-heading{text-align:center;font-weight:750;letter-spacing:.02em}
+.tpbc-content.tpbc-table .tpbc-table th,.tpbc-content.tpbc-table .tpbc-table td{cursor:text}
+.tpbc.tpbc-table .tpbc-table .tpbc-inline-input{display:block;width:100%;min-width:0;height:100%;padding:1px 2px;border:1px solid #5277a6;border-radius:1px;background:#fff;color:#202124;font:inherit;letter-spacing:inherit;text-align:inherit}
+.tpbc.tpbc-table .tpbc-table .tpbc-inline-input:focus{outline:1px solid #5277a6;outline-offset:0}
+.tpbc-composed-swatch{display:flex;flex-direction:column;gap:5px;height:100%;min-height:0}
+.tpbc-composed-swatch-color{flex:1;min-height:45px;border:1px solid #c4cbd1;background:#e6e9ed;overflow:hidden}
+.tpbc-composed-swatch-color img{width:100%;height:100%;object-fit:cover}
+.tpbc-composed-swatch label{font:750 10px/1.2 Inter,Arial,sans-serif;color:#39495a;letter-spacing:.03em}
+.tpbc-composed-swatch input[type=color]{width:44px;height:22px;min-height:22px;padding:1px;border:1px solid #adb7c1}
+.tpbc-composed-swatch button{align-self:start;color:#37627e!important;font-size:9px}
+.tpbc-composed-swatch small{overflow-wrap:anywhere;font-size:9px}
 .tpbc-photo-frame{position:relative;width:100%;min-height:64px;flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid rgba(55,72,88,.17);border-radius:5px;background:repeating-conic-gradient(#f2f4f5 0 25%,#fff 0 50%) 50%/14px 14px}
+.tpbc-photo-frame.tpbc-photo-filled{border:0;border-radius:0;background:transparent}
 .tpbc-photo-frame img{display:block;object-fit:contain;object-position:center;max-width:100%;max-height:100%;width:100%;height:100%;min-height:48px}
 .tpbc-photo-overlay{position:absolute;bottom:7px;right:7px;z-index:1;display:flex;align-items:center;gap:5px;padding:6px 9px!important;border:1px solid #d6e0e5!important;border-radius:5px!important;background:#fff!important;box-shadow:0 2px 8px #0002;color:#243e50!important;font:700 10px/1.2 inherit!important;opacity:.94}
 .tpbc-photo-overlay:hover,.tpbc-photo-overlay:focus-visible{opacity:1;background:#eaf3f9!important;outline:2px solid #6289aa;outline-offset:1px}
@@ -28,3 +45,12 @@
 .tpbc-asset-missing{color:#a35539;overflow-wrap:anywhere}
 .tpbc-content .tpbc-title,.tpbc-content .tpbc-note{cursor:text}
 .tpbc-layout .tpbc-photo-overlay,.tpbc-layout .tpbc-photo-actions{display:none}
+/* Filled media are single selectable artboard objects, without a printed
+   frame, title strip, placeholder padding, or opaque target outside artwork. */
+.tpbc.tpbc-pure-media{padding:0!important;margin:0!important;gap:0!important;overflow:hidden!important;background:transparent!important;border:0!important}
+.tpbc-pure-media .tpbc-asset{width:100%;height:100%;min-height:0!important;flex:1;margin:0!important;display:block}
+.tpbc-pure-media .tpbc-photo-frame{width:100%;height:100%;min-height:0!important;flex:none;border:0!important;border-radius:0!important;background:transparent!important}
+.tpbc-pure-media .tpbc-photo-frame img{width:100%;height:100%;min-height:0;max-width:none;max-height:none;object-position:center;user-select:none}
+.tpbc-pure-media .tpbc-composed-swatch{width:100%;height:100%;min-height:0;gap:0}
+.tpbc-pure-media .tpbc-composed-swatch-color{width:100%;height:100%;min-height:0;flex:1;border:0;overflow:hidden}
+.tpbc-pure-media .tpbc-composed-swatch-color img{display:block;width:100%;height:100%;object-fit:cover}

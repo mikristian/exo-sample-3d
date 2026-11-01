@@ -4,6 +4,7 @@ import {techPackFactoryReadiness} from './techPackFactoryReadiness.js'
 import {renderTechPackWorkspacePrintHTML} from './techPackWorkspacePrint.js'
 import {techPackSource} from './techPackWorkspaceModel.js'
 import {createDefaultProject} from '../data/defaultProject.js'
+import {createTechPackVector} from './techPackVectorStudio.js'
 
 const source={ready:true,revision:9,name:'Sample',panels:[],fabrics:[],pom:{}}
 const printableSource={...techPackSource(createDefaultProject(),null,false),revision:9}
@@ -30,4 +31,15 @@ test('current embedded image and source table avoid false stale-asset or table w
     slot:{spreadsheetTable:{sourceRevision:9,columns:[{id:'c'}],rows:[{cells:{c:{value:'42',sourceRevision:9}}}]}}}]}}
   const issues=techPackFactoryReadiness(source,{},workspace,[{id:'logo',dataUrl:'data:image/png;base64,AAAA',sourceRevision:9}]).review
   assert.ok(!issues.some(item=>/asset-custom-a|stale-table-custom-a|table-cells-custom-a|table-overflow-custom-a/.test(item.id)))
+})
+test('print export includes editable vector and type layers on existing and blank artboards',()=>{
+ const rectangle=createTechPackVector('rect',{x:30,y:40,width:180,height:60},'v1')
+ const text={...createTechPackVector('text',{},'v2'),text:'SPEC / <Trim>'}
+ const workspace={customPages:[{id:'custom-print-vector',name:'Artwork'}],
+   vectorObjects:{overview:[rectangle],'custom-print-vector':[text]}}
+ const html=renderTechPackWorkspacePrintHTML(printableSource,{},workspace)
+ assert.match(html,/exo-techpack-vector-print/)
+ assert.match(html,/SPEC \/ &lt;Trim&gt;/)
+ assert.match(html,/width="180"/)
+ assert.doesNotMatch(html,/<Trim>/)
 })

@@ -1,7 +1,9 @@
 import {createHash} from 'node:crypto'
 import {isDeepStrictEqual} from 'node:util'
 
-const MAX_FILES=320
+// Match the bounded source-recovery inventory ceiling. Large graded multi-fabric
+// exports can exceed 320 entries; hashes and exact inventory still apply.
+const MAX_FILES=1024
 const MAX_FILE_BYTES=8*1024*1024
 const MAX_TOTAL_BYTES=40*1024*1024
 const UTF8=new TextDecoder('utf-8',{fatal:true})

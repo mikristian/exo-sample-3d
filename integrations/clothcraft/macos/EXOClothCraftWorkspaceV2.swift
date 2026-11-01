@@ -1,4 +1,5 @@
 import AppKit
+import CryptoKit
 import Foundation
 import WebKit
 
@@ -8,14 +9,65 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
     private var window: NSWindow!
     private var webView: WKWebView!
     private var processes: [Process] = []
+    private var stagingWatchdog: Process?
     private var startupAttempts = 0
-    private let pageURL = URL(string: "http://127.0.0.1:5386/?desktop=1&engine=clothcraft")!
+    // Explicit opt-in for a separately bundled staging app. The normal signed
+    // installation keeps its original ports and Application Support identity.
+    #if EXO_V2_STAGED
+    // Candidate app stays isolated even when launched from Finder, which does
+    // not inherit a Terminal-only EXO_V2_STAGING environment variable.
+    private let staging = true
+    #else
+    private let staging = ProcessInfo.processInfo.environment["EXO_V2_STAGING"] == "1"
+    #endif
+    private var bridgePort: Int { staging ? 5485 : 5385 }
+    private var webPort: Int { staging ? 5486 : 5386 }
+    private var supportName: String {
+        guard staging else { return "EXO-ClothCraft-Studio-V2" }
+        // Staged candidates must not inherit the previous candidate's
+        // saved garment, auth token or cached Node. A signed plist controls
+        // this namespace even when launched from Finder.
+        if let configured = Bundle.main.object(forInfoDictionaryKey: "EXOStagingSupportName") as? String,
+           configured.range(of: "^EXO-ClothCraft-Studio-V2-Staging-[A-Za-z0-9-]{1,48}$",
+                            options: .regularExpression) != nil {
+            return configured
+        }
+        return "EXO-ClothCraft-Studio-V2-Staging"
+    }
+    private var pageURL: URL { URL(string: "http://127.0.0.1:\(webPort)/?desktop=1&engine=clothcraft")! }
+    private var bridgeHealthURL: URL { URL(string: "http://127.0.0.1:\(bridgePort)/health")! }
+    // The resource manifest is created and verified before the AppKit bundle
+    // is signed. Match the running Node bridge's independently verified
+    // identity to the manifest inside *this* signed app, not merely to a
+    // generic localhost health response that happens to return HTTP 200.
+    private var bundledRuntimeIdentity: String? {
+        guard let resourceURL = Bundle.main.resourceURL,
+              let bytes = try? Data(contentsOf: resourceURL.appendingPathComponent("runtime-provenance.json")),
+              let manifest = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any],
+              (manifest["schema"] as? String) == "exo.desktop.runtime-provenance.v3",
+              let identity = manifest["identity"] as? String,
+              identity.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil else { return nil }
+        return identity
+    }
+    private var supportRoot: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/\(supportName)", isDirectory: true)
+    }
+    private var logsRoot: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Logs/\(supportName)", isDirectory: true)
+    }
     private var startupLabel: NSTextField!
     private var logs: FileHandle?
+    // Fresh secret shared only by this WKWebView and its child bridge process.
+    private let workspaceToken = UUID().uuidString + UUID().uuidString
+    private var workspaceTokenIdentity: String {
+        SHA256.hash(data: Data(workspaceToken.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+    }
 
     private func traceStartup(_ message: String) {
-        let directory = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/EXO-ClothCraft-Studio-V2", isDirectory: true)
+        let directory = logsRoot
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let file = directory.appendingPathComponent("startup-trace.log")
         if !FileManager.default.fileExists(atPath: file.path) {
@@ -26,6 +78,16 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
             try? handle.write(contentsOf: Data("\(Date()) \(message)\n".utf8))
             try? handle.close()
         }
+    }
+
+    private func executableSHA256(_ url: URL) throws -> String {
+        let stream = try FileHandle(forReadingFrom: url)
+        defer { try? stream.close() }
+        var hash = SHA256()
+        while let chunk = try stream.read(upToCount: 1024 * 1024), !chunk.isEmpty {
+            hash.update(data: chunk)
+        }
+        return hash.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -49,8 +111,11 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
 
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        configuration.websiteDataStore = .default()
+        configuration.websiteDataStore = staging ? .nonPersistent() : .default()
         configuration.userContentController.add(self, name: "exoStudioFullscreen")
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: "window.__EXO_WORKSPACE_TOKEN__ = '\(workspaceToken)';",
+            injectionTime: .atDocumentStart, forMainFrameOnly: true))
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = self
@@ -100,19 +165,42 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         // that same official Node binary and signature run correctly elsewhere.
         // Clone our bundled runtime to user Application Support once, retaining
         // the Node Foundation signature and keeping the app fully offline.
-        let runtimeFolder = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/EXO-ClothCraft-Studio-V2/Runtime", isDirectory: true)
+        let runtimeFolder = supportRoot.appendingPathComponent("Runtime", isDirectory: true)
         try FileManager.default.createDirectory(at: runtimeFolder, withIntermediateDirectories: true)
         let node = runtimeFolder.appendingPathComponent("node")
-        let sourceInfo = try FileManager.default.attributesOfItem(atPath: bundledNode.path)
-        let cachedInfo = try? FileManager.default.attributesOfItem(atPath: node.path)
-        let sizeMatches = (cachedInfo?[.size] as? NSNumber) == (sourceInfo[.size] as? NSNumber)
-        let timeMatches = (cachedInfo?[.modificationDate] as? Date) == (sourceInfo[.modificationDate] as? Date)
-        if !sizeMatches || !timeMatches {
-            if FileManager.default.fileExists(atPath: node.path) {
-                try FileManager.default.removeItem(at: node)
+        let sourceType = try bundledNode.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey])
+        guard sourceType.isRegularFile == true && sourceType.isSymbolicLink != true else {
+            throw NSError(domain: "EXO", code: 4,
+                userInfo: [NSLocalizedDescriptionKey: "Bundled Node executable must be a real signed resource file"])
+        }
+        // File size and modification time are not a trust boundary: an older
+        // or replaced cached Node binary could match both while running with
+        // the app's private workspace token. Pin its bytes to the signed
+        // bundled executable on every launch, without loading it all into RAM.
+        let bundledIdentity = try executableSHA256(bundledNode)
+        let existingType = try? node.resourceValues(forKeys: [.isSymbolicLinkKey, .isRegularFileKey])
+        let trustedCachedNode = existingType?.isRegularFile == true &&
+            existingType?.isSymbolicLink != true &&
+            (try? executableSHA256(node)) == bundledIdentity
+        if !trustedCachedNode {
+            // Same-volume exclusive copy+rename is an atomic cache switch.
+            // Never unlink a healthy previous runtime before the full signed
+            // source has been copied and verified.
+            let stagedNode = runtimeFolder.appendingPathComponent("node.pending-\(UUID().uuidString)")
+            do {
+                try FileManager.default.copyItem(at: bundledNode, to: stagedNode)
+                guard try executableSHA256(stagedNode) == bundledIdentity else {
+                    throw NSError(domain: "EXO", code: 3,
+                        userInfo: [NSLocalizedDescriptionKey: "Cached Node copy has a mismatched SHA-256"])
+                }
+                guard rename(stagedNode.path, node.path) == 0 else {
+                    throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno),
+                        userInfo: [NSLocalizedDescriptionKey: "Atomic Node runtime replacement failed"])
+                }
+            } catch {
+                try? FileManager.default.removeItem(at: stagedNode)
+                throw error
             }
-            try FileManager.default.copyItem(at: bundledNode, to: node)
         }
         let scripts = resources.appendingPathComponent("integrations/clothcraft")
         let clothCraft = resources.appendingPathComponent("research/oss/clothcraft")
@@ -127,17 +215,16 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
                          resources.appendingPathComponent("web/index.html"),
                          scripts.appendingPathComponent("server.mjs"),
                          scripts.appendingPathComponent("workspace.mjs"),
+                         scripts.appendingPathComponent("workspace-auth.mjs"),
                          scripts.appendingPathComponent("agent-api.mjs")] {
             if !FileManager.default.fileExists(atPath: required.path) {
                 throw NSError(domain: "EXO", code: 2,
                               userInfo: [NSLocalizedDescriptionKey: "Missing bundled resource: \(required.lastPathComponent)"])
             }
         }
-        let logsDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Logs/EXO-ClothCraft-Studio-V2", isDirectory: true)
+        let logsDir = logsRoot
         try FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
-        let outputsDir = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/EXO-ClothCraft-Studio-V2/Output", isDirectory: true)
+        let outputsDir = supportRoot.appendingPathComponent("Output", isDirectory: true)
         try FileManager.default.createDirectory(at: outputsDir, withIntermediateDirectories: true)
         let log = logsDir.appendingPathComponent("desktop.log")
         if !FileManager.default.fileExists(atPath: log.path) {
@@ -146,8 +233,8 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         logs = try FileHandle(forWritingTo: log)
         try logs?.seekToEnd()
         let configurations: [(URL, [String], [String: String])] = [
-            (rustStaticHost, ["--web-root", resources.appendingPathComponent("web").path], ["EXO_WEB_PORT": "5386"]),
-            (node, [scripts.appendingPathComponent("server.mjs").path], ["EXO_CLOTHCRAFT_PORT": "5385"]),
+            (rustStaticHost, ["--web-root", resources.appendingPathComponent("web").path], ["EXO_WEB_PORT": String(webPort)]),
+            (node, [scripts.appendingPathComponent("server.mjs").path], ["EXO_CLOTHCRAFT_PORT": String(bridgePort)]),
         ]
         for (executable, arguments, extra) in configurations {
             let p = Process()
@@ -161,6 +248,7 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
             environment["EXO_NATIVE_CLI"] = native.path
             environment["EXO_CLOTHCRAFT_OUTPUT_DIR"] = outputsDir.path
             environment["EXO_CLOTHCRAFT_GPU"] = "1"
+            environment["EXO_WORKSPACE_TOKEN"] = workspaceToken
             environment["EXO_CLOTHCRAFT_AVATAR_THOMAS_OBJ"] = resources.appendingPathComponent("collision-avatars/thomas-body.obj").path
             environment["EXO_CLOTHCRAFT_AVATAR_MAKEHUMAN_OBJ"] = resources.appendingPathComponent("collision-avatars/makehuman-body.obj").path
             extra.forEach { environment[$0.key] = $0.value }
@@ -170,24 +258,182 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
             try p.run()
             processes.append(p)
         }
+        if staging {
+            do { try startStagingWatchdog() }
+            catch {
+                processes.forEach { if $0.isRunning { $0.terminate() } }
+                throw error
+            }
+        }
     }
+
+    // AppKit termination hooks do not run after SIGKILL, SIGTERM's default
+    // disposition, or a native crash. A separate process watches its actual
+    // parent PID so the two staging servers do not survive those exits.
+    // Only stage this supervisor; production keeps its existing lifecycle.
+    private func startStagingWatchdog() throws {
+        let shell = Process()
+        shell.executableURL = URL(fileURLWithPath: "/bin/sh")
+        shell.arguments = ["-c", Self.stagingWatchdogScript, "exo-staging-watchdog",
+                           String(ProcessInfo.processInfo.processIdentifier)] + processes.map { String($0.processIdentifier) }
+        shell.standardOutput = logs
+        shell.standardError = logs
+        try shell.run()
+        stagingWatchdog = shell
+        traceStartup("staging watchdog pid=\(shell.processIdentifier) supervising \(processes.map { $0.processIdentifier })")
+    }
+
+    // Keep this POSIX shell source self-contained for the disposable lifecycle
+    // fixture, which exercises the exact text embedded in the signed launcher.
+    private static let stagingWatchdogScript = #"""
+    parent="$1"
+    shift
+    # Capture birth identities before the AppKit parent disappears. Killing
+    # an old numeric PID without rechecking would risk terminating an
+    # unrelated process if macOS recycled that PID during the grace period.
+    birth() {
+      ps -o lstart= -p "$1" 2>/dev/null | tr -s ' ' | sed 's/^ //;s/ $//'
+    }
+    children=""
+    for child do
+      started=$(birth "$child")
+      if [ -n "$started" ]; then
+        children="$children
+    $child|$started"
+      fi
+    done
+    kill_owned() {
+      signals="$1"
+      entries="$2"
+      printf '%s\n' "$entries" | while IFS='|' read -r pid started; do
+        [ -n "$pid" ] && [ -n "$started" ] || continue
+        current=$(birth "$pid")
+        if [ -n "$current" ] && [ "$current" = "$started" ]; then
+          kill -"$signals" "$pid" 2>/dev/null || :
+        fi
+      done
+    }
+    # Remember the native Rust descendants *while* their Node parent is
+    # alive. A failed bridge may exit long before AppKit, reparenting its
+    # exo-session so that a one-time pgrep -P at shutdown misses it.
+    tracked_descendants=""
+    capture_descendants() {
+      for child do
+        registered=$(printf '%s\n' "$children" | awk -F'|' -v id="$child" '$1==id {print $2;exit}')
+        [ -n "$registered" ] && [ "$(birth "$child")" = "$registered" ] || continue
+        for descendant in $(pgrep -P "$child" 2>/dev/null); do
+          owner=$(ps -o ppid= -p "$descendant" 2>/dev/null | tr -d '[:space:]')
+          [ "$owner" = "$child" ] || continue
+          started=$(birth "$descendant")
+          [ -n "$started" ] || continue
+          entry="$descendant|$started"
+          if ! printf '%s\n' "$tracked_descendants" | grep -Fqx "$entry"; then
+            tracked_descendants="$tracked_descendants
+    $entry"
+          fi
+        done
+      done
+    }
+    while :; do
+      capture_descendants "$@"
+      actual=$(ps -o ppid= -p "$$" 2>/dev/null | tr -d '[:space:]')
+      if [ "$actual" != "$parent" ]; then
+        kill_owned TERM "$tracked_descendants"
+        kill_owned TERM "$children"
+        sleep 1
+        kill_owned KILL "$tracked_descendants"
+        kill_owned KILL "$children"
+        exit 0
+      fi
+      sleep 0.25
+    done
+    """#
 
     private func awaitPage() {
         startupAttempts += 1
         let request = URLRequest(url: pageURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 2)
         URLSession.shared.dataTask(with: request) { [weak self] _, response, _ in
             guard let self else { return }
-            let good = (response as? HTTPURLResponse)?.statusCode == 200
-            DispatchQueue.main.async {
-                if good {
-                    self.webView.load(URLRequest(url: self.pageURL))
-                } else if self.startupAttempts < 80 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self.awaitPage() }
-                } else {
-                    self.startupLabel.stringValue = "The EXO app service did not start; check ~/Library/Logs/EXO-ClothCraft-Studio-V2/desktop.log"
-                }
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                self.finishStartupProbe(false)
+                return
             }
+            // A 200 from the Rust static host alone does not mean the editor
+            // can load/save garments. Require the separately launched Node
+            // bridge to answer its own health contract before mounting React.
+            let bridgeRequest = URLRequest(url: self.bridgeHealthURL,
+                                           cachePolicy: .reloadIgnoringLocalCacheData,
+                                           timeoutInterval: 2)
+            URLSession.shared.dataTask(with: bridgeRequest) { [weak self] bytes, reply, _ in
+                guard let self else { return }
+                guard let expectedBundledIdentity = self.bundledRuntimeIdentity else {
+                    self.finishStartupProbe(false)
+                    return
+                }
+                let payload = bytes.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+                let signedResources = payload?["runtimeProvenance"] as? [String: Any]
+                let nativeSession = payload?["nativeSession"] as? [String: Any]
+                let trustedBridge = (reply as? HTTPURLResponse)?.statusCode == 200 &&
+                    (payload?["ok"] as? Bool) == true &&
+                    (payload?["backend"] as? String) == "clothcraft-exo-local" &&
+                    (payload?["workspaceBridgeProtocol"] as? String) == "exo.workspace.bridge.v2" &&
+                    (payload?["workspaceAuthIdentity"] as? String) == self.workspaceTokenIdentity &&
+                    (signedResources?["verified"] as? Bool) == true &&
+                    (signedResources?["identity"] as? String) == expectedBundledIdentity
+                guard trustedBridge, (payload?["nativeReady"] as? Bool) == true else {
+                    self.finishStartupProbe(false)
+                    return
+                }
+                // The bridge starts with loaded=false. Rust becomes loaded
+                // only after the FIRST authenticated workspace snapshot.
+                // Requiring loaded=true before React can mount deadlocks the
+                // very first launch of a clean signed app.
+                if (nativeSession?["loaded"] as? Bool) == true &&
+                   (nativeSession?["nativeProcessRunning"] as? Bool) == true {
+                    self.finishStartupProbe(true)
+                } else {
+                    self.bootstrapNativeWorkspace()
+                }
+            }.resume()
         }.resume()
+    }
+
+    private func bootstrapNativeWorkspace() {
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(bridgePort)/workspace")!,
+                                 cachePolicy: .reloadIgnoringLocalCacheData,
+                                 timeoutInterval: 30)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(workspaceToken)", forHTTPHeaderField: "Authorization")
+        request.httpBody = Data("{\"op\":\"snapshot\"}".utf8)
+        URLSession.shared.dataTask(with: request) { [weak self] data, response, _ in
+            guard let self else { return }
+            let result = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            let snapshot = result?["data"] as? [String: Any]
+            let authorizedNative = (response as? HTTPURLResponse)?.statusCode == 200 &&
+                (result?["ok"] as? Bool) == true &&
+                snapshot?["template"] != nil &&
+                snapshot?["revision"] != nil
+            self.finishStartupProbe(authorizedNative)
+        }.resume()
+    }
+
+    private func finishStartupProbe(_ ready: Bool) {
+        DispatchQueue.main.async {
+            // A previously launched or hostile localhost service could answer
+            // on the expected port while our bundled Rust asset host failed to
+            // bind. Do not mount a secret-injected WKWebView unless BOTH child
+            // processes started by this exact AppKit instance are still alive.
+            let childrenAlive = self.processes.count == 2 &&
+                self.processes.allSatisfy { $0.isRunning }
+            if ready && childrenAlive {
+                self.webView.load(URLRequest(url: self.pageURL))
+            } else if self.startupAttempts < 80 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { self.awaitPage() }
+            } else {
+                self.startupLabel.stringValue = "EXO web or native workspace service failed to start; check \(self.logsRoot.path)/desktop.log"
+            }
+        }
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -201,13 +447,34 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
                  decisionHandler: @escaping (WKPermissionDecision) -> Void) {
         // Camera capture is requested by Camera Fabric Hand after an explicit
         // user click. Never grant microphone access or other web origins.
-        let localApp = origin.protocol == "http" && origin.host == "127.0.0.1" && origin.port == 5386
+        let localApp = origin.protocol == "http" && origin.host == "127.0.0.1" && origin.port == webPort
         decisionHandler(localApp && type == .camera ? .grant : .deny)
     }
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        decisionHandler(navigationAction.shouldPerformDownload ? .download : .allow)
+        // The main-frame WKUserScript contains a per-launch workspace bearer.
+        // Never load another web origin in that same frame: the user script
+        // would otherwise grant an unrelated site the local garment capability.
+        guard let destination = navigationAction.request.url else {
+            decisionHandler(.cancel)
+            return
+        }
+        let localPage = destination.scheme == "http" &&
+            destination.host == "127.0.0.1" && destination.port == webPort
+        let localBlob = destination.scheme == "blob" &&
+            destination.absoluteString.hasPrefix("blob:http://127.0.0.1:\(webPort)/")
+        if navigationAction.shouldPerformDownload {
+            decisionHandler(localPage || localBlob ? .download : .cancel)
+            return
+        }
+        if navigationAction.targetFrame?.isMainFrame == true ||
+           navigationAction.targetFrame == nil {
+            decisionHandler(localPage ? .allow : .cancel)
+            return
+        }
+        // Embedded navigations remain same-origin as the bundled application.
+        decisionHandler(localPage ? .allow : .cancel)
     }
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
@@ -243,7 +510,7 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.name == "exoStudioFullscreen", message.frameInfo.isMainFrame,
               message.frameInfo.securityOrigin.host == "127.0.0.1",
-              message.frameInfo.securityOrigin.port == 5386,
+              message.frameInfo.securityOrigin.port == webPort,
               let action = message.body as? String,
               action == "enter" || action == "exit" else { return }
         DispatchQueue.main.async { [weak self] in
@@ -282,6 +549,8 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "exoStudioFullscreen")
         NotificationCenter.default.removeObserver(self)
         processes.forEach { process in if process.isRunning { process.terminate() } }
+        // The watchdog exits by observing its parent disappear; it also handles
+        // abnormal termination when this callback never runs.
         try? logs?.close()
     }
 }

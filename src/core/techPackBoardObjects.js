@@ -1,15 +1,18 @@
 // Layout-only transforms. Never alter source pattern vertices, POMs or BOM.
 export const clampBoard=(v,min,max)=>Math.max(min,Math.min(max,Number.isFinite(Number(v))?Number(v):min))
-export function boardObjectTransform(input={}){
-  return {x:clampBoard(input.x??0,-400,400),y:clampBoard(input.y??0,-400,400),
+export function boardObjectTransform(input={},maxTranslation=400){
+  const limit=maxTranslation===1200?1200:400
+  return {x:clampBoard(input.x??0,-limit,limit),y:clampBoard(input.y??0,-limit,limit),
     scaleX:clampBoard(input.scaleX??1,.25,3),scaleY:clampBoard(input.scaleY??1,.25,3)}
 }
-export function boardObjectMove(value={},delta=[0,0]){
-  const old=boardObjectTransform(value)
-  return {...old,x:clampBoard(old.x+delta[0],-400,400),y:clampBoard(old.y+delta[1],-400,400)}
+export function boardObjectMove(value={},delta=[0,0],maxTranslation=400){
+  const limit=maxTranslation===1200?1200:400
+  const old=boardObjectTransform(value,limit)
+  return {...old,x:clampBoard(old.x+delta[0],-limit,limit),y:clampBoard(old.y+delta[1],-limit,limit)}
 }
-export function boardObjectResize(value={},delta=[0,0],size=[1,1],handle='se',preserveAspect=false){
-  const old=boardObjectTransform(value)
+export function boardObjectResize(value={},delta=[0,0],size=[1,1],handle='se',preserveAspect=false,maxTranslation=400){
+  const limit=maxTranslation===1200?1200:400
+  const old=boardObjectTransform(value,limit)
   const width=Math.max(1,size[0]),height=Math.max(1,size[1])
   const west=handle.includes('w'),east=handle.includes('e')
   const north=handle.includes('n'),south=handle.includes('s')
@@ -25,6 +28,6 @@ export function boardObjectResize(value={},delta=[0,0],size=[1,1],handle='se',pr
     scaleX=old.scaleX*factor;scaleY=old.scaleY*factor
   }
   // North/west handles move the origin; the opposite edge stays anchored.
-  return {...old,x:clampBoard(old.x+(west?(old.scaleX-scaleX)*width:0),-400,400),
-    y:clampBoard(old.y+(north?(old.scaleY-scaleY)*height:0),-400,400),scaleX,scaleY}
+  return {...old,x:clampBoard(old.x+(west?(old.scaleX-scaleX)*width:0),-limit,limit),
+    y:clampBoard(old.y+(north?(old.scaleY-scaleY)*height:0),-limit,limit),scaleX,scaleY}
 }

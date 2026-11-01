@@ -1,0 +1,1280 @@
+{
+  "schema": 1,
+  "project": "EXO ClothCraft Studio V2",
+  "enabled": true,
+  "createdAt": "2026-10-20",
+  "objective": "Convert all first-party app logic to Rust while preserving garment data and passing native, browser, export and installed-app acceptance.",
+  "completionGates": [
+    "Independent first-party production source audit reports no remaining JS/JSX/MJS/TS/C++/Swift application implementations (excluding generated glue and platform libraries).",
+    "Native Rust CPU cloth solver, sewing, collisions, strain and garment persistence acceptance all pass.",
+    "Browser 2D/3D authoring workflows, techpack and exports pass real interaction and document round-trip tests.",
+    "Rust HTTP/workspace/MCP service and macOS host match legacy protocol, permissions and lifecycle behavior.",
+    "Reproducible signed installed release passes actual launch, GPU VBD acceptance and user-project smoke with backup/rollback."
+  ],
+  "tasks": [
+    {
+      "id": "RUST-001",
+      "title": "Curve station and dimension calculations",
+      "area": "2D drafting",
+      "objective": "Port eligible numerical station search and dimensional summary calculations in src/core/patternCurveDrafting.js to a focused Rust/WASM library. Preserve nativeFreeCurvePoints evaluation and public synchronous results. Verify random curves, reverse parameterizations and degenerate inputs.",
+      "acceptance": "Rust tests + Rust/JS differential parity + existing patternCurveDrafting tests + npm run build",
+      "status": "done",
+      "completedAt": "2026-10-21T02:45:15.093Z",
+      "evidence": "Rust exo_curve_draft_kernel compiled: 2/2 Rust tests; 4/4 legacy tests; 406 cases and 14593 Rust/JS checks; headless Chrome Rust WASM loaded; npm build pass; macOS source build scripts wired"
+    },
+    {
+      "id": "RUST-002",
+      "title": "Free tangent dragging geometry",
+      "area": "2D drafting",
+      "objective": "Inspect src/core/freeTangentDrag.js and consumers; move validated vector arithmetic and edge constraints into Rust/WASM with compatibility fallback and exact interactive results.",
+      "acceptance": "Rust tests + seeded parity + existing freeTangentDrag tests + source browser QA",
+      "status": "done",
+      "completedAt": "2026-10-21T02:48:20.494Z",
+      "evidence": "exo_tangent_drag_kernel Rust1/1 legacy2/2 parity18512/18512 npm build pass browser rust-wasm PASS with 1e-12 float tolerance; shared source packaging wired"
+    },
+    {
+      "id": "RUST-003",
+      "title": "Anatomical pattern arrangement inference",
+      "area": "3D garment preparation",
+      "objective": "Migrate src/core/patternBodyArrangement.js role inference and initial offsets to Rust while preserving explicit authored wrap/coordinates and all project JSON shapes.",
+      "acceptance": "Rust tests + JS role/offset parity + garment preset/position QA",
+      "status": "done",
+      "completedAt": "2026-10-21T02:56:43.714Z",
+      "evidence": "Rust anatomical role/offset WASM 1/1 Rust, 9168/9168 JS parity, seven template fixtures/137 acceptance assertions, source browser native wasm PASS, npm source build and macOS source packaging wired"
+    },
+    {
+      "id": "RUST-004",
+      "title": "Pattern notch preset generation",
+      "area": "Sewing",
+      "objective": "Port src/core/patternSewingNotches.js front/back edge selection and default notch fractions to Rust, without changing saved physical notch semantics.",
+      "acceptance": "Rust tests + original JS differential parity + native notch pair/undo QA",
+      "status": "done",
+      "completedAt": "2026-10-21T02:59:54.101Z",
+      "evidence": "Rust notch preset WASM 1 Rust test, 2408 differential checks, real browser rust-wasm four expected notch commands PASS, npm build PASS, release/source packaging wired; native notch pair/undo not retested here"
+    },
+    {
+      "id": "RUST-005",
+      "title": "Workspace transport ownership audit",
+      "area": "Backend",
+      "objective": "Trace actual live integrations/clothcraft workspace/agent-api/server call paths, identify Rust-owned service contracts and one safe high-value Node request handler to port. Implement one vertical slice with source parity.",
+      "acceptance": "Rust HTTP integration test + protocol/error parity + existing native workspace tests",
+      "status": "blocked",
+      "blockedAt": "2026-10-21T03:03:07.714Z",
+      "blocker": "Rust private HTTP route proof 20/20 parity passed, but live production Node handler NOT replaced; requires authenticated/safe production adapter integration and full protocol suite before completion"
+    },
+    {
+      "id": "RUST-006",
+      "title": "Editor state transactions",
+      "area": "Application state",
+      "objective": "Move one coherent editable garment state transition from browser orchestration to native Rust command/history with read-after-write revision, undo/redo and serialization parity.",
+      "acceptance": "Rust transaction tests + UI save/reopen/undo QA on private source backend",
+      "status": "blocked",
+      "blockedAt": "2026-10-21T03:09:02.348Z",
+      "blocker": "12/12 disposable private Rust exo-session line-spec history/save/reopen QA PASS, native unit 10/10; this operation already Rust-owned and no new JS-authoritative transition migrated, so not completion of this milestone. Need identify and port another JS-owned edit."
+    },
+    {
+      "id": "RUST-007",
+      "title": "Production preflight schema and markers",
+      "objective": "Move remaining finite numeric area edge seam status checks in src/core/productionPreflight.js into Rust with exactly same report and issue codes; keep sampled physical boundary in JS until native path proven.",
+      "acceptance": "Rust unit tests, 1000 report parity fixtures, factory QA, source build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T03:42:34.924Z",
+      "evidence": "Live production preflight Rust numeric/status bridge verified: 1000 frozen JS report parity; 806 Rust crossing parity; source Chrome WASM loaded with exact 4 issues, BLOCKED 3/1; factory package 45 files PASS; production handoff 45 files PASS; Vite source build PASS (chunk advisory). Source-only integration, no candidate binaries copied."
+    },
+    {
+      "id": "RUST-008",
+      "title": "Pattern topology point deletion",
+      "objective": "Migrate pure point deletion mapping and topology validation in src/core/draftingPointDeletion.js to Rust/WASM, preserving edge IDs, undo semantics and error strings.",
+      "acceptance": "Rust unit tests, differential point deletion tests, private UI undo QA",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T03:45:53.096Z",
+      "evidence": "Live Rust point deletion: 16 geometry Rust tests, 583206 edge mapping cases, 1704 deletion plans/1796 WASM mappings, 1510 topology parity cases, 4 real garment pieces; disposable source Chrome Alt-delete 5 to 4 with three attachments 3 to 2, Meta+Z restores 5 and edge3, Meta+Shift+Z redoes 4 edge2; no browser errors; npm Vite PASS; user garment untouched"
+    },
+    {
+      "id": "RUST-009",
+      "title": "2D garment DXF geometry",
+      "objective": "Port one fully bounded geometry slice from src/core/dxf.js to Rust, preserving DXF import/export byte or numeric parity and all seam/notch IDs.",
+      "acceptance": "Rust unit tests, DXF round-trip parity, source build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T03:43:09.720Z",
+      "evidence": "Selective source integration of DXF notch endpoints into live exo_geometry_kernel; canonical rebuilt WASM sha24c8c0f; 16 Rust unit +1 integration PASS, 240 exact DXF coords PASS, 37722-byte DXF and 4-piece roundtrip PASS, 551 geometry parity PASS, check-production 6 sizes PASS, source Vite build PASS, no copied candidate binary"
+    },
+    {
+      "id": "RUST-010",
+      "title": "Techpack bill of materials XML",
+      "objective": "Move src/core/bomXml.js typed export and escaping rules to Rust/WASM with exact public XML contract and JS fallback.",
+      "acceptance": "Rust tests, fixture byte parity, techpack UI/export QA",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T03:46:04.714Z",
+      "evidence": "Live Rust BOM XML: Rust 3/3, golden XML parity, C++ BOM 5 projects 99 elements, factory and handoff 45 files, browser production export 5 formats PASS, Vite source build PASS, packaging wired; no installed app changes"
+    },
+    {
+      "id": "RUST-011",
+      "title": "Fabric physics calibration metrics",
+      "objective": "Port numerical textile calibration from src/core/fabricCalibration.js to Rust, preserving fabric parameters and FEA metric units.",
+      "acceptance": "Rust native tests, material preset differential, saved project parity",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T03:46:15.048Z",
+      "evidence": "Live fabric calibration Rust ABI2: 6 Rust tests, 2699 differential, 400 draft presets, 405 native checks, 402 roundtrips, 3 expected rejects, saved-project parity, Chrome five SI metrics loaded Rust WASM, source build PASS; optical fabric 2025 roughness parity; no solver certification"
+    },
+    {
+      "id": "RUST-012",
+      "title": "Pattern grading persistence contracts",
+      "objective": "Make selected grading rule set serialization, validation and size-run state authoritative in Rust, on top of current rust/exo_grading_kernel math; preserve saved JSON and multi-size undo.",
+      "acceptance": "Rust tests, multi-size exact parity, save/reopen browser QA",
+      "area": "continuation",
+      "status": "blocked",
+      "blockedAt": "2026-10-21T03:48:11.427Z",
+      "blocker": "Partial source integration: Rust persisted rule-coordinate math 2/2 Rust tests, 26 fixtures, 6 sizes, JSON save/reopen snapshot parity and 2256 C++ point coords PASS. BLOCKER: JS still owns authoritative grading rule-set serialization, projectRestore and undo transaction; no Rust command/revision protocol migration or real browser save/reopen acceptance. Must not certify complete."
+    },
+    {
+      "id": "RUST-013",
+      "title": "Production fabric marker layout",
+      "objective": "Port one packing or geometry stage from src/core/marker.js into Rust authoritative computation, preserving marker ordering, unplaced counts and cutter export data.",
+      "acceptance": "Rust tests, seeded nesting fixtures, marker manufacturing and CSV parity",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T03:51:00.254Z",
+      "evidence": "Live Rust marker rotation geometry: 5 Rust tests, 2053 seeded rotation parity max1.14e-13, 8 full marker JSON parity, 16 exact SVG/PDF artifact bytes, 5 native projects 61 marker sets 388 placements 15824 vertices, 12 overflow, 20 exact native marker fixtures, factory and handoff 45 files, source Vite build PASS, macOS packaging wired; arbitrary angles only tolerance-based, not universally byte-identical"
+    },
+    {
+      "id": "RUST-014",
+      "title": "Rust native metadata HTTP service",
+      "objective": "Replace one safe stateless read-only Node GET endpoint in integrations/clothcraft/server.mjs using Rust implementation behind an opt-in validated adapter, preserving origin policy and original fallback.",
+      "acceptance": "Rust HTTP actual private ports, Node error/headers parity, live workspace unaffected",
+      "area": "continuation",
+      "status": "blocked",
+      "blockedAt": "2026-10-21T03:53:49.649Z",
+      "blocker": "Partial opt-in Rust health snapshot validator/serializer: Rust2/2, actual private GET 200 with nonempty nativeSession 326 bytes exact, independent 72/72 origin/method/headers/body parity and Rust-down fallback PASS. BLOCKER: Node still owns HTTP listener, route dispatch and headers; not a full Rust-owned endpoint. Default Node unchanged, no production port writes."
+    },
+    {
+      "id": "RUST-015",
+      "title": "Pattern document restore validation",
+      "objective": "Move one selected project restore/normalization transaction from src/core/projectRestore.js into Rust with versioned ABI, guard legacy documents and preserve exact JSON.",
+      "acceptance": "Rust tests, corpus differential and save/reopen/undo QA",
+      "area": "continuation",
+      "status": "blocked",
+      "blockedAt": "2026-10-21T03:56:17.639Z",
+      "blocker": "Partial live Rust restore shape validation ABI1: Rust1/1, 1046 strict/legacy malformed differential, 80 frozen JS Map-storage assertions, backup recovery and quota behavior PASS, source Vite build PASS, macOS WASM packaging wired. BLOCKER: Rust owns only root/pieces/seams shape check; fabrics/simulation/geometry validation, JSON serialization, backup selection, storage transactions and browser undo remain JS. No user storage changed."
+    },
+    {
+      "id": "RUST-016",
+      "title": "3D garment preview geometry",
+      "objective": "Move pure coordinate transforms and material-space computations from src/core/garmentPreviewGeometry.js to Rust, keeping React/Three rendering unchanged.",
+      "acceptance": "Rust tests, randomized geometry parity, source browser 3D preview QA",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T03:59:01.695Z",
+      "evidence": "Live Rust inward edge preview offset: Rust1/1, 2049 direct seeded plus 8024 independent cases 31088 coordinates max diff 7.11e-15, tee/hoodie/jeans/pants/reversed/degenerate PASS; real Chrome desktop1440 and mobile390 jeans-501 preview 24 source pieces two pages 14+10 zero page errors; Vite source build PASS, macOS WASM packaging wired; Three renderer remains JS"
+    },
+    {
+      "id": "RUST-017",
+      "title": "Native pattern export preparation",
+      "objective": "Convert independent pattern validation and output preparation stages from src/core/nativePatternExportPreparation.js into Rust, preserving manufacturing data and error text.",
+      "acceptance": "Rust tests, exact export differential, production preflight check",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:01:01.091Z",
+      "evidence": "Live Rust export contour micro-edge retention and winding terms: Rust1/1, 5008 numeric seeded incl thresholds and nonfinite, 97 frozen JS full export fixtures 388 assertions exact, 10 library garment native exports exact, input immutability, production preflight/handoff 45 files, Vite source build PASS, macOS WASM packaging wired; JS still owns seam/notch mapping and cloning"
+    },
+    {
+      "id": "RUST-018",
+      "title": "Agent API request dispatch validation",
+      "objective": "Consolidate an isolated authenticated request validation action from integrations/clothcraft/agent-api.mjs into the existing Rust validator or a Rust JSONL dispatcher, retain original token/scope defenses and errors.",
+      "acceptance": "Rust tests, scoped credential denial parity, temporary HTTP API QA",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:10:27.075Z",
+      "evidence": "Selective live Rust simulation.step validation: 2 Rust tests, JSONL parity, actual loopback HTTP native/fallback scope/origin/revision/batch QA, agent API smoke, automation and key-store QA all PASS; npm Vite 2041 modules PASS; source child close on server exit; no installed app/garment changes"
+    },
+    {
+      "id": "RUST-019",
+      "title": "SVG affine matrix and sampled point transforms",
+      "objective": "Move six-term affine matrix composition and transformed sampled 2D point coordinates from src/core/svgPatternImport.js to a focused Rust/WASM kernel with synchronous JS fallback; keep DOMParser, 3MB and security-element rejection, transform parsing, path sampling, exact errors and editable project assembly in JS.",
+      "acceptance": "Rust unit and seeded JS/WASM parity across nested translate scale rotate matrix transforms, negative degenerate nonfinite values; 10 representative SVG imports and real Chrome import, original security/error behavior, Vite build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:17:49.711Z",
+      "evidence": "Selective Rust SVG affine production bridge: 2 Rust unit PASS, 3000 seeded differential PASS, real Chrome 10 full SVG fixtures +24 error/security cases in fallback and rust-wasm exact PASS, independent 3-piece Chrome QA PASS, Vite 2042 modules PASS, macOS source WASM packaging wired, JS DOMParser/security retained; no installed app or garments touched"
+    },
+    {
+      "id": "RUST-020",
+      "title": "Marker PDF numerical page coordinates",
+      "objective": "Move only centimeter-to-PDF-point and page-inverted Y coordinate mapping for marker plot cutlines labels grain and notch segments from src/core/markerArtifacts.js into Rust/WASM; leave actual PDF and SVG XML writers, escaping, rounding, xref offsets, pagination and project validation in JS with synchronous fallback.",
+      "acceptance": "Rust unit tests and exact full SVG/PDF byte parity against frozen JS baseline for multi-page 400cm markers, rotated placements, notches, grainlines and 10 library garments; native C++ PDF/SVG QA, source Vite build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:21:05.013Z",
+      "evidence": "Selective Rust marker PDF mapping; 6 Rust tests PASS; 2000 seeded WASM cases 33766 coordinate checks exact; 3 frozen SVG/PDF fixtures 6 byte hashes PASS; Chrome Rust WASM annotated PDF hash PASS; off-page malformed outline guard restored; native C++ PDF and SVG parity PASS; Vite 2042 modules PASS; generated candidate binaries and temporary artifacts excluded; installed app untouched"
+    },
+    {
+      "id": "RUST-021",
+      "title": "Unfold reflected edge-index and grade mapping",
+      "objective": "Port only fold-edge index traversal and mirrored edge map plus gradeRule vector reflection and mirrored notch parameter mapping in src/core/draftingUnfold.js to Rust/WASM with synchronous fallback; keep existing rustConstructionKernel point mirror, authored metadata, topology checks and exact error priority in JS.",
+      "acceptance": "Rust unit and seeded JS/WASM parity, existing 985-case native C++ topology/unfold parity QA, scripts/check-drafting-unfold.mjs, private Chrome undo fixture and Vite build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:26:59.456Z",
+      "evidence": "Selective Rust unfold mapping bridge; 2 Rust unit PASS, 1044 seeded JS/WASM parity PASS, 985 native C++ topology/unfold cases PASS, check-drafting-unfold PASS, isolated Chrome UI unfold/undo and sewing preservation PASS, real Chrome Rust WASM ABI and 400cm2 area PASS, Vite 2044 modules PASS, macOS source packaging wired; no installed app/garment changes"
+    },
+    {
+      "id": "RUST-022",
+      "title": "Cloth triangle quality metrics",
+      "objective": "Port triangle twice-area, longest edge, minimum altitude and aspect metrics from src/core/physics/meshQuality.js to Rust/WASM with synchronous JS fallback. Keep face-index validation, exact RangeError text, stable worst-face ordering, threshold decisions and report rounding in JS; do not alter meshes or solver.",
+      "acceptance": "Rust unit tests and seeded JS/WASM differential incl degenerate, collinear, thin, huge and nonfinite cases; scripts/check-quality-triangulation.mjs, scripts/check-native-cpp-simulation-quality.mjs and npm source build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:41:57.825Z",
+      "evidence": "Independent CoS selective source integration of Rust mesh-quality metrics; 2/2 Rust tests PASS, 2014 exact seeded Rust/JS report+raw cases PASS, quality triangulation and simulation architecture PASS, native C++ simulation-quality parity 96 PASS, source Chrome WASM/invalid-face PASS, npm Vite 2046 modules PASS, macOS source packaging wired; installed app/garments untouched"
+    },
+    {
+      "id": "RUST-023",
+      "title": "Safe auto-fit rigid placement limits",
+      "objective": "Port numerical axis clamp, 3D magnitude limit and applied/requested correction norms from src/core/autoFitPlacement.js to Rust/WASM with synchronous fallback. Keep per-particle position and previous-vector mutations in JS and preserve exact requested/applied report fields and options semantics.",
+      "acceptance": "Rust tests and seeded JS/WASM parity for extreme, missing, nonfinite, zero and negative limits; scripts/check-auto-fit-placement.mjs, scripts/check-native-cpp-auto-fit-placement.mjs, browser placement QA and npm build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:45:35.431Z",
+      "evidence": "Independent CoS selective integration of Rust auto-fit placement: 2/2 Rust unit PASS, 2225 exact Object.is JS/WASM parity PASS including signed zero, fallback and particle mutation PASS, 155 garment vertices and seam/pattern immutability PASS, native C++ auto-fit parity 5 corrections + rigid particle PASS, source Chrome WASM/previous position PASS, Vite 2047 modules PASS, macOS source packaging wired; no installed app or saved garments changed"
+    },
+    {
+      "id": "RUST-024",
+      "title": "Precision drafting chord and polar coordinates",
+      "objective": "Port polarFromPoints, pointFromPolar and curveChordCoordinates numerical stages in src/core/draftingPrecision.js to focused Rust/WASM bridge with synchronous fallback; keep existing assertDraftCoordinate validation, authored vertex metadata, error priority and point-edit semantics in JS.",
+      "acceptance": "Rust tests and seeded JS/WASM parity including reversed/degenerate chords, angles and precision limits; scripts/check-drafting-precision.mjs, scripts/check-native-cpp-drafting-precision.mjs, source browser QA and npm build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:48:53.055Z",
+      "evidence": "Rust polar precision stage selectively integrated preserving pre-existing Rust chord: 2/2 Rust tests PASS; 2605 point + 2554 inverse + 150 edit exact JS/WASM parity PASS; 2055 chord fixtures/4110 exact ops PASS; JS drafting PASS, C++ drafting precision 68 cases PASS, source Chrome both Rust polar/chord ABI plus 6 error cases PASS, Vite 2051 modules PASS; macOS source packaging wired, saved garment/installed app unchanged"
+    },
+    {
+      "id": "RUST-025",
+      "title": "Interior triangle flip numerical predicates",
+      "objective": "Port convex quadrilateral crossing predicate and triangle worst-aspect comparison from src/core/physics/qualityTriangulation.js into focused Rust/WASM with synchronous JS fallback; retain JS adjacency, stale-face guard, original face winding, deterministic iteration, area and boundary invariants.",
+      "acceptance": "Rust unit + seeded JS/WASM exact decision parity for near-collinear, reversed, huge/tiny and nonfinite inputs; scripts/check-quality-triangulation.mjs; scripts/check-native-cpp-quality-triangulation.mjs; real source browser QA; npm build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:52:13.625Z",
+      "evidence": "Rust interior triangle flip numeric predicates integrated with JS adjacency and winding preserved: 2/2 Rust tests PASS, 5007 seeded cases and 10014 exact JS/WASM decisions incl NaN PASS, C++ quality triangulation 485 fixtures/97 meshes/588 flips PASS, tee boundary/area/determinism PASS, real Chrome Rust WASM 375 comparisons and 3 meshes PASS, Vite 2054 modules PASS, macOS source packaging wired; installed app/garments unchanged"
+    },
+    {
+      "id": "RUST-026",
+      "title": "Simulation fit telemetry predicates",
+      "objective": "Move finite-threshold comparisons for strain, seam gap and avatar intrusion in src/core/physics/qualityGate.js to isolated Rust/WASM with synchronous JS fallback; preserve JS Number coercion, unknown/failure issue ordering and wording, certification status, factoryApproved false and all source reports. Do not claim physical fit certification.",
+      "acceptance": "Rust unit and seeded exact JS/WASM differential incl NaN, null, absent and boundary limits; scripts/check-native-cpp-simulation-quality.mjs 96-case parity; scripts/check-simulation-architecture.mjs; browser report QA; npm build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:55:48.138Z",
+      "evidence": "Rust simulation fit telemetry predicates integrated: 1/1 Rust unit PASS, 2827 exact JS/WASM full report parity PASS including null/NaN/limits, native C++ simulation quality 96 PASS, simulation architecture PASS, real Chrome 188 cases Rust ABI and exact issue ordering/factoryApproved false PASS, Vite 2055 modules PASS, macOS source packaging wired; no physical fit certification or installed app changes"
+    },
+    {
+      "id": "RUST-027",
+      "title": "Solver timestep scheduling arithmetic",
+      "objective": "Port validated safeDt, substeps, gravityStep, iteration scheduling and selfCollisionDistance arithmetic in src/core/physics/timestep.js into isolated Rust/WASM with synchronous JS fallback. Preserve JS dt=0 no-op, validation/error priority and exact RangeError strings, settings coercion and no particle mutations.",
+      "acceptance": "Rust unit and seeded JS/WASM parity incl NaN, zero, negative dt, substep rounding, extreme thickness; scripts/check-native-cpp-simulation-quality.mjs 96-case parity; scripts/check-simulation-architecture.mjs; source Chrome QA; npm build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T04:58:58.734Z",
+      "evidence": "Rust timestep 2 unit PASS; 3597 exact JS WASM parity PASS; native C++ 96 PASS; simulation architecture PASS; Chrome 14 PASS; Vite 2057 PASS; packaging wired; user files unchanged"
+    },
+    {
+      "id": "RUST-028",
+      "title": "Avatar contact clearance numeric policy",
+      "objective": "Port avatarContactParameters layerOffset and margin numeric calculation from src/core/physics/avatarContactPass.js to isolated Rust/WASM with synchronous JS fallback. Preserve JS ?? defaults, falsy layerIndex handling, fabric thickness/friction fields, project.simulation collision margin coercion and output shape. Keep actual collide callback, particle loop, filtering and mutations entirely in JS.",
+      "acceptance": "Rust unit and seeded JS/WASM exact parity incl negative thickness, zero/falsy layer, missing and unusual numeric inputs; scripts/check-native-cpp-avatar-contact-pass.mjs 56-case parity, scripts/check-simulation-architecture.mjs, Chrome source QA, npm build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T05:01:46.755Z",
+      "evidence": "Rust avatar clearance parameters: 2 Rust tests PASS, 3289 exact JS WASM parity PASS, native C++ 56 PASS, simulation architecture PASS, Chrome 6 parameter fixtures and callbacks PASS, Vite 2058 PASS, macOS source packaging wired; no installed app or garment writes"
+    },
+    {
+      "id": "RUST-029",
+      "title": "Self collision pair correction weights",
+      "objective": "Port isolated pair penetration depth, inverse-mass layer-biased weight selection and correction scalar factors from src/core/physics/selfCollision.js into Rust/WASM with synchronous JS fallback. Keep spatial hash, 27-cell neighbor iteration, fused/exclusion filtering, THREE vector directions and final particle mutation in JS; preserve pair ordering, EPSILON 1e-6 and NaN handling.",
+      "acceptance": "Rust unit and seeded JS/WASM exact scalar parity incl zero distance, asymmetric mass, pinned particles, reversed layers and nonfinite; scripts/check-native-cpp-self-collision.mjs and scripts/check-native-cpp-self-collision-real-fixtures.mjs; scripts/check-simulation-architecture.mjs; Chrome QA; npm build",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T05:22:13.274Z",
+      "evidence": "Prime source-only selective integration PASS: Rust 1/1, 15,100 exact WASM/JS scalars, native C++ self-collision 74 parity cases plus 10 real tee/pants fixtures exact, simulation architecture PASS, source Chrome 4 policy fixtures plus WASM ABI loaded PASS, Vite 2063 modules PASS, git diff --check PASS. WASM rebuilt canonically 928 bytes; no installed app, saved garment, or source packaging change; not physical solver certification."
+    },
+    {
+      "id": "RUST-030",
+      "title": "Avatar clearance and collider geometry",
+      "objective": "Port the actual hot-path numerical 3D clearance computations in src/core/physics.js (ellipsoidClearance and capsuleClearance, and optional safe torso ellipse radial clearance) to Rust/WASM while retaining JS THREE construction, avatar semantics, particle metadata and iteration, with synchronous exact JS fallback. Keep existing source JSON and physical fit/certification policy unchanged.",
+      "acceptance": "Rust unit plus at least 3000 seeded JS/WASM differential positions including degenerate and nonfinite inputs, multiple avatar sizes and capsule directions; existing avatar shoulder, torso, and surface intrusion regression tests and native C++ clearance parity where available; actual source Chrome WASM-loaded production call-path QA and npm build; report exact tolerated numerical differences and never certify solver.",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T05:41:01.407Z",
+      "evidence": "Rust 2/2; JS-WASM 12000/12000 max 0m; native C++ 2300 max 1.78e-15m; avatar parity 146, contact 56, surface 19; Chrome 52 WASM calls; Vite 2064 modules PASS. Full native cloth step not parity or solver certified. No installed app changes."
+    },
+    {
+      "id": "RUST-031",
+      "title": "Constraint distance projection numerics",
+      "objective": "Move production-used satisfyDistance per-particle 3D correction arithmetic in src/core/physics.js into isolated Rust/WASM with synchronous JavaScript fallback. Keep seam-virtual and surface-stitch special dispatch, constraint ordering, metadata/Three vectors and error semantics in JS; do not change user garments.",
+      "acceptance": "Rust units, >=3000 seeded frozen JS/WASM differential cases for structural/fuse/pinned/near-zero/finite/malformed coordinates, real source Chrome WASM production call path, existing check-physics and simulation architecture, native C++ cloth-step parity where supported, source Vite build; do not claim solver accuracy certification.",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T05:51:20.311Z",
+      "evidence": "Production Rust/WASM 3D distance projection selectively integrated: Rust 3/3 PASS, seeded 4503 cases/27018 scalar comparisons exact finite numeric parity, 691 malformed synchronous JS fallbacks, Chrome source Vite same live HMR module ABI1 7410 WASM constraint calls across 2470 tee constraints PASS; check-simulation-architecture PASS, check-physics PASS, check-interfacing PASS, native C++ extended cloth-step 12 collision-disabled tee/pants tests max difference 4.1e-15 m PASS; Vite 2065 modules PASS; both packaging scripts syntax/asset copy gates PASS; git diff --check PASS. Caveat source-only 16-frame microbenchmark Rust boundary ~1.25x slower than JS; batch Rust optimization needed. No installed app or garments modified; NOT solver certified."
+    },
+    {
+      "id": "RUST-032",
+      "title": "Batched Rust PBD constraint projection",
+      "objective": "Replace per-constraint JS↔WASM numeric calls in src/core/physics.js with a production used batched Rust/WASM distance constraint sweep over contiguous particle/constraint buffers while preserving Gauss-Seidel forward/reverse order and seam-virtual/surface-stitch dispatch behavior, pinned/fuse semantics, JS fallback, source geometry, and all authored garment files. Avoid speed regressions and accidental solver policy changes.",
+      "acceptance": "Rust unit, seeded JS old-vs-new exact/near-double parity >=10000 constraints incl fuse/pins/zero and malformed; source Chrome 1 and 30 frame production tests; native C++ extended step 12 cases, check-simulation-architecture, check-physics, interfacing, factory preflight unaffected, npm build. Benchmark at least 16 tee and pants steps: batched native stage should not be slower than pre-migration JS baseline under consistent warmed conditions. No physical fit certification.",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T06:35:44.703Z",
+      "evidence": "Rust 3/3, seeded 12000 zero-error, Chrome 1751 sweeps and zero-error 1/30 frame tee/pants, native C++ 12 cases pass, tee 1.70x and pants 1.50x faster, Vite 2066 modules, packaging asset checks pass. No installed app changes; full solver not certified."
+    },
+    {
+      "id": "RUST-033",
+      "title": "Batched structural strain diagnostics",
+      "objective": "Migrate the production-used updateStrain numerical accumulation in src/core/physics.js into a bounded Rust/WASM batched kernel with synchronous JS fallback. Keep particle/constraint identity, authored project metadata, nonstructural filtering, EPSILON semantics, per-particle sample counts and simulation.strain shape unchanged. Reuse no unrelated strain visualization semantics.",
+      "acceptance": "Rust unit and seeded >=10000 constraints differential incl zero-rest, malformed and reversed endpoints; browser tee/pants actual analysis call path, native C++ cloth-analysis parity where available, existing physics/architecture tests, Vite build and source packaging asset checks. Preserve exact output semantics and no installed app writes.",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T06:42:28.230Z",
+      "evidence": "Production Rust/WASM structural strain accumulation with JS fallback: Rust 3/3; 14000 seeded constraints and 2200 particles exact maxError0; browser tee/pants 2 WASM batches 1800 samples 724 comparisons maxError0; native C++ strain-only 2446 comparisons maxError2.22e-16; physics and architecture PASS; isolated Vite 2067 modules and WASM 23786 bytes; both macOS source packaging gates PASS. Unrelated C++ quality schema mismatch remains. No installed app or garments modified; full solver not certified."
+    },
+    {
+      "id": "RUST-034",
+      "title": "Rust anchor projection numerics",
+      "objective": "Port production satisfyAnchor coordinate interpolation for axes y, x, xz and all-axis into isolated Rust/WASM in src/core/physics.js with synchronous JS fallback. Keep THREE Vector3 construction, pinned-particle rejection, anchor target/stiffness validation, previous-position synchronization and object mutation in JS. Preserve exact original arithmetic, branch priority and authored garment data.",
+      "acceptance": "Rust units and >=10000 seeded JS/WASM differential including pinned, invalid, zero/negative stiffness, axes modes and malformed; source Chrome tee/pants anchor interaction 1/30 frames; native C++ extended cloth-step 12 collision-disabled cases, physics/architecture/interfacing checks and isolated Vite build; report numerical differences, no solver certification or installed app changes.",
+      "area": "continuation",
+      "status": "done",
+      "completedAt": "2026-10-21T06:47:08.637Z",
+      "evidence": "Source acceptance passed: Rust, browser, native, Vite and packaging."
+    },
+    {
+      "id": "RUST-035",
+      "title": "Wind pressure and gust numerics",
+      "objective": "Port production applyWindForces per-face aerodynamic pressure, signed facing and deterministic turbulence/gust scalar calculations from src/core/physics.js into isolated Rust/WASM with synchronous JavaScript fallback. Keep THREE face geometry, particle mutation, project wind defaults, area weights, force accumulation and displacement clamp in JS. Preserve exact face ordering, dt semantics and authored data; no native solver policy changes.",
+      "acceptance": "Rust unit and >=10000 seeded Rust/JS parity incl zero-area faces, reversed normals, turbulence extremes, nonfinite and malformed fallback; real source Chrome tee/pants wind-enabled 1 and 30 frame comparisons to JS fallback with finite positions and no project mutation; architecture, physics, interfacing, isolated Vite and packaging source checks. Native C++ wind remains unsupported and must not be certified.",
+      "area": "continuation",
+      "status": "blocked",
+      "blockedAt": "2026-10-21T06:52:56.951Z",
+      "blocker": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-035-07b3636d-8f14-45a2-a1ac-7f1ffa75ed22; source HEAD 9a61a8819b715131d762565eeab317ad5a556528; NOT integrated"
+    }
+  ],
+  "runs": [
+    {
+      "at": "2026-10-21T02:40:51.516Z",
+      "event": "claim",
+      "taskId": "RUST-001",
+      "details": "68ca6b3a-873b-43d8-a4f6-5d6b66d00ac2"
+    },
+    {
+      "at": "2026-10-21T02:42:30.566Z",
+      "event": "progress",
+      "taskId": "RUST-001",
+      "details": "Active Chat On Steroids worker implementing Rust/WASM curve drafting; independent runtime audit underway; preserving installed app"
+    },
+    {
+      "at": "2026-10-21T02:45:15.113Z",
+      "event": "complete",
+      "taskId": "RUST-001",
+      "details": "Rust exo_curve_draft_kernel compiled: 2/2 Rust tests; 4/4 legacy tests; 406 cases and 14593 Rust/JS checks; headless Chrome Rust WASM loaded; npm build pass; macOS source build scripts wired"
+    },
+    {
+      "at": "2026-10-21T02:45:15.165Z",
+      "event": "claim",
+      "taskId": "RUST-002",
+      "details": "dfa63555-c5ab-4f07-ae80-7f5e588f211c"
+    },
+    {
+      "at": "2026-10-21T02:48:20.522Z",
+      "event": "complete",
+      "taskId": "RUST-002",
+      "details": "exo_tangent_drag_kernel Rust1/1 legacy2/2 parity18512/18512 npm build pass browser rust-wasm PASS with 1e-12 float tolerance; shared source packaging wired"
+    },
+    {
+      "at": "2026-10-21T02:48:20.590Z",
+      "event": "claim",
+      "taskId": "RUST-003",
+      "details": "8f64a0a3-58ba-4265-8488-9c9ab1826f4b"
+    },
+    {
+      "at": "2026-10-21T02:56:43.715Z",
+      "event": "complete",
+      "taskId": "RUST-003",
+      "details": "Rust anatomical role/offset WASM 1/1 Rust, 9168/9168 JS parity, seven template fixtures/137 acceptance assertions, source browser native wasm PASS, npm source build and macOS source packaging wired"
+    },
+    {
+      "at": "2026-10-21T02:56:43.760Z",
+      "event": "claim",
+      "taskId": "RUST-004",
+      "details": "ecbf4fcc-0a87-4bff-b0a0-61b94b1875a7"
+    },
+    {
+      "at": "2026-10-21T02:59:54.102Z",
+      "event": "complete",
+      "taskId": "RUST-004",
+      "details": "Rust notch preset WASM 1 Rust test, 2408 differential checks, real browser rust-wasm four expected notch commands PASS, npm build PASS, release/source packaging wired; native notch pair/undo not retested here"
+    },
+    {
+      "at": "2026-10-21T02:59:54.147Z",
+      "event": "claim",
+      "taskId": "RUST-005",
+      "details": "7a60e820-81ae-4099-995b-d59bbc865649"
+    },
+    {
+      "at": "2026-10-21T03:03:07.715Z",
+      "event": "block",
+      "taskId": "RUST-005",
+      "details": "Rust private HTTP route proof 20/20 parity passed, but live production Node handler NOT replaced; requires authenticated/safe production adapter integration and full protocol suite before completion"
+    },
+    {
+      "at": "2026-10-21T03:03:07.759Z",
+      "event": "claim",
+      "taskId": "RUST-006",
+      "details": "45de1765-59ae-4690-83cf-173a8ed27b19"
+    },
+    {
+      "at": "2026-10-21T03:05:12.693Z",
+      "event": "add",
+      "taskId": "RUST-007",
+      "details": "Production preflight schema and markers"
+    },
+    {
+      "at": "2026-10-21T03:05:12.741Z",
+      "event": "add",
+      "taskId": "RUST-008",
+      "details": "Pattern topology point deletion"
+    },
+    {
+      "at": "2026-10-21T03:05:12.788Z",
+      "event": "add",
+      "taskId": "RUST-009",
+      "details": "2D garment DXF geometry"
+    },
+    {
+      "at": "2026-10-21T03:05:12.843Z",
+      "event": "add",
+      "taskId": "RUST-010",
+      "details": "Techpack bill of materials XML"
+    },
+    {
+      "at": "2026-10-21T03:05:12.909Z",
+      "event": "add",
+      "taskId": "RUST-011",
+      "details": "Fabric physics calibration metrics"
+    },
+    {
+      "at": "2026-10-21T03:05:12.973Z",
+      "event": "add",
+      "taskId": "RUST-012",
+      "details": "Pattern grading persistence contracts"
+    },
+    {
+      "at": "2026-10-21T03:05:13.041Z",
+      "event": "add",
+      "taskId": "RUST-013",
+      "details": "Production fabric marker layout"
+    },
+    {
+      "at": "2026-10-21T03:05:13.128Z",
+      "event": "add",
+      "taskId": "RUST-014",
+      "details": "Rust native metadata HTTP service"
+    },
+    {
+      "at": "2026-10-21T03:05:13.181Z",
+      "event": "add",
+      "taskId": "RUST-015",
+      "details": "Pattern document restore validation"
+    },
+    {
+      "at": "2026-10-21T03:05:13.254Z",
+      "event": "add",
+      "taskId": "RUST-016",
+      "details": "3D garment preview geometry"
+    },
+    {
+      "at": "2026-10-21T03:05:13.305Z",
+      "event": "add",
+      "taskId": "RUST-017",
+      "details": "Native pattern export preparation"
+    },
+    {
+      "at": "2026-10-21T03:05:13.353Z",
+      "event": "add",
+      "taskId": "RUST-018",
+      "details": "Agent API request dispatch validation"
+    },
+    {
+      "at": "2026-10-21T03:09:02.350Z",
+      "event": "block",
+      "taskId": "RUST-006",
+      "details": "12/12 disposable private Rust exo-session line-spec history/save/reopen QA PASS, native unit 10/10; this operation already Rust-owned and no new JS-authoritative transition migrated, so not completion of this milestone. Need identify and port another JS-owned edit."
+    },
+    {
+      "at": "2026-10-21T03:09:28.420Z",
+      "event": "claim",
+      "taskId": "RUST-007",
+      "details": "b2547c28-c6e7-45fa-a41e-df548f3fc9d9"
+    },
+    {
+      "at": "2026-10-21T03:12:23.659Z",
+      "event": "block",
+      "taskId": "RUST-007",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-007-2ad9435e-5c5b-447c-9597-dd9f026356c4; source HEAD 10b4eec492a95b3cf0edf7298e2d0fb8ccb10fd8; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T03:14:43.338Z",
+      "event": "claim",
+      "taskId": "RUST-008",
+      "details": "dca96926-df18-4691-a365-466e1034f067"
+    },
+    {
+      "at": "2026-10-21T03:17:07.894Z",
+      "event": "block",
+      "taskId": "RUST-008",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-008-5a388811-ba20-41a4-83f7-9b4cd0e66e6f; source HEAD 10b4eec492a95b3cf0edf7298e2d0fb8ccb10fd8; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T03:22:11.065Z",
+      "event": "claim",
+      "taskId": "RUST-009",
+      "details": "d9093ba8-0c21-4ca8-bea8-63be949e0af4"
+    },
+    {
+      "at": "2026-10-21T03:24:22.847Z",
+      "event": "block",
+      "taskId": "RUST-009",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-009-203aa6ac-3796-408e-bda6-97b0c5afb751; source HEAD 10b4eec492a95b3cf0edf7298e2d0fb8ccb10fd8; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T03:29:25.872Z",
+      "event": "claim",
+      "taskId": "RUST-010",
+      "details": "8b09c2e6-257e-4c3e-bd85-85f4676317f5"
+    },
+    {
+      "at": "2026-10-21T03:31:55.151Z",
+      "event": "block",
+      "taskId": "RUST-010",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-010-93eed4af-3b48-40db-9b41-ea48dc915e8a; source HEAD 3b69daa5980ec11e27e1fa252a3d6d3f19b6f2b1; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T03:37:00.251Z",
+      "event": "claim",
+      "taskId": "RUST-011",
+      "details": "23c229e4-1426-47eb-8313-ed05a7ef7314"
+    },
+    {
+      "at": "2026-10-21T03:40:55.733Z",
+      "event": "block",
+      "taskId": "RUST-011",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-011-8f2eeb31-572e-45fd-af44-4c5f014b131b; source HEAD 3b69daa5980ec11e27e1fa252a3d6d3f19b6f2b1; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T03:41:58.906Z",
+      "event": "requeue",
+      "taskId": "RUST-007",
+      "details": "Previously selectively integrated in live source; Rust/JS and browser verification now passed; previous Codex candidate not blindly applied"
+    },
+    {
+      "at": "2026-10-21T03:41:58.961Z",
+      "event": "claim",
+      "taskId": "RUST-007",
+      "details": "744731ee-6661-4582-b815-ede7875f3fcc"
+    },
+    {
+      "at": "2026-10-21T03:42:34.925Z",
+      "event": "complete",
+      "taskId": "RUST-007",
+      "details": "Live production preflight Rust numeric/status bridge verified: 1000 frozen JS report parity; 806 Rust crossing parity; source Chrome WASM loaded with exact 4 issues, BLOCKED 3/1; factory package 45 files PASS; production handoff 45 files PASS; Vite source build PASS (chunk advisory). Source-only integration, no candidate binaries copied."
+    },
+    {
+      "at": "2026-10-21T03:43:05.860Z",
+      "event": "requeue",
+      "taskId": "RUST-009",
+      "details": "RUST DXF notch endpoint source selectively integrated into existing live geometry kernel; independently verified parity and source build"
+    },
+    {
+      "at": "2026-10-21T03:43:05.911Z",
+      "event": "claim",
+      "taskId": "RUST-009",
+      "details": "b5a7ce2c-ddb8-41cd-aa8a-daacd8897d28"
+    },
+    {
+      "at": "2026-10-21T03:43:09.721Z",
+      "event": "complete",
+      "taskId": "RUST-009",
+      "details": "Selective source integration of DXF notch endpoints into live exo_geometry_kernel; canonical rebuilt WASM sha24c8c0f; 16 Rust unit +1 integration PASS, 240 exact DXF coords PASS, 37722-byte DXF and 4-piece roundtrip PASS, 551 geometry parity PASS, check-production 6 sizes PASS, source Vite build PASS, no copied candidate binary"
+    },
+    {
+      "at": "2026-10-21T03:43:54.350Z",
+      "event": "requeue",
+      "taskId": "RUST-008",
+      "details": "Selective live geometry integration and native UI fixture now independently verified; no candidate binary copied"
+    },
+    {
+      "at": "2026-10-21T03:43:54.400Z",
+      "event": "claim",
+      "taskId": "RUST-008",
+      "details": "4d9a125c-0afd-4e58-a8ae-a6408e99d496"
+    },
+    {
+      "at": "2026-10-21T03:45:53.097Z",
+      "event": "complete",
+      "taskId": "RUST-008",
+      "details": "Live Rust point deletion: 16 geometry Rust tests, 583206 edge mapping cases, 1704 deletion plans/1796 WASM mappings, 1510 topology parity cases, 4 real garment pieces; disposable source Chrome Alt-delete 5 to 4 with three attachments 3 to 2, Meta+Z restores 5 and edge3, Meta+Shift+Z redoes 4 edge2; no browser errors; npm Vite PASS; user garment untouched"
+    },
+    {
+      "at": "2026-10-21T03:45:56.877Z",
+      "event": "requeue",
+      "taskId": "RUST-010",
+      "details": "Selective live BOM Rust XML source integration reviewed and independently tested; source-generated wasm"
+    },
+    {
+      "at": "2026-10-21T03:45:56.932Z",
+      "event": "claim",
+      "taskId": "RUST-010",
+      "details": "ac21581f-9045-4076-8f04-8d50626b3639"
+    },
+    {
+      "at": "2026-10-21T03:46:04.716Z",
+      "event": "complete",
+      "taskId": "RUST-010",
+      "details": "Live Rust BOM XML: Rust 3/3, golden XML parity, C++ BOM 5 projects 99 elements, factory and handoff 45 files, browser production export 5 formats PASS, Vite source build PASS, packaging wired; no installed app changes"
+    },
+    {
+      "at": "2026-10-21T03:46:10.346Z",
+      "event": "requeue",
+      "taskId": "RUST-011",
+      "details": "Fabric calibration Rust candidate selectively integrated in live source and independently verified"
+    },
+    {
+      "at": "2026-10-21T03:46:10.398Z",
+      "event": "claim",
+      "taskId": "RUST-011",
+      "details": "fdeef3ab-2708-49d5-ab47-bc15f7f350e5"
+    },
+    {
+      "at": "2026-10-21T03:46:15.049Z",
+      "event": "complete",
+      "taskId": "RUST-011",
+      "details": "Live fabric calibration Rust ABI2: 6 Rust tests, 2699 differential, 400 draft presets, 405 native checks, 402 roundtrips, 3 expected rejects, saved-project parity, Chrome five SI metrics loaded Rust WASM, source build PASS; optical fabric 2025 roughness parity; no solver certification"
+    },
+    {
+      "at": "2026-10-21T03:46:20.048Z",
+      "event": "claim",
+      "taskId": "RUST-012",
+      "details": "6f097312-59eb-4767-9bc1-11087e123915"
+    },
+    {
+      "at": "2026-10-21T03:48:11.428Z",
+      "event": "block",
+      "taskId": "RUST-012",
+      "details": "Partial source integration: Rust persisted rule-coordinate math 2/2 Rust tests, 26 fixtures, 6 sizes, JSON save/reopen snapshot parity and 2256 C++ point coords PASS. BLOCKER: JS still owns authoritative grading rule-set serialization, projectRestore and undo transaction; no Rust command/revision protocol migration or real browser save/reopen acceptance. Must not certify complete."
+    },
+    {
+      "at": "2026-10-21T03:48:42.076Z",
+      "event": "claim",
+      "taskId": "RUST-013",
+      "details": "26ba19af-7e4d-47aa-8a00-26dfb9864d73"
+    },
+    {
+      "at": "2026-10-21T03:51:00.257Z",
+      "event": "complete",
+      "taskId": "RUST-013",
+      "details": "Live Rust marker rotation geometry: 5 Rust tests, 2053 seeded rotation parity max1.14e-13, 8 full marker JSON parity, 16 exact SVG/PDF artifact bytes, 5 native projects 61 marker sets 388 placements 15824 vertices, 12 overflow, 20 exact native marker fixtures, factory and handoff 45 files, source Vite build PASS, macOS packaging wired; arbitrary angles only tolerance-based, not universally byte-identical"
+    },
+    {
+      "at": "2026-10-21T03:51:09.358Z",
+      "event": "claim",
+      "taskId": "RUST-014",
+      "details": "e80e705d-e504-48e3-b7fd-8ebf83bced95"
+    },
+    {
+      "at": "2026-10-21T03:53:49.650Z",
+      "event": "block",
+      "taskId": "RUST-014",
+      "details": "Partial opt-in Rust health snapshot validator/serializer: Rust2/2, actual private GET 200 with nonempty nativeSession 326 bytes exact, independent 72/72 origin/method/headers/body parity and Rust-down fallback PASS. BLOCKER: Node still owns HTTP listener, route dispatch and headers; not a full Rust-owned endpoint. Default Node unchanged, no production port writes."
+    },
+    {
+      "at": "2026-10-21T03:53:57.446Z",
+      "event": "claim",
+      "taskId": "RUST-015",
+      "details": "d5d4e84f-58e4-47ba-8aa0-4a6db66cdb64"
+    },
+    {
+      "at": "2026-10-21T03:56:17.640Z",
+      "event": "block",
+      "taskId": "RUST-015",
+      "details": "Partial live Rust restore shape validation ABI1: Rust1/1, 1046 strict/legacy malformed differential, 80 frozen JS Map-storage assertions, backup recovery and quota behavior PASS, source Vite build PASS, macOS WASM packaging wired. BLOCKER: Rust owns only root/pieces/seams shape check; fabrics/simulation/geometry validation, JSON serialization, backup selection, storage transactions and browser undo remain JS. No user storage changed."
+    },
+    {
+      "at": "2026-10-21T03:56:22.134Z",
+      "event": "claim",
+      "taskId": "RUST-016",
+      "details": "50b6e874-ef62-4dc7-b662-1e30acf53bca"
+    },
+    {
+      "at": "2026-10-21T03:59:01.696Z",
+      "event": "complete",
+      "taskId": "RUST-016",
+      "details": "Live Rust inward edge preview offset: Rust1/1, 2049 direct seeded plus 8024 independent cases 31088 coordinates max diff 7.11e-15, tee/hoodie/jeans/pants/reversed/degenerate PASS; real Chrome desktop1440 and mobile390 jeans-501 preview 24 source pieces two pages 14+10 zero page errors; Vite source build PASS, macOS WASM packaging wired; Three renderer remains JS"
+    },
+    {
+      "at": "2026-10-21T03:59:07.404Z",
+      "event": "claim",
+      "taskId": "RUST-017",
+      "details": "0bdfa107-0018-482d-85f6-77ede2de0969"
+    },
+    {
+      "at": "2026-10-21T04:01:01.095Z",
+      "event": "complete",
+      "taskId": "RUST-017",
+      "details": "Live Rust export contour micro-edge retention and winding terms: Rust1/1, 5008 numeric seeded incl thresholds and nonfinite, 97 frozen JS full export fixtures 388 assertions exact, 10 library garment native exports exact, input immutability, production preflight/handoff 45 files, Vite source build PASS, macOS WASM packaging wired; JS still owns seam/notch mapping and cloning"
+    },
+    {
+      "at": "2026-10-21T04:01:05.241Z",
+      "event": "claim",
+      "taskId": "RUST-018",
+      "details": "e2e26fda-4f41-43c3-ab96-9c9cd65b36b8"
+    },
+    {
+      "at": "2026-10-21T04:03:50.740Z",
+      "event": "block",
+      "taskId": "RUST-018",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-018-572a140c-f66f-4e42-8c75-d63fdfc00a49; source HEAD 3b69daa5980ec11e27e1fa252a3d6d3f19b6f2b1; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T04:10:26.943Z",
+      "event": "requeue",
+      "taskId": "RUST-018",
+      "details": "Prior candidate process finished; independently inspected patch and verified tests on live source"
+    },
+    {
+      "at": "2026-10-21T04:10:26.990Z",
+      "event": "claim",
+      "taskId": "RUST-018",
+      "details": "d3a34970-26a6-43ae-a26e-0060421bbe8f"
+    },
+    {
+      "at": "2026-10-21T04:10:27.076Z",
+      "event": "complete",
+      "taskId": "RUST-018",
+      "details": "Selective live Rust simulation.step validation: 2 Rust tests, JSONL parity, actual loopback HTTP native/fallback scope/origin/revision/batch QA, agent API smoke, automation and key-store QA all PASS; npm Vite 2041 modules PASS; source child close on server exit; no installed app/garment changes"
+    },
+    {
+      "at": "2026-10-21T04:10:45.742Z",
+      "event": "add",
+      "taskId": "RUST-019",
+      "details": "SVG affine matrix and sampled point transforms"
+    },
+    {
+      "at": "2026-10-21T04:10:45.788Z",
+      "event": "add",
+      "taskId": "RUST-020",
+      "details": "Marker PDF numerical page coordinates"
+    },
+    {
+      "at": "2026-10-21T04:10:45.834Z",
+      "event": "add",
+      "taskId": "RUST-021",
+      "details": "Unfold reflected edge-index and grade mapping"
+    },
+    {
+      "at": "2026-10-21T04:11:13.530Z",
+      "event": "claim",
+      "taskId": "RUST-019",
+      "details": "0345a126-47cc-481c-9734-46b6abcb878e"
+    },
+    {
+      "at": "2026-10-21T04:13:48.007Z",
+      "event": "block",
+      "taskId": "RUST-019",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-019-373863be-7b85-4561-b0c7-af24f66d8911; source HEAD 1821075e8238320550451ce1149526beb87379cd; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T04:13:56.800Z",
+      "event": "claim",
+      "taskId": "RUST-020",
+      "details": "846ab792-a94d-44c0-b1f7-22aaad28cce0"
+    },
+    {
+      "at": "2026-10-21T04:15:33.831Z",
+      "event": "pause",
+      "taskId": null,
+      "details": "Autopilot mode changed"
+    },
+    {
+      "at": "2026-10-21T04:16:40.225Z",
+      "event": "add",
+      "taskId": "RUST-022",
+      "details": "Cloth triangle quality metrics"
+    },
+    {
+      "at": "2026-10-21T04:16:40.270Z",
+      "event": "add",
+      "taskId": "RUST-023",
+      "details": "Safe auto-fit rigid placement limits"
+    },
+    {
+      "at": "2026-10-21T04:16:40.314Z",
+      "event": "add",
+      "taskId": "RUST-024",
+      "details": "Precision drafting chord and polar coordinates"
+    },
+    {
+      "at": "2026-10-21T04:17:28.255Z",
+      "event": "block",
+      "taskId": "RUST-020",
+      "details": "Candidate requires inspection in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-020-a42a23d4-a301-458b-8df5-6f6221a4a73d; exit 0; forbidden=true; untracked=52"
+    },
+    {
+      "at": "2026-10-21T04:17:49.545Z",
+      "event": "requeue",
+      "taskId": "RUST-019",
+      "details": "Candidate reviewed and Rust/JS plus Chrome QA passed on live source"
+    },
+    {
+      "at": "2026-10-21T04:17:49.588Z",
+      "event": "resume",
+      "taskId": null,
+      "details": "Autopilot mode changed"
+    },
+    {
+      "at": "2026-10-21T04:17:49.632Z",
+      "event": "claim",
+      "taskId": "RUST-019",
+      "details": "9dbafaf8-8337-461c-99dd-7206dd20e9a1"
+    },
+    {
+      "at": "2026-10-21T04:17:49.712Z",
+      "event": "complete",
+      "taskId": "RUST-019",
+      "details": "Selective Rust SVG affine production bridge: 2 Rust unit PASS, 3000 seeded differential PASS, real Chrome 10 full SVG fixtures +24 error/security cases in fallback and rust-wasm exact PASS, independent 3-piece Chrome QA PASS, Vite 2042 modules PASS, macOS source WASM packaging wired, JS DOMParser/security retained; no installed app or garments touched"
+    },
+    {
+      "at": "2026-10-21T04:17:49.756Z",
+      "event": "pause",
+      "taskId": null,
+      "details": "Autopilot mode changed"
+    },
+    {
+      "at": "2026-10-21T04:20:56.966Z",
+      "event": "requeue",
+      "taskId": "RUST-020",
+      "details": "Manual source-only review complete; excluded generated artifacts and verified QA"
+    },
+    {
+      "at": "2026-10-21T04:21:00.904Z",
+      "event": "resume",
+      "taskId": null,
+      "details": "Autopilot mode changed"
+    },
+    {
+      "at": "2026-10-21T04:21:00.948Z",
+      "event": "claim",
+      "taskId": "RUST-020",
+      "details": "305a9798-bdc8-4585-aec2-9fd18cd3af89"
+    },
+    {
+      "at": "2026-10-21T04:21:05.014Z",
+      "event": "complete",
+      "taskId": "RUST-020",
+      "details": "Selective Rust marker PDF mapping; 6 Rust tests PASS; 2000 seeded WASM cases 33766 coordinate checks exact; 3 frozen SVG/PDF fixtures 6 byte hashes PASS; Chrome Rust WASM annotated PDF hash PASS; off-page malformed outline guard restored; native C++ PDF and SVG parity PASS; Vite 2042 modules PASS; generated candidate binaries and temporary artifacts excluded; installed app untouched"
+    },
+    {
+      "at": "2026-10-21T04:22:05.703Z",
+      "event": "claim",
+      "taskId": "RUST-021",
+      "details": "5598ab32-2332-4b0f-93af-3a610bbdc018"
+    },
+    {
+      "at": "2026-10-21T04:24:09.676Z",
+      "event": "block",
+      "taskId": "RUST-021",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-021-eea48777-0559-4ca6-9ac4-324b7e33e3e4; source HEAD 23717483f413971238f4036dd005e909155e7547; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T04:26:51.092Z",
+      "event": "requeue",
+      "taskId": "RUST-021",
+      "details": "Reviewed source-only candidate; independent Rust/JS/native C++/Chrome undo QA passed"
+    },
+    {
+      "at": "2026-10-21T04:26:55.007Z",
+      "event": "claim",
+      "taskId": "RUST-021",
+      "details": "b1e60326-a3d3-4a2e-9dfd-85f25fda063d"
+    },
+    {
+      "at": "2026-10-21T04:26:59.457Z",
+      "event": "complete",
+      "taskId": "RUST-021",
+      "details": "Selective Rust unfold mapping bridge; 2 Rust unit PASS, 1044 seeded JS/WASM parity PASS, 985 native C++ topology/unfold cases PASS, check-drafting-unfold PASS, isolated Chrome UI unfold/undo and sewing preservation PASS, real Chrome Rust WASM ABI and 400cm2 area PASS, Vite 2044 modules PASS, macOS source packaging wired; no installed app/garment changes"
+    },
+    {
+      "at": "2026-10-21T04:27:31.012Z",
+      "event": "claim",
+      "taskId": "RUST-022",
+      "details": "771151bb-fdda-4633-b171-239496820708"
+    },
+    {
+      "at": "2026-10-21T04:29:45.949Z",
+      "event": "block",
+      "taskId": "RUST-022",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-022-da7ce1f5-25f3-4178-899e-41c39c097955; source HEAD 23717483f413971238f4036dd005e909155e7547; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T04:34:49.355Z",
+      "event": "claim",
+      "taskId": "RUST-023",
+      "details": "8347d5d1-550a-4103-836c-de7a3e091f29"
+    },
+    {
+      "at": "2026-10-21T04:36:48.113Z",
+      "event": "block",
+      "taskId": "RUST-023",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-023-9279ead7-4e1d-4dc5-9f51-a7898f05d9ce; source HEAD 23717483f413971238f4036dd005e909155e7547; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T04:40:27.271Z",
+      "event": "add",
+      "taskId": "RUST-025",
+      "details": "Interior triangle flip numerical predicates"
+    },
+    {
+      "at": "2026-10-21T04:41:44.864Z",
+      "event": "requeue",
+      "taskId": "RUST-022",
+      "details": "Independent CoS source integration and acceptance passed; original Codex candidate review completed"
+    },
+    {
+      "at": "2026-10-21T04:41:44.917Z",
+      "event": "claim",
+      "taskId": "RUST-022",
+      "details": "044339f0-2ba2-4f4b-8a43-3b32b61aa21d"
+    },
+    {
+      "at": "2026-10-21T04:41:57.827Z",
+      "event": "complete",
+      "taskId": "RUST-022",
+      "details": "Independent CoS selective source integration of Rust mesh-quality metrics; 2/2 Rust tests PASS, 2014 exact seeded Rust/JS report+raw cases PASS, quality triangulation and simulation architecture PASS, native C++ simulation-quality parity 96 PASS, source Chrome WASM/invalid-face PASS, npm Vite 2046 modules PASS, macOS source packaging wired; installed app/garments untouched"
+    },
+    {
+      "at": "2026-10-21T04:43:07.515Z",
+      "event": "requeue",
+      "taskId": "RUST-023",
+      "details": "CoS independent review completed and selective source integration in progress; original isolated Codex worker finished"
+    },
+    {
+      "at": "2026-10-21T04:43:07.572Z",
+      "event": "claim",
+      "taskId": "RUST-023",
+      "details": "bc7373f4-0170-4d93-b138-3967aaf779af"
+    },
+    {
+      "at": "2026-10-21T04:43:45.355Z",
+      "event": "add",
+      "taskId": "RUST-026",
+      "details": "Simulation fit telemetry predicates"
+    },
+    {
+      "at": "2026-10-21T04:45:35.433Z",
+      "event": "complete",
+      "taskId": "RUST-023",
+      "details": "Independent CoS selective integration of Rust auto-fit placement: 2/2 Rust unit PASS, 2225 exact Object.is JS/WASM parity PASS including signed zero, fallback and particle mutation PASS, 155 garment vertices and seam/pattern immutability PASS, native C++ auto-fit parity 5 corrections + rigid particle PASS, source Chrome WASM/previous position PASS, Vite 2047 modules PASS, macOS source packaging wired; no installed app or saved garments changed"
+    },
+    {
+      "at": "2026-10-21T04:45:35.486Z",
+      "event": "claim",
+      "taskId": "RUST-024",
+      "details": "4a9e228f-9fd6-4672-9f3e-2daca85a1978"
+    },
+    {
+      "at": "2026-10-21T04:45:53.253Z",
+      "event": "progress",
+      "taskId": "RUST-024",
+      "details": "CoS implementation underway: isolate polar numerical Rust/WASM, preserve existing independently validated chord Rust bridge; independent Chrome QA assigned"
+    },
+    {
+      "at": "2026-10-21T04:48:53.056Z",
+      "event": "complete",
+      "taskId": "RUST-024",
+      "details": "Rust polar precision stage selectively integrated preserving pre-existing Rust chord: 2/2 Rust tests PASS; 2605 point + 2554 inverse + 150 edit exact JS/WASM parity PASS; 2055 chord fixtures/4110 exact ops PASS; JS drafting PASS, C++ drafting precision 68 cases PASS, source Chrome both Rust polar/chord ABI plus 6 error cases PASS, Vite 2051 modules PASS; macOS source packaging wired, saved garment/installed app unchanged"
+    },
+    {
+      "at": "2026-10-21T04:48:53.117Z",
+      "event": "claim",
+      "taskId": "RUST-025",
+      "details": "54889563-c230-49c0-bd5e-1f7be03f1c50"
+    },
+    {
+      "at": "2026-10-21T04:49:01.412Z",
+      "event": "progress",
+      "taskId": "RUST-025",
+      "details": "CoS source worker porting triangle flip numeric predicates to Rust; independent audit and browser QA planned; preserve JS adjacency and boundary invariants"
+    },
+    {
+      "at": "2026-10-21T04:52:13.666Z",
+      "event": "complete",
+      "taskId": "RUST-025",
+      "details": "Rust interior triangle flip numeric predicates integrated with JS adjacency and winding preserved: 2/2 Rust tests PASS, 5007 seeded cases and 10014 exact JS/WASM decisions incl NaN PASS, C++ quality triangulation 485 fixtures/97 meshes/588 flips PASS, tee boundary/area/determinism PASS, real Chrome Rust WASM 375 comparisons and 3 meshes PASS, Vite 2054 modules PASS, macOS source packaging wired; installed app/garments unchanged"
+    },
+    {
+      "at": "2026-10-21T04:52:13.942Z",
+      "event": "claim",
+      "taskId": "RUST-026",
+      "details": "02110ee1-8594-4b45-9df0-7374f7631eb0"
+    },
+    {
+      "at": "2026-10-21T04:52:37.929Z",
+      "event": "add",
+      "taskId": "RUST-027",
+      "details": "Solver timestep scheduling arithmetic"
+    },
+    {
+      "at": "2026-10-21T04:52:48.490Z",
+      "event": "progress",
+      "taskId": "RUST-026",
+      "details": "CoS worker implementing isolated Rust telemetry threshold predicates, preserving JS certification policy; independent Chrome QA assigned; RUST-027 queued next"
+    },
+    {
+      "at": "2026-10-21T04:55:48.175Z",
+      "event": "complete",
+      "taskId": "RUST-026",
+      "details": "Rust simulation fit telemetry predicates integrated: 1/1 Rust unit PASS, 2827 exact JS/WASM full report parity PASS including null/NaN/limits, native C++ simulation quality 96 PASS, simulation architecture PASS, real Chrome 188 cases Rust ABI and exact issue ordering/factoryApproved false PASS, Vite 2055 modules PASS, macOS source packaging wired; no physical fit certification or installed app changes"
+    },
+    {
+      "at": "2026-10-21T04:55:48.418Z",
+      "event": "claim",
+      "taskId": "RUST-027",
+      "details": "30636221-89d3-4522-bd75-f7ec0f6d1b9e"
+    },
+    {
+      "at": "2026-10-21T04:56:42.440Z",
+      "event": "add",
+      "taskId": "RUST-028",
+      "details": "Avatar contact clearance numeric policy"
+    },
+    {
+      "at": "2026-10-21T04:58:58.749Z",
+      "event": "complete",
+      "taskId": "RUST-027",
+      "details": "Rust timestep 2 unit PASS; 3597 exact JS WASM parity PASS; native C++ 96 PASS; simulation architecture PASS; Chrome 14 PASS; Vite 2057 PASS; packaging wired; user files unchanged"
+    },
+    {
+      "at": "2026-10-21T04:59:01.697Z",
+      "event": "claim",
+      "taskId": "RUST-028",
+      "details": "4a9c75b6-d96c-425e-8863-87842dee8052"
+    },
+    {
+      "at": "2026-10-21T04:59:32.252Z",
+      "event": "add",
+      "taskId": "RUST-029",
+      "details": "Self collision pair correction weights"
+    },
+    {
+      "at": "2026-10-21T05:00:27.412Z",
+      "event": "progress",
+      "taskId": "RUST-028",
+      "details": "CoS worker implementing Rust avatar clearance numerics with JS coercion and callback preservation; independent Chrome QA scaffold ready; RUST-029 queued"
+    },
+    {
+      "at": "2026-10-21T05:01:46.757Z",
+      "event": "complete",
+      "taskId": "RUST-028",
+      "details": "Rust avatar clearance parameters: 2 Rust tests PASS, 3289 exact JS WASM parity PASS, native C++ 56 PASS, simulation architecture PASS, Chrome 6 parameter fixtures and callbacks PASS, Vite 2058 PASS, macOS source packaging wired; no installed app or garment writes"
+    },
+    {
+      "at": "2026-10-21T05:03:09.647Z",
+      "event": "claim",
+      "taskId": "RUST-029",
+      "details": "c83731ca-4f10-4350-a474-3d2fba2f3463"
+    },
+    {
+      "at": "2026-10-21T05:05:24.214Z",
+      "event": "block",
+      "taskId": "RUST-029",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-029-2231cc24-798e-4ab4-b0d8-4bc0f41f6cd3; source HEAD 23717483f413971238f4036dd005e909155e7547; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T05:22:13.164Z",
+      "event": "requeue",
+      "taskId": "RUST-029",
+      "details": "Prime review completed: selectively integrated source-only candidate, native and Chrome QA passed; ready to finalize"
+    },
+    {
+      "at": "2026-10-21T05:22:13.206Z",
+      "event": "claim",
+      "taskId": "RUST-029",
+      "details": "d9378268-719e-4e1c-87eb-f1f64e97311e"
+    },
+    {
+      "at": "2026-10-21T05:22:13.275Z",
+      "event": "complete",
+      "taskId": "RUST-029",
+      "details": "Prime source-only selective integration PASS: Rust 1/1, 15,100 exact WASM/JS scalars, native C++ self-collision 74 parity cases plus 10 real tee/pants fixtures exact, simulation architecture PASS, source Chrome 4 policy fixtures plus WASM ABI loaded PASS, Vite 2063 modules PASS, git diff --check PASS. WASM rebuilt canonically 928 bytes; no installed app, saved garment, or source packaging change; not physical solver certification."
+    },
+    {
+      "at": "2026-10-21T05:22:13.309Z",
+      "event": "add",
+      "taskId": "RUST-030",
+      "details": "Avatar clearance and collider geometry"
+    },
+    {
+      "at": "2026-10-21T05:25:32.216Z",
+      "event": "claim",
+      "taskId": "RUST-030",
+      "details": "be240274-d5aa-4e54-85d9-4446df770db2"
+    },
+    {
+      "at": "2026-10-21T05:28:54.168Z",
+      "event": "block",
+      "taskId": "RUST-030",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-030-55967239-ce2b-431d-8312-1449def21d6a; source HEAD 9a61a8819b715131d762565eeab317ad5a556528; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T05:40:19.579Z",
+      "event": "requeue",
+      "taskId": "RUST-030",
+      "details": "Candidate reviewed; source-only integration present; Rust WASM, native C++ parity, real Chrome production path, and source Vite passed; no live worker active"
+    },
+    {
+      "at": "2026-10-21T05:40:19.621Z",
+      "event": "claim",
+      "taskId": "RUST-030",
+      "details": "caf17f33-c5bb-4e51-bc49-b71306eaf6c1"
+    },
+    {
+      "at": "2026-10-21T05:40:39.696Z",
+      "event": "add",
+      "taskId": "RUST-031",
+      "details": "Constraint distance projection numerics"
+    },
+    {
+      "at": "2026-10-21T05:41:01.408Z",
+      "event": "complete",
+      "taskId": "RUST-030",
+      "details": "Rust 2/2; JS-WASM 12000/12000 max 0m; native C++ 2300 max 1.78e-15m; avatar parity 146, contact 56, surface 19; Chrome 52 WASM calls; Vite 2064 modules PASS. Full native cloth step not parity or solver certified. No installed app changes."
+    },
+    {
+      "at": "2026-10-21T05:41:22.188Z",
+      "event": "claim",
+      "taskId": "RUST-031",
+      "details": "ce687944-4452-496a-a795-604aa524659c"
+    },
+    {
+      "at": "2026-10-21T05:51:20.312Z",
+      "event": "complete",
+      "taskId": "RUST-031",
+      "details": "Production Rust/WASM 3D distance projection selectively integrated: Rust 3/3 PASS, seeded 4503 cases/27018 scalar comparisons exact finite numeric parity, 691 malformed synchronous JS fallbacks, Chrome source Vite same live HMR module ABI1 7410 WASM constraint calls across 2470 tee constraints PASS; check-simulation-architecture PASS, check-physics PASS, check-interfacing PASS, native C++ extended cloth-step 12 collision-disabled tee/pants tests max difference 4.1e-15 m PASS; Vite 2065 modules PASS; both packaging scripts syntax/asset copy gates PASS; git diff --check PASS. Caveat source-only 16-frame microbenchmark Rust boundary ~1.25x slower than JS; batch Rust optimization needed. No installed app or garments modified; NOT solver certified."
+    },
+    {
+      "at": "2026-10-21T05:51:20.357Z",
+      "event": "add",
+      "taskId": "RUST-032",
+      "details": "Batched Rust PBD constraint projection"
+    },
+    {
+      "at": "2026-10-21T05:53:59.774Z",
+      "event": "claim",
+      "taskId": "RUST-032",
+      "details": "e24d798d-8578-46a5-9d1a-9325e2260b5d"
+    },
+    {
+      "at": "2026-10-21T05:59:38.285Z",
+      "event": "block",
+      "taskId": "RUST-032",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-032-84452c0e-beb3-45d6-86db-7d0b272f0fec; source HEAD 9a61a8819b715131d762565eeab317ad5a556528; NOT integrated"
+    },
+    {
+      "at": "2026-10-21T06:35:33.131Z",
+      "event": "requeue",
+      "taskId": "RUST-032",
+      "details": "Reviewed staged patch against live source; independent tests and packaging checks passed"
+    },
+    {
+      "at": "2026-10-21T06:35:35.941Z",
+      "event": "claim",
+      "taskId": "RUST-032",
+      "details": "432b0b9e-0579-4a72-b4cf-4c4b7cf05715"
+    },
+    {
+      "at": "2026-10-21T06:35:44.704Z",
+      "event": "complete",
+      "taskId": "RUST-032",
+      "details": "Rust 3/3, seeded 12000 zero-error, Chrome 1751 sweeps and zero-error 1/30 frame tee/pants, native C++ 12 cases pass, tee 1.70x and pants 1.50x faster, Vite 2066 modules, packaging asset checks pass. No installed app changes; full solver not certified."
+    },
+    {
+      "at": "2026-10-21T06:35:51.967Z",
+      "event": "add",
+      "taskId": "RUST-033",
+      "details": "Batched structural strain diagnostics"
+    },
+    {
+      "at": "2026-10-21T06:35:55.471Z",
+      "event": "claim",
+      "taskId": "RUST-033",
+      "details": "3b452732-03de-4597-b3f7-30f6f5f3d605"
+    },
+    {
+      "at": "2026-10-21T06:39:05.392Z",
+      "event": "progress",
+      "taskId": "RUST-033",
+      "details": "Rust ordered structural strain accumulator and synchronous JS fallback in development; source-only build and independent browser/native QA pending. RUST-032 independently completed and packaging gated."
+    },
+    {
+      "at": "2026-10-21T06:42:28.231Z",
+      "event": "complete",
+      "taskId": "RUST-033",
+      "details": "Production Rust/WASM structural strain accumulation with JS fallback: Rust 3/3; 14000 seeded constraints and 2200 particles exact maxError0; browser tee/pants 2 WASM batches 1800 samples 724 comparisons maxError0; native C++ strain-only 2446 comparisons maxError2.22e-16; physics and architecture PASS; isolated Vite 2067 modules and WASM 23786 bytes; both macOS source packaging gates PASS. Unrelated C++ quality schema mismatch remains. No installed app or garments modified; full solver not certified."
+    },
+    {
+      "at": "2026-10-21T06:42:46.513Z",
+      "event": "add",
+      "taskId": "RUST-034",
+      "details": "Rust anchor projection numerics"
+    },
+    {
+      "at": "2026-10-21T06:42:53.711Z",
+      "event": "claim",
+      "taskId": "RUST-034",
+      "details": "bc7d7d63-9d01-45b4-9ef3-63acbd7cd52d"
+    },
+    {
+      "at": "2026-10-21T06:46:09.885Z",
+      "event": "progress",
+      "taskId": "RUST-034",
+      "details": "Rust anchor projection source bridge implemented and WASM compiled; Rust 2/2, 14000 seeded exact parity, physics/architecture, isolated Vite 2068 and source packaging gates PASS. Independent Chrome/native extended QA in progress."
+    },
+    {
+      "at": "2026-10-21T06:47:08.638Z",
+      "event": "complete",
+      "taskId": "RUST-034",
+      "details": "Source acceptance passed: Rust, browser, native, Vite and packaging."
+    },
+    {
+      "at": "2026-10-21T06:47:24.908Z",
+      "event": "add",
+      "taskId": "RUST-035",
+      "details": "Wind pressure and gust numerics"
+    },
+    {
+      "at": "2026-10-21T06:49:46.209Z",
+      "event": "claim",
+      "taskId": "RUST-035",
+      "details": "0a3fedbc-0720-4149-8bae-c915a782858f"
+    },
+    {
+      "at": "2026-10-21T06:52:56.955Z",
+      "event": "block",
+      "taskId": "RUST-035",
+      "details": "Candidate staged for prime review in /Users/mikylecouto/Library/Application Support/exo-rust-candidates/RUST-035-07b3636d-8f14-45a2-a1ac-7f1ffa75ed22; source HEAD 9a61a8819b715131d762565eeab317ad5a556528; NOT integrated"
+    }
+  ]
+}

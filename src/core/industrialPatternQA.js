@@ -1,4 +1,4 @@
-import { gradeProject } from './grading.js'
+import { gradeProject, buildSizeRun } from './grading.js'
 import { edgeRangeLength, samplePieceBoundary } from './project.js'
 import { measureProject } from './measurements.js'
 import {inspectGradedNotchPairs} from './industrialNotchQA.js'
@@ -127,9 +127,19 @@ export function inspectIndustrialPatterns(project, {
 
   let referencePomIds = null
   const baseWinding = new Map()
+  let linkedRun = null
+  if (project.modarisSizeLinkedGrade !== undefined) {
+    try { linkedRun = buildSizeRun(project) } catch (error) {
+      add('GRADE_FAILURE', 'Connected grading', `Authoritative grading failed: ${error.message}`)
+      return result()
+    }
+  }
   for (const size of sizes) {
     let graded
-    try { graded = gradeProject(project, size) } catch (error) {
+    try {
+      graded = linkedRun ? linkedRun[size] : gradeProject(project, size)
+      if (!graded) throw Error('Missing authoritative linked grading size')
+    } catch (error) {
       add('GRADE_FAILURE', `Size · ${size}`, `Grading failed: ${error.message}`)
       continue
     }

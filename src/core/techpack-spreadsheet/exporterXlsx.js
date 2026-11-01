@@ -34,6 +34,23 @@ function preflightXlsxZip(input,maxEntries,maxUnpackedBytes){
   }
 }
 const columnLetters=index=>{let n=index+1,result='';while(n>0){result=String.fromCharCode(65+(n-1)%26)+result;n=Math.floor((n-1)/26)}return result}
+// Merge coordinates refer to zero-based data rows and columns; the separate
+// worksheet header occupies Excel row 1. Invalid/overlapping areas are rejected.
+export function validatedTableMerges(table,rowCount,columnCount){
+  const occupied=new Set(),merges=[]
+  for(const raw of table?.mergedCells||[]){
+    const {r,c,rowSpan,colSpan}=raw||{}
+    if(![r,c,rowSpan,colSpan].every(Number.isInteger)||r<0||c<0||rowSpan<1||colSpan<1||r+rowSpan>rowCount||c+colSpan>columnCount||rowSpan*colSpan===1)throw Error('Invalid spreadsheet merged cell range')
+    for(let y=r;y<r+rowSpan;y++)for(let x=c;x<c+colSpan;x++){
+      const key=`${y}:${x}`
+      if(occupied.has(key))throw Error('Overlapping spreadsheet merged cells')
+      occupied.add(key)
+      if(y!==r||x!==c){const row=table.rows?.[y],col=table.columns?.[x]?.id;const value=rawInput(Array.isArray(row?.cells)?row.cells[x]:row?.cells?.[col]);if(value!==''&&value!=null)throw Error('Covered spreadsheet merged cell must be blank')}
+    }
+    merges.push({r,c,rowSpan,colSpan})
+  }
+  return merges
+}
 const safeSheetName=(name,index,seen)=>{
   const base=String(name||`Sheet ${index+1}`).replace(/[\\/*?:\[\]]/g,' ').replace(/^'+|'+$/g,'').trim().slice(0,29)||`Sheet ${index+1}`
   let candidate=base,n=2
@@ -88,15 +105,18 @@ function workbookStyles(tables){
     const headerColor=theme.header||base.header
     const stripeColor=theme.stripe||base.stripe
     const textColor=theme.text||base.text
-    const header=getXf(getFont({bold:true,color:textColor}),getFill(headerColor),'left')
-    const stripe=getXf(0,getFill(stripeColor),'left')
+    const bodyColor=theme.body||base.body||'#ffffff'
+    const bodyText=theme.bodyText||base.bodyText||'#273244'
+    const header=getXf(getFont({bold:true,color:textColor}),getFill(headerColor),theme.headerAlign||'left')
+    const body=getXf(getFont({color:bodyText}),getFill(bodyColor),'left')
+    const stripe=getXf(getFont({color:bodyText}),getFill(stripeColor),'left')
     const cells=new Map()
     for(const [coordinate,style] of Object.entries(table.cellStyles||{})){
       if(!/^[^:]+:\d+$/.test(coordinate)||!style||typeof style!=='object')continue
       const font=getFont(style),fill=getFill(style.background)
       cells.set(coordinate,getXf(font,fill,style.align))
     }
-    return {header,stripe,cells}
+    return {header,body,stripe,cells}
   })
   const fontXml=fonts.map(f=>`<font>${f.bold?'<b/>':''}${f.italic?'<i/>':''}${f.underline?'<u/>':''}<sz val="10"/><name val="Arial"/>${f.ink?`<color rgb="${f.ink}"/>`:''}</font>`).join('')
   const fillXml=fills.map((ink,i)=>i===0?'<fill><patternFill patternType="none"/></fill>':i===1?'<fill><patternFill patternType="gray125"/></fill>':`<fill><patternFill patternType="solid"><fgColor rgb="${ink}"/><bgColor indexed="64"/></patternFill></fill>`).join('')
@@ -106,17 +126,19 @@ function workbookStyles(tables){
 const sheetXml=(table,styles)=>{
   const {columns,rows}=asPrintableRows(table)
   if(columns.length>256||rows.length>10001)throw new Error('Techpack export limit: 256 columns / 10000 data rows')
+  const merges=validatedTableMerges(table,rows.length-1,columns.length)
   const colXml=columns.map((c,i)=>`<col min="${i+1}" max="${i+1}" width="${Math.min(70,Math.max(9,Number(c.width||110)/7))}" customWidth="1"/>`).join('')
   const xmlRows=rows.map((row,i)=>{
     const cells=row.map((v,j)=>{
       const sourceCell=i>0?Array.isArray(table.rows[i-1].cells)?table.rows[i-1].cells[j]:table.rows[i-1].cells?.[columns[j].id]:null
-      const visual=i===0?styles.header:styles.cells.get(`${i-1}:${j}`)??styles.cells.get(`${table.rows[i-1]?.id}:${j}`)??(i%2===0?styles.stripe:0)
+      const visual=i===0?styles.header:styles.cells.get(`${i-1}:${j}`)??styles.cells.get(`${table.rows[i-1]?.id}:${j}`)??(i%2===0?styles.stripe:styles.body)
       return cellXml(v,`${columnLetters(j)}${i+1}`,sourceCell?.origin||'authored',visual)
     }).join('')
     return `<row r="${i+1}"${i===0?' ht="24" customHeight="1"':''}>${cells}</row>`
   }).join('')
   const freeze=rows.length>1?'<sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>':'<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
-  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${freeze}<sheetFormatPr defaultRowHeight="17"/><cols>${colXml}</cols><sheetData>${xmlRows}</sheetData><pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.25" footer="0.25"/></worksheet>`
+  const mergeXml=merges.length?`<mergeCells count="${merges.length}">${merges.map(({r,c,rowSpan,colSpan})=>`<mergeCell ref="${columnLetters(c)}${r+2}:${columnLetters(c+colSpan-1)}${r+rowSpan+1}"/>`).join('')}</mergeCells>`:''
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">${freeze}<sheetFormatPr defaultRowHeight="17"/><cols>${colXml}</cols><sheetData>${xmlRows}</sheetData>${mergeXml}<pageMargins left="0.3" right="0.3" top="0.5" bottom="0.5" header="0.25" footer="0.25"/></worksheet>`
 }
 /** Returns a Uint8Array XLSX file, ready for an application/octet-stream Blob. */
 export function exportTechPackXlsx(tables,{creator='EXO ClothCraft Studio'}={}){
@@ -249,10 +271,21 @@ export function importTechPackXlsx(bytes,{maxBytes=8_000_000,maxEntries=200,maxU
     for(let j=0;j<matrix.length;j++)matrix[j]??=[]
     const headers=(matrix.shift()||[]).map((x,j)=>String(x??`COLUMN ${j+1}`))
     if(headers.length>256)throw Error('Sheet exceeds 256 column cap')
-    return {id:`import-${i+1}`,name:meta['@_name']||`Sheet ${i+1}`,kind:'imported',headers,
+    const mergedCells=[]
+    for(const merge of list(parsed.worksheet?.mergeCells?.mergeCell)){
+      const match=String(merge?.['@_ref']||'').match(/^([A-Z]{1,3})(\d+):([A-Z]{1,3})(\d+)$/)
+      if(!match)throw Error('Invalid XLSX merged cell range')
+      const decode=s=>[...s].reduce((n,char)=>n*26+char.charCodeAt(0)-64,0)-1
+      const c=decode(match[1]),endC=decode(match[3]),r=Number(match[2])-2,endR=Number(match[4])-2
+      if(r<0||endR<r||endC<c)throw Error('Invalid XLSX merged cell range')
+      mergedCells.push({r,c,rowSpan:endR-r+1,colSpan:endC-c+1})
+    }
+    const result={id:`import-${i+1}`,name:meta['@_name']||`Sheet ${i+1}`,kind:'imported',headers,
       columns:headers.map((label,j)=>({id:`col-${j}`,label,width:columnWidths[j]||110})),columnWidths:headers.map((_,j)=>columnWidths[j]||110),cellStyles,
       rows:matrix.map((values,j)=>({id:`import-row-${j+1}`,cells:headers.map((_,k)=>values[k]??''),...(Object.keys(cache[j+1]||{}).length?{formulaCachedValues:cache[j+1]}:{})})),
       imported:true,needsReview:true,importWarning:'Workbook formulas were NOT executed or verified; review before factory use'}
+    if(mergedCells.length){result.mergedCells=mergedCells;validatedTableMerges(result,result.rows.length,result.columns.length)}
+    return result
   })
 }
 

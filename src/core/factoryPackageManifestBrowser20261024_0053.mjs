@@ -1,6 +1,8 @@
 import {sha256Bytes} from './sha256Bytes.js'
 
-const MAX_FILES=320
+// Match the bounded source-recovery inventory ceiling. This remains a content
+// consistency audit, not independent source authentication or CUT authorization.
+const MAX_FILES=1024
 const MAX_FILE_BYTES=8*1024*1024
 const MAX_TOTAL_BYTES=40*1024*1024
 const decoder=new TextDecoder('utf-8',{fatal:true})

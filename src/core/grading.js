@@ -2,7 +2,9 @@ import { cloneProject, edgeLength } from './project.js'
 import { gradeAutomaticCoordinates, gradePersistedRuleCoordinate,gradeMultiPieceBreakTable } from './rustGradingKernel.js'
 import { evaluateIndustrialGradeRule,convertIndustrialGradeRule, INDUSTRIAL_GRADE_MODES } from './industrialGradeRules.js'
 import {gradeConstructionAttachments, gradeConstructionCurveControls,gradeAttachedConstructionPoint} from './gradedConstructionAttachments.js'
-import {applyAccuMarkNotchArcStationsToGraded} from './accumarkGradedNotchDistance20261023.js'
+import {applyAccuMarkNotchArcStationsToGraded} from './gradedNotchArcStations.js'
+import {buildModarisSizeLinkedGradeRun} from './modarisSizeLinkedGrade20261027.js'
+import {assertFreshModarisSizeLinkedGradeProject20261027} from './modarisSizeLinkedGradePersistence20261027.js'
 
 export const DEFAULT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL']
 
@@ -235,9 +237,34 @@ export function gradeProject(project, size) {
 
 export function buildSizeRun(project) {
   const sizes = project.grading?.sizes?.length ? project.grading.sizes : DEFAULT_SIZES
-  if (Array.isArray(project.pieces) && project.pieces.length &&
-      project.pieces.every(piece => piece.points?.length && piece.points.every(point => Boolean(point.industrialGradeRule)))) {
-    return buildNativeIndustrialSizeRun(project)
+  if (project?.modarisSizeLinkedGrade !== undefined) {
+    // Connected control geometry must come from the final dependency run,
+    // rather than the ordinary per-piece grader. Importing a named function
+    // is safe here: no module evaluates linked grading at initialization.
+    assertFreshModarisSizeLinkedGradeProject20261027(project)
+    return buildModarisSizeLinkedGradeRun(project).run
+  }
+  if (Array.isArray(project.pieces) && project.pieces.length) {
+    const allPoints = project.pieces.flatMap(piece => piece.points || [])
+    if (allPoints.some(point => Boolean(point.industrialGradeRule))) {
+      // Keep stale rule diagnostics precise, even when a garment is only
+      // partially authored and cannot yet enter the industrial batch path.
+      const baseSize = project.grading?.baseSize || 'M'
+      for (const point of allPoints) {
+        const rule = point.industrialGradeRule
+        if (rule && (JSON.stringify(rule.sizes) !== JSON.stringify(sizes) || rule.baseSize !== baseSize)) {
+          throw new Error('Industrial grade rule size set or base size differs from garment grading')
+        }
+      }
+      // A production size run must not mix authored industrial breaks with
+      // automatic/legacy grading. Single-size previews retain their existing
+      // transitional behavior through gradeProject.
+      if (project.pieces.some(piece => !piece.points?.length) ||
+          allPoints.some(point => !point.industrialGradeRule)) {
+        throw new Error('Industrial size run requires complete industrial grade rules for every point on every piece')
+      }
+      return buildNativeIndustrialSizeRun(project)
+    }
   }
   return Object.fromEntries(sizes.map((size) => [size, gradeProject(project, size)]))
 }

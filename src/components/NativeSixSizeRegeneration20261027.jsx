@@ -16,7 +16,6 @@ export function nativeSixSizeRegenerationPreflight20261027(snapshot, disabled = 
   if (snapshot.activeGradedSize || snapshot.active_grade_size) return 'Restore the base garment before changing the six-size catalog.'
   if (!(snapshot.gradeRunPersisted === true || snapshot.hasSavedGradeCatalog === true || snapshot.project?.grade_run || snapshot.project?.gradeRun)) return 'Save a native six-size grade catalog first.'
   if (snapshot.nativePointBindings?.active !== true || snapshot.nativePointBindings?.version !== 1 || !Array.isArray(snapshot.nativePointBindings?.bindings) || snapshot.nativePointBindings.bindings.length === 0) return 'Save an active native measurement binding graph first.'
-  if (new Set(snapshot.nativePointBindings.bindings.map(binding => binding.panelId)).size < 2) return 'At least two bound source panels are required for six-size regeneration.'
   if (!Object.entries(snapshot.nativePointBindings.measurements || {}).some(([, value]) => direct(value) !== null)) return 'No saved direct scalar measurements are available.'
   return ''
 }
@@ -98,7 +97,7 @@ export default function NativeSixSizeRegeneration20261027({ snapshot, disabled =
   const rows = Array.isArray(source) ? source : source && typeof source === 'object' ? Object.entries(source).map(([size, value]) => ({ size, ...value })) : []
   return <section aria-label="Native six-size dependent regeneration" data-native-six-size-regeneration="true">
     <h3>Native six-size dependent pattern regeneration</h3>
-    <p>Stage one or more saved direct measurements, then preview and commit their linked geometry across pieces and XS–XXL as one native Rust operation and Undo step. Computed formulas and arbitrary edits remain unsupported. Factory approval requires separate checks.</p>
+    <p>Stage one or more saved direct measurements, then preview and commit their linked geometry on the affected piece(s) across XS–XXL as one native Rust operation and Undo step. Saved computed formulas are recalculated from direct inputs; editing formula definitions and arbitrary geometry remains unsupported. Unaffected pieces retain their saved size geometry. Factory approval requires separate checks.</p>
     <p>Saved binding graph: {graph?.active ? `${graph.bindings?.length || 0} rule(s)` : 'unavailable'} · Six-size catalog: {snapshot?.gradeRunPersisted ? 'saved' : 'unavailable'}</p>
     {blocker && <p role="alert">{blocker}</p>}
     <label>Saved direct measurement <select aria-label="Six-size direct measurement" disabled={Boolean(blocker)} value={name} onChange={event => choose(event.target.value)}><option value="">Choose measurement</option>{measurements.map(([key, value]) => <option key={key} value={key}>{key} · {display(direct(value))}</option>)}</select></label>

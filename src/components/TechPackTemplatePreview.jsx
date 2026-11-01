@@ -1,9 +1,92 @@
 import React from 'react'
 import {TECHPACK_THEMES} from '../core/techPackTemplatePresets.js'
+import {FRAMED_HEADER_PRESETS} from '../core/techPackVisualThemes20261031.js'
+import {TECHPACK_COMPOSABLE_PAGE_TEMPLATES} from '../core/techPackComposablePageTemplates20261031.js'
 
 // Declarative, inert sample artboards: the preview shows layout only. No
 // garment measurements, fabric tests or approval statuses are invented.
 export default function TechPackTemplatePreview({preset={},compact=false}){
+  if(preset.kind==='production-page-recipe'){
+    const composition=TECHPACK_COMPOSABLE_PAGE_TEMPLATES.find(item=>item.id===preset.compositionId)
+    return <div className={`tpws-template-preview-stage tpws-production-recipe-preview ${compact?'is-compact':''}`} data-template-preview={preset.id}>
+      <div className="tpws-production-recipe-paper">
+        {(composition?.regions||[]).map((region,i)=>{
+          const b=region.rect||{},kind=region.role||region.type||'photo'
+          return <div key={i} className={`tpws-production-region tpws-production-region-${kind}`}
+            style={{left:`${(Number(b.x)||0)/612*100}%`,top:`${(Number(b.y)||0)/792*100}%`,
+              width:`${Math.max(0,Number(b.width)||0)/612*100}%`,height:`${Math.max(0,Number(b.height)||0)/792*100}%`}}>
+            {['table','bottom-table'].includes(kind)?<div className="tpws-production-region-grid"><b/><i/><i/><i/></div>:
+              kind==='swatch'?<span className="tpws-production-region-swatch"/>:
+              ['drawing','photo','artwork','reference','mockup'].includes(kind)?<span className="tpws-production-region-media"><svg width="56%" viewBox="0 0 50 60" aria-hidden="true"><path d="M16 9 L23 6 L27 6 L34 9 L44 21 L37 27 L33 22 L33 52 L17 52 L17 22 L13 27 L6 21 Z" fill="none" stroke="#222a31" strokeWidth="1.2"/></svg></span>:null}
+          </div>
+        })}
+      </div>
+    </div>
+  }
+  if(preset.kind==='production-pack-recipe'){
+    return <div className={`tpws-template-preview-stage tpws-production-pack-preview ${compact?'is-compact':''}`} data-template-preview={preset.id}>
+      <div className="tpws-production-mini-stack">{[0,1,2].map((index)=><div key={index} className="tpws-production-mini-page">
+        <div/><b/><i/><i/><small>{String(index+1).padStart(2,'0')}</small>
+      </div>)}</div>
+      <small className="tpws-production-pack-count">{preset.pageRecipeIds?.length||0} source-linked pages</small>
+    </div>
+  }
+  if(preset.category==='boxes'&&['photo','swatch','text','vector'].includes(preset.kind)){
+    const ink='#20262e'
+    return <div className={`tpws-template-preview-stage tpws-direct-object-preview ${compact?'is-compact':''}`} data-template-preview={preset.id}>
+      <div className="tpws-direct-object-art" aria-label={`${preset.name} direct object preview`}>
+        {preset.kind==='swatch'?<div className="tpws-direct-swatch" style={{background:preset.color||'#d9d7d2'}}/>:
+          preset.kind==='photo'?<svg viewBox="0 0 160 140" width="100%" height="100%" aria-hidden="true">
+            {preset.id==='media-artwork'?<g fill="none" stroke={ink} strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M55 21 Q80 12 105 21 L131 37 148 68 131 80 118 61 118 126 42 126 42 61 29 80 12 68 29 37 Z"/>
+              <path d="M56 21 Q80 49 104 21 M42 61 L29 37 M118 61 L131 37"/>
+            </g>:<g fill="none" stroke={ink} strokeWidth="1.7"><rect x="19" y="19" width="122" height="101" rx="1"/>
+              <circle cx="112" cy="44" r="9"/><path d="M25 106 L66 65 87 85 101 76 135 111"/></g>}
+          </svg>:
+          preset.kind==='text'?<div className="tpws-direct-annotation"><strong>{preset.id==='text-factory-note'?'FACTORY SPECIFICATION':'CONSTRUCTION NOTE 01'}</strong><span>Editable annotation text</span></div>:
+          <svg viewBox="0 0 160 140" width="100%" height="100%" aria-hidden="true">
+            {preset.vectorKind==='ellipse'?<ellipse cx="80" cy="70" rx={preset.id==='circle'?49:63} ry={preset.id==='circle'?49:40} fill="none" stroke={ink} strokeWidth="2"/>:
+              <rect x={preset.id==='square'?37:20} y={preset.id==='square'?27:38} width={preset.id==='square'?86:120} height={preset.id==='square'?86:66}
+                fill={preset.id==='outline-frame'?'none':'#d9d7d2'} stroke={ink} strokeWidth="2"/>}
+          </svg>}
+      </div>
+    </div>
+  }
+  if(preset.kind==='framed-header-variant'){
+    const style=FRAMED_HEADER_PRESETS.find(item=>item.id===preset.id)||FRAMED_HEADER_PRESETS[0]
+    return <div className={`tpws-template-preview-stage tpws-framed-header-stage ${compact?'is-compact':''}`} data-template-preview={preset.id}>
+      <div className="tpws-framed-header-sample" style={{'--header-accent':style.header,'--header-fg':style.text,'--header-body':style.body,'--header-line':style.border,background:style.body,border:`1px solid ${style.border}`}}>
+        <div className="tpws-framed-header-cells" style={{gridTemplateColumns:'44fr 63fr 56fr 78fr 56fr 43fr 45fr 84fr 37fr 67fr'}}>
+          {['SEASON','—','STYLE NO.','—','CATEGORY','—','FABRIC','—','DATE','—',
+            'BRAND','—','NAME','—','','','SIZE','—','MAT.','—'].map((value,i)=>
+            <span key={i} className={i===13&&style.nameMerge==='wide'?'wide':''} style={{minHeight:i<10?style.firstHeight:i<20?style.secondHeight:undefined,
+              background:style.id==='graphite-reverse'&&i<10?style.header:style.body,
+              color:style.id==='graphite-reverse'&&i<10?'#ffffff':style.body==='#ffffff'?'#171717':'#292929',
+              fontWeight:i%2===0?700:400,fontSize:style.firstHeight<=20?'.55em':'.65em'}}>{value}</span>)}
+        </div>
+        <strong style={{background:style.header,color:style.text,minHeight:style.titleHeight,display:'flex',alignItems:'center',
+          justifyContent:style.titleAlign==='center'?'center':'flex-start',paddingLeft:style.titleAlign==='center'?0:8,
+          width:style.band==='full'?'100%':style.band==='split'?'70%':'50%',letterSpacing:style.titleHeight>=35?'0.09em':'normal'}}>
+          TECHNICAL DETAILS</strong>
+      </div>
+    </div>
+  }
+  if(preset.kind==='canonical-gallery-table')return <div className={`tpws-template-preview-stage tpws-gallery-grid-stage ${compact?'is-compact':''}`} data-template-preview={preset.id}>
+    <div className="tpws-gallery-grid-preview"><div>{preset.headings.slice(0,4).map((h,i)=><b key={i}>{h}</b>)}</div>
+      {preset.rowLabels.slice(0,4).map((label,i)=><div key={i}>{preset.headings.slice(0,4).map((_,j)=><span key={j}>{j===0?label:'—'}</span>)}</div>)}
+    </div>
+  </div>
+  if(preset.kind==='minimal-frame-page')return <div className={`tpws-template-preview-stage tpws-minimal-frame-stage ${compact?'is-compact':''}`} data-template-preview={preset.id}>
+    <div className="tpws-minimal-frame-paper" role="img" aria-label="Blank US Letter portrait sheet with enclosing black frame, two-row metadata header, centered section title, empty drawing area, optional blank table and footer">
+      <div className="tpws-minimal-frame-border">
+        <div className="tpws-minimal-frame-metadata">{['STYLE / REF','GARMENT / CATEGORY','DATE / REVISION','PAGE'].map(label=><div key={label}><span>{label}</span><i aria-hidden="true"/></div>)}</div>
+        <div className="tpws-minimal-frame-heading">SECTION TITLE</div>
+        <div className="tpws-minimal-frame-body"><span>Technical drawing / drag asset from Assets</span></div>
+        <div className="tpws-minimal-frame-spec"><span>OPTIONAL SPECIFICATION TABLE</span><div><i/><i/><i/></div></div>
+      </div>
+      <div className="tpws-minimal-frame-footer">BRAND / LOGO <span>FOOTER</span></div>
+    </div>
+  </div>
   const theme=TECHPACK_THEMES.find(item=>item.id===preset.theme)||TECHPACK_THEMES[0]
   const color=preset.colors?.accent||preset.lineColor||theme.accent
   const wash=preset.colors?.wash||theme.wash

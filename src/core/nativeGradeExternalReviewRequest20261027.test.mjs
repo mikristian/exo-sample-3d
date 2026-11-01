@@ -65,6 +65,40 @@ test('no request for stale grade offsets, changed source, malformed size invento
  }
 })
 
+test('duplicate physical CUT panel cannot replace a missing source panel in a six-size review request',()=>{
+ const f=fixture()
+ const second={id:'back',polygon:{points:[[0,0],[.1,0],[.1,.2],[0,.2]],edges:['a','b','c','d']}}
+ f.snapshot.template.panels.push(second)
+ f.cutAudit.sourceTemplate=structuredClone(f.snapshot.template)
+ // Duplicating front used to satisfy the old count + membership checks despite missing back.
+ for(const size of f.cutResponse.sizes)size.panels.push({...size.panels[0]})
+ const result=build(f.snapshot,f.rules,f.definitions,f.cutResponse,f.cutAudit)
+ assert.equal(result.ok,false)
+ assert.equal(result.cuttingAuthorized,false)
+})
+
+test('review request rejects missing, nonphysical or nonfinite CUT panel geometry',()=>{
+ for(const mutate of [
+  f=>{delete f.cutResponse.sizes[0].panels[0].cut},
+  f=>{f.cutResponse.sizes[0].panels[0].cut.points.pop();f.cutResponse.sizes[0].panels[0].cut.points.pop()},
+  f=>{f.cutResponse.sizes[1].panels[0].cut.points[2].x=NaN},
+  f=>{f.cutResponse.sizes[2].panels[0].cut.area_m2=0},
+  f=>{f.cutResponse.sizes[3].panels[0].cut.area_m2=.5},
+  f=>{f.cutResponse.sizes[4].panels[0].cut.points[2].y=0},
+  f=>{f.cutResponse.sizes[5].panels[0].cut.points=[
+   {x:0,y:0},{x:.2,y:.3},{x:0,y:.3},{x:.2,y:0}]},
+  f=>{f.cutResponse.sizes[5].panels[0].cut.points[1]={x:0,y:0}},
+  f=>{f.cutResponse.sizes[5].panels[0].cut.points=Array.from({length:4097},(_,i)=>({
+   x:Math.cos(i*2*Math.PI/4097)*.1,y:Math.sin(i*2*Math.PI/4097)*.1}))},
+  f=>{f.cutResponse.sizes[5].panels[0].cut.points.push({x:0,y:0})},
+ ]){
+  const f=fixture();mutate(f)
+  const result=build(f.snapshot,f.rules,f.definitions,f.cutResponse,f.cutAudit)
+  assert.equal(result.ok,false)
+  assert.equal(result.cuttingAuthorized,false)
+ }
+})
+
 test('review request hash pins exactly match independently signed reviewer verifier canonical hashes',async()=>{
  const f=fixture()
  const result=build(f.snapshot,f.rules,f.definitions,f.cutResponse,f.cutAudit)

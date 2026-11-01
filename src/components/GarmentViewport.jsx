@@ -727,7 +727,7 @@ async function upgradeAvatarVisualization(group, project, customAvatar = null, i
     meshCount += 1
     // Preserve CLO's actual skin, face, hair and shoe textures. The
     // neutral material is only for generic untextured fitting avatars.
-    if (avatarModel !== 'clo-thomas') object.material = material
+    if (avatarModel !== 'clo-thomas' && !(avatarModel==='custom-export'&&customAvatar?.type==='glb')) object.material = material
     object.castShadow = true
     object.receiveShadow = true
   })

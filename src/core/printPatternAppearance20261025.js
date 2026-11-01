@@ -1,5 +1,5 @@
 import {patternSemanticStroke} from './patternVisualTokens.js'
-import {sampleInternalCurve} from '../components/nativeInternalCurve.js'
+import {sampleInternalCurve} from './nativeInternalCurve.js'
 
 // Paint-only annotations. Print layout cut geometry and authoritative source are untouched.
 const finitePoint=p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)

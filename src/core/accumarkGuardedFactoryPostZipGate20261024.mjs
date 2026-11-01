@@ -6,7 +6,9 @@ import { requireAccuMarkGuardedFactoryMarkerParity20261024 } from './accumarkGua
 const MAX_ARCHIVE = 16 * 1024 * 1024
 const MAX_ENTRY = 4 * 1024 * 1024
 const MAX_TOTAL = 16 * 1024 * 1024
-const MAX_ENTRIES = 80
+// Keep the serialized source inventory in sync with the bounded 1024-file
+// manifest audit; byte and decompression budgets remain intentionally stricter.
+const MAX_ENTRIES = 1024
 
 /**
  * Verify the actual serialized download, not just the pre-ZIP file map.

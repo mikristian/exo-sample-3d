@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import * as THREE from 'three'
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 import './PremiumHardware3DPreview.css'
-import {createProceduralHardwarePreview} from '../core/proceduralHardwarePreview.js'
+import {createProceduralHardwarePreview} from './proceduralHardwarePreview.js'
 
 function disposeMeshTree(root) {
   root.traverse(node => {

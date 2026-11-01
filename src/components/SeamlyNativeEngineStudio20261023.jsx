@@ -1,3 +1,4 @@
+import {nativeBridgeFetch} from '../core/nativeWorkspaceTransport.js'
 import React, {useEffect,useMemo,useState} from 'react'
 import {Download, Ruler, Upload} from 'lucide-react'
 import {buildSeamlyCadExchangeBundle20261023} from '../core/seamlyCadExchangeBundle20261023.js'
@@ -110,7 +111,7 @@ export default function SeamlyNativeEngineStudio20261023({onReferenceImport,onNa
         if (!Number.isInteger(n) || n < 50 || n > 250) throw new Error('Height must be 50–250 cm')
         payload.heightCm = n
       }
-      const response = await fetch(`${bridge()}/seamly/v1/evaluate`,{
+      const response = await nativeBridgeFetch(`${bridge()}/seamly/v1/evaluate`,{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),
         signal:AbortSignal.timeout(90000),
       })

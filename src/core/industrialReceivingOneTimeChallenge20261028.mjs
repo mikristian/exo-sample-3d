@@ -40,7 +40,8 @@ export async function inspectIndustrialReceivingOneTimeChallenge20261028(
   issuanceReceipt=null,trustedIssuerKeys=null,
   issuerStatusSnapshot=null,trustedRegistryRoot=null,
   issuerAudience=null,ledgerNamespace=null,trustedLedgerNamespaces=null,
-  registryStateRoot=null,trustedRegistryStateNamespaces=null}={},
+  registryStateRoot=null,trustedRegistryStateNamespaces=null,
+  returnedFilePacket=null}={},
 ){
  if(typeof ledgerRoot!=='string'||!isAbsolute(ledgerRoot)||!ledgerRoot.length)
   return blocked('RECEIVER_CHALLENGE_LEDGER_REQUIRED')
@@ -56,7 +57,8 @@ export async function inspectIndustrialReceivingOneTimeChallenge20261028(
   return blocked('RECEIVER_CHALLENGE_LEDGER_NAMESPACE_DRIFT')
  const verified=await inspectIndustrialReceivingPinnedSession20261028(
   project,explorer,plansByFabric,handoffPacket,outboundWires,evidence,attestation,
-  {policy,trustedKeys,nowMs})
+  {policy,trustedKeys,nowMs,returnedFilePacket,
+   requireReturnedFileBytes:true})
  if(!verified.ok)return {...verified,receiverChallengeConsumed:false}
  // A caller-supplied challengeIssuedAt is not sufficient proof of issuance.
  // Require a different, separately trusted issuer to sign the exact policy

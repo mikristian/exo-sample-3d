@@ -2,18 +2,36 @@
 // measurement regeneration, six physical grades, native CUT and UI history.
 // Uses a disposable temporary Rust workspace; factory approval stays false.
 import assert from 'node:assert/strict'
+import {randomBytes} from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import {spawn} from 'node:child_process'
+import {spawn,spawnSync} from 'node:child_process'
 import {setTimeout as sleep} from 'node:timers/promises'
 import {chromium} from 'playwright-core'
 import {generateNativeOrderMarkers,nativeSourceFingerprint,nativeCutlineFingerprint} from './native-production-order-marker-20261029.mjs'
 import {generateNativeVerifiedOrderMarkersRun36} from './native-verified-order-handoff-run36-20261029.mjs'
 import {createNativeVerifiedProductionOrderRun37} from './native-verified-production-order-run37.mjs'
 
+// This connected UI/3D run launches Chrome, Vite, a Rust bridge and a native
+// garment process. Refuse to start if the Mac lacks scratch headroom or the
+// intended isolated ports belong to another process; a successful /health
+// from somebody else's listener must never become permission to mutate it.
+const scratch=fs.statfsSync(os.tmpdir())
+assert(scratch.bavail*scratch.bsize>=2*1024**3,
+  'RUN38_QA_HEADROOM_REFUSED: require at least 2 GiB free for isolated Vite/Chrome/Rust test')
+for(const port of [5745,5746]){
+  const probe=spawnSync('/usr/sbin/lsof',['-nP',`-tiTCP:${port}`,'-sTCP:LISTEN'],{
+    encoding:'utf8',timeout:3000,
+  })
+  assert.equal(probe.status,1,
+    `RUN38_QA_PORT_UNAVAILABLE: isolated test needs unused localhost port ${port}`)
+}
 const root=fs.mkdtempSync(path.join(os.tmpdir(),'exo-connected-fivepiece-run38-'))
 const native='http://127.0.0.1:5745',ui='http://127.0.0.1:5746'
+// Match the application's secure native protocol while keeping this QA's
+// disposable Rust session entirely separate from installed V2 on 5385/5386.
+const workspaceToken=randomBytes(32).toString('hex')
 const children=[],pageErrors=[],requests=[]
 const launch=(file,args,env={})=>{
   const child=spawn(file,args,{cwd:process.cwd(),detached:true,stdio:'ignore',env:{...process.env,...env}})
@@ -24,12 +42,14 @@ const ready=async url=>{for(let i=0;i<120;i++){
   await sleep(300)
 }throw Error('Service not ready '+url)}
 const workspace={request:async packet=>{
-  const reply=await fetch(native+'/workspace',{method:'POST',headers:{'content-type':'application/json'},
+  const reply=await fetch(native+'/workspace',{method:'POST',headers:{
+    'content-type':'application/json',authorization:`Bearer ${workspaceToken}`},
     body:JSON.stringify(packet),signal:AbortSignal.timeout(60000)})
   return reply.json()
 },close:()=>{for(const child of children)try{process.kill(-child.pid,'SIGTERM')}catch{}}}
 launch(process.execPath,['integrations/clothcraft/server.mjs'],{
   EXO_CLOTHCRAFT_PORT:'5745',EXO_CLOTHCRAFT_OUTPUT_DIR:root,EXO_CLOTHCRAFT_GPU:'0',
+  EXO_WORKSPACE_TOKEN:workspaceToken,
   EXO_CLOTHCRAFT_REPO:path.join(process.cwd(),'research/oss/clothcraft'),
   EXO_CLOTHCRAFT_SESSION_BIN:path.join(process.cwd(),'research/oss/clothcraft/target/debug/exo-session')})
 let browser,page
@@ -208,7 +228,10 @@ try{
 
   stage='real browser UI staged qualified 400→380mm regeneration'
   beforeRevision=state.revision
-  launch(path.join(process.cwd(),'node_modules/.bin/vite'),['--host','127.0.0.1','--port','5746','--strictPort'],{VITE_CLOTHCRAFT_BRIDGE_URL:native})
+  launch(path.join(process.cwd(),'node_modules/.bin/vite'),['--host','127.0.0.1','--port','5746','--strictPort'],{
+    VITE_CLOTHCRAFT_BRIDGE_URL:native,
+    VITE_CLOTHCRAFT_WORKSPACE_TOKEN:workspaceToken,
+  })
   await ready(ui)
   const macChrome='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
   const chromePath=process.env.EXO_QA_CHROME_BIN || (fs.existsSync(macChrome)?macChrome:undefined)

@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { unzipSync, strFromU8 } from 'fflate'
 import { createDefaultProject } from '../data/defaultProject.js'
-import { gradeProject, gradePiece } from './grading.js'
+import { gradeProject, gradePiece, buildSizeRun } from './grading.js'
 import { INDUSTRIAL_GRADE_MODES as MODES } from './industrialGradeRules.js'
 import { buildFactoryPackageZip } from './factoryPackage.js'
 
@@ -53,8 +53,30 @@ test('stale per-point rule rejects mismatched garment size set even for its base
   assert.throws(()=>gradePiece(project.pieces[0],project.grading,'L'),/base size/i)
 })
 
+test('mixed industrial and legacy rules cannot silently produce a manufacturing size run', () => {
+  const project = industrialProject()
+  const before = structuredClone(project)
+  assert.throws(() => buildSizeRun(project), /complete industrial grade rules/i)
+  assert.deepEqual(project, before)
+  // The editor can still preview a transitional, partially authored rule set.
+  assert.equal(gradeProject(project, 'L').pieces[0].points.length, project.pieces[0].points.length)
+  const emptyPiece = structuredClone(project.pieces[0])
+  emptyPiece.id = 'empty-industrial-piece'
+  emptyPiece.points = []
+  project.pieces.push(emptyPiece)
+  assert.throws(() => buildSizeRun(project), /complete industrial grade rules/i)
+})
+
 test('factory ZIP preserves exact break rules in separate JSON and emits all-size QA report', () => {
   const project = industrialProject()
+  // A factory size run now correctly requires every point to have an
+  // industrial rule. Keep the first nonuniform break; explicitly author zero
+  // increments elsewhere rather than relying on implicit legacy sizing.
+  for (const piece of project.pieces) for (const point of piece.points) {
+    if (!point.industrialGradeRule) {
+      point.industrialGradeRule = {...structuredClone(rule),steps:rule.steps.map(()=>({dx:0,dy:0}))}
+    }
+  }
   const files = unzipSync(buildFactoryPackageZip(project))
   const entry = Object.keys(files).find(name=>name.startsWith('industrial-grading/')&&name.endsWith('.json'))
   assert.ok(entry,'Do not flatten nonuniform rules into a uniform CSV')

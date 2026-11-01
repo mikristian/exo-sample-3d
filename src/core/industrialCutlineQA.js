@@ -1,4 +1,4 @@
-import {gradeProject} from './grading.js'
+import {gradeProject,buildSizeRun} from './grading.js'
 import {getEdgeSeamAllowance, samplePieceBoundary,seamAllowanceBoundary} from './project.js'
 import {inspectCutlinePolygon} from './cutlineTopology.js'
 
@@ -12,9 +12,14 @@ export function inspectGradedCutlines(project,{sizes=project?.grading?.sizes||[]
   add('INVALID_SIZE_RUN','Project','Complete graded piece inventory and unique size labels required.')
   return finish()
  }
+ let linkedRun=null
+ if(project?.modarisSizeLinkedGrade!==undefined){
+  try{linkedRun=buildSizeRun(project)}catch(error){add('GRADING_FAILED','Project',error.message);return finish()}
+ }
  for(const size of sizes){
   let graded
-  try{graded=gradeProject(project,size)}catch(error){add('GRADING_FAILED',size,error.message);continue}
+  try{graded=linkedRun?linkedRun[size]:gradeProject(project,size);if(!graded)throw Error('Missing authoritative linked size')}
+  catch(error){add('GRADING_FAILED',size,error.message);continue}
   for(const piece of graded.pieces){
    const scope=`${piece.id} / ${size}`
    const stitch=samplePieceBoundary(piece,12).points

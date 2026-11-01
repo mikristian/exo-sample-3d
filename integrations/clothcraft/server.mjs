@@ -7,29 +7,44 @@ import { fileURLToPath } from 'node:url'
 import { nativeExport, paths } from './bridge.mjs'
 import { runContact } from './contact_run.mjs'
 import { createWorkspace } from './workspace.mjs'
+import { createWorkspaceAuth } from './workspace-auth.mjs'
+import {EXO_WORKSPACE_BRIDGE_PROTOCOL,EXO_WORKSPACE_BRIDGE_CAPABILITIES} from './workspaceBridgeProtocol20261030.mjs'
 import { createAgentApi } from './agent-api.mjs'
 import { createAgentKeyStore } from './agent-key-store.mjs'
 import { createCollaborationApi } from './collaboration.mjs'
 import { createAppleVisionHand } from './apple-vision-hand.mjs'
 import { readPatternIntelligenceCatalog } from './pattern-intelligence-catalog.mjs'
 import { evaluateSeamly2DRequest20261023 } from './seamly2dEngineRoute20261023.mjs'
+import {evaluateValentina2DRequest20261031} from './valentinaEngineRoute20261031.mjs'
+import {evaluateValentinaConnected2DRequest20261031} from './valentinaConnectedCalculation20261031.mjs'
+import {evaluateValentinaSemanticRequest20261031} from './valentinaSemanticEngineRoute20261031.mjs'
 import { gridcraftStatus, evaluateGridcraftFormula } from './gridcraftBridge.mjs'
+import {gridcraftWorkbookStatus,evaluateGridcraftWorkbook} from './gridcraftWorkbookBridge20261030.mjs'
+import {verifyRuntimeProvenance} from './runtime-provenance.mjs'
 import {inspectNativeVerifiedProductionSourceRun37,createNativeVerifiedProductionOrderRun37} from './native-verified-production-order-run37.mjs'
 import {buildNativeVerifiedCutroomIntakeRun44,inspectNativeVerifiedCutroomIntakeRun44} from './native-verified-cutroom-intake-run44.mjs'
 import {buildNativeVerifiedSinglePlyRollPlanRun44,inspectNativeVerifiedSinglePlyRollPlanRun44} from './native-verified-single-ply-roll-plan-run44.mjs'
 import {publishNativeVerifiedMarkerArtifactsRun42,readNativeVerifiedMarkerArtifactRun42} from './native-verified-marker-artifacts-run42.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
+// The installed resource tree is immutable for the lifetime of this server.
+// Fingerprint once per process instead of hashing JS/WASM on every health poll.
+let runtimeProvenanceSnapshot
+const runtimeProvenance = () => runtimeProvenanceSnapshot ??= verifyRuntimeProvenance(root)
 // Standalone signed .apps must not write generated garments into Contents/Resources.
 const outputs = path.resolve(process.env.EXO_CLOTHCRAFT_OUTPUT_DIR || path.join(root, 'integrations/clothcraft/output'))
 const host = '127.0.0.1'
 const port = Number(process.env.EXO_CLOTHCRAFT_PORT || 5193)
+// Reject rebinding/proxy aliases before any route sees the request. Binding
+// loopback alone does not establish which hostname a browser resolved.
+const acceptedHosts = new Set([`127.0.0.1:${port}`, `localhost:${port}`])
 const origins = new Set(['http://127.0.0.1:5173', 'http://localhost:5173',
   'http://127.0.0.1:5174', 'http://localhost:5174',
   'http://127.0.0.1:5188', 'http://localhost:5188',
   'http://127.0.0.1:5189', 'http://localhost:5189',
   'http://127.0.0.1:5416', 'http://localhost:5416',
   'http://127.0.0.1:5386', 'http://localhost:5386',
+  'http://127.0.0.1:5486', 'http://localhost:5486',
   'http://127.0.0.1:5284', 'http://localhost:5284',
   'http://127.0.0.1:5286', 'http://localhost:5286'])
 const maxBytes = 8 * 1024 * 1024
@@ -47,9 +62,16 @@ let nativeVerifiedRequestBusy = false
 let workspaceHttpInflight = 0
 let agentHttpInflight = 0
 const workspace = createWorkspace(outputs)
+const workspaceAuth = createWorkspaceAuth()
+// Build/maintenance scripts running as the signed-in owner can retrieve the
+// current process credential from its private output directory. Never bundle it.
+fs.mkdirSync(outputs, {recursive:true})
+fs.writeFileSync(path.join(outputs, 'workspace-auth-token'), workspaceAuth.token + '\n', {mode:0o600})
+fs.chmodSync(path.join(outputs, 'workspace-auth-token'), 0o600)
 const agentApi = createAgentApi(workspace, {
   audit: entry => console.info('[agent-api]', JSON.stringify(entry)),
   allowOrigin: origin => origins.has(origin),
+  authorizeUi: authorization => workspaceAuth.authorize(authorization),
   // This directory lives in per-user Application Support in signed V2;
   // credentials survive app updates and are never packed into the web bundle.
   keyStorePath: path.join(outputs, 'agent-keys.json'),
@@ -143,6 +165,8 @@ function runClothCraft(config, command, template, output) {
 }
 
 const server = http.createServer(async (req, res) => {
+  if (!acceptedHosts.has(req.headers.host))
+    return send(res, 403, {ok:false,code:'HOST_FORBIDDEN'})
   const origin = String(req.headers.origin || '')
   if (origin && !origins.has(origin)) return send(res, 403, { error: 'Origin not allowed' })
   if (req.method === 'OPTIONS') {
@@ -153,7 +177,7 @@ const server = http.createServer(async (req, res) => {
     const collabRequest=req.url?.split('?')[0]?.startsWith('/collab/v1/')
     const authorizedHeaders=collabRequest ? 'Content-Type, Authorization' : agentRequest
       ? 'Content-Type, Authorization, X-ClothCraft-Token'
-      : 'Content-Type'
+      : 'Content-Type, Authorization'
     res.writeHead(204, { 'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': collabRequest ? 'GET,POST,PUT,DELETE,OPTIONS' : agentRequest ? 'GET,POST,DELETE,OPTIONS' : 'GET,POST,OPTIONS',
       'Access-Control-Allow-Headers': authorizedHeaders,
@@ -173,6 +197,29 @@ const server = http.createServer(async (req, res) => {
     finally{agentHttpInflight--}
   }
   if (await collaborationApi.handle(req, res)) return
+  // Agent/collaboration routes above retain their separately scoped auth.
+  // All remaining state-changing native endpoints share the shell session.
+  if (!['GET','HEAD','OPTIONS'].includes(req.method) && !workspaceAuth.authorize(req.headers.authorization))
+    return send(res,401,{ok:false,code:'WORKSPACE_AUTH_REQUIRED',error:'Workspace authorization required'},origin)
+  if (req.url?.split('?')[0]?.startsWith('/techpack/gridcraft/v2/workbook/')) {
+    if (!origin || !origins.has(origin))return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    if (req.url==='/techpack/gridcraft/v2/workbook/status')
+      return req.method==='GET'?send(res,200,gridcraftWorkbookStatus(),origin):
+        send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if (req.url==='/techpack/gridcraft/v2/workbook/evaluate') {
+      if(req.method!=='POST')return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+      try{
+        const input=await readBody(req)
+        const result=await evaluateGridcraftWorkbook(input)
+        return send(res,result.ok?200:result.code==='GRIDCRAFT_WORKBOOK_UNAVAILABLE'?503:
+          result.code==='GRIDCRAFT_WORKBOOK_BUSY'?429:
+          result.code==='GRIDCRAFT_WORKBOOK_TIMEOUT'?504:502,result,origin)
+      }catch(error){
+        return send(res,422,{ok:false,code:'INVALID_GRIDCRAFT_WORKBOOK',reason:String(error?.message||'Invalid workbook')},origin)
+      }
+    }
+    return send(res,404,{ok:false,code:'UNKNOWN_GRIDCRAFT_ROUTE'},origin)
+  }
   if (req.url?.split('?')[0]?.startsWith('/techpack/gridcraft/v1/')) {
     if (!origin || !origins.has(origin)) return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
     if (req.url==='/techpack/gridcraft/v1/status')return req.method==='GET'?send(res,200,gridcraftStatus(),origin):send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
@@ -194,6 +241,33 @@ const server = http.createServer(async (req, res) => {
       const result=evaluateSeamly2DRequest20261023(await readBody(req))
       return send(res,result.ok?200:422,result,origin)
     } catch (error) { return send(res,422,{ok:false,code:'INVALID_REQUEST',reason:String(error.message||error),manufacturingApproved:false},origin) }
+  }
+  if (req.url?.split('?')[0] === '/valentina/v1/evaluate') {
+    if (req.method !== 'POST') return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if (!origin || !origins.has(origin)) return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try {
+      const result=evaluateValentina2DRequest20261031(await readBody(req))
+      return send(res,result.ok?200:422,result,origin)
+    } catch (error) { return send(res,422,{ok:false,code:'INVALID_REQUEST',reason:String(error?.message||error),manufacturingApproved:false},origin) }
+  }
+  if (req.url?.split('?')[0] === '/valentina/v1/connected-evaluate') {
+    if (req.method !== 'POST') return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if (!origin || !origins.has(origin)) return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try {
+      const result=evaluateValentinaConnected2DRequest20261031(await readBody(req))
+      return send(res,result.ok?200:422,result,origin)
+    } catch (error) { return send(res,422,{ok:false,code:'INVALID_CONNECTED_CONSTRUCTION',reason:String(error?.message||error),manufacturingApproved:false},origin) }
+  }
+  if (req.url?.split('?')[0] === '/valentina/v1/semantic-evaluate') {
+    if (req.method !== 'POST') return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if (!origin || !origins.has(origin)) return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try {
+      const result=evaluateValentinaSemanticRequest20261031(await readBody(req))
+      return send(res,result.ok?200:422,result,origin)
+    } catch(error) {
+      return send(res,422,{ok:false,code:'INVALID_VALENTINA_SEMANTIC_SOURCE',
+        reason:String(error?.message||error),manufacturingApproved:false},origin)
+    }
   }
   if (req.url?.split('?')[0] === '/pattern-intelligence/v1/catalog') {
     if (req.method !== 'GET') return send(res, 405, {ok:false,code:'METHOD_NOT_ALLOWED'}, origin)
@@ -293,6 +367,8 @@ const server = http.createServer(async (req, res) => {
     }catch(error){return send(res,422,{ok:false,error:error.message},origin)}
   }
   if (req.method === 'POST' && req.url === '/workspace') {
+    if (!workspaceAuth.authorize(req.headers.authorization))
+      return send(res, 401, {ok:false,code:'WORKSPACE_AUTH_REQUIRED',error:'Workspace authorization required'}, origin)
     // An editor command received while CUT/source/roll QA is traversing
     // several native RPCs must not land between two verification reads. Nor
     // may a half-uploaded /workspace body become a write after QA begins.
@@ -313,10 +389,14 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     const config = paths()
     const snapshot = { ok: true, backend: 'clothcraft-exo-local',
+      workspaceBridgeProtocol:EXO_WORKSPACE_BRIDGE_PROTOCOL,
+      workspaceBridgeCapabilities:EXO_WORKSPACE_BRIDGE_CAPABILITIES,
+      workspaceAuthIdentity: workspaceAuth.identity,
       nativeReady: fs.existsSync(config.cli), rustCheckoutReady: Boolean(config.upstream),
       ogcBackend: Boolean(config.rustFit && fs.existsSync(config.rustFit)),
       nativeSession:workspace.status(),
-      contactBusy: activeContactRun, fitCertified: false }
+      contactBusy: activeContactRun, fitCertified: false,
+      runtimeProvenance: runtimeProvenance() }
     const content = rustHealthPayload(snapshot)
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8',
       'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff',

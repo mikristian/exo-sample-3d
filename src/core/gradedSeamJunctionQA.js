@@ -1,4 +1,4 @@
-import {gradeProject} from './grading.js'
+import {gradeProject,buildSizeRun} from './grading.js'
 
 // These are explicit source-anchored drafting stations, NOT an inference that
 // all nominally sewn edge endpoints share global pattern coordinates.
@@ -49,7 +49,9 @@ export function inspectGradedSeamJunctions(project,{
       throw new Error(`Authored source sewing reference missing or changed for ${j.id}`)
     }
   }
-  const baseProject=gradeProject(project,project.grading.baseSize)
+  const linkedRun=project.modarisSizeLinkedGrade===undefined?null:buildSizeRun(project)
+  const baseProject=linkedRun?linkedRun[project.grading.baseSize]:gradeProject(project,project.grading.baseSize)
+  if(!baseProject)throw new Error('Missing authoritative linked base size')
   const baseLookup=new Map(baseProject.pieces.map(row=>[row.id,row]))
   for(const j of junctions){
     const a=sideLookup(baseLookup,j.sewnEdgeA),b=sideLookup(baseLookup,j.sewnEdgeB)
@@ -60,7 +62,8 @@ export function inspectGradedSeamJunctions(project,{
   if(issues.length)return result()
   for(const size of sizes){
     let graded
-    try{graded=gradeProject(project,size)}catch(error){add('GRADING_FAILED',size,error.message);continue}
+    try{graded=linkedRun?linkedRun[size]:gradeProject(project,size);if(!graded)throw Error('Missing authoritative linked size')}
+    catch(error){add('GRADING_FAILED',size,error.message);continue}
     const lookup=new Map(graded.pieces.map(row=>[row.id,row]))
     for(const j of junctions){
       const a=sideLookup(lookup,j.sewnEdgeA),b=sideLookup(lookup,j.sewnEdgeB)

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {createTeeTemplate} from '../data/templates.js'
 import {gradeProject} from './grading.js'
 import {projectToDxf} from './dxf.js'
+import {createModarisSizeLinkedGrade} from './modarisSizeLinkedGrade20261027.js'
 import {auditModarisIndustrialSixSizeWitness20261027 as audit,
   verifyModarisIndustrialSixSizeWitness20261027 as verify} from './modarisIndustrialSixSizeWitness20261027.js'
 
@@ -46,4 +47,22 @@ test('saved industrial witness is source-fingerprint and per-size DXF tamper-sen
   changedNotch.pieces[0].notches=[{id:'test-notched',edgeIndex:0,t:.5,type:'single',depthCm:.3}]
   changedNotch.revision++
   assert.equal(verify(changedNotch,proof).ok,false)
+})
+
+test('ordinary six-size industrial witness refuses an authored connected Modaris graph',()=>{
+ const project=createTeeTemplate()
+ const rule={mode:'small-large-incremental',sizes:[...project.grading.sizes],baseSize:project.grading.baseSize,
+  steps:project.grading.sizes.slice(1).map(()=>({dx:.1,dy:.02}))}
+ project.pieces=project.pieces.slice(0,2).map((piece,i)=>({...piece,
+  points:piece.points.map(point=>({...point,industrialGradeRule:structuredClone(rule)})),
+  curves:{0:{cx:2,cy:-2}},edgeNames:piece.points.map((_,j)=>`e${j}`),
+  id:i?'back':'front',notches:[],internalLines:[]}))
+ project.seams=[]
+ const linked=createModarisSizeLinkedGrade(project,[{source:{pieceId:'front',pointIndex:0},
+   target:{pieceId:'back',pointIndex:0},axis:'both',curves:true}]).project
+ const before=structuredClone(linked),result=audit(linked,{expectedRevision:linked.revision})
+ assert.equal(result.ok,false)
+ assert.match(result.reason,/Connected Modaris linked source/)
+ assert.equal(result.manufacturingApproved,false)
+ assert.deepEqual(linked,before)
 })

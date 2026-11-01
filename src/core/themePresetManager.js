@@ -3,7 +3,9 @@ import { STUDIO_THEME_IDS } from './studioThemePresets.js'
 
 export const SAVED_THEME_PRESETS_KEY = 'exo.savedThemePresets.v1'
 export const THEME_SCHEDULE_KEY = 'exo.themeSchedule.v1'
-const MAX_JSON_BYTES = 128000
+// Forty complete studio themes (including custom icon colors) can exceed the
+// original 128 KB allowance. Keep a bounded but usable export/import budget.
+const MAX_JSON_BYTES = 512000
 const MAX_PRESETS = 40
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 const safeObject = v => v && typeof v === 'object' && !Array.isArray(v) && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null)
@@ -26,13 +28,56 @@ const validName = name => {
   return clean
 }
 const safeId = id => typeof id === 'string' && /^custom-[a-z0-9-]{8,64}$/.test(id)
-const appearanceKeys = Object.keys(DEFAULT_STUDIO_CUSTOMIZATION.appearance).filter(key => !['studioColor','backgroundMode','environmentPreset','lightColor','lightIntensity','lightPositionX','lightPositionY','lightPositionZ'].includes(key))
-const preferenceKeys = Object.keys(DEFAULT_STUDIO_CUSTOMIZATION.preferences).filter(key => /^twoD/.test(key))
+// Only color/visual settings belong to a theme: never include garment
+// geometry, file/API settings, viewport layout, measurement units or tools.
+// The 3D scene and both grading worksheets are appearance, not project data.
+const appearanceKeys = Object.keys(DEFAULT_STUDIO_CUSTOMIZATION.appearance)
+const preferenceKeys = Object.keys(DEFAULT_STUDIO_CUSTOMIZATION.preferences).filter(
+  key => /^twoD/.test(key) || ['gradeChartThemeMode','gradeTableColorTheme','compareLengthColorTheme'].includes(key))
 const onlyKeys = (source, keys) => Object.fromEntries(keys.map(key => [key, source[key]]))
 
 export function captureThemeOverrides(customization) {
   const normalized = normalizeStudioCustomization(customization)
-  return {appearance:onlyKeys(normalized.appearance, appearanceKeys),preferences:onlyKeys(normalized.preferences, preferenceKeys)}
+  return {
+    appearance:onlyKeys(normalized.appearance, appearanceKeys),
+    preferences:onlyKeys(normalized.preferences, preferenceKeys),
+    workspace:{
+      nativeToolIconColors:{...normalized.workspace.nativeToolIconColors},
+      customToolbarAppearance:Object.fromEntries(normalized.workspace.customToolbars.map(bar=>
+        [bar.id,{color:bar.color,finish:bar.finish,iconColors:{...bar.iconColors}}])),
+    },
+  }
+}
+
+function validateWorkspaceAppearance(workspace) {
+  if (workspace === undefined) return undefined // Older v1 presets remain partial.
+  if (!safeObject(workspace) || Object.keys(workspace).some(key=>!['nativeToolIconColors','customToolbarAppearance'].includes(key))) throw Error('Unsupported theme workspace property')
+  const iconColors=workspace.nativeToolIconColors
+  const custom=workspace.customToolbarAppearance
+  if (iconColors!==undefined && (!safeObject(iconColors) || Object.keys(iconColors).length>256)) throw Error('Invalid toolbar icon colors')
+  if (custom!==undefined && (!safeObject(custom) || Object.keys(custom).length>16)) throw Error('Invalid custom toolbar appearance')
+  const validateColors=(colors,max)=> {
+    if(!safeObject(colors)||Object.keys(colors).length>max)throw Error('Invalid toolbar icon colors')
+    for(const [id,color] of Object.entries(colors))
+      if(id.length>100 || !/^#[0-9a-f]{6}$/i.test(color))throw Error('Invalid toolbar icon color')
+    return {...colors}
+  }
+  const result={}
+  if(iconColors!==undefined)result.nativeToolIconColors=validateColors(iconColors,256)
+  if(custom!==undefined){
+    result.customToolbarAppearance={}
+    for(const [id,style] of Object.entries(custom)){
+      if(!id || id.length>64 || !safeObject(style) ||
+         Object.keys(style).some(key=>!['color','finish','iconColors'].includes(key)) ||
+         !/^#[0-9a-f]{6}$/i.test(style.color) || !['solid','glass'].includes(style.finish))
+        throw Error('Invalid custom toolbar style')
+      result.customToolbarAppearance[id]={
+        color:style.color,finish:style.finish,
+        iconColors:validateColors(style.iconColors,64),
+      }
+    }
+  }
+  return result
 }
 
 function validateOverrides(overrides) {
@@ -41,16 +86,22 @@ function validateOverrides(overrides) {
   for (const [section, keys] of [['appearance', appearanceKeys],['preferences', preferenceKeys]]) {
     for (const [key, val] of Object.entries(overrides[section])) {
       if (!keys.includes(key)) throw Error('Unsupported theme property')
-      if ((/Color|accent|Backdrop|Tint/i.test(key)) && typeof val === 'string' && val !== 'auto' && !/^#[0-9a-f]{6}$/i.test(val) && !['adaptive','white','ink','accent'].includes(val)) throw Error(`Invalid color: ${key}`)
+      // Chart *ColorTheme IDs* are names (e.g. 'night' or 'paper'), not hex
+      // colors; their validity is checked by studio customization below.
+      if (!/ColorTheme$/.test(key) && (/Color|accent|Backdrop|Tint/i.test(key)) && typeof val === 'string' && val !== 'auto' && !/^#[0-9a-f]{6}$/i.test(val) && !['adaptive','white','ink','accent'].includes(val)) throw Error(`Invalid color: ${key}`)
     }
   }
-  const normalized = captureThemeOverrides({...DEFAULT_STUDIO_CUSTOMIZATION,appearance:{...DEFAULT_STUDIO_CUSTOMIZATION.appearance,...overrides.appearance},preferences:{...DEFAULT_STUDIO_CUSTOMIZATION.preferences,...overrides.preferences}})
+  const normalized = normalizeStudioCustomization({...DEFAULT_STUDIO_CUSTOMIZATION,appearance:{...DEFAULT_STUDIO_CUSTOMIZATION.appearance,...overrides.appearance},preferences:{...DEFAULT_STUDIO_CUSTOMIZATION.preferences,...overrides.preferences}})
+  const result={appearance:{},preferences:{}}
   for (const section of ['appearance','preferences']) {
     for (const [key,val] of Object.entries(overrides[section])) {
       if (normalized[section][key] !== val) throw Error(`Invalid theme value: ${key}`)
+      result[section][key]=val
     }
   }
-  return normalized
+  const workspace=validateWorkspaceAppearance(overrides.workspace)
+  if(workspace!==undefined)result.workspace=workspace
+  return result
 }
 function validateEntry(entry) {
   if (!safeObject(entry) || !safeId(entry.id)) throw Error('Invalid theme identifier')
@@ -59,7 +110,7 @@ function validateEntry(entry) {
   return {id:entry.id,name,overrides:validateOverrides(entry.overrides)}
 }
 function parseCollection(json) {
-  if (typeof json !== 'string' || json.length > MAX_JSON_BYTES) throw Error('Theme file exceeds the 128 KB limit')
+  if (typeof json !== 'string' || json.length > MAX_JSON_BYTES) throw Error('Theme file exceeds the 512 KB limit')
   const payload = JSON.parse(json)
   if (!safeObject(payload) || payload.version !== 1 || !Array.isArray(payload.presets) || payload.presets.length > MAX_PRESETS) throw Error('Invalid theme preset file')
   const presets = payload.presets.map(validateEntry)
@@ -106,7 +157,21 @@ export function importSavedThemePresets(json) {
 }
 export function applySavedThemePreset(customization, preset) {
   const {overrides}=validateEntry(preset)
-  return normalizeStudioCustomization({...customization,appearance:{...customization?.appearance,...overrides.appearance},preferences:{...customization?.preferences,...overrides.preferences}})
+  const existingWorkspace=customization?.workspace||{}
+  const styles=overrides.workspace?.customToolbarAppearance
+  const workspace=overrides.workspace?{
+    ...existingWorkspace,
+    ...(overrides.workspace.nativeToolIconColors!==undefined
+      ?{nativeToolIconColors:overrides.workspace.nativeToolIconColors}:{}),
+    ...(styles?{customToolbars:(existingWorkspace.customToolbars||[]).map(bar=>
+      styles[bar.id]?{...bar,...styles[bar.id]}:bar)}:{}),
+  }:existingWorkspace
+  return normalizeStudioCustomization({
+    ...customization,
+    appearance:{...customization?.appearance,...overrides.appearance},
+    preferences:{...customization?.preferences,...overrides.preferences},
+    workspace,
+  })
 }
 
 export const DEFAULT_THEME_SCHEDULE = Object.freeze({mode:'off',dayStart:'07:00',nightStart:'19:00',dayThemeId:'bone-light',nightThemeId:'graphite'})

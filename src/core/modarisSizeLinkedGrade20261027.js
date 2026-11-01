@@ -1,6 +1,8 @@
 import { cloneProject } from './project.js'
 import { gradeProject } from './grading.js'
 import { evaluateIndustrialGradeTable, validateIndustrialGradeRule, INDUSTRIAL_GRADE_MODES } from './industrialGradeRules.js'
+import { gradeConstructionAttachments, gradeAttachedConstructionPoint } from './gradedConstructionAttachments.js'
+import { applyAccuMarkNotchArcStationsToGraded } from './gradedNotchArcStations.js'
 
 // Experimental legacy-project contract. All geometry and grade displacements are centimeters.
 const fail = message => { throw new Error(`Modaris linked grade: ${message}`) }
@@ -39,6 +41,29 @@ function resolve(project, ref) {
   return { piece, point }
 }
 
+// One semantic contract for creation, reapply, preview and saved admission.
+// Persistence schema checks alone cannot establish cross-piece compatibility.
+function validateLink(project, link) {
+  if (!link || typeof link !== 'object') fail('invalid link')
+  const a=resolve(project,link.source), b=resolve(project,link.target)
+  if (!['both','x','y'].includes(link.axis)) fail('invalid axis')
+  if (typeof link.curves !== 'boolean') fail('curves must be boolean')
+  if (link.curves && (link.axis !== 'both' || a.piece.points.length !== b.piece.points.length ||
+      !same(Object.keys(a.piece.curves??{}).sort(),Object.keys(b.piece.curves??{}).sort())))
+    fail('curves require matching piece topology and both axes')
+  return { a, b }
+}
+
+function validateSavedRule(snapshot,sizes,baseSize) {
+  const saved=validateIndustrialGradeRule(snapshot)
+  if (!same(saved.sizes,sizes) || saved.baseSize!==baseSize) fail('stale saved target rule metadata')
+  const positions=evaluateIndustrialGradeTable(saved)
+  for (let i=1;i<sizes.length;i++) {
+    const a=positions[sizes[i-1]],b=positions[sizes[i]]
+    if (Math.abs(b.dx-a.dx)>100 || Math.abs(b.dy-a.dy)>100) fail('unsafe saved target break')
+  }
+}
+
 function order(links) {
   const byTarget = new Map()
   for (const link of links) {
@@ -59,6 +84,34 @@ function order(links) {
     sorted.push(link)
   }
   links.forEach(visit)
+  return sorted
+}
+
+// A curves:true link owns every quadratic control on its target piece, not
+// merely the point named by target.pointIndex. Order those piece-level
+// dependencies independently of point-level links and reject ambiguous owners.
+function orderCurves(links) {
+  const byTargetPiece = new Map()
+  for (const link of links) {
+    if (!link.curves) continue
+    const sourcePiece = link.source.pieceId, targetPiece = link.target.pieceId
+    if (sourcePiece === targetPiece) fail('self-linked curve piece')
+    if (byTargetPiece.has(targetPiece)) fail('duplicate curve owner')
+    byTargetPiece.set(targetPiece, link)
+  }
+  const visiting = new Set(), visited = new Set(), sorted = []
+  function visit(link) {
+    const targetPiece = link.target.pieceId
+    if (visiting.has(targetPiece)) fail('curve dependency cycle')
+    if (visited.has(targetPiece)) return
+    visiting.add(targetPiece)
+    const previous = byTargetPiece.get(link.source.pieceId)
+    if (previous) visit(previous)
+    visiting.delete(targetPiece)
+    visited.add(targetPiece)
+    sorted.push(link)
+  }
+  for (const link of byTargetPiece.values()) visit(link)
   return sorted
 }
 
@@ -98,13 +151,13 @@ export function createModarisSizeLinkedGrade(project, definitions) {
   if (project.modarisSizeLinkedGrade) fail('existing link graph requires reapply')
   if (!Array.isArray(definitions) || !definitions.length) fail('links required')
   const links = definitions.map(({source,target,axis='both',curves=false}) => {
-    const a=resolve(project,source),b=resolve(project,target)
-    if (!['both','x','y'].includes(axis)) fail('invalid axis')
-    if (curves && (axis !== 'both' || a.piece.points.length !== b.piece.points.length || !same(Object.keys(a.piece.curves??{}).sort(),Object.keys(b.piece.curves??{}).sort()))) fail('curves require matching piece topology and both axes')
+    const {a,b}=validateLink(project,{source,target,axis,curves})
     if (!b.point.industrialGradeRule) fail('target requires explicit industrial rule')
+    validateSavedRule(b.point.industrialGradeRule,sizes,baseSize)
     return {source:{...source},target:{...target},axis,curves:Boolean(curves),sourceTopology:identity(a.piece),targetTopology:identity(b.piece),sourceBase:{x:a.point.x,y:a.point.y,id:a.point.id??null},targetBase:{x:b.point.x,y:b.point.y,id:b.point.id??null},targetRule:b.point.industrialGradeRule}
   })
   order(links)
+  orderCurves(links)
   const next=transfer(project,links,sizes,baseSize)
   next.modarisSizeLinkedGrade={version:1,units:'cm',sizes,baseSize,links:links.map(l=>({...cloneProject(l),appliedRule:cloneProject(resolve(next,l.target).point.industrialGradeRule)}))}
   return {project:next,validation:{sizes,baseSize,links:links.length,units:'cm',manufacturingApproved:false}}
@@ -115,9 +168,16 @@ export function reapplyModarisSizeLinkedGrade(project) {
   const {sizes,baseSize}=validateProject(project)
   const graph=project.modarisSizeLinkedGrade
   if (!graph || graph.version!==1 || graph.units!=='cm' || !same(graph.sizes,sizes) || graph.baseSize!==baseSize || !Array.isArray(graph.links) || !graph.links.length) fail('stale or missing link graph')
+  // Validate before graph traversal, so malformed saved links fail with a
+  // contract error, not a late undefined curve/control access in rendering.
+  for (const link of graph.links) validateLink(project,link)
   const links=order(graph.links)
+  orderCurves(links)
   for(const link of links){
     const a=resolve(project,link.source),b=resolve(project,link.target)
+    for (const snapshot of [link.targetRule,link.appliedRule]) {
+      validateSavedRule(snapshot,sizes,baseSize)
+    }
     if (!same(identity(a.piece),link.sourceTopology) || !same(identity(b.piece),link.targetTopology)) fail('stale piece topology or named edges')
     if (!same({x:a.point.x,y:a.point.y,id:a.point.id??null},link.sourceBase) || !same({x:b.point.x,y:b.point.y,id:b.point.id??null},link.targetBase)) fail('stale authored source or target')
     if (!same(b.point.industrialGradeRule,link.appliedRule)) fail('target rule changed outside linked grade')
@@ -131,11 +191,12 @@ export function reapplyModarisSizeLinkedGrade(project) {
 export function buildModarisSizeLinkedGradeRun(project) {
   const refreshed=reapplyModarisSizeLinkedGrade(project).project
   const {sizes,baseSize}=validateProject(refreshed)
+  const curveLinks=orderCurves(refreshed.modarisSizeLinkedGrade.links)
+  const linkedTargets=new Set(curveLinks.map(link=>link.target.pieceId))
   const run={}
   for (const size of sizes) {
-    const graded=gradeProject(refreshed,size)
-    for (const link of refreshed.modarisSizeLinkedGrade.links) {
-      if (!link.curves) continue
+    let graded=gradeProject(refreshed,size)
+    for (const link of curveLinks) {
       const source=resolve(refreshed,link.source).piece
       const target=resolve(refreshed,link.target).piece
       const gradedSource=graded.pieces.find(p=>p.id===source.id)
@@ -147,6 +208,27 @@ export function buildModarisSizeLinkedGradeRun(project) {
         if(!finite(gradedTarget.curves[edge].cx)||!finite(gradedTarget.curves[edge].cy)) fail('invalid linked curve control')
       }
     }
+    // gradeProject has already positioned construction marks against its own
+    // pre-link curves. Re-evaluate them only after the complete curve DAG has
+    // settled, without grading any vertices a second time.
+    for (const pieceId of linkedTargets) {
+      const source=refreshed.pieces.find(piece=>piece.id===pieceId)
+      const target=graded.pieces.find(piece=>piece.id===pieceId)
+      const attachments=gradeConstructionAttachments(source,target)
+      target.internalLines=attachments.internalLines
+      if (source.notches) target.notches=attachments.notches
+      for (const [index,measurement] of (graded.customMeasurements ?? []).entries()) {
+        if (measurement.pieceId!==pieceId) continue
+        const authored=refreshed.customMeasurements?.[index]
+        if (!authored || authored.id!==measurement.id || authored.pieceId!==pieceId) fail('stale linked POM identity')
+        for (const endpoint of ['a','b']) {
+          if (authored[endpoint]) measurement[endpoint]={...measurement[endpoint],
+            ...gradeAttachedConstructionPoint(source,target,authored[endpoint],authored[`${endpoint}Anchor`])}
+        }
+      }
+    }
+    // Absolute-distance notch rules depend on the *final* edge length.
+    if (linkedTargets.size) graded=applyAccuMarkNotchArcStationsToGraded(graded,refreshed,size)
     graded.previewSize=size
     run[size]=graded
   }

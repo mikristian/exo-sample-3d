@@ -6,14 +6,16 @@ import path from 'node:path'
 import http from 'node:http'
 import { createAgentKeyStore } from './agent-key-store.mjs'
 import { createAgentApi } from './agent-api.mjs'
+import { createWorkspaceAuth } from './workspace-auth.mjs'
 
 test('persistent keys, permissions, revocation, origin and batch enforcement', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'clothcraft-agent-test-'))
   const keyStorePath = path.join(dir, 'private.json')
   const store = createAgentKeyStore(keyStorePath)
   const ui = 'http://127.0.0.1:5386'
+  const shell = createWorkspaceAuth()
   const workspace = { status: () => ({ loaded: true, busy: false }), request: async req => ({ ok: true, data: { revision: 2, template: { panels: [] }, ...req.op === 'snapshot' ? {} : {} } }) }
-  const api = createAgentApi(workspace, { keyStorePath, allowOrigin: origin => origin === ui })
+  const api = createAgentApi(workspace, { keyStorePath, allowOrigin: origin => origin === ui, authorizeUi: value => shell.authorize(value) })
   const server = http.createServer(async (req, res) => { if (!await api.handle(req, res)) { res.writeHead(404); res.end() } })
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
   const base = `http://127.0.0.1:${server.address().port}`
@@ -25,14 +27,17 @@ test('persistent keys, permissions, revocation, origin and batch enforcement', a
     assert.equal((await request('/agent/v1/status')).status, 401)
     assert.equal((await request('/agent/v1/keys', { origin: 'http://evil.test' })).status, 403)
     assert.equal((await request('/agent/v1/keys')).status, 401)
-    const created = await request('/agent/v1/keys', { method: 'POST', origin: ui, body: { name: 'Reader', scopes: ['read'] } })
+    assert.equal((await request('/agent/v1/keys', {origin:ui})).status,401)
+    assert.equal((await request('/agent/v1/keys', {origin:ui,token:'fake'})).status,401)
+    assert.equal((await request('/agent/v1/actions', {method:'POST',origin:ui,body:{action:'workspace.save',expectedRevision:2}})).status,401)
+    const created = await request('/agent/v1/keys', { method: 'POST', origin: ui, token:shell.token, body: { name: 'Reader', scopes: ['read'] } })
     assert.equal(created.status, 201)
     const token = created.body.key
     assert.ok(token.startsWith('cck_'))
     assert.equal(fs.statSync(keyStorePath).mode & 0o777, 0o600)
     assert.ok(!fs.readFileSync(keyStorePath, 'utf8').includes(token))
     assert.ok(createAgentKeyStore(keyStorePath).authenticate(token))
-    const listed = await request('/agent/v1/keys', { origin: ui })
+    const listed = await request('/agent/v1/keys', { origin: ui,token:shell.token })
     assert.equal(listed.body.keys.length, 1)
     assert.equal('key' in listed.body.keys[0], false)
     assert.equal((await request('/agent/v1/status', { token })).status, 200)
@@ -43,8 +48,8 @@ test('persistent keys, permissions, revocation, origin and batch enforcement', a
     const batch = await request('/agent/v1/batch', { method: 'POST', token, body: { actions: [{ action: 'workspace.summary' }, edit] } })
     assert.equal(batch.status, 403)
     assert.equal(batch.body.completed, 1)
-    assert.equal((await request('/agent/v1/actions', { method: 'POST', origin: ui, body: edit })).status, 200)
-    const revoked = await request(`/agent/v1/keys/${created.body.id}`, { method: 'DELETE', origin: ui })
+    assert.equal((await request('/agent/v1/actions', { method: 'POST', origin: ui,token:shell.token, body: edit })).status, 200)
+    const revoked = await request(`/agent/v1/keys/${created.body.id}`, { method: 'DELETE', origin: ui,token:shell.token })
     assert.equal(revoked.status, 200)
     assert.equal((await request('/agent/v1/status', { token })).status, 401)
     const expired = store.create({ name: 'Short', scopes: ['read'], expiresAt: new Date(Date.now() + 60000).toISOString() })

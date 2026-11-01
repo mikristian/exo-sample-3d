@@ -1,0 +1,188 @@
+{
+  "schema": 1,
+  "savedAt": "2026-10-30",
+  "project": "EXO ClothCraft V2",
+  "purpose": "GitHub references for architecture cleanup, safe structural refactors, Rust migration and build/test throughput",
+  "status": "reference-only; no dependency installation, vendoring, cloning or runtime integration",
+  "complements": "docs/engineering/exo-rust-github-registry.json",
+  "selectionPolicy": "Official public project pages reviewed on 2026-10-30. Adoption requires a scoped pilot, current API/maintenance check, source and license review, and existing EXO parity gates.",
+  "repositories": [
+    {
+      "id": "dependency-cruiser",
+      "repo": "sverweij/dependency-cruiser",
+      "url": "https://github.com/sverweij/dependency-cruiser",
+      "priority": 1,
+      "category": "architecture-inventory",
+      "exoUse": "Map JavaScript module edges, find cycles and enforce UI-to-domain and domain-to-adapter boundaries.",
+      "adoption": "read-only graph and baseline first"
+    },
+    {
+      "id": "knip",
+      "repo": "webpro-nl/knip",
+      "url": "https://github.com/webpro-nl/knip",
+      "priority": 1,
+      "category": "dead-code-inventory",
+      "exoUse": "Identify apparently unused JS/TS files, exports and dependencies before consolidation.",
+      "adoption": "report-only; manually validate dynamic imports, CLI and native entrypoints"
+    },
+    {
+      "id": "jscodeshift",
+      "repo": "facebook/jscodeshift",
+      "url": "https://github.com/facebook/jscodeshift",
+      "priority": 1,
+      "category": "safe-refactor",
+      "exoUse": "Apply fixture-tested JavaScript/JSX import rewrites and API migrations with AST transforms.",
+      "adoption": "pilot on isolated files with dry runs"
+    },
+    {
+      "id": "ts-morph",
+      "repo": "dsherret/ts-morph",
+      "url": "https://github.com/dsherret/ts-morph",
+      "priority": 2,
+      "category": "safe-refactor",
+      "exoUse": "Perform programmatic reference navigation and more semantic TypeScript/JavaScript symbol moves.",
+      "adoption": "evaluate only if simple ast-grep or jscodeshift transformations prove insufficient"
+    },
+    {
+      "id": "codemod",
+      "repo": "codemod/codemod",
+      "url": "https://github.com/codemod/codemod",
+      "priority": 2,
+      "category": "refactor-orchestration",
+      "exoUse": "Orchestrate reviewable multi-step AST migrations and repeatable codemod workflows.",
+      "adoption": "optional alternative to a lightweight in-repo transform runner"
+    },
+    {
+      "id": "eslint-plugin-boundaries",
+      "repo": "javierbrea/eslint-plugin-boundaries",
+      "url": "https://github.com/javierbrea/eslint-plugin-boundaries",
+      "priority": 1,
+      "category": "architecture-enforcement",
+      "exoUse": "Prevent browser components from reaching into native internals and prohibit domain modules importing UI.",
+      "adoption": "start with warning-only scoped rules after module map is agreed"
+    },
+    {
+      "id": "biome",
+      "repo": "biomejs/biome",
+      "url": "https://github.com/biomejs/biome",
+      "priority": 2,
+      "category": "code-quality",
+      "exoUse": "Fast JS/JSX lint and format checks during code moves.",
+      "adoption": "check-only pilot; no repository-wide autoformat on active branches"
+    },
+    {
+      "id": "cargo-modules",
+      "repo": "regexident/cargo-modules",
+      "url": "https://github.com/regexident/cargo-modules",
+      "priority": 1,
+      "category": "rust-architecture",
+      "exoUse": "Visualize Rust module trees, dependencies, cycles and orphan source files per crate.",
+      "adoption": "read-only inspection of one stable EXO crate first"
+    },
+    {
+      "id": "rust-analyzer",
+      "repo": "rust-lang/rust-analyzer",
+      "url": "https://github.com/rust-lang/rust-analyzer",
+      "priority": 1,
+      "category": "rust-refactor",
+      "exoUse": "Use find-references and structural IDE assists for Rust symbol moves and ownership changes.",
+      "adoption": "editor tooling; preserve existing public functions and ABI"
+    },
+    {
+      "id": "cargo-nextest",
+      "repo": "nextest-rs/nextest",
+      "url": "https://github.com/nextest-rs/nextest",
+      "priority": 1,
+      "category": "rust-test-throughput",
+      "exoUse": "Improve execution and failure triage for large suites of Rust tests.",
+      "adoption": "compare timing and behavior against cargo test on a stable crate"
+    },
+    {
+      "id": "sccache",
+      "repo": "mozilla/sccache",
+      "url": "https://github.com/mozilla/sccache",
+      "priority": 1,
+      "category": "build-throughput",
+      "exoUse": "Cache eligible Rust and C++ compiler outputs across repeat builds.",
+      "adoption": "disk-budgeted pilot; Rust cdylib and incremental compilation have important caveats"
+    },
+    {
+      "id": "cargo-deny",
+      "repo": "EmbarkStudios/cargo-deny",
+      "url": "https://github.com/EmbarkStudios/cargo-deny",
+      "priority": 2,
+      "category": "rust-dependency-governance",
+      "exoUse": "Audit advisory, source, license and duplicate-version policies for retained Rust dependencies.",
+      "adoption": "report baseline before introducing new gates"
+    },
+    {
+      "id": "cargo-machete",
+      "repo": "bnjbvr/cargo-machete",
+      "url": "https://github.com/bnjbvr/cargo-machete",
+      "priority": 2,
+      "category": "rust-dependency-hygiene",
+      "exoUse": "Find potentially unused Rust crate dependencies during kernel consolidation.",
+      "adoption": "review suggestions; macros and build scripts can produce false positives"
+    },
+    {
+      "id": "cargo-llvm-cov",
+      "repo": "taiki-e/cargo-llvm-cov",
+      "url": "https://github.com/taiki-e/cargo-llvm-cov",
+      "priority": 2,
+      "category": "rust-parity-evidence",
+      "exoUse": "Measure exercised Rust branches and functions while verifying each migrated CAD contract.",
+      "adoption": "selected deterministic fixtures; report missing coverage without implying full functional parity"
+    },
+    {
+      "id": "cargo-semver-checks",
+      "repo": "obi1kenobi/cargo-semver-checks",
+      "url": "https://github.com/obi1kenobi/cargo-semver-checks",
+      "priority": 3,
+      "category": "rust-api-compatibility",
+      "exoUse": "Check publicly exposed Rust crate API breakages during interface stabilization.",
+      "adoption": "use on versioned reusable crates; does not check JS/WASM ABI compatibility"
+    },
+    {
+      "id": "cbindgen",
+      "repo": "mozilla/cbindgen",
+      "url": "https://github.com/mozilla/cbindgen",
+      "priority": 2,
+      "category": "rust-native-interop",
+      "exoUse": "Generate C/C++ headers from explicit Rust C ABI surfaces used by native hosts.",
+      "adoption": "evaluate only for a real C-compatible boundary; existing cxx registry addresses C++-native bridging"
+    },
+    {
+      "id": "ruffle",
+      "repo": "ruffle-rs/ruffle",
+      "url": "https://github.com/ruffle-rs/ruffle",
+      "priority": 1,
+      "category": "architecture-reference",
+      "exoUse": "Study a shared Rust core with separate desktop and browser/WebAssembly frontends.",
+      "adoption": "read architecture and public interfaces; no code import"
+    },
+    {
+      "id": "zed",
+      "repo": "zed-industries/zed",
+      "url": "https://github.com/zed-industries/zed",
+      "priority": 2,
+      "category": "architecture-reference",
+      "exoUse": "Study a sizable modular Rust desktop application with GPU-oriented UI boundaries.",
+      "adoption": "architecture inspiration only; avoid copying heavyweight framework choices into EXO"
+    },
+    {
+      "id": "rust-design-patterns",
+      "repo": "rust-unofficial/patterns",
+      "url": "https://github.com/rust-unofficial/patterns",
+      "priority": 2,
+      "category": "architecture-reference",
+      "exoUse": "Review idiomatic Rust ownership, API and modularity patterns before new crate boundaries are designed.",
+      "adoption": "read/reference only"
+    }
+  ],
+  "excluded": [
+    {
+      "repo": "google/autocxx",
+      "reason": "Official GitHub repository archived on 2026-09-21; not chosen as a new EXO migration dependency."
+    }
+  ]
+}

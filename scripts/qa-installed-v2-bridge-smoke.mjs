@@ -1,19 +1,33 @@
 // A small, read-only check for the signed EXO desktop/web coupling.
 // It catches accidentally shipped development ports 5191/5193.
 import assert from 'node:assert/strict'
+import {createHash} from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
 import {chromium} from 'playwright-core'
 
 const base='http://127.0.0.1:5386'
 const native='http://127.0.0.1:5385'
+// Signed V2 injects this credential through the trusted WKWebView launcher.
+// The standalone browser smoke must explicitly provision the SAME private
+// per-launch capability. Older installed V2 builds may not have it yet.
+const authPath=path.join(os.homedir(),'Library/Application Support/EXO-ClothCraft-Studio-V2/Output/workspace-auth-token')
+const workspaceToken=fs.existsSync(authPath)?fs.readFileSync(authPath,'utf8').trim():null
+const workspaceHeaders={'Content-Type':'application/json',
+  ...(workspaceToken?{Authorization:`Bearer ${workspaceToken}`}:{})}
 const health=await fetch(native+'/health',{signal:AbortSignal.timeout(6000)}).then(r=>r.json())
 assert.equal(health.ok,true,'Signed EXO native bridge must be healthy')
+if(workspaceToken)assert.equal(health.workspaceAuthIdentity,
+  createHash('sha256').update(workspaceToken).digest('hex'),
+  'Installed Node service must belong to the same authenticated V2 launch session')
 assert.equal(health.nativeReady,true,'EXO native Rust backend must be ready')
 // A release must restore actual authored 2D and 3D geometry. The workspace
 // deliberately defaults to CPU VBD until GPU long-run physical parity passes;
 // requiring GPU here would reject the safer installed runtime and roll back
 // unrelated UI updates. Keep all geometry, WASM and browser checks below.
 const snapshotResponse=await fetch(native+'/workspace',{
-  method:'POST',headers:{'Content-Type':'application/json'},
+  method:'POST',headers:workspaceHeaders,
   body:JSON.stringify({op:'snapshot'}),signal:AbortSignal.timeout(30000),
 })
 const snapshot=await snapshotResponse.json()
@@ -48,6 +62,10 @@ const browser=await chromium.launch({
 })
 try{
   const page=await browser.newPage({viewport:{width:1440,height:900}})
+  if(workspaceToken)await page.addInitScript(token=>{
+    // Match the trusted AppKit main-frame injection; never print the token.
+    if(location.origin==='http://127.0.0.1:5386')window.__EXO_WORKSPACE_TOKEN__=token
+  },workspaceToken)
   const errors=[],badPorts=[],warnings=[]
   page.on('pageerror',error=>errors.push(error.message))
   page.on('requestfailed',request=>{

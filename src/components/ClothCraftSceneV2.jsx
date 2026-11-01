@@ -1,4 +1,5 @@
 import {vertexExtensions} from '../core/clothcraftStrainView.js'
+import {selectNative3DSceneGeometryIdentity20261030} from '../core/native3DSceneGeometryIdentity20261030.mjs'
 import {createFabricFaceMaterials,createFabricEdgeRibbon} from '../core/clothcraftFabricSurface.js'
 import {attachGarmentGraphics} from '../core/nativeGarmentGraphics.js'
 import {createNativeImportedHardwareOverlay,nativeHardwareAnchor} from './ClothCraftImportedHardwareOverlay.jsx'
@@ -9,6 +10,7 @@ import {createStageEnvironment, applyStageSettings} from '../core/createStageEnv
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
 import {TransformControls} from 'three/addons/controls/TransformControls.js'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
+import {fitImportedAvatarToNative20261029,canonicalImportedWalkBone20261029} from '../core/metaHumanGlbBridge20261029.js'
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js'
 import {paintStudioGradient} from './studioGradientBackdrop.js'
 import {applySceneCameraViewport} from '../core/sceneCameraViewport.js'
@@ -151,6 +153,7 @@ export default function ClothCraftSceneV2({
   showBoundingBox = false, showContactDots = true, spread = 0,
   onStretchDrag, onStretchStart, onStretchCancel, environmentPreset = 'studio', stageId = 'none', showFloor = true,
   cameraSettings = null, sceneLight = null, sceneLight2 = null, exposure = 1.1, studioAppearance = null, studioPreferences = null, stageSettings = null,
+  customAvatar = null,
   onContextMenuRequest, onCanvasActivate, onFoamSelect,
 }) {
   const host = useRef(null)
@@ -499,8 +502,14 @@ export default function ClothCraftSceneV2({
         }
       }
       for(const group of [state.walkAvatarRoot||avatar,cloth]){
-        group.position.z=active?pose.translationZ:0
-        group.rotation.y=active?pose.yaw:0
+        // Imported skeletal GLBs may have a small alignment offset and yaw.
+        // Preserve that rest transform when the visual walk preview finishes.
+        const baseZ=group.userData.exoWalkBaseZ??group.position.z
+        const baseYaw=group.userData.exoWalkBaseYaw??group.rotation.y
+        group.userData.exoWalkBaseZ=baseZ
+        group.userData.exoWalkBaseYaw=baseYaw
+        group.position.z=baseZ+(active?pose.translationZ:0)
+        group.rotation.y=baseYaw+(active?pose.yaw:0)
         group.updateMatrixWorld(true)
       }
       state.walkApplied=active
@@ -1573,13 +1582,22 @@ export default function ClothCraftSceneV2({
     }
   }, [])
 
+  // An imported Unreal/MetaHuman GLB is visual only. It does NOT replace the
+  // native Rust solver's collision geometry or transfer MetaHuman DNA rigs.
+  useEffect(()=>{
+    if(customAvatar?.type==='glb'&&customAvatar?.url)setWalkAvatarSource('custom-import')
+    else setWalkAvatarSource(current=>current==='custom-import'?'native':current)
+  },[customAvatar?.url,customAvatar?.type])
+
   // Preview-only avatar selector. The Rust collision body remains the same
   // authoritative fitted mesh; Theo/Nora and compact Thomas are visual actors
   // that can reuse the identical walking preset on any curated 3D stage.
   useEffect(()=>{
     const state=sceneRef.current
     if(!state)return undefined
-    const source=WALK_AVATAR_SOURCES.find(item=>item.id===walkAvatarSource)
+    const source=walkAvatarSource==='custom-import'&&customAvatar?.type==='glb'
+      ?{id:'custom-import',url:customAvatar.url,label:customAvatar.name}
+      :WALK_AVATAR_SOURCES.find(item=>item.id===walkAvatarSource)
     let cancelled=false
     walkProgressRef.current=0
     setWalkProgress(0)
@@ -1600,20 +1618,35 @@ export default function ClothCraftSceneV2({
       const root=gltf.scene
       root.name='exo-stage-walk-visual-avatar-'+walkAvatarSource
       root.visible=showAvatar
+      if(walkAvatarSource==='custom-import'){
+        try {
+          const fitted=fitImportedAvatarToNative20261029(THREE,root,state.avatar)
+          state.renderer.domElement.dataset.metahumanVisualHeightM=String(fitted.targetHeightM.toFixed(3))
+          state.renderer.domElement.dataset.metahumanVisualScale=String(fitted.uniformScale)
+          state.renderer.domElement.dataset.metahumanPhysics='native-collider-only'
+        } catch(error) {
+          disposeTree(root)
+          state.avatar.visible=showAvatar
+          setWalkAvatarError('Imported body cannot be fitted to the preview: '+String(error.message||error).slice(0,120))
+          return
+        }
+      }
       root.traverse(node=>{
         if(!node.isBone)return
-        // GLTFLoader sanitizes ':' from Mixamo bone names to '_' so support
-        // both the authored and the sanitized rig naming conventions.
-        const name=node.name.toLowerCase().replace(/^.*?mixamorig[_:]?/,'').replace(/^.*:/,'')
-        if(/^(left|right)(upleg|leg|thigh|arm|forearm)/.test(name))
+        const name=canonicalImportedWalkBone20261029(node.name)
+        if(name)
           state.walkAvatarBones.push({name,bone:node,restX:node.rotation.x,restZ:node.rotation.z})
       })
       state.scene.add(root)
       state.walkAvatarRoot=root
       state.walkGeometries.clear()
       state.renderer.domElement.dataset.walkAvatarLoaded=walkAvatarSource
+      state.renderer.domElement.dataset.avatarVisible=String(showAvatar)
     },undefined,error=>{
-      if(!cancelled)setWalkAvatarError('Could not load local avatar: '+String(error.message||error).slice(0,100))
+      if(!cancelled){
+        state.avatar.visible=showAvatar
+        setWalkAvatarError('Could not load imported avatar: '+String(error.message||error).slice(0,100))
+      }
     })
     return()=>{
       cancelled=true
@@ -1626,9 +1659,14 @@ export default function ClothCraftSceneV2({
       state.walkAvatarBones=[]
       state.walkGeometries.clear()
       state.walkAvatarSource='native'
+      if(state.renderer?.domElement){
+        state.renderer.domElement.dataset.metahumanPhysics=''
+        state.renderer.domElement.dataset.metahumanVisualHeightM=''
+        state.renderer.domElement.dataset.metahumanVisualScale=''
+      }
       if(state.renderer?.domElement)state.renderer.domElement.dataset.walkAvatarLoaded=''
     }
-  },[walkAvatarSource])
+  },[walkAvatarSource,customAvatar?.url,customAvatar?.type])
 
   // A native 3D mode change can originate from keyboard shortcuts, the
   // embedded quick bar, or a context menu instead of a CLO A/B slot. Release
@@ -1845,14 +1883,19 @@ export default function ClothCraftSceneV2({
       state.renderer.domElement.dataset.native3dPanelMeshCount = '0'
       state.renderer.domElement.dataset.native3dMeshRevision = ''
       state.renderer.domElement.dataset.native3dMeshTriangles = '0'
+      state.renderer.domElement.dataset.native3dGeometryIdentityValid = 'false'
       return
     }
     // Explicit proof that the Three.js cloth was rebuilt from the same
     // committed Rust Shape snapshot as the 2D pattern. A staged yellow
     // proposal never falsely reports a committed 3D fabric change.
-    state.renderer.domElement.dataset.native3dMeshRevision=String(snapshot.revision??'')
-    state.renderer.domElement.dataset.native3dMeshTriangles=String(snapshot.triangles?.length||0)
-    state.renderer.domElement.dataset.native3dMeshVertices=String(snapshot.positions?.length||0)
+    const sceneIdentity=selectNative3DSceneGeometryIdentity20261030(snapshot)
+    // Invalid geometry must not display a plausible-looking source revision
+    // or triangle count as if the rendered mesh was source-verified.
+    state.renderer.domElement.dataset.native3dGeometryIdentityValid=String(Boolean(sceneIdentity))
+    state.renderer.domElement.dataset.native3dMeshRevision=String(sceneIdentity?.sourceRevision??'')
+    state.renderer.domElement.dataset.native3dMeshTriangles=String(sceneIdentity?.triangleCount??'')
+    state.renderer.domElement.dataset.native3dMeshVertices=String(sceneIdentity?.vertexCount??'')
     // Keep 3D scene QA tied to the exact Rust seam samples of the rendered
     // snapshot. A visible stitched dart is not proof of physical closure.
     state.renderer.domElement.dataset.nativeDartCount=String(snapshot.dartFit?.length||0)
@@ -2212,7 +2255,7 @@ export default function ClothCraftSceneV2({
     if (!state) return
     state.avatar.visible = showAvatar && walkAvatarSource==='native'
     if(state.walkAvatarRoot)state.walkAvatarRoot.visible=showAvatar
-    state.renderer.domElement.dataset.avatarVisible = String(showAvatar && state.avatar.children.length > 0)
+    state.renderer.domElement.dataset.avatarVisible = String(showAvatar && (state.avatar.children.length > 0 || Boolean(state.walkAvatarRoot)))
     state.boundaries.visible = sewingToolsActive
     state.seams.visible = showSeams && sewingToolsActive
     state.dots.visible = showSeams && sewingToolsActive && showContactDots
@@ -2485,6 +2528,7 @@ export default function ClothCraftSceneV2({
         <label>Avatar
           <select aria-label="Walk avatar model" value={walkAvatarSource} onChange={event=>{resetWalk();setWalkAvatarSource(event.target.value)}}>
             {WALK_AVATAR_SOURCES.map(avatar=><option key={avatar.id} value={avatar.id}>{avatar.label}</option>)}
+            {customAvatar?.type==='glb'&&<option value="custom-import">Imported Unreal / MetaHuman GLB · visual only</option>}
           </select>
         </label>
         <label>Motion sequence

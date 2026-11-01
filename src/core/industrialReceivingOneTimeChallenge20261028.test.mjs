@@ -118,10 +118,17 @@ const payloadFor=e=>({...legacyPayloadFor(e),
  importRecordsSha256:digest(stable(e.importRecords))})
 const sign=async payload=>({payload,signature:b64(new Uint8Array(
  await webcrypto.subtle.sign('Ed25519',keys.privateKey,encoder.encode(stable(payload)))) )})
+const returnedFilePacket=()=>({records:sizes.map(size=>{
+ const fileBytes=encoder.encode(outbound[size])
+ return {size,filename:`received/${size}.dxf`,bytes:fileBytes.length,
+  sha256:sha256Bytes(fileBytes)}
+}),files:Object.fromEntries(sizes.map(size=>[
+ `received/${size}.dxf`,encoder.encode(outbound[size])]))})
 const run=async(root,e,a,options={})=>inspect(project,explorer,plans,packet,outbound,e,a,
  {policy,trustedKeys,nowMs:now,ledgerRoot:root,issuanceReceipt,trustedIssuerKeys,
   issuerStatusSnapshot,trustedRegistryRoot,
   issuerAudience,ledgerNamespace,
+  returnedFilePacket:returnedFilePacket(),
   trustedLedgerNamespaces:{[ledgerNamespace]:typeof root==='string'?await realpath(root).catch(()=>root):root},
   registryStateRoot:typeof root==='string'?join(dirname(root),'private-registry-state'):null,
   trustedRegistryStateNamespaces:{[ledgerNamespace]:typeof root==='string'?
@@ -150,6 +157,7 @@ test('valid 2-size, 2-fabric, 9-cut handoff claims a private fsynced receipt onc
  assert.equal(first.sizeCount,2)
  assert.equal(first.receiverChallengeConsumed,true)
  assert.equal(first.importRecordsSignatureBound,true)
+ assert.equal(first.returnedDxfFileBytesVerified,true)
  assert.equal(first.issuerSignatureVerified,true)
  assert.equal(first.registryFloorVerified,true)
  assert.equal(first.independentReceiverAuthenticated,false)
@@ -169,10 +177,32 @@ test('valid 2-size, 2-fabric, 9-cut handoff claims a private fsynced receipt onc
  assert.equal((await stat(join(root,names[0]))).mode&0o077,0)
  const stateRoot=join(dirname(root),'private-registry-state')
  const stateFiles=await readdir(stateRoot)
- assert.equal(stateFiles.length,1)
- assert.match(stateFiles[0],/issuer-registry-v7\.json$/)
- assert.equal((await stat(join(stateRoot,stateFiles[0]))).mode&0o077,0)
+ assert.equal(stateFiles.length,2)
+ assert(stateFiles.some(name=>/issuer-registry-v7\.json$/.test(name)))
+ assert(stateFiles.some(name=>/issuer-registry-history-v7\.json$/.test(name)))
+ for(const name of stateFiles)
+  assert.equal((await stat(join(stateRoot,name))).mode&0o077,0)
  refuse(await run(root,e,a),'RECEIVER_CHALLENGE_ALREADY_CONSUMED')
+}))
+
+test('one-time receiver refuses absent returned DXF bytes before consuming challenge',async()=>withLedger(async root=>{
+ const e=boundEvidence(),a=await sign(payloadFor(e))
+ refuse(await run(root,e,a,{returnedFilePacket:null}),
+  'RECEIVER_RETURNED_FILES_UNVERIFIED')
+ assert.deepEqual(await readdir(root),[])
+}))
+
+test('one-time receiver refuses modified and incomplete returned DXF files without ledger claim',async()=>withLedger(async root=>{
+ const e=boundEvidence(),a=await sign(payloadFor(e))
+ const modified=returnedFilePacket()
+ modified.files['received/S.dxf'][10]^=1
+ refuse(await run(root,e,a,{returnedFilePacket:modified}),
+  'RECEIVER_RETURNED_FILES_UNVERIFIED')
+ const missing=returnedFilePacket()
+ delete missing.files['received/M.dxf']
+ refuse(await run(root,e,a,{returnedFilePacket:missing}),
+  'RECEIVER_RETURNED_FILES_UNVERIFIED')
+ assert.deepEqual(await readdir(root),[])
 }))
 
 test('concurrent attempts on one ledger accept exactly one; subsequent attempts refuse',async()=>withLedger(async root=>{
@@ -195,6 +225,7 @@ test('a new Node process cannot reuse the already-consumed challenge',async()=>w
  const fixturePath=join(parent,'disposable-child-input.json')
  await writeFile(fixturePath,JSON.stringify({args:[project,explorer,plans,packet,outbound,e,a],
   options:{policy,trustedKeys,nowMs:now,ledgerRoot:root,
+	   returnedFilePacket:returnedFilePacket(),
 	   issuanceReceipt,trustedIssuerKeys,issuerStatusSnapshot,trustedRegistryRoot,
 	   issuerAudience,ledgerNamespace,
  	   trustedLedgerNamespaces:{[ledgerNamespace]:await realpath(root)},
@@ -204,6 +235,7 @@ test('a new Node process cannot reuse the already-consumed challenge',async()=>w
  const child=`import {readFile} from 'node:fs/promises';\n`+
   `const {inspectIndustrialReceivingOneTimeChallenge20261028:check}=await import(process.argv[1]);\n`+
   `const {args,options}=JSON.parse(await readFile(process.argv[2],'utf8'));\n`+
+  `options.returnedFilePacket.files=Object.fromEntries(Object.entries(options.returnedFilePacket.files).map(([k,v])=>[k,Uint8Array.from(Object.values(v))]));\n`+
   `const result=await check(...args,options);console.log(JSON.stringify(result));`
  const output=execFileSync(process.execPath,['--input-type=module','-e',child,
   new URL('./industrialReceivingOneTimeChallenge20261028.mjs',import.meta.url).href,
@@ -530,7 +562,7 @@ test('signed V8 revocation durably blocks later still-live signed V7 without con
  refuse(await run(root,e,a,{issuerStatusSnapshot:revoked}),'RECEIVER_ISSUER_KEY_REVOKED')
  assert.deepEqual(await readdir(root),[])
  const observations=(await readdir(join(parent,'private-registry-state')))
-  .filter(name=>name.endsWith('.json'))
+  .filter(name=>/issuer-registry-v[0-9]+\.json$/.test(name))
  assert.equal(observations.length,1)
  assert.match(observations[0],/issuer-registry-v8\.json$/)
  refuse(await run(root,e,a),'RECEIVER_ISSUER_REGISTRY_VERSION_ROLLBACK')
@@ -546,6 +578,7 @@ test('fresh receiving process cannot roll a persisted V8 revocation back to sign
  const fixturePath=join(parent,'disposable-registry-restart.json')
  await writeFile(fixturePath,JSON.stringify({args:[project,explorer,plans,packet,outbound,e,a],
   options:{policy,trustedKeys,nowMs:now,ledgerRoot:root,issuanceReceipt,trustedIssuerKeys,
+	   returnedFilePacket:returnedFilePacket(),
    issuerStatusSnapshot,trustedRegistryRoot,issuerAudience,ledgerNamespace,
    trustedLedgerNamespaces:{[ledgerNamespace]:await realpath(root)},
    registryStateRoot:join(parent,'private-registry-state'),
@@ -554,6 +587,7 @@ test('fresh receiving process cannot roll a persisted V8 revocation back to sign
  const child=`import {readFile} from 'node:fs/promises';\n`+
   `const {inspectIndustrialReceivingOneTimeChallenge20261028:check}=await import(process.argv[1]);\n`+
   `const {args,options}=JSON.parse(await readFile(process.argv[2],'utf8'));\n`+
+  `options.returnedFilePacket.files=Object.fromEntries(Object.entries(options.returnedFilePacket.files).map(([k,v])=>[k,Uint8Array.from(Object.values(v))]));\n`+
   `console.log(JSON.stringify(await check(...args,options)));`
  const output=execFileSync(process.execPath,['--input-type=module','-e',child,
   new URL('./industrialReceivingOneTimeChallenge20261028.mjs',import.meta.url).href,
@@ -600,7 +634,8 @@ test('corrupted append-only registry observation blocks further local acceptance
  const e=boundEvidence(),a=await sign(payloadFor(e))
  assert.equal((await run(root,e,a)).ok,true)
  const stateRoot=join(parent,'private-registry-state')
- const observation=(await readdir(stateRoot)).find(name=>name.endsWith('.json'))
+ const observation=(await readdir(stateRoot))
+  .find(name=>/issuer-registry-v[0-9]+\.json$/.test(name))
  assert(observation)
  // Tamper only with a disposable local test file. Production never repairs
  // or truncates an uncertain registry observation automatically.

@@ -1,0 +1,11 @@
+.tpws-review-overlay{position:absolute;inset:0;pointer-events:none;z-index:60}
+.tpws-review-placement{position:absolute;inset:0;pointer-events:auto;cursor:crosshair;background:transparent}
+.tpws-review-note{position:absolute;width:170px;min-height:85px;max-height:240px;display:flex;flex-direction:column;border:1px solid #a8a99d;border-radius:4px;box-shadow:0 4px 12px #0003;pointer-events:auto;color:#354050}
+.tpws-review-note header{display:flex;gap:4px;align-items:center;padding:5px;background:#ffffff55;cursor:grab;border-bottom:1px solid #8e938e55;user-select:none}
+.tpws-review-note header strong{font:800 9px/1.1 Inter,Arial,sans-serif;flex:1;letter-spacing:.03em}
+.tpws-review-note header button{border:0;background:none;color:#354050;padding:2px}
+.tpws-review-note textarea{resize:vertical;min-height:52px;flex:1;width:100%;padding:7px;font:500 11px/1.3 Inter,Arial,sans-serif;color:#2d3e4f;border:0;background:transparent;overflow:auto}
+.tpws-review-note.resolved{opacity:.56}
+.tpws-review-comment{border-left:3px solid #4a8dbb}
+.tpws-review-sticky{border-left:3px solid #dbb444}
+@media print{.tpws-review-overlay{display:none!important}}

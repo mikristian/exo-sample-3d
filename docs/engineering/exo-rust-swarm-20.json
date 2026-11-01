@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "goal": "100% verified first-party Rust-owned application, not bridge-count completion",
+  "configuredWorkstreams": 20,
+  "orchestration": {
+    "maxConcurrentChatOnSteroidsWorkers": 2,
+    "maxConcurrentSourceWriters": 1,
+    "maxConcurrentIndependentAuditors": 1,
+    "minFreeGiBToWriteSource": 2,
+    "minFreeGiBToCompile": 8,
+    "minFreeGiBToCloneReferences": 16,
+    "sourceWritersMustCoordinateWithExistingRustAutopilot": true,
+    "defaultModeWhenAutopilotActive": "read-only",
+    "neverOverwriteDirtyWorktree": true,
+    "neverAutoApplyGeneratedTranslations": true,
+    "noDeploymentOrInstalledAppMutation": true,
+    "noSavedGarmentMutation": true
+  },
+  "workstreams": [
+    {"id":"W01","name":"AST inventory and automated migration planning","scope":["tools/rust-migration/","docs/reports/exo-rust-ast-migration-inventory.json"],"repos":["oxc","ast-grep"],"status":"ready","mode":"read-only"},
+    {"id":"W02","name":"Rust differential and property-based testing","scope":["rust/exo_migration_audit/","docs/reports/rust-property-qa/"],"repos":["proptest"],"status":"queued","mode":"read-only"},
+    {"id":"W03","name":"Legacy C++ interop inventory","scope":["native_cpp/core/","docs/reports/native-cxx-interchange/"],"repos":["cxx"],"status":"queued","mode":"read-only"},
+    {"id":"W04","name":"WASM ABI and bridge contract QA","scope":["src/core/rust*Kernel.js","docs/reports/wasm-bridge-qa/"],"repos":["wasm-bindgen"],"status":"queued","mode":"read-only"},
+    {"id":"W05","name":"Pattern project and geometry migration","scope":["src/core/project.js"],"repos":["lyon"],"status":"queued","mode":"source"},
+    {"id":"W06","name":"SVG pattern ingestion and affine geometry","scope":["src/core/svgPatternImport.js"],"repos":["oxc","lyon"],"status":"queued","mode":"source"},
+    {"id":"W07","name":"DXF interchange pipeline","scope":["src/core/dxf.js"],"repos":["cxx","lyon"],"status":"queued","mode":"source"},
+    {"id":"W08","name":"Seam and correspondence pipeline","scope":["src/core/sewingConstruction.js"],"repos":["proptest"],"status":"queued","mode":"source"},
+    {"id":"W09","name":"Cloth solver distance/strain batching","scope":["src/core/physics.js"],"repos":["proptest"],"status":"queued","mode":"source"},
+    {"id":"W10","name":"Avatar body contact and collision handling","scope":["src/core/physics/avatarContactPass.js"],"repos":["parry"],"status":"queued","mode":"source"},
+    {"id":"W11","name":"Self-collision and broadphase","scope":["src/core/physics/selfCollision.js"],"repos":["parry"],"status":"queued","mode":"source"},
+    {"id":"W12","name":"Quality meshing and cloth triangulation","scope":["src/core/physics/qualityTriangulation.js"],"repos":["lyon","parry"],"status":"queued","mode":"source"},
+    {"id":"W13","name":"3D garment preview geometry","scope":["src/core/garmentPreviewGeometry.js"],"repos":["wgpu"],"status":"queued","mode":"source"},
+    {"id":"W14","name":"Textile shader and surface models","scope":["src/core/textileProcedurals.js"],"repos":["wgpu"],"status":"queued","mode":"source"},
+    {"id":"W15","name":"Fabric property and calibration engine","scope":["src/core/fabricCalibration.js"],"repos":["proptest"],"status":"queued","mode":"source"},
+    {"id":"W16","name":"Production markers and cutting export","scope":["src/core/marker.js"],"repos":["lyon"],"status":"queued","mode":"source"},
+    {"id":"W17","name":"Tech pack and BOM export","scope":["src/core/bomXml.js"],"repos":["proptest"],"status":"queued","mode":"source"},
+    {"id":"W18","name":"Rust HTTP/MCP and local workspace services","scope":["integrations/clothcraft/rust-agent-api/","src/core/projectCollaborationClient.js","src/core/rustCollaborationSseKernel.js","rust/exo_collaboration_sse_kernel/"],"repos":["cxx","wasm-bindgen"],"status":"queued","mode":"source"},
+    {"id":"W19","name":"Desktop host feasibility","scope":["integrations/clothcraft/macos/EXOClothCraft.swift"],"repos":["tauri","dioxus"],"status":"queued","mode":"read-only"},
+    {"id":"W20","name":"End-to-end QA, benchmarks and installed-app gates","scope":["docs/reports/exo-rust-release-readiness/"],"repos":["proptest","rapier","typescript-to-rust"],"status":"queued","mode":"read-only"}
+  ]
+}

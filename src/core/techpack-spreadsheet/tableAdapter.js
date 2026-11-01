@@ -1,8 +1,33 @@
 const str=value=>value==null?'':String(value)
 export const isCanonicalSpreadsheet=table=>Array.isArray(table?.columns)
 export const makeColumnId=()=>`column-${Date.now()}-${Math.random().toString(36).slice(2,9)}`
-export const TABLE_THEMES={light:{header:'#e8eef7',stripe:'#f5f8fc',text:'#263245'},medium:{header:'#4472c4',stripe:'#e8f0fb',text:'#ffffff'},dark:{header:'#243449',stripe:'#334258',text:'#ffffff'}}
-export const normalizeTableStyle=style=>({theme:['light','medium','dark','custom'].includes(style?.theme)?style.theme:'light',header:/^#[0-9a-f]{6}$/i.test(style?.header||'')?style.header:undefined,stripe:/^#[0-9a-f]{6}$/i.test(style?.stripe||'')?style.stripe:undefined,text:/^#[0-9a-f]{6}$/i.test(style?.text||'')?style.text:undefined})
+// Presentation-only themes: EXO always owns cell inputs, source provenance and
+// approval flags. Each palette uses the same explicit print/editor tokens.
+export const TABLE_THEMES={
+  light:{header:'#e8eef7',stripe:'#f5f8fc',text:'#263245',body:'#ffffff',bodyText:'#273244',border:'#cbd5e1'},
+  medium:{header:'#4472c4',stripe:'#e8f0fb',text:'#ffffff',body:'#ffffff',bodyText:'#25374b',border:'#b8c8df'},
+  dark:{header:'#243449',stripe:'#334258',text:'#ffffff',body:'#28384c',bodyText:'#f3f6fc',border:'#526076'},
+  technical:{header:'#1b2938',stripe:'#edf3f7',text:'#ffffff',body:'#ffffff',bodyText:'#243748',border:'#a8b6c2'},
+  blueprint:{header:'#214d83',stripe:'#e7f0fa',text:'#ffffff',body:'#f7fbff',bodyText:'#23456a',border:'#a9c1d9'},
+  graphite:{header:'#32383f',stripe:'#e9ecef',text:'#ffffff',body:'#fafafa',bodyText:'#272b31',border:'#9da5ae'},
+  sage:{header:'#42675b',stripe:'#e5eee8',text:'#ffffff',body:'#fbfdfb',bodyText:'#25483f',border:'#abc2b5'},
+  amber:{header:'#bd6c30',stripe:'#fff0e3',text:'#ffffff',body:'#fffaf5',bodyText:'#603d25',border:'#d9bda7'},
+}
+const validHex=value=>/^#[0-9a-f]{6}$/i.test(value||'')
+export const normalizeTableStyle=style=>{
+  const theme=Object.hasOwn(TABLE_THEMES,style?.theme)||style?.theme==='custom'?style.theme:'light'
+  const basic={theme,
+    header:validHex(style?.header)?style.header:undefined,
+    stripe:validHex(style?.stripe)?style.stripe:undefined,
+    text:validHex(style?.text)?style.text:undefined}
+  // Optional later tokens are absent from legacy documents, preserving their
+  // exact serialized footprint until a user customizes these properties.
+  for(const key of ['body','bodyText','border'])
+    if(validHex(style?.[key]))basic[key]=style[key]
+  if(['left','center','right'].includes(style?.headerAlign))basic.headerAlign=style.headerAlign
+  if(['normal','uppercase'].includes(style?.headerCase))basic.headerCase=style.headerCase
+  return basic
+}
 export function moveGridColumn(grid,from,to){
   if(from===to||from<0||to<0||from>=grid.headers.length||to>=grid.headers.length)return grid
   const move=list=>{const values=[...list];values.splice(to,0,values.splice(from,1)[0]);return values}

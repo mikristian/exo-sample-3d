@@ -1,9 +1,9 @@
-export const TECHPACK_ZOOM_STEPS=[.5,.75,1,1.25,1.5,1.75,2,2.25,2.5]
+export const TECHPACK_ZOOM_STEPS=[.1,.15,.2,.25,.35,.5,.65,.75,1,1.25,1.5,1.75,2,2.5,3,4,5,6]
 
 export function resolvedTechPackZoom(zoom,canvasWidth=900,landscape=false){
-  if(zoom==='fit')return Math.max(.5,Math.min(2.5,(Number(canvasWidth)-96)/(landscape?792:612)))
+  if(zoom==='fit')return Math.max(.1,Math.min(6,(Number(canvasWidth)-96)/(landscape?792:612)))
   const number=Number(zoom)
-  return Number.isFinite(number)?Math.max(.5,Math.min(2.5,number)):1
+  return Number.isFinite(number)?Math.max(.1,Math.min(6,number)):1
 }
 
 export function nextTechPackZoom(current,direction,canvasWidth=900,landscape=false){

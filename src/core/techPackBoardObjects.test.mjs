@@ -23,6 +23,14 @@ test('Illustrator-style side handles resize a single axis and preserve the other
   assert.equal(north.scaleX,1)
   assert.equal(north.scaleY,1.2)
 })
+test('embedded table-only transforms permit full page height while legacy objects keep existing limits',()=>{
+ assert.equal(boardObjectMove({},[470,565]).y,400)
+ assert.equal(boardObjectMove({},[470,565],1200).y,565)
+ assert.equal(boardObjectTransform({y:565},1200).y,565)
+ assert.equal(boardObjectTransform({y:565}).y,400)
+ const resized=boardObjectResize({y:520},[0,16],[400,200],'s',false,1200)
+ assert.equal(resized.y,520)
+})
 
 test('authored logo and technical drawing positions carry into printed factory pages',()=>{
   const source=techPackSource(createDefaultProject(),null,false)

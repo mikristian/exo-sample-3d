@@ -113,9 +113,18 @@ export function inspectIndustrialMarkerCutWorkflow20261028(project,{fabricWidthC
     if(!transfer.ok)issues.push(...transfer.issues.map(issue=>({...issue,size,fabricId})))
     const cuttingStudy=buildAccuMarkCutterPathStudy20261024(nest,{fabricWidthCm:fabricWidth,spaceCm:gap})
     if(!cuttingStudy.ok)issues.push({code:'CUT_STUDY_REFUSED',size,fabricId,detail:cuttingStudy.reason||cuttingStudy.code})
-    const cutterQualification=cutterProfile&&cuttingStudy.ok&&transfer.ok?qualifyIndustrialCutterStudy20261028(cuttingStudy,transfer,cutterProfile,qualificationEvidence||{}):null
-    if(cutterQualification&&!cutterQualification.ok)issues.push(...cutterQualification.issues.map(issue=>({...issue,size,fabricId})))
-    rows.push({size,fabricId,ok:cuttingStudy.ok&&transfer.ok,marker:nest,cutterStudy:cuttingStudy,markTransfer:transfer,cutterQualification})
+    // Null alone means no machine-specific review was requested. Explicit
+    // falsy values are invalid profiles, never permission to skip the gate.
+    const cutterQualification=cutterProfile!==null&&cuttingStudy.ok&&transfer.ok?qualifyIndustrialCutterStudy20261028(cuttingStudy,transfer,cutterProfile,qualificationEvidence||{}):null
+    if(cutterQualification&&!cutterQualification.ok){
+     // Early machine-profile refusals carry a code/detail, while completed
+     // engineering reviews carry an issues array. Both must remain explicit
+     // per-size blockers, not collapse into a generic exception or a green row.
+     const qualificationIssues=Array.isArray(cutterQualification.issues)&&cutterQualification.issues.length
+      ?cutterQualification.issues:[{code:cutterQualification.code||'CUTTER_QUALIFICATION_REFUSED',detail:cutterQualification.detail||'Machine review refused'}]
+     issues.push(...qualificationIssues.map(issue=>({...issue,size,fabricId})))
+    }
+    rows.push({size,fabricId,ok:cuttingStudy.ok&&transfer.ok&&(!cutterQualification||cutterQualification.ok===true),marker:nest,cutterStudy:cuttingStudy,markTransfer:transfer,cutterQualification})
    }
   }
   const parity=auditMarkerDxfGeometryParity20261024(project,{dxfBySize:wires,gradedBySize,markersBySize,defaultFabricWidth:width,gap})

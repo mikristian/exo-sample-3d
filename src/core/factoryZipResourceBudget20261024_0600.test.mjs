@@ -45,8 +45,8 @@ test('rejects highly compressible valid DEFLATE, before calling CRC', () => {
   assert.equal(auditWithCrc(bytes).diagnostics[0].code, 'RESOURCE_EXPANSION_RATIO')
 })
 
-test('rejects 81 entries before content verification', () => {
-  const bytes = zipSync(Object.fromEntries(Array.from({length: 81}, (_, i) => [`patterns/${i}.dxf`, strToU8('x')])), {level: 0})
+test('rejects 1025 entries before content verification', () => {
+  const bytes = zipSync(Object.fromEntries(Array.from({length: 1025}, (_, i) => [`patterns/${i}.dxf`, strToU8('x')])), {level: 0})
   rejected(bytes, 'RESOURCE_ENTRY_BUDGET')
 })
 

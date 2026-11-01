@@ -1,6 +1,7 @@
 // Local-first collaboration client. Server owns ACLs, comments and versioned
 // shared snapshots; IndexedDB remains the source for personal project files.
 import { parseCollaborationSseBlock, initializeRustCollaborationSseKernel } from './rustCollaborationSseKernel.js'
+import {nativeBridgeOrigin,nativeWorkspaceHeaders} from './nativeWorkspaceTransport.js'
 const DEFAULT_BASE = typeof window !== 'undefined' && window.location.port === '5486'
   ? 'http://127.0.0.1:5485' : typeof window !== 'undefined' && window.location.port === '5386'
   ? 'http://127.0.0.1:5385' : 'http://127.0.0.1:5193'
@@ -17,8 +18,10 @@ function saveToken(token) {
 async function issueToken() {
   // Key provisioning is restricted by the bridge to trusted localhost UI origins.
   // A remote origin cannot mint a credential through this endpoint.
-  const response = await fetch(`${COLLABORATION_BASE}/agent/v1/keys`, {
-    method:'POST',headers:{'Content-Type':'application/json'},cache:'no-store',
+  const destination=new URL(`${COLLABORATION_BASE}/agent/v1/keys`)
+  const uiAuthorization=destination.origin===nativeBridgeOrigin()?nativeWorkspaceHeaders().Authorization:null
+  const response = await fetch(destination.href, {
+    method:'POST',headers:{'Content-Type':'application/json',...(uiAuthorization?{Authorization:uiAuthorization}:{})},cache:'no-store',redirect:'error',
     body:JSON.stringify({name:'File Library collaboration',scopes:['read','edit'],expiresInDays:180}),
   })
   const data = await response.json()

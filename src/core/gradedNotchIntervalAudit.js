@@ -59,14 +59,20 @@ export function inspectGradedNotchSeamIntervals(project, {
       new Set(seamIds).size !== seamIds.length) {
     add('AMBIGUOUS_SEAM_ID', 'project', 'Sewing seam IDs must be unique nonempty strings')
   }
-  const groups = new Map()
-  for (const piece of project.pieces) {
-    for (const notch of piece.notches || []) {
-      if (!notch?.matchGroupId && !notch?.matchedSeamId) continue
+  const groups = new Map(), unassigned = []
+  for (const [pieceIndex,piece] of project.pieces.entries()) {
+    for (const [notchIndex,notch] of (piece.notches || []).entries()) {
+      // Null/absent fields mean standalone. Explicit empty strings or zero
+      // values are malformed pairing intent, not permission to skip QA.
+      if (notch?.matchGroupId == null && notch?.matchedSeamId == null) continue
       if (typeof notch.matchGroupId !== 'string' || !notch.matchGroupId ||
           typeof notch.matchedSeamId !== 'string' || !notch.matchedSeamId ||
           typeof notch.id !== 'string' || !notch.id) {
         add('INVALID_NOTCH_PAIR_METADATA',piece.id,'Paired notch needs group, seam and notch IDs')
+        // No trustworthy pair-group identity exists. Keep this authored intent
+        // discoverable per size rather than silently omitting it from handoff.
+        unassigned.push({group:`UNASSIGNED@${pieceIndex}:${notchIndex}`,
+          pieceId:piece.id??null,notchId:notch?.id??null,seamId:notch?.matchedSeamId??null})
         continue
       }
       const entries = groups.get(notch.matchGroupId) || []
@@ -75,7 +81,7 @@ export function inspectGradedNotchSeamIntervals(project, {
     }
   }
   if (!groups.size && !issues.length) return {
-    status: 'not_configured', blockers: 0, issues, checks, pairedGroups: 0,
+    status: 'not_configured', blockers: 0, issues, checks, coverage: [], pairedGroups: 0, unassignedNotches: 0,
     factoryCertified: false, note: 'No paired notches; no seam alignment is certified.',
   }
   const seams = new Map(project.seams.map(seam => [seam.id, seam]))
@@ -95,6 +101,9 @@ export function inspectGradedNotchSeamIntervals(project, {
     verified.push({ group, seam, a, b })
   }
   for (const size of sizes) {
+    // If every named group is structurally invalid, grading cannot measure a
+    // station. Preserve its structural reason without redundant grade errors.
+    if (!verified.length) break
     let graded
     try { graded = gradeProject(project,size) }
     catch (error) { add('NOTCH_GRADING_FAILED',size,error.message); continue }
@@ -126,7 +135,34 @@ export function inspectGradedNotchSeamIntervals(project, {
       }
     }
   }
+  // A station walk contains only successfully measured stations. In a blocked
+  // factory package, omitted walks must not masquerade as uninspected sizes.
+  // Preserve a separate group × size disposition for every requested size,
+  // including failed grading, invalid pair topology and malformed intervals.
+  const coverage = []
+  for (const size of sizes) {
+    for (const [group, entries] of groups) {
+      const scope = `${group} / ${size}`
+      const measured = checks.find(row => row.group === group && row.size === size)
+      const failure = issues.find(issue => issue.scope === scope ||
+        (issue.scope === group && ['INVALID_NOTCH_GROUP','NOTCH_SEAM_REFERENCE'].includes(issue.code)) ||
+        (issue.scope === size && issue.code === 'NOTCH_GRADING_FAILED'))
+      if (!measured && !failure) {
+        add('MISSING_NOTCH_INTERVAL_COVERAGE', scope,
+          'No physical sewn-interval station or explicit failure was recorded for this size and notch group')
+      }
+      coverage.push({size, kind:'PAIRED', group, seamId: entries[0]?.seamId ?? null,
+        status: measured?.pass === true ? 'PASS' : 'BLOCKED',
+        reasonCode: measured?.pass === true ? null :
+          (failure?.code ?? (measured ? 'NOTCH_INTERVAL_MISALIGNMENT' : 'MISSING_NOTCH_INTERVAL_COVERAGE'))})
+    }
+    for (const row of unassigned) coverage.push({
+      size,kind:'UNASSIGNED',group:row.group,seamId:row.seamId,
+      pieceId:row.pieceId,notchId:row.notchId,status:'BLOCKED',reasonCode:'INVALID_NOTCH_PAIR_METADATA',
+    })
+  }
   return { status: issues.length ? 'blocked' : 'pass', blockers: issues.length, issues, checks,
-    pairedGroups: groups.size, checkedSizes: [...sizes], toleranceCm, factoryCertified: false,
+    coverage, pairedGroups: groups.size, unassignedNotches:unassigned.length,
+    checkedSizes: [...sizes], toleranceCm, factoryCertified: false,
     note: 'Diagnostic only; independent CAD and sewing acceptance still required.' }
 }

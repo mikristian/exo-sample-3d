@@ -1,3 +1,4 @@
+import {nativeBridgeFetch} from '../core/nativeWorkspaceTransport.js'
 import React,{useEffect,useRef,useState} from 'react'
 import {prepareNativeSinglePlyRollStudy20261029} from '../core/nativeSinglePlyRollReview20261029.js'
 
@@ -60,7 +61,7 @@ export default function NativeSinglePlyRollReview20261029({
    [fabricId]:{...previous[fabricId],[key]:value}}))
  }
  const requestNative=async(route,packet,controller)=>{
-  const res=await fetch(nativeBase+'/production/native-verified/v1/'+route,{
+  const res=await nativeBridgeFetch(nativeBase+'/production/native-verified/v1/'+route,{
    method:'POST',headers:{'Content-Type':'application/json'},
    body:JSON.stringify(packet),signal:controller.signal})
   const data=await res.json()

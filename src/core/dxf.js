@@ -1,6 +1,26 @@
+import { assertManufacturingSource, manufacturingButtonholeSegment, coincidentContours } from './manufacturingSourceValidation20261101.js'
 import { edgeLength, edgePointAt, getEdgeSeamAllowance, samplePieceBoundary, seamAllowanceBoundary } from './project.js'
 import { rustDxfNotchCut } from './rustGeometryKernel.js'
 import {inspectCutlinePolygon} from './cutlineTopology.js'
+import {buildSizeRun} from './grading.js'
+import {assertFreshModarisSizeLinkedGradeProject20261027} from './modarisSizeLinkedGradePersistence20261027.js'
+
+/** Source-pinned connected export. The caller never supplies a detached graded
+ * document; the final curve DAG is regenerated from validated authored data.
+ * This remains development geometry, not licensed receiver/factory approval.
+ */
+export function connectedSourceToManufacturingDxf(project,size){
+  if(project?.modarisSizeLinkedGrade===undefined)throw Error('Connected manufacturing DXF requires authored linked source')
+  assertFreshModarisSizeLinkedGradeProject20261027(project)
+  if(!project.grading?.sizes?.includes(size))throw Error('Connected manufacturing DXF refused: unknown linked size')
+  assertManufacturingSource(project)
+  const graded=buildSizeRun(project)[size]
+  // The generated size snapshot is a private ephemeral value. Never allow an
+  // external snapshot or boolean option to bypass projectToDxf's public guard.
+  const final={...graded}
+  delete final.modarisSizeLinkedGrade
+  return projectToDxf(final,size,{cutlineMode:'manufacturing',requireGradedGeometry:true})
+}
 
 function entityLine(layer, a, b) {
   return [
@@ -44,6 +64,28 @@ function entityText(layer, point, text, heightMm = 5) {
 
 function safeLayer(value) {
   return String(value || 'PATTERN').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 48)
+}
+
+// Legacy drafting labels are intentionally unchanged. Manufacturing cannot
+// safely emit two physical pieces under the same sanitized/truncated token:
+// CUT, STITCH, NOTCH and the receiver's piece matching all use that token.
+function assertUnambiguousManufacturingLayers(project) {
+  const ids = new Set()
+  const tokens = new Map()
+  for (const piece of project?.pieces || []) {
+    if (typeof piece?.id !== 'string' || !piece.id.trim()) {
+      throw new Error('Manufacturing DXF layer identity requires a nonempty source piece ID')
+    }
+    if (ids.has(piece.id)) {
+      throw new Error(`Manufacturing DXF duplicate source piece ID: ${piece.id}`)
+    }
+    ids.add(piece.id)
+    const token = safeLayer(piece.name).toUpperCase()
+    if (tokens.has(token)) {
+      throw new Error(`Manufacturing DXF layer identity collision: ${tokens.get(token)} and ${piece.id} both map to ${token}`)
+    }
+    tokens.set(token, piece.id)
+  }
 }
 
 function centroid(points) {
@@ -121,6 +163,18 @@ export function projectToDxf(project, size = project.previewSize || project.grad
   // explicitly request an honest CUT layer generated from per-edge allowances
   // and a separate STITCH contour; no source geometry is mutated.
   const factoryCutline = options.cutlineMode === 'manufacturing'
+  if (factoryCutline) {
+    assertUnambiguousManufacturingLayers(project)
+    assertManufacturingSource(project)
+  }
+  if (factoryCutline && project?.modarisSizeLinkedGrade !== undefined) {
+    // A previewSize label cannot prove the *original* authored source graph.
+    // Graded projects keep the graph but change their base points, so the
+    // provenance validator cannot safely regenerate from this detached copy.
+    // Reject manufacturing output until DXF receives a signed/source-pinned
+    // final snapshot instead of trusting a caller-produced graded document.
+    throw new Error('Manufacturing DXF refused: connected linked geometry requires authoritative source-pinned export')
+  }
   // This generic exporter has no validated industrial hole/drill schema.
   // Refuse manufacturing files containing such features rather than silently
   // stripping them while a factory assumes the CUT is production-complete.
@@ -173,7 +227,7 @@ export function projectToDxf(project, size = project.previewSize || project.grad
     const sizeToken = safeLayer(size).toUpperCase()
     const layerBase = `CUT_${pieceToken}_${sizeToken}`
     const hasAllowances = piece.points.some((_, edgeIndex) => getEdgeSeamAllowance(piece, edgeIndex) > 0)
-    if (factoryCutline && hasAllowances) {
+    if (factoryCutline) {
       const allowance = seamAllowanceBoundary(piece, 12)
         .map((point) => ({ x: point.x - minX + xOffset, y: point.y }))
       if (allowance.length < 3 || allowance.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y))) {
@@ -257,6 +311,13 @@ export function projectToDxf(project, size = project.previewSize || project.grad
     })
 
     for (const buttonhole of piece.buttonholes || []) {
+      if (factoryCutline) {
+        const { a, b } = manufacturingButtonholeSegment(buttonhole, seamAllowanceBoundary(piece, 12), piece.id)
+        entities.push(...entityLine(`BUTTONHOLE_${pieceToken}`,
+          { x: a.x - minX + xOffset, y: a.y },
+          { x: b.x - minX + xOffset, y: b.y }))
+        continue
+      }
       const angle = Number(buttonhole.orientationDeg || 0) * Math.PI / 180
       const halfLength = Math.max(0.4, Number(buttonhole.lengthCm ?? 2.4) * 0.5)
       const dx = Math.cos(angle) * halfLength
@@ -615,7 +676,7 @@ export function parseDxfPatterns(text, options = {}) {
       const physicalCut=inspectCutlinePolygon(cut.points)
       const sewingOutline=inspectCutlinePolygon(stitch.points)
       if(!physicalCut.ok||!sewingOutline.ok)throw new Error(`Manufacturing CUT/STITCH topology is invalid for ${pieceName}`)
-      if(!(physicalCut.areaCm2-sewingOutline.areaCm2>1e-6))throw new Error(`Manufacturing CUT does not exceed STITCH area for ${pieceName}; cannot recover fabric roles`)
+      if(!(physicalCut.areaCm2-sewingOutline.areaCm2>1e-6) && !coincidentContours(cut.points, stitch.points))throw new Error(`Manufacturing CUT does not exceed STITCH area for ${pieceName}; cannot recover fabric roles`)
       cuts.push(options.manufacturingImport==='stitch-reference'?{...stitch,layer:cut.layer}:cut)
       factoryTokens.set(cut.layer,{pieceName,size})
       stitchByName.delete(pieceName)

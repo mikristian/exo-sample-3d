@@ -4,6 +4,12 @@
 export const NATIVE_GRADE_SIZES_20261025 = Object.freeze(['XS','S','M','L','XL','XXL'])
 
 const finitePositive=value=>typeof value==='number'&&Number.isFinite(value)&&value>0
+const validSeam=row=>row?.pass===true&&Number.isFinite(row.mismatchMm)&&
+  finitePositive(row.sourceLengthMm)&&finitePositive(row.targetLengthMm)&&
+  Math.abs(Math.abs(row.sourceLengthMm-row.targetLengthMm)-Math.abs(row.mismatchMm))<=.01
+const validPom=row=>row?.pass===true&&finitePositive(row.actualMm)&&
+  finitePositive(row.targetMm)&&Number.isFinite(row.toleranceMm)&&row.toleranceMm>=0&&
+  Math.abs(row.actualMm-row.targetMm)<=row.toleranceMm+1e-7
 
 export function summarizeNativeGradingSizes20261025(workflow,pom,definitionCount=0){
   const blocks=Array.isArray(workflow?.geometry?.blocks)?workflow.geometry.blocks:[]
@@ -31,17 +37,15 @@ export function summarizeNativeGradingSizes20261025(workflow,pom,definitionCount
     const seams=seamRows.filter(row=>row?.size===size)
     const sewingPass=seamCount>0&&seams.length===seamCount&&
       new Set(seams.map(row=>row.seamId)).size===seamCount&&
-      seams.every(row=>row.pass===true&&Number.isFinite(row.mismatchMm))
+      seams.every(validSeam)
     const poms=pomRows.filter(row=>row?.size===size)
     const pomPass=authoredPOM>0&&poms.length===authoredPOM&&
       new Set(poms.map(row=>row.id)).size===authoredPOM&&
-      poms.every(row=>row.pass===true&&Number.isFinite(row.actualMm))
-    const seamFailures=seams.filter(row=>row.pass!==true).length+Math.max(0,seamCount-seams.length)
-    const pomFailures=poms.filter(row=>row.pass!==true).length+Math.max(0,authoredPOM-poms.length)
-    const sewnPassed=Math.min(seamCount,new Set(seams.filter(row=>row.pass===true&&
-      Number.isFinite(row.mismatchMm)).map(row=>row.seamId)).size)
-    const pomPassed=Math.min(authoredPOM,new Set(poms.filter(row=>row.pass===true&&
-      Number.isFinite(row.actualMm)).map(row=>row.id)).size)
+      poms.every(validPom)
+    const seamFailures=seams.filter(row=>!validSeam(row)).length+Math.max(0,seamCount-seams.length)
+    const pomFailures=poms.filter(row=>!validPom(row)).length+Math.max(0,authoredPOM-poms.length)
+    const sewnPassed=Math.min(seamCount,new Set(seams.filter(validSeam).map(row=>row.seamId)).size)
+    const pomPassed=Math.min(authoredPOM,new Set(poms.filter(validPom).map(row=>row.id)).size)
     const findings=[]
     if(!validPanelSet)findings.push('Graded pattern-piece inventory is missing or duplicated')
     for(const block of gradedPanels){
@@ -56,13 +60,13 @@ export function summarizeNativeGradingSizes20261025(workflow,pom,definitionCount
       }
     }
     for(const row of seams){
-      if(row.pass!==true)findings.push(`Seam ${row.seamId||'unknown'}: measured length difference requires review`)
+      if(!validSeam(row))findings.push(`Seam ${row.seamId||'unknown'}: measured sewn lengths or mismatch evidence require review`)
     }
     if(seamCount===0)findings.push('No linked sewn seams to validate')
     else if(seams.length!==seamCount||new Set(seams.map(row=>row.seamId)).size!==seamCount)
       findings.push(`Expected ${seamCount} unique sewn seam checks; found ${seams.length}`)
     for(const row of poms){
-      if(row.pass!==true)findings.push(`${row.label||row.id||'Measurement'}: ${row.targetMm==null?'target not entered':'outside target tolerance'}`)
+      if(!validPom(row))findings.push(`${row.label||row.id||'Measurement'}: ${row.targetMm==null?'target not entered':'incomplete or outside target tolerance'}`)
     }
     if(authoredPOM===0)findings.push('No POM target specifications defined')
     else if(poms.length!==authoredPOM||new Set(poms.map(row=>row.id)).size!==authoredPOM)

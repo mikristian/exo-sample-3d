@@ -1,3 +1,5 @@
+import {inspectIndustrialNativeGradeReviewArtifactIntake20261031} from './industrialNativeGradeReviewArtifactIntake20261031.mjs'
+
 /**
  * Independently signed factory review records. Public keys must be provisioned by
  * the caller from an external trust process; this module ships no trust anchors.
@@ -18,7 +20,10 @@ const isRecord=value=>value!==null&&typeof value==='object'&&!Array.isArray(valu
 const exactKeys=(value,keys)=>isRecord(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key))
 const exactSizes=value=>Array.isArray(value)&&value.length===SIZES.length&&SIZES.every((size,i)=>value[i]===size)
 const reportFail=(code,detail)=>({ok:false,code,detail,releaseReadyForIndependentAudit:false,
- independentlySignedEvidenceVerified:false,physicalTruthVerified:false,factoryApproved:false,
+ independentlySignedEvidenceVerified:false,artifactBytesCrosschecked:false,
+ nativeCadParsed:false,gradingRulesParsed:false,independentReceiverAuthenticated:false,
+ receivingCadVerified:false,aamaCertified:false,astmCertified:false,
+ physicalTruthVerified:false,factoryApproved:false,
  manufacturingApproved:false,cuttingAuthorized:false,verifiedRoles:[],verifiedSizes:[]})
 
 /** Canonical JSON requires ordinary data (no undefined, NaN, accessors or cycles). */
@@ -192,7 +197,8 @@ function checkSamples(report,pomDefinitions){
  */
 export async function verifyNativeGradeIndependentReviewEvidence20261027({
  sourceRevision,sourceTemplate,fullRuleSet,pomDefinitions,evidence,trustedPublicKeys,
- now=Date.now(),maxAgeMs=90*24*60*60*1000
+ now=Date.now(),maxAgeMs=90*24*60*60*1000,
+ artifactInventory=null,expectedSourceArtifactHashes=null,
 }={}){
  try{
   const subtle=cryptoApi()
@@ -241,10 +247,27 @@ export async function verifyNativeGradeIndependentReviewEvidence20261027({
    if(error)return reportFail('INVALID_PHYSICAL_REPORT',error)
   }
   if(ROLES.some(role=>!seenRoles.has(role)))return reportFail('REVIEW_COVERAGE','Distinct CUT, receiving CAD, sewn samples roles required')
-  return {ok:true,code:'INDEPENDENT_SIGNATURES_VERIFIED',sourceRevision,
-   ...pins,releaseReadyForIndependentAudit:true,independentlySignedEvidenceVerified:true,
+  // Signed filenames, arbitrary 64-hex hashes and self-reported CAD success
+  // cannot establish artifact readiness. Actual returned/received DXF and
+  // native/rule bytes are required for that separate, LOCAL inspection.
+  let artifactCheck=null
+  if(artifactInventory!==null||expectedSourceArtifactHashes!==null){
+   artifactCheck=inspectIndustrialNativeGradeReviewArtifactIntake20261031(
+    evidence,artifactInventory,expectedSourceArtifactHashes)
+   if(!artifactCheck.ok)return reportFail(artifactCheck.code,artifactCheck.detail)
+  }
+  // Source-native/.RUL digests are still caller-supplied, not independently
+  // bound to the signed template/rule pins by a trusted source manifest.
+  // Byte crosschecking is therefore never sufficient for audit readiness.
+  return {ok:true,code:artifactCheck?'SIGNED_REVIEW_ARTIFACT_BYTES_CROSSCHECKED':'INDEPENDENT_SIGNATURES_VERIFIED',sourceRevision,
+   ...pins,releaseReadyForIndependentAudit:false,
+   artifactBytesCrosschecked:artifactCheck?.ok===true,
+   nativeCadParsed:false,gradingRulesParsed:false,
+   independentReceiverAuthenticated:false,receivingCadVerified:false,
+   aamaCertified:false,astmCertified:false,
+   independentlySignedEvidenceVerified:true,
    verifiedRoles:[...ROLES],verifiedSizes:[...SIZES],physicalTruthVerified:false,
    factoryApproved:false,manufacturingApproved:false,cuttingAuthorized:false,
-   note:'Authentic reviewer attestations verified. Physical samples, measurements and actual CAD operation cannot be proven by signatures alone.'}
+   note:'Authentic reviewer attestations verified. Supplied artifact bytes may be crosschecked, but independent source-native/RUL provenance is not bound to the signed source; audit readiness remains blocked. Native CAD and RUL contents are not parsed; physical samples, independent CAD operation and cutting authorization cannot be proven by signatures or hashes alone.'}
  }catch(error){return reportFail('INVALID_EVIDENCE',String(error?.message||error))}
 }

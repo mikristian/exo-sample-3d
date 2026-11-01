@@ -1,5 +1,7 @@
 // Experimental envelope and CUT planarity gate; source-only, not factory certification.
 import {preflightPhysicalCutOverlap20261023_2000} from './physicalCutOverlapPreflight20261023_2000.mjs'
+import {assertOrderedCutLightVertexPairs20261029} from './industrialCutLightVertexSequence20261029.mjs'
+import {assertNoIndirectCutEntity20261029} from './industrialCutIndirectEntityGuard20261029.mjs'
 
 const invalid = detail => ({
   ok:false, contourCount:0, overlaps:[],
@@ -49,6 +51,7 @@ const checkPlanarity = (record, oldStyle = false) => {
   // the physical cut footprint, so they cannot be silently flattened to zero.
   checkZeroWidths(record,[40,41],oldStyle?'CUT POLYLINE default':'CUT LWPOLYLINE vertex',!oldStyle)
   if (!oldStyle) {
+    assertOrderedCutLightVertexPairs20261029(record)
     checkZeroWidths(record,[43],'CUT LWPOLYLINE constant')
     checkLightVertexWidthPlacement(record)
   }
@@ -106,6 +109,7 @@ export function strictCutDxfEnvelope20261023_2053(source) {
       // The existing exporter emits DXF comment records between HEADER and ENTITIES.
       if(section===null && p.code===999) { i++; continue }
       if(section===null) throw Error('DXF content outside SECTION')
+      if(section==='ENTITIES' && p.code===0) assertNoIndirectCutEntity20261029(p.value)
       if(section==='ENTITIES' && p.code===0 && p.value==='LWPOLYLINE') {
         let end=i+1
         while(end<pairs.length && pairs[end].code!==0) end++

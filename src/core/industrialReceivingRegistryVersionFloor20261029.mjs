@@ -8,6 +8,8 @@ import {isAbsolute,join} from 'node:path'
 import {sha256Bytes} from './sha256Bytes.js'
 import {openTrustedReceivingLedger20261029,verifyTrustedReceivingLedger20261029}
  from './industrialReceivingLedgerPathGuard20261029.mjs'
+import {inspectRegistryHistoryWitness20261029,appendRegistryHistoryWitness20261029}
+ from './industrialReceivingRegistryHistoryWitness20261029.mjs'
 
 const encoder=new TextEncoder()
 const plain=x=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&
@@ -23,6 +25,7 @@ const privateFile=s=>s.isFile()&&!s.isSymbolicLink()&&s.nlink===1&&
  (uid===null||s.uid===uid)&&(s.mode&0o077)===0
 const fields=['format','issuerAudience','ledgerNamespace','registryRootSha256',
  'registryVersion','issuerStatusSnapshotSha256']
+const v2Fields=[...fields,'historyWitnessRequired']
 
 async function readObservation(path,expected){
  let handle
@@ -34,7 +37,9 @@ async function readObservation(path,expected){
   if(!privateFile(opened)||!same(before,opened))return null
   const raw=await handle.readFile('utf8')
   const row=JSON.parse(raw)
-  if(!exact(row,fields)||row.format!=='exo.receiving-issuer-registry-floor.v1'||
+  if(!((exact(row,fields)&&row.format==='exo.receiving-issuer-registry-floor.v1')||
+   (exact(row,v2Fields)&&row.format==='exo.receiving-issuer-registry-floor.v2'&&
+    row.historyWitnessRequired===true))||
    row.issuerAudience!==expected.issuerAudience||
    row.ledgerNamespace!==expected.ledgerNamespace||
    row.registryRootSha256!==expected.registryRootSha256||
@@ -51,6 +56,7 @@ async function verifyObservationAfterCallback(ledger,prefix,observation){
  if(!await verifyTrustedReceivingLedger20261029(ledger))return false
  const names=await readdir(ledger.canonical)
  let found=false
+ const observations=[]
  for(const name of names){
   if(!name.startsWith(prefix))continue
   const match=/^([1-9][0-9]*)\.json$/.exec(name.slice(prefix.length))
@@ -58,20 +64,27 @@ async function verifyObservationAfterCallback(ledger,prefix,observation){
   const row=await readObservation(join(ledger.canonical,name),observation)
   if(!row||String(row.registryVersion)!==match[1]||
    row.registryVersion>observation.registryVersion)return false
+  observations.push(row)
   if(row.registryVersion===observation.registryVersion){
    if(row.issuerStatusSnapshotSha256!==observation.issuerStatusSnapshotSha256)
     return false
    found=true
   }
  }
- return found&&await verifyTrustedReceivingLedger20261029(ledger)
+ if(!found)return false
+ const history=await inspectRegistryHistoryWitness20261029(
+  ledger,prefix,observation,observations)
+ return history.ok&&history.latest?.row.registryVersion===observation.registryVersion&&
+  await verifyTrustedReceivingLedger20261029(ledger)
 }
 
-async function inspectLocked(ledger,prefix,observation,callback){
+async function inspectLocked(ledger,prefix,observation,callback,
+ allowLegacyHistoryBootstrap){
  if(!await verifyTrustedReceivingLedger20261029(ledger))
   return denied('RECEIVER_ISSUER_REGISTRY_STATE_CHANGED')
  const names=await readdir(ledger.canonical)
  let highest=0,highestDigest=null
+ const observations=[]
  for(const name of names){
   if(!name.startsWith(prefix))continue
   const match=/^([1-9][0-9]*)\.json$/.exec(name.slice(prefix.length))
@@ -79,10 +92,28 @@ async function inspectLocked(ledger,prefix,observation,callback){
   const row=await readObservation(join(ledger.canonical,name),observation)
   if(!row||String(row.registryVersion)!==match[1])
    return denied('RECEIVER_ISSUER_REGISTRY_STATE_CORRUPT')
+  observations.push(row)
   if(row.registryVersion>highest){
    highest=row.registryVersion
    highestDigest=row.issuerStatusSnapshotSha256
   }
+ }
+ let history=await inspectRegistryHistoryWitness20261029(
+  ledger,prefix,observation,observations)
+ if(!history.ok)return denied('RECEIVER_ISSUER_REGISTRY_HISTORY_CORRUPT')
+ // Existing v1 observation sets predate history witnesses. Establish a
+ // bounded local baseline ONLY under an explicit trusted maintenance opt-in.
+ // A normal receiving claim must never silently re-baseline missing history.
+ if(highest>0&&!history.latest){
+  if(!allowLegacyHistoryBootstrap)
+   return denied('RECEIVER_ISSUER_REGISTRY_HISTORY_MIGRATION_REQUIRED')
+  if(!await appendRegistryHistoryWitness20261029(
+   ledger,prefix,observation,observations,null))
+   return denied('RECEIVER_ISSUER_REGISTRY_HISTORY_COMMIT_UNCERTAIN')
+  history=await inspectRegistryHistoryWitness20261029(
+   ledger,prefix,observation,observations)
+  if(!history.ok||!history.latest)
+   return denied('RECEIVER_ISSUER_REGISTRY_HISTORY_CORRUPT')
  }
  if(observation.registryVersion<highest)
   return denied('RECEIVER_ISSUER_REGISTRY_VERSION_ROLLBACK')
@@ -90,6 +121,10 @@ async function inspectLocked(ledger,prefix,observation,callback){
   observation.issuerStatusSnapshotSha256!==highestDigest)
   return denied('RECEIVER_ISSUER_REGISTRY_VERSION_EQUIVOCATION')
  if(observation.registryVersion>highest){
+  // Refuse before writing an irreversible v2 observation when the bounded
+  // witness format has reached capacity. Requires supervised migration.
+  if(observations.length>=4096)
+   return denied('RECEIVER_ISSUER_REGISTRY_HISTORY_CAPACITY_EXCEEDED')
   const filename=join(ledger.canonical,prefix+observation.registryVersion+'.json')
   let file
   try{
@@ -103,12 +138,16 @@ async function inspectLocked(ledger,prefix,observation,callback){
    if(!await verifyTrustedReceivingLedger20261029(ledger)||
     !await readObservation(filename,observation))
     return denied('RECEIVER_ISSUER_REGISTRY_STATE_COMMIT_UNCERTAIN')
+   observations.push(observation)
   }catch{
    // Never remove or rewrite an uncertain observation. A partial record
    // deliberately blocks later claims until an operator investigates.
    if(file)await file.close().catch(()=>{})
    return denied('RECEIVER_ISSUER_REGISTRY_STATE_COMMIT_UNCERTAIN')
   }
+  if(!await appendRegistryHistoryWitness20261029(
+   ledger,prefix,observation,observations,history.latest))
+   return denied('RECEIVER_ISSUER_REGISTRY_HISTORY_COMMIT_UNCERTAIN')
  }
  if(!await verifyTrustedReceivingLedger20261029(ledger))
   return denied('RECEIVER_ISSUER_REGISTRY_STATE_CHANGED')
@@ -125,7 +164,8 @@ async function inspectLocked(ledger,prefix,observation,callback){
  */
 export async function withIndustrialReceivingRegistryVersionFloor20261029(
  {stateRoot,issuerAudience,ledgerNamespace,trustedStateNamespaces,
-  registryRootSha256,registryVersion,issuerStatusSnapshotSha256},callback,
+  registryRootSha256,registryVersion,issuerStatusSnapshotSha256,
+  allowLegacyHistoryBootstrap=false},callback,
 ){
  if(typeof stateRoot!=='string'||!isAbsolute(stateRoot)||!token(issuerAudience)||
   !token(ledgerNamespace)||!plain(trustedStateNamespaces)||
@@ -156,10 +196,11 @@ export async function withIndustrialReceivingRegistryVersionFloor20261029(
    result=denied('RECEIVER_ISSUER_REGISTRY_LOCK_UNCERTAIN')
   }
   if(!result){
-   const observation={format:'exo.receiving-issuer-registry-floor.v1',
+   const observation={format:'exo.receiving-issuer-registry-floor.v2',
     issuerAudience,ledgerNamespace,registryRootSha256,registryVersion,
-    issuerStatusSnapshotSha256}
-   try{result=await inspectLocked(ledger,prefix,observation,callback)}
+    issuerStatusSnapshotSha256,historyWitnessRequired:true}
+   try{result=await inspectLocked(ledger,prefix,observation,callback,
+    allowLegacyHistoryBootstrap===true)}
    catch{result=denied('RECEIVER_ISSUER_REGISTRY_STATE_INSPECTION_REFUSED')}
   }
   // If creating or syncing the lock failed after O_EXCL, its state is

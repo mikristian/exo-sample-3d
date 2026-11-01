@@ -47,7 +47,7 @@ function inspectLine(data, panel, edge) {
   return { ok: true, panel, edge, revision: data.revision, indices, uvCm, live3dCm, length2dCm: sumLength(uvCm), length3dCm: sumLength(live3dCm), targetSpecificationCm: Number.isFinite(authored.polygon?.target_lengths?.[edge]) ? authored.polygon.target_lengths[edge] * 100 : null, physicalEffect: 'none; drafting specification only' }
 }
 
-export function createAgentApi(workspace, { audit = () => {}, allowOrigin = () => false, keyStorePath } = {}) {
+export function createAgentApi(workspace, { audit = () => {}, allowOrigin = () => false, authorizeUi = () => false, keyStorePath } = {}) {
   if (!workspace || typeof workspace.request !== 'function' || typeof workspace.status !== 'function') throw new TypeError('Workspace API required')
   const keys = createAgentKeyStore(keyStorePath)
   const agentValidator = createAgentValidator()
@@ -162,13 +162,14 @@ export function createAgentApi(workspace, { audit = () => {}, allowOrigin = () =
     const token = bearer || custom || null
     const legacy = process.env.EXO_AGENT_API_TOKEN
     const legacyValid = Boolean(token && legacy && token === legacy)
-    const identity = token && !legacyValid ? keys.authenticate(token) : null
-    if (token && !legacyValid && !identity || (!trusted && !identity && !legacyValid)) { respond(req, res, 401, { ok: false, code: 'UNAUTHORIZED' }); return true }
+    const uiValid = trusted && authorizeUi(authorization)
+    const identity = token && !legacyValid && !uiValid ? keys.authenticate(token) : null
+    if (!uiValid && !identity && !legacyValid) { respond(req, res, 401, { ok: false, code: 'UNAUTHORIZED' }); return true }
     const scopes = identity?.scopes || ['read', 'edit', 'simulate']
     const management = url === '/agent/v1/keys' || url.startsWith('/agent/v1/keys/')
     if (management) {
       if (!trusted) { respond(req, res, 403, { ok: false, code: 'MANAGEMENT_ORIGIN_REQUIRED' }); return true }
-      if (token && !legacyValid && !identity) { respond(req, res, 401, { ok: false, code: 'UNAUTHORIZED' }); return true }
+      if (!uiValid) { respond(req, res, 403, { ok: false, code: 'MANAGEMENT_UI_AUTH_REQUIRED' }); return true }
       try {
         if (req.method === 'GET' && url === '/agent/v1/keys') { audit({ at: new Date().toISOString(), action: 'agent.keys.list', status: 200, ok: true }); respond(req, res, 200, { ok: true, keys: keys.list() }); return true }
         if (req.method === 'DELETE' && /^\/agent\/v1\/keys\/[0-9a-f-]{36}$/i.test(url)) {

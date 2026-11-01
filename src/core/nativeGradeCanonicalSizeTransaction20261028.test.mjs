@@ -103,6 +103,43 @@ test('postcommit durable catalog tampering fails with native recovery required',
  assert.equal(f.getRevision(),9)
 })
 
+test('postcommit durable graded template sparse trailing slot cannot masquerade as exact Rust catalog',async()=>{
+ const f=bridge()
+ const request=async packet=>{
+  const reply=await f.request(packet)
+  if(packet.op==='save'&&f.getRevision()===9){
+   // A damaged adapter can return a sparse array with the same enumerable
+   // indices as the expected catalog but an extra invisible length slot.
+   // Exact durable catalog witnessing must reject the changed cardinality.
+   reply.project.grade_run.gradedTemplates.length+=1
+  }
+  return reply
+ }
+ const result=await commit({snapshot:f.snapshot,expectedRevision:8,ruleSet:f.ruleSet,request})
+ assert.equal(result.ok,false,'Sparse trailing graded template must not pass durable equality')
+ assert.equal(result.nativeCommitted,true)
+ assert.equal(result.needsNativeRecovery,true)
+ assert.equal(result.factoryApproved,false)
+ assert.match(result.reason,/durableCatalog/)
+})
+
+test('postcommit durable graded template missing an indexed size cannot pass the saved catalog witness',async()=>{
+ const f=bridge()
+ const request=async packet=>{
+  const reply=await f.request(packet)
+  if(packet.op==='save'&&f.getRevision()===9){
+   delete reply.project.grade_run.gradedTemplates[1]
+  }
+  return reply
+ }
+ const result=await commit({snapshot:f.snapshot,expectedRevision:8,ruleSet:f.ruleSet,request})
+ assert.equal(result.ok,false)
+ assert.equal(result.nativeCommitted,true)
+ assert.equal(result.needsNativeRecovery,true)
+ assert.equal(result.factoryApproved,false)
+ assert.match(result.reason,/durableCatalog/)
+})
+
 test('explicit null optional Rust catalog fields are not treated as omitted empty fields',async()=>{
  const f=bridge({badNull:true})
  const result=await commit({snapshot:f.snapshot,expectedRevision:8,ruleSet:f.ruleSet,request:f.request})

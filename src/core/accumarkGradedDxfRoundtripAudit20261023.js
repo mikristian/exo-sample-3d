@@ -27,6 +27,7 @@ export function parseAccuMarkGradedDxfWire20261023(wire,{maxPairs=180000,maxEnti
  const pairs=[]
  for(let i=0;i<lines.length;i+=2){const raw=lines[i].trim();const code=Number(raw);if(!/^\d+$/.test(raw)||!Number.isSafeInteger(code)){fail(issues,'INVALID_CODE',i/2);return {ok:false,issues,entities:[],units:null}}pairs.push([code,lines[i+1].trim()])}
  const units=[];let section='';let entities=[];let current=null;let pending=null;let vertexCount=0
+ const seenGroups=new WeakMap()
  for(let i=0;i<pairs.length;i++){
   const [code,value]=pairs[i]
   if(code===9&&value==='$INSUNITS'&&pairs[i+1]?.[0]===70)units.push(pairs[i+1][1])
@@ -34,11 +35,11 @@ export function parseAccuMarkGradedDxfWire20261023(wire,{maxPairs=180000,maxEnti
   if(code===0&&value==='ENDSEC'){if(pending){fail(issues,'UNTERMINATED_POLYLINE',pending.layer??'unknown');pending=null}section='';continue}
   if(section!=='ENTITIES')continue
   if(code===0){
-   if(value==='VERTEX'&&pending){const vertex={};pending.points.push(vertex);vertexCount++;if(vertexCount>maxVertices)fail(issues,'VERTEX_LIMIT',vertexCount);current=vertex;continue}
+   if(value==='VERTEX'&&pending){const vertex={};seenGroups.set(vertex,new Set());pending.points.push(vertex);vertexCount++;if(vertexCount>maxVertices)fail(issues,'VERTEX_LIMIT',vertexCount);current=vertex;continue}
    if(value==='SEQEND'&&pending){pending=null;current=null;continue}
    if(pending){fail(issues,'MISSING_SEQEND',pending.layer??'unknown');pending=null}
    if(['POLYLINE','LWPOLYLINE','LINE'].includes(value)){
-    current={type:value,layer:null,points:[],closed:false,values:{}};entities.push(current);if(value==='POLYLINE')pending=current
+    current={type:value,layer:null,points:[],closed:false,values:{},vertexCounts:[]};seenGroups.set(current,new Set());entities.push(current);if(value==='POLYLINE')pending=current
     if(entities.length>maxEntities)fail(issues,'ENTITY_LIMIT',entities.length)
    }else current={type:value,unsupported:true}
    continue
@@ -55,8 +56,27 @@ export function parseAccuMarkGradedDxfWire20261023(wire,{maxPairs=180000,maxEnti
    fail(issues,'NONPLANAR_GEOMETRY',`${current.layer??pending?.layer??'unknown'} group ${code}`)
    continue
   }
-  if(code===70&&pending&&current!==pending&&Number(value)!==0){fail(issues,'VERTEX_FLAGS',value);continue}
-  if(pending&&current!==pending){if(code===10||code===20){const key=code===10?'x':'y';const n=Number(value);if(!value||!finite(n))fail(issues,'COORDINATE',value);else current[key]=n}continue}
+  if(pending&&current!==pending){
+   if([8,10,20,70].includes(code)){
+    if(seenGroups.get(current).has(code))fail(issues,'DUPLICATE_GROUP',`${pending.layer??'unknown'} VERTEX group ${code}`)
+    else seenGroups.get(current).add(code)
+   }
+   if(code===70&&Number(value)!==0)fail(issues,'VERTEX_FLAGS',value)
+   if(code===10||code===20){const key=code===10?'x':'y';const n=Number(value);if(!value||!finite(n))fail(issues,'COORDINATE',value);else current[key]=n}
+   continue
+  }
+  // A repeated group inside one entity is ambiguous across DXF receivers.
+  // Repetition of 10/20 across distinct VERTEX records (or successive LW
+  // vertices) is legitimate and must remain accepted.
+  if(code===8||code===70||(current.type!=='LWPOLYLINE'&&[10,20,11,21].includes(code))){
+   if(seenGroups.get(current).has(code))fail(issues,'DUPLICATE_GROUP',`${current.layer??'unknown'} ${current.type} group ${code}`)
+   else seenGroups.get(current).add(code)
+  }
+  if(code===90&&current.type==='LWPOLYLINE'){
+   if(!/^\d+$/.test(value)||!Number.isSafeInteger(Number(value)))fail(issues,'LW_VERTEX_COUNT',`${current.layer??'unknown'} invalid group 90`)
+   current.vertexCounts.push(value)
+   continue
+  }
   if(code===8)current.layer=value
   else if(code===70){const flags=Number(value);if(!Number.isInteger(flags)||flags!==1&&current.type!=='LINE')fail(issues,'POLYLINE_FLAGS',value);current.closed=(flags&1)!==0}
   else if([10,20,11,21].includes(code)){
@@ -68,7 +88,9 @@ export function parseAccuMarkGradedDxfWire20261023(wire,{maxPairs=180000,maxEnti
  }
  if(pending)fail(issues,'UNTERMINATED_POLYLINE',pending.layer??'unknown')
  if(units.length!==1||units[0]!=='4')fail(issues,'UNITS',`Expected exactly one INSUNITS=4, got ${units}`)
- for(const e of entities){if(!e.layer)fail(issues,'MISSING_LAYER',e.type);if(['POLYLINE','LWPOLYLINE'].includes(e.type)){
+ for(const e of entities){if(!e.layer)fail(issues,'MISSING_LAYER',e.type);if(e.type==='LWPOLYLINE'){
+  if(e.vertexCounts.length!==1||Number(e.vertexCounts[0])!==e.points.length)fail(issues,'LW_VERTEX_COUNT',`${e.layer??'unknown'} declared=${e.vertexCounts.join(',')||'missing'} actual=${e.points.length}`)
+ }if(['POLYLINE','LWPOLYLINE'].includes(e.type)){
   if(e.points.length<3||e.points.some(p=>!finite(p.x)||!finite(p.y)))fail(issues,'POLYLINE_COORDINATES',e.layer)
   if(!e.closed)fail(issues,'OPEN_CONTOUR',e.layer)
  }else if(e.type==='LINE'&&[10,20,11,21].some(c=>!finite(e.values[c])))fail(issues,'LINE_COORDINATES',e.layer)

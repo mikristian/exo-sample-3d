@@ -30,6 +30,7 @@ SERVICE="$APP/Contents/Resources"
 for file in \
   integrations/clothcraft/avatarPersistenceContract.mjs \
   integrations/clothcraft/agent-key-store.mjs \
+  integrations/clothcraft/workspace-auth.mjs \
   integrations/clothcraft/collaboration.mjs \
   integrations/clothcraft/apple-vision-hand.mjs \
   integrations/clothcraft/pattern-intelligence-catalog.mjs \
@@ -54,6 +55,33 @@ cp "$WEB/index.html" "$BACKUP/index.html"
 CURSOR="$WEB/cursors/cad-anchor-convert.svg"
 if [[ -e "$CURSOR" ]]; then cp "$CURSOR" "$BACKUP/cad-anchor-convert.svg"; fi
 cp -R "$BUILD/assets/." "$WEB/assets/"
+# The Tech Pack demo must use the actual archived native T-shirt render;
+# hashed JS alone cannot load this named, source-backed reference. This is a
+# private local sample, not retail or commercial licensed Nike merchandise.
+if [[ -s "$BUILD/techpack-demo/nike-saved-native-render.webp" ]]; then
+  mkdir -p "$WEB/techpack-demo"
+  cp "$BUILD/techpack-demo/nike-saved-native-render.webp" "$WEB/techpack-demo/nike-saved-native-render.webp"
+fi
+# Optional *user-local*, purchased private technical-flat reference. The build
+# never contains it unless the user separately prepares their own private
+# asset; no licensed SEAGGS files are checked into EXO public source. Copy
+# this single allowlisted filename rather than distributing an asset folder.
+PRIVATE_SEAGGS="$BUILD/private-mockups/seaggs-tshirt-private-transparent.png"
+if [[ -s "$PRIVATE_SEAGGS" ]]; then
+  PRIVATE_SIZE="$(/usr/bin/stat -f %z "$PRIVATE_SEAGGS")"
+  (( PRIVATE_SIZE > 0 && PRIVATE_SIZE < 240000 )) || { echo "Private T-shirt reference exceeds local import limit" >&2; exit 1; }
+  mkdir -p "$WEB/private-mockups"
+  cp "$PRIVATE_SEAGGS" "$WEB/private-mockups/seaggs-tshirt-private-transparent.png"
+fi
+for VIEW in front back; do
+  PRIVATE_SEAGGS_SVG="$BUILD/private-mockups/seaggs-tshirt-$VIEW-vector.svg"
+  if [[ -s "$PRIVATE_SEAGGS_SVG" ]]; then
+    VECTOR_SIZE="$(/usr/bin/stat -f %z "$PRIVATE_SEAGGS_SVG")"
+    (( VECTOR_SIZE > 100 && VECTOR_SIZE < 285000 )) || { echo "Private vector artwork exceeds local import limit" >&2; exit 1; }
+    mkdir -p "$WEB/private-mockups"
+    cp "$PRIVATE_SEAGGS_SVG" "$WEB/private-mockups/seaggs-tshirt-$VIEW-vector.svg"
+  fi
+done
 # Small, integrity-checked user project reference snapshots needed by the
 # one-time native File Library importer. Never overwrite an existing saved
 # garment asset with a different payload or touch the app's live workspace.

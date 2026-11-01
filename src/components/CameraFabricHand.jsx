@@ -1,3 +1,4 @@
+import {nativeBridgeFetch} from '../core/nativeWorkspaceTransport.js'
 import React,{useEffect,useRef,useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Camera,CameraOff,Circle,Grip,Hand,Square,X} from 'lucide-react'
@@ -139,7 +140,7 @@ export default function CameraFabricHand({onActivate,disabled=false,viewportRef}
       const factory=import.meta.env.DEV?window.__exoFabricHandTrackerFactory:null
       let detector
       if(chosen==='apple-vision'){
-        const response=await fetch(`${BRIDGE}/vision/hand/status`)
+        const response=await nativeBridgeFetch(`${BRIDGE}/vision/hand/status`)
         const status=await response.json()
         if(!response.ok||!status.available)throw Error('Apple Vision requires the local ClothCraft native Vision adapter. Relaunch the updated V2 app.')
       }else if(typeof factory==='function')detector=await factory()
@@ -177,7 +178,7 @@ export default function CameraFabricHand({onActivate,disabled=false,viewportRef}
             if(chosen==='apple-vision'){
               appleContext.drawImage(video.current,0,0,appleCanvas.width,appleCanvas.height)
               const image=appleCanvas.toDataURL('image/jpeg',.62).split(',')[1]
-              const response=await fetch(`${BRIDGE}/vision/hand`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image})})
+              const response=await nativeBridgeFetch(`${BRIDGE}/vision/hand`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({image})})
               const result=await response.json()
               if(!response.ok||!result.ok)throw Error(result.error||'Apple Vision frame failed')
               accept(result.landmarks)

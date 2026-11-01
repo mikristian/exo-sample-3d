@@ -3452,10 +3452,10 @@ export default function ClothCraftBoardV2({
           <defs>
             <clipPath id={clipId}><path d={shapePath}/></clipPath>
             <linearGradient id={`${uid}-pattern-glass-${panelIndex}`} x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#ffffff" stopOpacity=".15"/>
-              <stop offset=".34" stopColor={cadColor20261023(studioPreferences?.twoDPatternColor,'#cce7f5')} stopOpacity=".035"/>
-              <stop offset=".78" stopColor={cadColor20261023(studioPreferences?.twoDPatternColor,'#cce7f5')} stopOpacity=".055"/>
-              <stop offset="1" stopColor="#ffffff" stopOpacity=".12"/>
+              <stop offset="0" stopColor="#ffffff" stopOpacity=".18"/>
+              <stop offset=".34" stopColor={cadColor20261023(studioPreferences?.twoDPatternColor,'#cce7f5')} stopOpacity=".07"/>
+              <stop offset=".78" stopColor={cadColor20261023(studioPreferences?.twoDPatternColor,'#cce7f5')} stopOpacity=".09"/>
+              <stop offset="1" stopColor="#ffffff" stopOpacity=".16"/>
             </linearGradient>
           </defs>
           {/* CLO drafting paper: a soft selected surface and an opaque white
@@ -3464,8 +3464,9 @@ export default function ClothCraftBoardV2({
             data-pattern-outline-valid={String(Boolean(perimeterPath))}
             data-paper-preview-state={editablePreview?'uncommitted-curve':'native-mesh'} d={shapePath}
             fill={!perimeterPath?'none':studioPreferences?.twoDPatternColor&&studioPreferences.twoDPatternColor!=='auto'?cadColor20261023(studioPreferences.twoDPatternColor,PATTERN_VISUAL.paper):patternStudioActive?'#b7d9f6':selected?PATTERN_VISUAL.selectedPaper:PATTERN_VISUAL.paper}
-            fillOpacity={studioPreferences?.twoDPatternSurfaceStyle==='glass'
-              ?selected?.09:.045:
+            fillOpacity={studioPreferences?.twoDPatternSurfaceStyle==='outline'?0:
+              studioPreferences?.twoDPatternSurfaceStyle==='glass'
+              ?Math.max(0,Math.min(.35,Number(studioPreferences?.twoDPatternGlassOpacity??.08)))*(selected?1:.6):
               (reference.image?.visible!==false&&reference.image)
               ||patternReferences.some(item=>item.visible!==false&&!referenceModeActive)?.26:1}
             style={{cursor:busy?'default':nativeCursor||(transform2d?cursorForTool('move'):'default')}}
@@ -3479,7 +3480,25 @@ export default function ClothCraftBoardV2({
           {Boolean(perimeterPath)&&studioPreferences?.twoDPatternSurfaceStyle==='glass'&&
             <path data-pattern-surface-glass="true" d={shapePath}
               fill={`url(#${uid}-pattern-glass-${panelIndex})`}
+              opacity={Math.max(0,Math.min(1,Number(studioPreferences?.twoDPatternGlassOpacity??.08)/.35))}
               stroke="#ffffff" strokeOpacity=".45" strokeWidth=".8"
+              vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
+          {Boolean(perimeterPath)&&
+            studioPreferences?.twoDPatternOutlineGlow===true&&
+            ['glass','outline'].includes(studioPreferences?.twoDPatternSurfaceStyle)&&
+            Number(studioPreferences?.twoDPatternOutlineGlowStrength??.55)>0&&
+            <path data-pattern-outline-glow="true" d={shapePath} fill="none"
+              stroke={studioPreferences?.twoDPatternOutlineGlowColor&&studioPreferences.twoDPatternOutlineGlowColor!=='auto'
+                ?cadColor20261023(studioPreferences.twoDPatternOutlineGlowColor,'#75e3ff')
+                :cadColor20261023(studioPreferences?.twoDEdgeColor,'#75e3ff')}
+              strokeOpacity={Math.max(.25,Math.min(1,Number(studioPreferences.twoDPatternOutlineGlowStrength)))}
+              strokeWidth={1.1+Number(studioPreferences.twoDPatternOutlineGlowStrength??.55)*.7}
+              style={{
+                color:studioPreferences?.twoDPatternOutlineGlowColor&&studioPreferences.twoDPatternOutlineGlowColor!=='auto'
+                  ?cadColor20261023(studioPreferences.twoDPatternOutlineGlowColor,'#75e3ff')
+                  :cadColor20261023(studioPreferences?.twoDEdgeColor,'#75e3ff'),
+                filter:`drop-shadow(0 0 ${1+Number(studioPreferences.twoDPatternOutlineGlowStrength??.55)*7}px currentColor)`,
+              }}
               vectorEffect="non-scaling-stroke" pointerEvents="none"/>}
           {transformBounds&&<g data-2d-pattern-transform-box={panel.id} pointerEvents="none">
             <rect x={transformBounds.minX} y={transformBounds.minY}

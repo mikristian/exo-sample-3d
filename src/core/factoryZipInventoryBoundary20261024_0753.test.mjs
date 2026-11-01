@@ -6,7 +6,7 @@ import {buildGuardedFactoryManifestZip20261024_0053} from './guardedFactoryManif
 import {auditFactoryZipResourceBudget20261024_0600} from './factoryZipResourceBudget20261024_0600.mjs'
 import {auditFactoryPackageManifestBrowser20261024_0053} from './factoryPackageManifestBrowser20261024_0053.mjs'
 
-const MAX_RESOURCE_ENTRIES = 80
+const MAX_RESOURCE_ENTRIES = 1024
 
 function foundationArchive() {
   const project = createTeeTemplate()
@@ -34,7 +34,7 @@ test('generated factory ZIP inventory is exact, bounded and not manufacturing-ap
   assert.deepEqual(archive.bytes, originalBytes, 'verification must not mutate source bytes')
 })
 
-test('resource entry ceiling accepts exactly 80 entries and refuses 81', () => {
+test('resource entry ceiling accepts exactly 1024 entries and refuses 1025', () => {
   const archive = foundationArchive()
   const entries = unzipSync(archive.bytes)
   const count = Object.keys(entries).length

@@ -31,7 +31,8 @@ const canonicalIso=x=>typeof x==='string'&&/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{
  */
 export async function inspectIndustrialReceivingPinnedSession20261028(
  project,explorer,plansByFabric,handoffPacket,outboundWires,evidence,attestation,
- {policy=null,trustedKeys=null,nowMs=Date.now()}={},
+ {policy=null,trustedKeys=null,nowMs=Date.now(),
+  returnedFilePacket=null,requireReturnedFileBytes=false}={},
 ){
  try{
   if(!exact(policy,fields)||!plain(attestation)||!plain(attestation.payload)||
@@ -76,7 +77,14 @@ export async function inspectIndustrialReceivingPinnedSession20261028(
    return deny('RECEIVER_SESSION_TRUST_ANCHOR_DRIFT')
   const signed=await inspectIndustrialReceivingSignedEvidence20261028(
    project,explorer,plansByFabric,handoffPacket,outboundWires,evidence,attestation,
-   {trustedKeys,expectedChallenge:policy.challenge,nowMs})
+   {trustedKeys,expectedChallenge:policy.challenge,nowMs,
+    returnedFilePacket,requireReturnedFileBytes})
+  if(!signed.ok&&signed.issues?.some(issue=>
+   issue.code==='RECEIVER_RETURNED_FILES_REQUIRE_V2_SIGNED_RECORDS'))
+   return deny('RECEIVER_PINNED_IMPORT_RECORD_BINDING_REQUIRED',signed.issues)
+  if(!signed.ok&&signed.issues?.some(issue=>
+   issue.code==='RECEIVER_RETURNED_FILES_UNVERIFIED'))
+   return deny('RECEIVER_RETURNED_FILES_UNVERIFIED',signed.issues)
   if(!signed.ok)return deny('RECEIVER_PINNED_SIGNATURE_OR_GEOMETRY_DRIFT',signed.issues)
   // A pinned session is a process-evidence gate, not merely a wire-signature
   // check. Legacy v1 signs DXF digests but leaves import receipts substitutable.

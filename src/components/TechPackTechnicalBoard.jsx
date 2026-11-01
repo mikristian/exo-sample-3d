@@ -3,6 +3,7 @@ import {layoutTechnicalPatterns,projectTechnicalMesh,sourceSeamCallouts,technica
 import {bezierPath,moveBezierAnchor,moveTechPackAnnotation,newBezierAnchor,roundedPoint} from '../core/techPackBezier.js'
 import {annotationBounds,resizeTechPackAnnotation} from '../core/techPackAnnotationTransform.js'
 import {linkedMeasurementLabel} from '../core/techPackMeasurementDrawing.js'
+import {arrowPlacement} from '../core/techPackArrowPlacement.js'
 
 const finite=x=>Number.isFinite(x)
 const modes=new Set(['pen','bezier','arrow','dimension','marker'])
@@ -158,9 +159,9 @@ export default function TechPackTechnicalBoard({pageId,source,nativeSnapshot,pro
     const pt=coords(event)||session.points[session.points.length-1]
     const points=session.kind==='pen'?[...session.points,pt]:[session.points[0],pt]
     const len=Math.hypot(pt[0]-points[0][0],pt[1]-points[0][1])
-    if(session.kind==='marker'||session.kind==='pen'&&points.length>1||['arrow','dimension'].includes(session.kind)&&len>=3){
+    if(session.kind==='marker'||session.kind==='pen'&&points.length>1||session.kind==='arrow'||session.kind==='dimension'&&len>=3){
       const annotation={id:`annotation-${Date.now()}-${Math.random().toString(36).slice(2)}`,type:session.kind,
-        points:session.kind==='marker'?[points[0]]:points.map(p=>p.map(n=>Math.round(n*10)/10)),
+        points:session.kind==='marker'?[points[0]]:session.kind==='arrow'?arrowPlacement(points[0],pt,980,height):points.map(p=>p.map(n=>Math.round(n*10)/10)),
         label:session.kind==='arrow'?'Construction detail':session.kind==='marker'?'DETAIL':'',
         ...(session.kind==='dimension'?{pomId:'',sizeIndex:2,placementVerified:false}:{})}
       onAdd(pageId,annotation)
@@ -206,8 +207,11 @@ export default function TechPackTechnicalBoard({pageId,source,nativeSnapshot,pro
       </g>
     }
     if(item.type==='pen')return <g><polyline points={points.map(p=>p.join(',')).join(' ')} fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/><polyline points={points.map(p=>p.join(',')).join(' ')} fill="none" stroke="transparent" strokeWidth="18" pointerEvents="stroke"/></g>
-    if(item.type==='arrow')return <g><path d={`M${start.join(' ')} L${last.join(' ')}`} fill="none" stroke={color} strokeWidth="2.5" markerEnd={`url(#tpws-tech-arrow-${pageId})`}/><path d={`M${start.join(' ')} L${last.join(' ')}`} fill="none" stroke="transparent" strokeWidth="20" pointerEvents="stroke"/><text x={start[0]} y={start[1]-8} fontSize="13" fill={color} fontWeight="800">{tidy(item.label)}</text>
+    if(item.type==='arrow'){
+      const [origin,tip]=temporary?arrowPlacement(start,last,980,height):[start,last]
+      return <g><path d={`M${origin.join(' ')} L${tip.join(' ')}`} fill="none" stroke={color} strokeWidth="3" markerEnd={`url(#tpws-tech-arrow-${pageId})`}/><path d={`M${origin.join(' ')} L${tip.join(' ')}`} fill="none" stroke="transparent" strokeWidth="20" pointerEvents="stroke"/><text x={origin[0]} y={origin[1]-8} fontSize="13" fill={color} fontWeight="800">{tidy(item.label)}</text>
       {item.instruction&&<text x={start[0]} y={start[1]+13} fontSize="10" fill={color}>{tidy(item.instruction).slice(0,75)}</text>}</g>
+    }
     return <g key={item.id||'working'}><circle cx={start[0]} cy={start[1]} r="15" fill="#fff" stroke={color} strokeWidth="2"/><text x={start[0]} y={start[1]+4} fontSize="11" textAnchor="middle" fontWeight="800" fill={color}>!</text><text x={start[0]+20} y={start[1]+4} fontWeight="700" fontSize="12" fill={color}>{tidy(item.label)}</text></g>
   }
 
@@ -229,7 +233,7 @@ export default function TechPackTechnicalBoard({pageId,source,nativeSnapshot,pro
           setContextMenu({id,x:Math.max(0,Math.min(event.clientX-frame.left,frame.width-145)),y:Math.max(0,Math.min(event.clientY-frame.top,frame.height-80))})
         }}
         data-annotation-surface={pageId} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={()=>setWorking(null)} onDoubleClick={event=>{if(tool==='bezier'){event.preventDefault();finishBezier()}}}>
-        <defs><marker id={`tpws-tech-arrow-${pageId}`} markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto"><path d="M0 0 L7 3 L0 6" fill="none" stroke="#c63e3e" strokeWidth="1.6"/></marker>
+        <defs><marker id={`tpws-tech-arrow-${pageId}`} markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto" markerUnits="strokeWidth"><path d="M0 0 L8 4 L0 8 Z" fill="#c63e3e"/></marker>
           <marker id={`tpws-dimension-arrow-${pageId}`} markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto-start-reverse"><path d="M0 0 L6 3 L0 6" fill="none" stroke="#c63e3e" strokeWidth="1.6"/></marker></defs>
         <rect width="980" height={height} fill="#fcfdfc"/>
         {isPattern? <g>{pattern.pieces.map((p,i)=><g key={p.id}>

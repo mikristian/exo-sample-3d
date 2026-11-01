@@ -192,12 +192,45 @@ export function printPngDimensions20261025(plan,dpi=300) {
   return {width,height,dpi,pixels:width*height,widthCm:plan.sheetWidthCm,heightCm:plan.sheetHeightCm}
 }
 /** Dependency-free, deterministic PDF 1.4 writer. All byte content is ASCII by construction. */
-export function createPrintPdf20261025({pieces=[],placements={},plan,fabricId='',revision='current'}={}) {
+export function createPrintPdf20261025({pieces=[],placements={},plan,fabricId='',revision='current',includeCalibrationPage=false}={}) {
   if(!plan?.pages?.length||plan.pages.length>300||!Number.isFinite(plan.sheetWidthCm)||!Number.isFinite(plan.sheetHeightCm))throw Error('Invalid PDF page plan')
+  // Direct callers must not be able to export a plausible PDF that silently
+  // omits an unplaced graded panel. The interactive print studio already
+  // blocks this through auditPrintLayout, but the exported API is also used
+  // independently of that UI and must fail closed on its own.
+  if(!Array.isArray(pieces)||pieces.length===0)throw Error('Print PDF requires at least one pattern piece')
+  const ids=new Set()
+  for(const p of pieces){
+    if(typeof p?.id!=='string'||!p.id||ids.has(p.id))throw Error('Invalid or duplicate PDF pattern piece ID')
+    ids.add(p.id)
+    if(!Object.hasOwn(placements,p.id))throw Error(`Cannot export PDF: unplaced pattern piece ${p.id}`)
+    const pos=placements[p.id]
+    if(!pos||!Number.isFinite(pos.x)||!Number.isFinite(pos.y)||pos.x<0||pos.y<0)
+      throw Error(`Invalid marker placement for PDF: ${p.id}`)
+    if(!valid(p.points)||p.points.length>100000)throw Error(`Invalid pattern geometry for PDF: ${p.id}`)
+  }
   const objects=[null]
   const add=body=>{objects.push(body);return objects.length-1}
   const catalogId=add(''),pagesId=add(''),fontId=add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>')
   const pageIds=[]
+  // The 100 mm square is independent of the chosen pattern scaling. It lets
+  // the operator detect printer X/Y distortion before assembling any tiles.
+  if(includeCalibrationPage){
+    const w=plan.sheetWidthCm,h=plan.sheetHeightCm
+    if(w<13||h<15)throw Error('100 mm calibration requires paper at least 13 × 15 cm')
+    const commands=[
+      'q',`${pdfNumber(CM_TO_PT)} 0 0 ${pdfNumber(-CM_TO_PT)} 0 ${pdfNumber(h*CM_TO_PT)} cm`,
+      '.035 w','0 G','1.2 1.8 10 10 re S',
+      '1.2 12.1 m 11.2 12.1 l S','12 1.8 m 12 11.8 l S','Q',
+      `BT /F1 12 Tf ${pdfNumber(1.2*CM_TO_PT)} ${pdfNumber((h-1.1)*CM_TO_PT)} Td (EXO / PRINT SCALE CHECK / ACTUAL SIZE) Tj ET`,
+      `BT /F1 9 Tf ${pdfNumber(1.2*CM_TO_PT)} ${pdfNumber((h-13.1)*CM_TO_PT)} Td (100 x 100 mm actual-size calibration - measure X and Y) Tj ET`,
+      `BT /F1 8 Tf ${pdfNumber(1.2*CM_TO_PT)} ${pdfNumber((h-13.8)*CM_TO_PT)} Td (Print at 100% / Actual size. Turn off Fit to page.) Tj ET`,
+      `BT /F1 8 Tf ${pdfNumber(1.2*CM_TO_PT)} ${pdfNumber((h-14.3)*CM_TO_PT)} Td (Pattern ${pdfNumber(plan.scale)}% | Calibrator stays 100 mm.) Tj ET`,
+    ]
+    const stream=commands.join('\n')+'\n'
+    const contentId=add(`<< /Length ${stream.length} >>\nstream\n${stream}endstream`)
+    pageIds.push(add(`<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${pdfNumber(w*CM_TO_PT)} ${pdfNumber(h*CM_TO_PT)}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`))
+  }
   for(const page of plan.pages){
     const {sheetWidthCm:w,sheetHeightCm:h,marginCm:m,printableWidthCm:pw,printableHeightCm:ph,ratio}=plan
     if(!Number.isFinite(page.col)||!Number.isFinite(page.row)||!Number.isFinite(ratio)||ratio<=0)throw Error('Invalid PDF tile')

@@ -8,7 +8,7 @@ const directOverrides=value=>value&&typeof value==='object'&&!Array.isArray(valu
 
 export function validateSixSizeRegenerationPreview20261027(report,revision,expectedOverrides=null){
   if(!report||report.format!=='exo-native-reactive-size-run.v1'||report.sourceRevision!==revision||report.manufacturerApproved!==false||report.factoryApproved!==false)return false
-  if(asCount(report.changedPanels)===null||asCount(report.changedBindings)===null||report.changedPanels<2||report.changedPanels>32||report.changedBindings<report.changedPanels||report.changedBindings>128)return false
+  if(asCount(report.changedPanels)===null||asCount(report.changedBindings)===null||report.changedPanels<1||report.changedPanels>32||report.changedBindings<report.changedPanels||report.changedBindings>128)return false
   if(!Array.isArray(report.panelIds)||report.panelIds.length!==report.changedPanels||report.panelIds.some(id=>typeof id!=='string'||!id)||new Set(report.panelIds).size!==report.changedPanels)return false
   if(!Array.isArray(report.bindingIds)||report.bindingIds.length!==report.changedBindings||report.bindingIds.some(id=>typeof id!=='string'||!id)||new Set(report.bindingIds).size!==report.changedBindings)return false
   if(!directOverrides(report.measurementOverrides))return false

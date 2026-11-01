@@ -17,7 +17,14 @@ export default function NativePatternAuditPanel({audit,revision,onClose,onRefres
     {panel.editable?<><div>{mm(panel.widthMm)} × {mm(panel.heightMm)} · {panel.edgeCount} edges · {panel.notchCount} notches</div>
       <div>Allowance assigned: {panel.allowanceEdgeCount}/{panel.edgeCount} edges · {panel.curveCount} Bézier edges</div>
       <details><summary>Measured stitching edges</summary>
-       <ul>{panel.edges.map(edge=><li key={edge.edgeId}>{edge.edgeId}: {mm(edge.lengthMm)}{edge.curve?' (curve)':''}{edge.targetMm!=null?` · target ${mm(edge.targetMm)}`:''}</li>)}</ul>
+       <ul>{panel.edges.map(edge=><li key={edge.edgeId}>
+        {edge.edgeId}: {mm(edge.lengthMm)}{edge.curve?' (curve)':''}{edge.targetMm!=null?` · target ${mm(edge.targetMm)}`:''}
+        {edge.curve&&Number.isFinite(edge.precisionLengthMm)&&<div data-native-curve-precision="true">
+         Source Bézier: {edge.precisionLengthMm.toFixed(3)} mm · uncertainty ±{Number(edge.precisionUncertaintyMm).toFixed(3)} mm
+         {Number.isFinite(edge.sampledLengthBiasMm)&&<> · sampled difference {edge.sampledLengthBiasMm.toFixed(3)} mm</>}
+        </div>}
+       </li>)}</ul>
+       <small>Source Bézier precision is a read-only independent length check; native notches, sewing and CUT geometry still use the existing sampled curve.</small>
       </details></>:<div>Not an editable source polygon.</div>}
    </section>)}
    {audit.seams.length>0&&<section><strong>Seam length comparisons</strong><ul>{audit.seams.map(seam=><li key={seam.seamId}>{seam.seamId}: {mm(seam.firstLengthMm)} / {mm(seam.secondLengthMm)} · mismatch {mm(seam.mismatchMm)}</li>)}</ul></section>}

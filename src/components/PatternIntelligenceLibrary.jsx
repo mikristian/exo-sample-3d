@@ -1,3 +1,4 @@
+import {nativeBridgeFetch} from '../core/nativeWorkspaceTransport.js'
 import React, {useEffect, useMemo, useState} from 'react'
 import './PatternIntelligenceLibrary.css'
 
@@ -13,7 +14,7 @@ export default function PatternIntelligenceLibrary({search = ''}) {
     const port = window.location.port
     const bridge = port === '5486' ? 'http://127.0.0.1:5485' : port === '5386' ? 'http://127.0.0.1:5385'
       : (import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL || 'http://127.0.0.1:5193')
-    fetch(`${bridge}/pattern-intelligence/v1/catalog`, {signal:controller.signal, cache:'no-store'})
+    nativeBridgeFetch(`${bridge}/pattern-intelligence/v1/catalog`, {signal:controller.signal, cache:'no-store'})
       .then(async response => {
         const data = await response.json()
         if (!response.ok || !data?.ok || !Array.isArray(data.files)) throw new Error(data?.error || 'Pattern library unavailable')

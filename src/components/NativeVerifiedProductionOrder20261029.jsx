@@ -1,3 +1,4 @@
+import {nativeBridgeFetch} from '../core/nativeWorkspaceTransport.js'
 import React,{useEffect,useRef,useState} from 'react'
 import {prepareNativeProductionOrderRequest,
   verifyNativeProductionOrderResponse20261029,
@@ -44,7 +45,7 @@ export default function NativeVerifiedProductionOrder20261029({nativeBase,native
   pendingFetchRef.current?.abort()
   pendingFetchRef.current=controller
   try{
-   const response=await fetch(nativeBase+'/production/native-verified/v1/'+action,{
+   const response=await nativeBridgeFetch(nativeBase+'/production/native-verified/v1/'+action,{
     method:'POST',headers:{'Content-Type':'application/json'},
     body:JSON.stringify(packet),signal:controller.signal})
    const payload=await response.json()

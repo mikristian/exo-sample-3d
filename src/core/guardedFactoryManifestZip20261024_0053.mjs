@@ -5,7 +5,7 @@ import {auditFactoryPackageManifestBrowser20261024_0053} from './factoryPackageM
 import {requireAccuMarkGuardedFactoryPostZipParity20261024} from './accumarkGuardedFactoryPostZipGate20261024.mjs'
 
 const MAX_ZIP_BYTES = 40 * 1024 * 1024
-const MAX_ENTRIES = 320
+const MAX_ENTRIES = 1024
 const MAX_ENTRY_BYTES = 8 * 1024 * 1024
 const MAX_TOTAL_BYTES = 40 * 1024 * 1024
 

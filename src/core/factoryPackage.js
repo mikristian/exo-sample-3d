@@ -1,6 +1,7 @@
 import { strToU8, zipSync } from 'fflate'
 import { buildSizeRun, gradeProject } from './grading.js'
-import { buildFabricMarkers } from './marker.js'
+import {assertFreshModarisSizeLinkedGradeProject20261027} from './modarisSizeLinkedGradePersistence20261027.js'
+import { buildFabricMarkers, buildMarker } from './marker.js'
 import { buildTechPack, measurementRunToCSV } from './measurements.js'
 import { projectToDxf } from './dxf.js'
 import { pieceArea, seamLengthReport } from './project.js'
@@ -9,6 +10,7 @@ import { inspectIndustrialPatterns } from './industrialPatternQA.js'
 import {createFactorySampleWorksheet,inspectFactorySampleEvidence} from './factorySampleApproval.js'
 import {createTeeNeckbandSampleSet} from './teeNeckbandSample.js'
 import {inspectGradedNotchPairs} from './industrialNotchQA.js'
+import {inspectGradedNotchSeamIntervals} from './gradedNotchIntervalAudit.js'
 import {inspectGradedCutlines} from './industrialCutlineQA.js'
 import {auditGradedSizeRunGeometry} from './gradedSizeRunGeometryAudit.js'
 import {inspectManufacturingReleaseReadiness} from './manufacturingReleaseReadiness.js'
@@ -202,13 +204,13 @@ function constructionRows(project) {
   return rows
 }
 
-function markerRows(project) {
+function markerRows(project, gradedSizeRun = null) {
   const width = project.markerSettings?.fabricWidthCm ?? 150
   const gap = project.markerSettings?.gapCm ?? 1.5
   const sizes = project.grading?.sizes || [project.grading?.baseSize || 'M']
   const rows = [['Size', 'Fabric ID', 'Material', 'Fabric width cm', 'Gap cm', 'Marker length cm', 'Efficiency %', 'Requested pieces', 'Placed pieces', 'Unplaced pieces', 'Unplaced detail']]
   for (const size of sizes) {
-    const graded = gradeProject(project, size)
+    const graded = gradedSizeRun?.[size] ?? gradeProject(project, size)
     const markers = buildFabricMarkers(graded, width, gap)
     for (const [fabricId, marker] of Object.entries(markers)) {
       rows.push([
@@ -302,8 +304,21 @@ ${markerWarnings.length ? `<div class="notice warning"><strong>Marker review:</s
 </body></html>`
 }
 
-function validateSharedFactoryInput(project) {
+function validateSharedFactoryInput(project, gradedSizeRun = null) {
   const refuse = reason => { throw new Error(`Factory package refused: ${reason}`) }
+  if(gradedSizeRun !== null){
+    const named=project?.grading?.sizes?.length?project.grading.sizes:[project?.grading?.baseSize||'M']
+    if(!gradedSizeRun||typeof gradedSizeRun!=='object'||Array.isArray(gradedSizeRun)||
+      Object.keys(gradedSizeRun).length!==named.length||
+      named.some(size=>!Object.hasOwn(gradedSizeRun,size)||
+        gradedSizeRun[size]?.previewSize!==size||
+        !Array.isArray(gradedSizeRun[size]?.pieces)||
+        gradedSizeRun[size].pieces.length!==project.pieces?.length||
+        gradedSizeRun[size].pieces.some((piece,index)=>
+          piece?.id!==project.pieces[index]?.id||
+          piece?.points?.length!==project.pieces[index]?.points?.length)))
+      refuse('authoritative grading run missing, mis-sized or inconsistent')
+  }
   if (!project || !Array.isArray(project.pieces) || !Array.isArray(project.seams)) refuse('pieces and seams must be arrays')
   const pieces = new Map()
   for (const piece of project.pieces) {
@@ -345,7 +360,7 @@ function validateSharedFactoryInput(project) {
   }
   const validatedDxfBySize = new Map()
   for (const size of sizes) {
-    const graded = gradeProject(project, size)
+    const graded = gradedSizeRun?.[size] ?? gradeProject(project, size)
     const dxf = projectToDxf(graded, size, {cutlineMode:'manufacturing',requireGradedGeometry:true})
     const audit = preflightPhysicalCutOverlap20261023_2000(dxf)
     if (!audit.ok || audit.contourCount !== graded.pieces.length) {
@@ -361,10 +376,19 @@ function validateSharedFactoryInput(project) {
 }
 
 export function buildFactoryPackageFiles(project) {
+  // An authored connected Modaris graph cannot be silently interpreted as
+  // ordinary per-piece grading. Until the entire manufacturing pipeline
+  // derives DXF, markers and size-run from the same final linked curves,
+  // refuse this handoff rather than issuing internally inconsistent files.
+  if (project?.modarisSizeLinkedGrade !== undefined) {
+    assertFreshModarisSizeLinkedGradeProject20261027(project)
+    throw new Error('Factory package refused: connected Modaris linked grade has no authoritative manufacturing export path')
+  }
   if (project?.patternSource?.referenceOnly || (Array.isArray(project?.pieces) && project.pieces.some(piece=>piece?.patternImportProvenance?.referenceOnly))) {
     throw new Error('Factory package refused: a CUT/STITCH DXF reference is not an authored graded garment. Restore garment-source.json, redraw and verify the sewing/cutting rules, then sample before export.')
   }
-  const validatedDxfBySize = validateSharedFactoryInput(project)
+  const authoritativeRun = buildSizeRun(project)
+  const validatedDxfBySize = validateSharedFactoryInput(project, authoritativeRun)
   const nameSlug = slug(project.name)
   const sizes = project.grading?.sizes || [project.grading?.baseSize || 'M']
   const files = {}
@@ -385,8 +409,25 @@ export function buildFactoryPackageFiles(project) {
   const gradedBySize = Object.create(null)
   const markersBySize = Object.create(null)
   for (const size of sizes) {
-    gradedBySize[size] = gradeProject(project, size)
-    markersBySize[size] = buildFabricMarkers(gradedBySize[size], markerWidth, markerGap)
+    gradedBySize[size] = authoritativeRun[size]
+    // Factory exports must honor exact quantities and manufacturing constraints.
+    // The preview helper deliberately rounds demand and therefore cannot gate a release package.
+    const graded = gradedBySize[size]
+    // Legacy authored patterns omit quantity to mean one; preserve that
+    // documented default while refusing explicit fractional/invalid demand.
+    const strictProject = {...graded, pieces:graded.pieces.map(piece =>
+      piece.cutQuantity == null ? {...piece, cutQuantity:1} : piece)}
+    const fabricIds = [...new Set(graded.pieces.map(piece => piece.fabricId || 'main'))]
+    markersBySize[size] = Object.fromEntries(fabricIds.map(fabricId => {
+      const width = graded.markerSettings?.fabricWidthsCm?.[fabricId] ?? markerWidth
+      try {
+        return [fabricId, buildMarker(strictProject, width, markerGap, {fabricId, strictProductionDemand:true})]
+      } catch (error) {
+        const reason = String(error?.message || error)
+        const code = reason.startsWith('MISSING_OR_INVALID_CUT_QUANTITY:') ? 'INVALID_CUT_QUANTITY' : reason
+        throw new Error(`Factory package refused: marker/DXF physical CUT parity failed: ${code} (${size}/${fabricId})`)
+      }
+    }))
   }
   const markerDxfAudit = auditMarkerDxfGeometryParity20261024(
     { ...project, grading: { ...(project.grading || {}), sizes } },
@@ -422,7 +463,9 @@ export function buildFactoryPackageFiles(project) {
     '- industrial-pattern-qa.json: per-size seam, contour and POM checks; NOT factory certification',
     '- industrial-pattern-issues.csv: human-readable all-size QA blockers, including affected size and seam (never silently skipped)',
     '- industrial-pattern-seam-walk.csv: actual A/B stitchline lengths, signed mismatch and per-size pass/fail for every sewing pair',
-    '- industrial-notch-qa.json and industrial-notch-walk.csv: per-size physical arclength matching of explicitly paired sewing notches; no inferred human approval',
+    '- industrial-notch-qa.json and industrial-notch-walk.csv: legacy WHOLE-EDGE paired-notch arclength check only; PASS does NOT verify partial sewn intervals',
+    '- graded-sewn-interval-notch-qa.json, graded-sewn-interval-notch-walk.csv, graded-sewn-interval-notch-issues.csv and graded-sewn-interval-notch-coverage.csv: per-size sewn-start stations and explicit PASS/BLOCKED dispositions for every named pair group or malformed paired-intent notch (UNASSIGNED), including unmeasurable stations; NOT cutting authorization',
+    '- graded-partial-seam-notch-reconciliation.json: machine-readable list of legacy whole-edge positional rows superseded ONLY by verified live sewn-interval stations; raw legacy/industrial QA remains unchanged and must be read with this file',
     '- industrial-cutline-qa.json and industrial-cutline-areas.csv: tested, non-self-intersecting physical cutting outlines vs separate sewing outlines for all sizes',
     '- marker-dxf-geometry-qa.json: internal marker-to-exact-validated-DXF physical CUT geometry comparison, NOT independent factory approval',
     '- marker-plot-geometry-qa.json: internal verification of exact SVG/PDF bytes, cutting contours, page dimensions, rulers and printable multi-page registration ink; NOT physical plotter calibration or factory approval',
@@ -483,6 +526,23 @@ export function buildFactoryPackageFiles(project) {
     ...notchQa.checks.map(row=>[row.size,row.group,row.seamId,row.fromStartAcm.toFixed(5),
       row.fromStartBcm.toFixed(5),row.offsetCm.toFixed(5),notchQa.toleranceCm.toFixed(5),row.pass?'PASS':'BLOCKED']),
   ]))
+  // Independent interval-aware witness: the whole-edge notch report above can
+  // legitimately say PASS even when a partial sewn seam starts elsewhere.
+  const sewnIntervalQa=inspectGradedNotchSeamIntervals(project)
+  addText('graded-sewn-interval-notch-qa.json',JSON.stringify(sewnIntervalQa,null,2))
+  addText('graded-sewn-interval-notch-walk.csv',csv([
+    ['size','group','seam_id','sewn_a_station_cm','sewn_b_station_cm','offset_cm','tolerance_cm','status'],
+    ...sewnIntervalQa.checks.map(row=>[row.size,row.group,row.seamId,row.stationAcm.toFixed(5),
+      row.stationBcm.toFixed(5),row.offsetCm.toFixed(5),sewnIntervalQa.toleranceCm.toFixed(5),row.pass?'PASS':'BLOCKED']),
+  ]))
+  addText('graded-sewn-interval-notch-issues.csv',csv([
+    ['severity','code','scope','message'],
+    ...sewnIntervalQa.issues.map(issue=>[issue.severity,issue.code,issue.scope,issue.message]),
+  ]))
+  addText('graded-sewn-interval-notch-coverage.csv',csv([
+    ['size','kind','group','piece_id','notch_id','seam_id','status','reason_code'],
+    ...sewnIntervalQa.coverage.map(row=>[row.size,row.kind,row.group,row.pieceId??'',row.notchId??'',row.seamId??'',row.status,row.reasonCode??'']),
+  ]))
   const cutlineQA=inspectGradedCutlines(project)
   addText('industrial-cutline-qa.json',JSON.stringify(cutlineQA,null,2))
   addText('industrial-cutline-areas.csv',csv([
@@ -513,10 +573,12 @@ export function buildFactoryPackageFiles(project) {
   addText('factory-sample-worksheet.json', JSON.stringify(sampleWorksheet,null,2))
   addText('factory-sample-approval-gate.json', JSON.stringify(inspectFactorySampleEvidence(project,sampleWorksheet),null,2))
   addText('recipient-cad-acceptance-plan.json',JSON.stringify(createRecipientCadExchangeProtocol(project),null,2))
-  addText('manufacturing-release-readiness.json', JSON.stringify(inspectManufacturingReleaseReadiness(project,{
+  const readiness=inspectManufacturingReleaseReadiness(project,{
     checks:{production:productionQa,industrial:industrialQa,
       cutlines:cutlineQA,gradedTopology:gradedGeometryQa,notches:notchQa,junctions:junctionQa},
-  }),null,2))
+  })
+  addText('manufacturing-release-readiness.json', JSON.stringify(readiness,null,2))
+  addText('graded-partial-seam-notch-reconciliation.json',JSON.stringify(readiness.legacyNotchReconciliation,null,2))
   if (project.productionSpec?.format === 'garment-studio.tee-production-development.v1' &&
       project.productionSpec.neckband?.requiresSeparateNeckbandCutPattern === true) {
     const neckbandSamples=createTeeNeckbandSampleSet(project)
@@ -540,9 +602,9 @@ export function buildFactoryPackageFiles(project) {
   }
   addText('pattern-pieces.csv', csv(pieceRows(project)))
   addText('construction-seams.csv', csv(constructionRows(project)))
-  addText('marker-summary.csv', csv(markerRows(project)))
+  addText('marker-summary.csv', csv(markerRows(project, authoritativeRun)))
   addText('trims-hardware.json', JSON.stringify(trimHardware(project), null, 2))
-  addText('size-run.json', JSON.stringify(buildSizeRun(project), null, 2))
+  addText('size-run.json', JSON.stringify(authoritativeRun, null, 2))
   addText('garment-source.json', JSON.stringify(project, null, 2))
   for (const [index, piece] of (project.pieces || []).entries()) {
     // Deterministic index prefix prevents duplicate/slug-colliding piece IDs

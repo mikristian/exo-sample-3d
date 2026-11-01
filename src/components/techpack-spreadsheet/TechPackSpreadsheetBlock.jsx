@@ -1,8 +1,12 @@
+import {nativeBridgeFetch,nativeBridgeOrigin} from '../../core/nativeWorkspaceTransport.js'
 import React, {useEffect, useMemo, useRef, useState} from 'react'
 import {toGridTable,fromGridTable,makeColumnId,moveGridColumn,TABLE_THEMES,normalizeTableStyle} from '../../core/techpack-spreadsheet/tableAdapter.js'
 import {evaluateTableFormulas} from '../../core/techpack-spreadsheet/formulas.js'
 import {fillGridRange} from '../../core/techpack-spreadsheet/rangeFill.js'
 import {pasteSpreadsheetRange,serializeSpreadsheetSelection} from '../../core/techpack-spreadsheet/gridClipboard.js'
+import {gridcraftTableCommand} from '../../core/techpack-spreadsheet/gridcraftTableCommands20261030.js'
+import {mergeLookup} from '../../core/techpack-spreadsheet/mergedCells20261030.js'
+import {gridcraftWorkbookInputs,reviewGridcraftWorkbook} from '../../core/techpack-spreadsheet/gridcraftWorkbookReview20261030.js'
 import './TechPackSpreadsheetBlock.css'
 
 const clamp=(n,min,max)=>Math.min(max,Math.max(min,n))
@@ -13,13 +17,16 @@ const createRow=(width)=>({id:`manual-${Date.now()}-${Math.random().toString(36)
 const normalized=table=>({...(table||{}),headers:Array.isArray(table?.headers)?table.headers.map(asText):[],rows:Array.isArray(table?.rows)?table.rows.map(row=>({...row,cells:Array.isArray(row.cells)?row.cells.map(asText):[]})):[]})
 
 /** Controlled native techpack grid. onChange(nextTable) persists full headers/rows/styles/widths. */
-export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChange=()=>{},onExit=()=>{},readOnly=false,sourceLabel='Techpack table'}){
+export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChange=()=>{},onExit=()=>{},onSelectionChange=()=>{},externalTools=false,readOnly=false,sourceLabel='Techpack table'}){
   const original=spreadsheetTable||table||{}
   const model=normalized(toGridTable(original))
   // Calculations exist only in the view. The canonical table, source values
   // and overrides remain raw and are never assigned evaluated results.
   const calculated=useMemo(()=>evaluateTableFormulas(original),[original])
   const {headers,rows}=model
+  const merged=useMemo(()=>{
+    try{return mergeLookup(model)}catch{return {anchors:new Map(),covered:new Map()}}
+  },[original])
   const [active,setActive]=useState({r:0,c:0})
   const [anchor,setAnchor]=useState({r:0,c:0})
   const [dragging,setDragging]=useState(false)
@@ -30,6 +37,10 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
   const [formulaFocused,setFormulaFocused]=useState(false)
   const formulaTarget=useRef(null)
   const [nativeValidation,setNativeValidation]=useState(null)
+  const [workbookValidation,setWorkbookValidation]=useState(null)
+  const [showGridcraftValues,setShowGridcraftValues]=useState(false)
+  const workbookRequestId=useRef(0)
+  const workbookAbort=useRef(null)
   const [showProperties,setShowProperties]=useState(false)
   const [clipboardNotice,setClipboardNotice]=useState('')
   const grid=useRef(null)
@@ -46,6 +57,8 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
   const range=coords({r:clamp(anchor.r,0,maxR),c:clamp(anchor.c,0,maxC)},safeActive)
   const cell=(r,c)=>asText(rows[r]?.cells?.[c])
   const displayCell=(r,c)=>{
+    if(showGridcraftValues&&workbookValidation?.status==='match'&&cell(r,c).startsWith('='))
+      return asText(workbookValidation.values[r]?.[c])
     const result=calculated.getCell(r,c)
     return result?.error||asText(result?.value??cell(r,c))
   }
@@ -64,6 +77,53 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
   const canVerifyRust=typeof gridcraftFormula==='string'&&gridcraftFormula.startsWith('=')&&
     !/[A-Za-z_$]+[0-9]+/.test(gridcraftFormula)
   useEffect(()=>setNativeValidation(null),[selectedKey,gridcraftFormula])
+  useEffect(()=>{
+    workbookRequestId.current++
+    workbookAbort.current?.abort()
+    setWorkbookValidation(null)
+    setShowGridcraftValues(false)
+    return ()=>{workbookRequestId.current++;workbookAbort.current?.abort()}
+  },[original])
+  const canVerifyWorkbook=rows.length>0&&rows.length<=100&&headers.length>0&&headers.length<=50
+  const verifyWorkbookWithGridcraft=async()=>{
+    if(!canVerifyWorkbook)return
+    let snapshot
+    try{snapshot=gridcraftWorkbookInputs(original)}
+    catch(error){setWorkbookValidation({status:'unavailable',message:error.message});return}
+    if(!snapshot.formulaCount){
+      setWorkbookValidation({status:'no-formulas',message:'No formulas to verify in this table'})
+      return
+    }
+    const bridge=nativeBridgeOrigin()
+    if(!bridge){setWorkbookValidation({status:'unavailable',message:'Local GridCraft bridge unavailable'});return}
+    workbookAbort.current?.abort()
+    const request=++workbookRequestId.current
+    const controller=new AbortController()
+    workbookAbort.current=controller
+    setShowGridcraftValues(false)
+    setWorkbookValidation({status:'checking',message:'GridCraft calculating workbook…'})
+    try{
+      const response=await nativeBridgeFetch(bridge+'/techpack/gridcraft/v2/workbook/evaluate',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        // No source refs, garment identity or revision metadata leaves this UI.
+        body:JSON.stringify({cells:snapshot.cells}),
+        signal:typeof AbortSignal.any==='function'
+          ?AbortSignal.any([controller.signal,AbortSignal.timeout(18000)])
+          :controller.signal,
+      })
+      const answer=await response.json()
+      if(controller.signal.aborted||request!==workbookRequestId.current)return
+      if(!response.ok){
+        setWorkbookValidation({status:'unavailable',message:answer?.code||'GridCraft workbook engine unavailable'})
+        return
+      }
+      const review=reviewGridcraftWorkbook(original,answer,snapshot)
+      setWorkbookValidation(review)
+    }catch{
+      if(!controller.signal.aborted&&request===workbookRequestId.current)
+        setWorkbookValidation({status:'unavailable',message:'GridCraft workbook calculation unavailable'})
+    }finally{if(workbookAbort.current===controller)workbookAbort.current=null}
+  }
   const verifyWithGridcraft=async()=>{
     if(!canVerifyRust)return
     setNativeValidation({status:'checking',message:'Verifying…'})
@@ -72,7 +132,7 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
       ?`http://127.0.0.1:${window.location.port==='5486'?'5485':'5385'}`
       :(import.meta.env.VITE_CLOTHCRAFT_BRIDGE_URL||'http://127.0.0.1:5193')
     try{
-      const response=await fetch(bridge+'/techpack/gridcraft/v1/evaluate',{
+      const response=await nativeBridgeFetch(bridge+'/techpack/gridcraft/v1/evaluate',{
         method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({formula:gridcraftFormula}),
         signal:AbortSignal.timeout?.(3500)
@@ -96,9 +156,16 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
   const emit=next=>{if(!readOnly)onChange(fromGridTable(original,next))}
   widthDragState.current={model,emit}
   const focusGrid=()=>grid.current?.focus()
-  const pick=(r,c,extend=false)=>{const position={r:clamp(r,0,maxR),c:clamp(c,0,maxC)};setActive(position);if(!extend)setAnchor(position);setEditing(null)}
+  const pick=(r,c,extend=false)=>{
+    const region=merged.covered.get(String(r)+':'+String(c))||merged.anchors.get(String(r)+':'+String(c))
+    const position={r:clamp(region?.r??r,0,maxR),c:clamp(region?.c??c,0,maxC)}
+    setActive(position);if(!extend)setAnchor(position);setEditing(null)
+    onSelectionChange({...position,r2:region?region.r+region.rowSpan-1:position.r,
+      c2:region?region.c+region.colSpan-1:position.c})
+  }
   const put=(r,c,value)=>{
     if(readOnly||!rows[r]||c>=headers.length)return
+    if(merged.covered.has(String(r)+':'+String(c))){setClipboardNotice('Edit the top-left cell of the merged region');return}
     emit({...model,rows:rows.map((row,i)=>i===r?{...row,cells:headers.map((_,j)=>j===c?asText(value):asText(row.cells[j]))}:row)})
   }
   const startEdit=(initial=cell(safeActive.r,safeActive.c),position=safeActive)=>{
@@ -118,6 +185,12 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
   const selectedCells=()=>Array.from({length:range.r2-range.r+1},(_,ri)=>Array.from({length:range.c2-range.c+1},(_,ci)=>cell(range.r+ri,range.c+ci)))
   const paste=(value)=>{
     if(readOnly||!headers.length||!value)return
+    const pastedRows=value.replace(/\r/g,'').split('\n')
+    const pastedCols=Math.max(1,...pastedRows.map(line=>line.split('\t').length))
+    const endR=range.r+pastedRows.length-1,endC=range.c+pastedCols-1
+    if([...merged.anchors.values()].some(m=>m.r<=endR&&m.r+m.rowSpan-1>=range.r&&m.c<=endC&&m.c+m.colSpan-1>=range.c)){
+      setClipboardNotice('Unmerge overlapping cells before pasting into this range');return
+    }
     try{
       const result=pasteSpreadsheetRange(model,range,value)
       emit(result.grid)
@@ -143,39 +216,28 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
   }
   const fill=direction=>{
     if(readOnly||!rows.length||!headers.length)return
+    if([...merged.anchors.values()].some(m=>m.r<=range.r2&&m.r+m.rowSpan-1>=range.r&&m.c<=range.c2&&m.c+m.colSpan-1>=range.c)){
+      setClipboardNotice('Unmerge the selected area before filling');return
+    }
     emit(fillGridRange(model,range,direction))
     focusGrid()
   }
-  const updateHeader=(c,value)=>emit({...model,headers:headers.map((header,i)=>i===c?value:header)})
-  const addRow=()=>emit({...model,rows:[...rows,createRow(headers.length)]})
-  const insertRow=()=>{const index=safeActive.r;emit({...model,rows:[...rows.slice(0,index),createRow(headers.length),...rows.slice(index)]});pick(index,safeActive.c)}
-  const duplicateRow=r=>{
-    const row=createRow(headers.length)
-    const cellStyles={...styles}
-    for(let c=0;c<headers.length;c++){
-      const source=styles[styleKey(r,c)]
-      if(source)cellStyles[`${row.id}:${c}`]={...source}
-    }
-    // A copied source-linked row must be authored with its own identity. A
-    // literal native value would otherwise masquerade as a second POM sample.
-    const sourceRow=original.rows?.find(item=>String(item.id)===String(rows[r]?.id))
-    const linked=Boolean(original.sourceLinked||sourceRow?.sourceRef||
-      sourceRow&&Object.values(sourceRow.cells||{}).some(value=>
-        value&&typeof value==='object'&&(value.origin==='native'||value.sourceRef||value.provenance?.kind==='source')))
-    emit({...model,rows:[...rows.slice(0,r+1),{...row,cells:linked?headers.map(()=>''):[...rows[r].cells]},...rows.slice(r+1)],cellStyles})
+  const protectedCommand=command=>{
+    if(readOnly)return false
+    try{onChange(gridcraftTableCommand(original,command));setClipboardNotice('');return true}
+    catch(error){setClipboardNotice(error.message||'Source-linked table structure is protected');return false}
   }
-  const moveRow=(r,offset)=>{const to=r+offset;if(to<0||to>=rows.length)return;const next=[...rows];next.splice(to,0,next.splice(r,1)[0]);emit({...model,rows:next});pick(to,safeActive.c)}
-  const deleteRow=r=>{if(rows.length<=1)return;const prefix=`${rowKey(r)}:`;emit({...model,rows:rows.filter((_,i)=>i!==r),cellStyles:Object.fromEntries(Object.entries(styles).filter(([key])=>!key.startsWith(prefix)))});pick(Math.min(r,maxR-1),safeActive.c)}
-  const addColumn=()=>emit({...model,headers:[...headers,`COLUMN ${headers.length+1}`],columnIds:[...(model.columnIds||headers.map((_,i)=>`column-${i}`)),makeColumnId()],columnWidths:[...(model.columnWidths||headers.map(()=>160)),160],rows:rows.map(row=>({...row,cells:[...row.cells,'']}))})
-  const insertColumn=()=>{const index=safeActive.c;const initial={...model,headers:[...headers,`COLUMN ${headers.length+1}`],columnIds:[...(model.columnIds||headers.map((_,i)=>`column-${i}`)),makeColumnId()],columnWidths:[...(model.columnWidths||headers.map(()=>160)),160],rows:rows.map(row=>({...row,cells:[...row.cells,'']}))};emit(moveGridColumn(initial,headers.length,index));pick(safeActive.r,index)}
-  const deleteColumn=c=>{if(headers.length<=1)return;const cellStyles={};for(const [key,value] of Object.entries(styles)){const match=/^(.*):(\d+)$/.exec(key);if(!match){cellStyles[key]=value;continue}const index=Number(match[2]);if(index!==c)cellStyles[`${match[1]}:${index>c?index-1:index}`]=value}emit({...model,headers:headers.filter((_,i)=>i!==c),columnIds:model.columnIds?.filter((_,i)=>i!==c),rows:rows.map(row=>({...row,cells:row.cells.filter((_,i)=>i!==c)})),columnWidths:(model.columnWidths||[]).filter((_,i)=>i!==c),cellStyles});pick(safeActive.r,Math.min(c,maxC-1))}
-  const duplicateColumn=c=>{
-    const cellStyles={...styles}
-    rows.forEach((_,r)=>{const source=styles[styleKey(r,c)];if(source)cellStyles[styleKey(r,headers.length)]={...source}})
-    const next=moveGridColumn({...model,headers:[...headers,headers[c]+' COPY'],columnIds:[...(model.columnIds||headers.map((_,i)=>`column-${i}`)),makeColumnId()],columnWidths:[...(model.columnWidths||headers.map(()=>160)),model.columnWidths?.[c]||160],rows:rows.map((row,r)=>({...row,cells:[...row.cells,sourceStatus(r,c)?'':row.cells[c]]})),cellStyles},headers.length,c+1)
-    emit(next)
-  }
-  const shiftColumn=(c,delta)=>{const next=c+delta;if(next<0||next>=headers.length)return;emit(moveGridColumn(model,c,next));pick(safeActive.r,next)}
+  const updateHeader=(c,value)=>protectedCommand({type:'renameHeading',column:c,label:value})
+  const addRow=()=>protectedCommand({type:'insertRow',at:rows.length})
+  const insertRow=()=>{const index=safeActive.r;if(protectedCommand({type:'insertRow',at:index}))pick(index,safeActive.c)}
+  const duplicateRow=r=>protectedCommand({type:'duplicateRow',row:r})
+  const moveRow=(r,offset)=>{const to=r+offset;if(to>=0&&to<rows.length&&protectedCommand({type:'moveRow',row:r,to}))pick(to,safeActive.c)}
+  const deleteRow=r=>{if(protectedCommand({type:'deleteRow',row:r}))pick(Math.min(r,maxR-1),safeActive.c)}
+  const addColumn=()=>protectedCommand({type:'insertColumn',at:headers.length,label:`COLUMN ${headers.length+1}`})
+  const insertColumn=()=>{const index=safeActive.c;if(protectedCommand({type:'insertColumn',at:index,label:`COLUMN ${headers.length+1}`}))pick(safeActive.r,index)}
+  const deleteColumn=c=>{if(protectedCommand({type:'deleteColumn',column:c}))pick(safeActive.r,Math.min(c,maxC-1))}
+  const duplicateColumn=c=>protectedCommand({type:'duplicateColumn',column:c})
+  const shiftColumn=(c,delta)=>{const next=c+delta;if(next>=0&&next<headers.length&&protectedCommand({type:'moveColumn',column:c,to:next}))pick(safeActive.r,next)}
   const copySelection=async()=>{
     const value=serializeSpreadsheetSelection(selectedCells())
     try{
@@ -195,7 +257,7 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
       setClipboardNotice(copied?'':'Copy blocked: use ⌘C with the grid selected')
     }
   }
-  const setTheme=theme=>emit({...model,tableStyle:{...tableStyle,theme}})
+  const setTheme=theme=>protectedCommand({type:'setTheme',theme})
   const setThemeColor=(property,value)=>emit({...model,tableStyle:{...tableStyle,theme:'custom',[property]:value}})
   const selectedStyle=styles[styleKey(safeActive.r,safeActive.c)]||{}
   const commitFormula=()=>{if(!formulaFocused)return;const target=formulaTarget.current;formulaTarget.current=null;setFormulaFocused(false);if(target&&formula!==cell(target.r,target.c))put(target.r,target.c,formula);setFormula('')}
@@ -217,11 +279,87 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
   }
   useEffect(()=>{if(editing)input.current?.focus()},[editing])
   useEffect(()=>{if(!editing&&pendingFocus.current){pendingFocus.current=null;focusGrid()}},[editing])
-  useEffect(()=>{if(!dragging)return;const done=()=>{setDragging(false);selectionOrigin.current=null};window.addEventListener('pointerup',done);window.addEventListener('pointercancel',done);return()=>{window.removeEventListener('pointerup',done);window.removeEventListener('pointercancel',done)}},[dragging])
+  useEffect(()=>{
+    if(!dragging)return
+    const done=event=>{
+      if(event.type==='pointerup')onSelectionChange({r:range.r,c:range.c,r2:range.r2,c2:range.c2})
+      setDragging(false);selectionOrigin.current=null
+    }
+    window.addEventListener('pointerup',done);window.addEventListener('pointercancel',done)
+    return()=>{window.removeEventListener('pointerup',done);window.removeEventListener('pointercancel',done)}
+  },[dragging,range.r,range.c,range.r2,range.c2])
   useEffect(()=>{const onMove=e=>{const data=dragWidth.current;if(!data)return;const {model:current,emit:publish}=widthDragState.current;const width=clamp(data.width+e.clientX-data.x,76,700);const widths=current.headers.map((_,c)=>c===data.column?width:current.columnWidths?.[c]||160);publish({...current,columnWidths:widths})};const stop=()=>{dragWidth.current=null};window.addEventListener('pointermove',onMove);window.addEventListener('pointerup',stop);window.addEventListener('pointercancel',stop);return()=>{window.removeEventListener('pointermove',onMove);window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop)}},[])
+  const renderCell=(r,c)=>{
+    if(merged.covered.has(String(r)+':'+String(c)))return null
+    const span=merged.anchors.get(String(r)+':'+String(c))
+    const selected=r>=range.r&&r<=range.r2&&c>=range.c&&c<=range.c2
+    const isActive=r===safeActive.r&&c===safeActive.c
+    const style=styles[styleKey(r,c)]||{}
+    const status=sourceStatus(r,c)
+    const result=calculated.getCell(r,c)
+    const className=(selected?'tps-selected ':'')+(isActive?'tps-active ':'')+
+      (result?.error?'tps-cell-error ':'')+(status?'tps-cell-source ':'')+(span?'tps-cell-merged':'')
+    const inlineStyle={fontWeight:style.bold?'bold':undefined,fontStyle:style.italic?'italic':undefined,
+      textDecoration:style.underline?'underline':undefined,textAlign:['left','center','right'].includes(style.align)?style.align:undefined,
+      color:/^#[0-9a-f]{6}$/i.test(style.color||'')?style.color:undefined,
+      background:/^#[0-9a-f]{6}$/i.test(style.background||'')?style.background:undefined}
+    return <td key={c} role="gridcell" colSpan={span?.colSpan||undefined}
+      rowSpan={span?.rowSpan||undefined} aria-selected={selected}
+      aria-label={span?'Merged cells starting at '+letters(c)+(r+1):letters(c)+(r+1)}
+      title={status||result?.error||undefined} className={className} style={inlineStyle}
+      onPointerDown={e=>{
+        if(e.button!==0)return
+        selectionOrigin.current=e.shiftKey?{...anchor}:{r,c}
+        pick(r,c,e.shiftKey);setDragging(true);focusGrid()
+      }}
+      onPointerEnter={()=>{
+        if(!dragging)return
+        if(selectionOrigin.current)setAnchor(selectionOrigin.current)
+        setActive({r:span?.r??r,c:span?.c??c})
+      }}
+      onDoubleClick={()=>{pick(r,c);startEdit(cell(r,c),{r,c})}}>
+      {editing?.r===r&&editing?.c===c?
+        <input ref={input} className="tps-editor" aria-label={'Editing '+letters(c)+(r+1)}
+          value={draft} onChange={e=>setDraft(e.target.value)}
+          onBlur={()=>saveEdit()}
+          onKeyDown={e=>{
+            e.stopPropagation()
+            if(e.key==='Escape'){committing.current=true;setEditing(null);focusGrid()}
+            else if(e.key==='Enter'||e.key==='Tab'){
+              e.preventDefault()
+              saveEdit({r:r+(e.key==='Enter'?(e.shiftKey?-1:1):0),
+                c:c+(e.key==='Tab'?(e.shiftKey?-1:1):0)})
+            }
+          }}/>:
+        displayCell(r,c)}
+    </td>
+  }
   const activeValue=cell(safeActive.r,safeActive.c)
   const activeCalculation=calculated.getCell(safeActive.r,safeActive.c)
-  return <section className="tps" aria-label="Techpack spreadsheet editor" onKeyDown={event=>event.stopPropagation()}>
+  return <section className={`tps ${externalTools?'tps-external-tools':''}`} aria-label="Techpack spreadsheet editor" onKeyDown={event=>event.stopPropagation()}>
+    {workbookValidation&&<aside className={`tps-gridcraft-review tps-gridcraft-${workbookValidation.status}`} aria-live="polite" aria-label="GridCraft workbook comparison">
+      <div className="tps-gridcraft-summary">
+        <strong>GRIDCRAFT RUST</strong>
+        <span>{workbookValidation.message}</span>
+        {workbookValidation.status==='match'&&<button type="button" aria-pressed={showGridcraftValues} onClick={()=>setShowGridcraftValues(current=>!current)}
+          title="Preview GridCraft's independently calculated formula values without writing to EXO's saved table">
+          {showGridcraftValues?'EXO values':'Preview Rust values'}
+        </button>}
+      </div>
+      {workbookValidation.status==='mismatch'&&<div className="tps-gridcraft-differences">
+        {workbookValidation.mismatches.slice(0,5).map(difference=><button type="button" key={difference.cell}
+          title={`${difference.formula} · EXO: ${difference.exo} · GridCraft: ${difference.gridcraft}`}
+          onClick={()=>pick(difference.row,difference.column)}>
+          {difference.cell}: EXO {asText(difference.exo)} / Rust {asText(difference.gridcraft)}
+        </button>)}
+        {workbookValidation.mismatches.length>5&&<small>+{workbookValidation.mismatches.length-5} more differences</small>}
+      </div>}
+      {workbookValidation.status==='formula-errors'&&<div className="tps-gridcraft-differences">
+        {workbookValidation.formulaErrors.slice(0,5).map(issue=><button type="button" key={issue.cell} onClick={()=>pick(issue.row,issue.column)}>
+          {issue.cell} · {asText(issue.gridcraft)}
+        </button>)}
+      </div>}
+    </aside>}
     <header className="tps-top"><div><strong>SPREADSHEET</strong><span>{sourceLabel}</span></div><button type="button" onClick={onExit}>Close sheet</button></header>
     <div className="tps-tools">
       <button type="button" disabled={readOnly} onClick={()=>format('bold')} aria-label="Bold selection" aria-pressed={!!styles[styleKey(safeActive.r,safeActive.c)]?.bold}><b>B</b></button>
@@ -248,11 +386,22 @@ export default function TechPackSpreadsheetBlock({table,spreadsheetTable,onChang
       <button type="button" disabled={readOnly} onClick={()=>duplicateColumn(safeActive.c)} title="Duplicate the selected column">Duplicate column</button>
     </div>
     {showProperties&&<aside className="tps-properties" aria-label="Selected cell properties"><strong>{letters(safeActive.c)}{safeActive.r+1}</strong><span>Column: {headers[safeActive.c]}</span><span>Row: {rows[safeActive.r]?.id||''}</span><span>Raw input: {activeValue||'(empty)'}</span><span>Formula result: {asText(calculated.getCell(safeActive.r,safeActive.c)?.value)}</span><span>Source: {sourceStatus(safeActive.r,safeActive.c)||'Manual'}</span><span>Style: {JSON.stringify(selectedStyle)}</span></aside>}
-    <div className="tps-formula"><output>{letters(safeActive.c)}{safeActive.r+1}</output><span>fx</span><input aria-label="Formula bar" disabled={readOnly||!rows.length||!headers.length} value={formulaFocused?formula:activeValue} onFocus={()=>{formulaTarget.current={...safeActive};setFormulaFocused(true);setFormula(activeValue)}} onChange={e=>setFormula(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur()}else if(e.key==='Escape'){e.preventDefault();formulaTarget.current=null;setFormulaFocused(false);setFormula('');e.currentTarget.blur()}}} onBlur={commitFormula} /><span className={activeCalculation?.error?'tps-result tps-error':'tps-result'} title="Calculated display, source input unchanged">{activeCalculation?.error||((activeValue.startsWith('='))?asText(activeCalculation?.value):'')}</span>{sourceStatus(safeActive.r,safeActive.c)&&<span className="tps-origin">{sourceStatus(safeActive.r,safeActive.c)}</span>}{canVerifyRust&&<button type="button" className="tps-rust-verify" onClick={verifyWithGridcraft} disabled={nativeValidation?.status==='checking'} title="Independently evaluate this standalone formula in the GridCraft Rust engine. Cell references stay in EXO's local calculator.">Verify Rust</button>}{nativeValidation&&<output aria-live="polite" className={`tps-rust-status tps-rust-${nativeValidation.status}`}>{nativeValidation.message}</output>}</div>
+    <div className="tps-formula"><output>{letters(safeActive.c)}{safeActive.r+1}</output><span>fx</span><input aria-label="Formula bar" disabled={readOnly||!rows.length||!headers.length} value={formulaFocused?formula:activeValue} onFocus={()=>{formulaTarget.current={...safeActive};setFormulaFocused(true);setFormula(activeValue)}} onChange={e=>setFormula(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.currentTarget.blur()}else if(e.key==='Escape'){e.preventDefault();formulaTarget.current=null;setFormulaFocused(false);setFormula('');e.currentTarget.blur()}}} onBlur={commitFormula} /><span className={activeCalculation?.error?'tps-result tps-error':'tps-result'} title="Calculated display, source input unchanged">{activeCalculation?.error||((activeValue.startsWith('='))?asText(activeCalculation?.value):'')}</span>{sourceStatus(safeActive.r,safeActive.c)&&<span className="tps-origin">{sourceStatus(safeActive.r,safeActive.c)}</span>}{canVerifyWorkbook&&<button type="button" className="tps-rust-verify tps-workbook-verify" onClick={verifyWorkbookWithGridcraft} disabled={workbookValidation?.status==='checking'} title="Calculate this isolated worksheet using the real GridCraft Rust workbook engine; compare formulas without modifying source data.">Verify workbook</button>}{canVerifyRust&&<button type="button" className="tps-rust-verify" onClick={verifyWithGridcraft} disabled={nativeValidation?.status==='checking'} title="Verify one standalone formula. For cell references and ranges use Verify workbook.">Verify formula</button>}{workbookValidation&&<output aria-live="polite" title={workbookValidation.message} className={`tps-rust-status tps-rust-${workbookValidation.status}`}>{workbookValidation.message}</output>}{nativeValidation&&!workbookValidation&&<output aria-live="polite" className={`tps-rust-status tps-rust-${nativeValidation.status}`}>{nativeValidation.message}</output>}</div>
     <div className="tps-scroll" ref={grid} tabIndex={0} role="grid" aria-label={sourceLabel} aria-rowcount={rows.length+1} aria-colcount={headers.length} onKeyDown={keydown} onCopy={e=>{if(editing)return;e.preventDefault();e.clipboardData.setData('text/plain',serializeSpreadsheetSelection(selectedCells()))}} onPaste={e=>{if(editing||readOnly)return;e.preventDefault();paste(e.clipboardData.getData('text/plain'))}}>
-      <table className={tableStyle.theme==='dark'?'tps-dark':''} style={{'--tps-header':palette.header,'--tps-stripe':palette.stripe,'--tps-header-text':palette.text}}><colgroup><col className="tps-index"/>{headers.map((_,c)=><col key={model.columnIds?.[c]||c} style={{width:clamp(Number(model.columnWidths?.[c])||160,76,700)}}/>)}</colgroup><thead><tr><th className="tps-corner">#</th>{headers.map((header,c)=><th key={model.columnIds?.[c]||c} className="tps-colhead"><div><span>{letters(c)}</span><input aria-label={`Column ${letters(c)} title`} disabled={readOnly} value={header} onChange={e=>updateHeader(c,e.target.value)}/><button disabled={readOnly||c===0} title="Move left" aria-label={`Move column ${letters(c)} left`} onClick={()=>shiftColumn(c,-1)}>←</button><button disabled={readOnly||c===maxC} title="Move right" aria-label={`Move column ${letters(c)} right`} onClick={()=>shiftColumn(c,1)}>→</button><button disabled={readOnly} title="Duplicate column" aria-label={`Duplicate column ${letters(c)}`} onClick={()=>duplicateColumn(c)}>⧉</button><button disabled={readOnly||headers.length<=1} aria-label={`Delete column ${letters(c)}`} title="Delete column" onClick={()=>deleteColumn(c)}>×</button></div><span className="tps-resizer" role="separator" aria-label={`Resize column ${letters(c)}`} onPointerDown={e=>{if(readOnly)return;e.preventDefault();dragWidth.current={x:e.clientX,width:clamp(Number(model.columnWidths?.[c])||160,76,700),column:c}}}/></th>)}</tr></thead>
-      <tbody>{rows.map((row,r)=><tr key={row.id||r}><th className="tps-rowhead"><span>{r+1}</span><button disabled={readOnly||r===0} aria-label={`Move row ${r+1} up`} onClick={()=>moveRow(r,-1)}>↑</button><button disabled={readOnly||r===maxR} aria-label={`Move row ${r+1} down`} onClick={()=>moveRow(r,1)}>↓</button><button disabled={readOnly} aria-label={`Duplicate row ${r+1}`} onClick={()=>duplicateRow(r)}>⧉</button><button disabled={readOnly||rows.length<=1} title="Delete row" aria-label={`Delete row ${r+1}`} onClick={()=>deleteRow(r)}>×</button></th>{headers.map((_,c)=>{const selected=r>=range.r&&r<=range.r2&&c>=range.c&&c<=range.c2;const isActive=r===safeActive.r&&c===safeActive.c;const style=styles[styleKey(r,c)]||{};const status=sourceStatus(r,c);const result=calculated.getCell(r,c);return <td key={c} role="gridcell" aria-selected={selected} title={status||result?.error||undefined} className={`${selected?'tps-selected ':''}${isActive?'tps-active ':''}${result?.error?'tps-cell-error ':''}${status?'tps-cell-source':''}`} style={{fontWeight:style.bold?'bold':undefined,fontStyle:style.italic?'italic':undefined,textDecoration:style.underline?'underline':undefined,textAlign:['left','center','right'].includes(style.align)?style.align:undefined,color:/^#[0-9a-f]{6}$/i.test(style.color||'')?style.color:undefined,background:/^#[0-9a-f]{6}$/i.test(style.background||'')?style.background:undefined}} onPointerDown={e=>{if(e.button!==0)return;selectionOrigin.current=e.shiftKey?{...anchor}:{r,c};pick(r,c,e.shiftKey);setDragging(true);focusGrid()}} onPointerEnter={()=>{if(dragging){if(selectionOrigin.current)setAnchor(selectionOrigin.current);setActive({r,c})}}} onDoubleClick={()=>{setActive({r,c});startEdit(cell(r,c),{r,c})}}>{editing?.r===r&&editing?.c===c?<input ref={input} className="tps-editor" aria-label={`Editing ${letters(c)}${r+1}`} value={draft} onChange={e=>setDraft(e.target.value)} onBlur={()=>saveEdit()} onKeyDown={e=>{e.stopPropagation();if(e.key==='Escape'){committing.current=true;setEditing(null);focusGrid()}else if(e.key==='Enter'||e.key==='Tab'){e.preventDefault();saveEdit({r:r+(e.key==='Enter'?(e.shiftKey?-1:1):0),c:c+(e.key==='Tab'?(e.shiftKey?-1:1):0)})}}}/>:displayCell(r,c)}</td>})}</tr>)}</tbody></table>
+      <table className={tableStyle.theme==='dark'?'tps-dark':''} style={{'--tps-header':palette.header,'--tps-stripe':palette.stripe,'--tps-header-text':palette.text,'--tps-body':palette.body,'--tps-body-text':palette.bodyText,'--tps-border':palette.border,'--tps-header-align':tableStyle.headerAlign||'left','--tps-header-case':tableStyle.headerCase==='uppercase'?'uppercase':'none'}}><colgroup><col className="tps-index"/>{headers.map((_,c)=><col key={model.columnIds?.[c]||c} style={{width:clamp(Number(model.columnWidths?.[c])||160,76,700)}}/>)}</colgroup><thead><tr><th className="tps-corner">#</th>{headers.map((header,c)=><th key={model.columnIds?.[c]||c} className="tps-colhead"><div><span>{letters(c)}</span><input aria-label={`Column ${letters(c)} title`} disabled={readOnly} value={header} onChange={e=>updateHeader(c,e.target.value)}/><button disabled={readOnly||c===0} title="Move left" aria-label={`Move column ${letters(c)} left`} onClick={()=>shiftColumn(c,-1)}>←</button><button disabled={readOnly||c===maxC} title="Move right" aria-label={`Move column ${letters(c)} right`} onClick={()=>shiftColumn(c,1)}>→</button><button disabled={readOnly} title="Duplicate column" aria-label={`Duplicate column ${letters(c)}`} onClick={()=>duplicateColumn(c)}>⧉</button><button disabled={readOnly||headers.length<=1} aria-label={`Delete column ${letters(c)}`} title="Delete column" onClick={()=>deleteColumn(c)}>×</button></div><span className="tps-resizer" role="separator" aria-label={`Resize column ${letters(c)}`} onPointerDown={e=>{if(readOnly)return;e.preventDefault();dragWidth.current={x:e.clientX,width:clamp(Number(model.columnWidths?.[c])||160,76,700),column:c}}}/></th>)}</tr></thead>
+      <tbody>{rows.map((row,r)=><tr key={row.id||r}>
+        <th className="tps-rowhead"><span>{r+1}</span><button disabled={readOnly||r===0} aria-label={"Move row "+(r+1)+" up"} onClick={()=>moveRow(r,-1)}>↑</button><button disabled={readOnly||r===maxR} aria-label={"Move row "+(r+1)+" down"} onClick={()=>moveRow(r,1)}>↓</button><button disabled={readOnly} aria-label={"Duplicate row "+(r+1)} onClick={()=>duplicateRow(r)}>⧉</button><button disabled={readOnly||rows.length<=1} aria-label={"Delete row "+(r+1)} onClick={()=>deleteRow(r)}>×</button></th>
+        {headers.map((_,c)=>renderCell(r,c))}
+      </tr>)}</tbody></table>
     </div>
+    <nav className="tps-sheet-tabs" aria-label="Spreadsheet sheets">
+      <button type="button" className="active" aria-current="page">Sheet 1</button>
+      <button type="button" title="Add five rows and two columns" aria-label="Expand editable grid"
+        disabled={readOnly||rows.length>=100&&headers.length>=50}
+        onClick={()=>protectedCommand({type:'expandGrid',rows:Math.min(100,rows.length+5),
+          columns:Math.min(50,headers.length+2)})}>＋</button>
+      <span>{rows.length} rows × {headers.length} columns</span>
+    </nav>
     <footer className="tps-footer"><span>{rows.length} rows · {headers.length} columns · {range.r2-range.r+1} × {range.c2-range.c+1} selected</span><span>{clipboardNotice||'Drag to select · Double click to edit · ⌘C / ⌘V · ⌘D down · ⌘R right'}</span></footer>
   </section>
 }

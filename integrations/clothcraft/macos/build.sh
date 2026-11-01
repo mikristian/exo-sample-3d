@@ -170,12 +170,13 @@ chmod 755 "$RES/bin/node"
 # Bundle the complete direct ESM import closure. A successful web build is
 # useless if the installed localhost native service throws MODULE_NOT_FOUND.
 for file in bridge.mjs server.mjs contact_run.mjs workspace.mjs static.mjs agent-api.mjs mcp-server.mjs \
-  avatarPersistenceContract.mjs agent-key-store.mjs collaboration.mjs apple-vision-hand.mjs \
+  avatarPersistenceContract.mjs agent-key-store.mjs workspace-auth.mjs collaboration.mjs apple-vision-hand.mjs \
   pattern-intelligence-catalog.mjs seamly2dEngineRoute20261023.mjs seamly2dNativeEngine20261023.mjs \
   seamlyAamaReceivingRoundtrip20261023.mjs gridcraftBridge.mjs; do
   test -s "integrations/clothcraft/$file" || { echo "Required EXO service module missing: $file" >&2; exit 1; }
   cp "integrations/clothcraft/$file" "$RES/integrations/clothcraft/$file"
 done
+cp integrations/clothcraft/runtime-provenance.mjs "$RES/integrations/clothcraft/runtime-provenance.mjs"
 mkdir -p "$RES/src/core/backends" "$RES/src/core"
 for file in src/core/backends/nativeOrderedAssembly20261025.mjs src/core/seamlyAamaManufacturingSemantics20261023.mjs; do
   test -s "$file" || { echo "Required EXO service dependency missing: $file" >&2; exit 1; }
@@ -219,7 +220,9 @@ cp research/oss/clothcraft/LICENSE "$RES/research/oss/clothcraft/LICENSE"
 cp research/oss/clothcraft/assets/makehuman/mannequin.obj "$RES/research/oss/clothcraft/assets/makehuman/mannequin.obj"
 cp research/oss/clothcraft/assets/makehuman/LICENSE.ASSETS.md "$RES/research/oss/clothcraft/assets/makehuman/LICENSE.ASSETS.md"
 
-xcrun swiftc -parse-as-library -O -target "arm64-apple-macos13.0" -framework AppKit -framework WebKit \
+SWIFT_STAGING_FLAGS=()
+if [[ "${EXO_SWIFT_STAGING:-0}" == 1 ]]; then SWIFT_STAGING_FLAGS=(-D EXO_V2_STAGED); fi
+xcrun swiftc "${SWIFT_STAGING_FLAGS[@]}" -parse-as-library -O -target "arm64-apple-macos13.0" -framework AppKit -framework WebKit \
   "${EXO_DESKTOP_SWIFT_SOURCE:-integrations/clothcraft/macos/EXOClothCraft.swift}" -o "$APP/Contents/MacOS/EXOClothCraft"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -241,9 +244,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 PLIST
 chmod 755 "$APP/Contents/MacOS/EXOClothCraft" "$RES/native_cpp/build-cmake/garment_cad_cli" \
   "$RES/research/oss/clothcraft/target/debug/cloth-template" "$RES/research/oss/clothcraft/target/debug/cloth-fit"
-if [[ "${EXO_PUBLIC_DISTRIBUTION:-0}" == 1 ]]; then
-  python3 scripts/release/stage-desktop-node-module-closure.py "$APP"
-fi
+# The personal V2 build must be self-contained too: current server.mjs imports
+# several production/recovery modules that are not enumerated by the historical
+# hand-maintained copy loop above. Validate and stage its complete first-party
+# ESM closure on EVERY build, not only public-distribution builds.
+python3 scripts/release/stage-desktop-node-module-closure.py "$APP"
 /usr/bin/codesign --force --deep --sign - "$APP"
 /usr/bin/plutil -lint "$APP/Contents/Info.plist"
 echo "Built macOS application: $APP"

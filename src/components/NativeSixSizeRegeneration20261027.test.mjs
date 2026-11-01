@@ -35,12 +35,12 @@ test('actual native panel renders saved direct measurements and explicit preview
   assert.match(html, /disabled=""[^>]*>Preview XS–XXL/)
 })
 
-test('fail-closed guards block unsaved, inactive, graded, busy and single-panel sources', async () => {
+test('fail-closed guards block unsaved, inactive, graded, busy sources while admitting a single bound panel', async () => {
   const { nativeSixSizeRegenerationPreflight20261027: guard, default: Panel } = await load()
   assert.match(guard({ ...snapshot, gradeRunPersisted: false }), /Save a native six-size grade catalog/)
   assert.match(guard({ ...snapshot, activeGradedSize: 'M' }), /Restore the base garment/)
   assert.match(guard({ ...snapshot, nativePointBindings: { ...snapshot.nativePointBindings, active: false } }), /active native measurement/)
-  assert.match(guard({ ...snapshot, nativePointBindings: { ...snapshot.nativePointBindings, bindings: [{ panelId: 'front' }] } }), /two bound source panels/)
+  assert.equal(guard({ ...snapshot, nativePointBindings: { ...snapshot.nativePointBindings, bindings: [{ panelId: 'front' }] } }), '')
   assert.match(guard(snapshot, true), /busy/)
   const html = renderToStaticMarkup(createElement(Panel, { snapshot: { ...snapshot, activeGradedSize: 'XL' }, onPreview: async () => report }))
   assert.match(html, /Restore the base garment/)

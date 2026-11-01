@@ -1,4 +1,4 @@
-import { gradeProject } from './grading.js'
+import { gradeProject, buildSizeRun } from './grading.js'
 import { samplePieceBoundary } from './project.js'
 
 // Inspect *changes introduced by grading*, not pre-existing source drafting
@@ -26,10 +26,14 @@ export function auditGradedSizeRunGeometry(project, { minEdgeCm = 0.005, minArea
     throw new RangeError('Geometry audit tolerances must be finite nonnegative numbers')
   }
   const sizes = project.grading?.sizes?.length ? project.grading.sizes : [project.grading?.baseSize || 'M']
+  // For connected patterns the ordinary grader does not propagate dependent
+  // curve controls. Audit the exact final geometry that the 2D workspace uses.
+  const linkedRun = project.modarisSizeLinkedGrade === undefined ? null : buildSizeRun(project)
   const issues = []
   let inspectedPieces = 0
   for (const size of sizes) {
-    const graded = gradeProject(project, size)
+    const graded = linkedRun ? linkedRun[size] : gradeProject(project, size)
+    if (!graded) throw new Error(`Missing authoritative linked geometry for size ${size}`)
     for (const original of project.pieces) {
       const piece = graded.pieces.find(candidate => candidate.id === original.id)
       if (!piece || !Array.isArray(piece.points) || piece.points.length !== original.points.length) {
