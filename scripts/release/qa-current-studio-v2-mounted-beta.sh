@@ -76,7 +76,7 @@ curl -fsS --max-time 35 \
 [[ -s "$TEMP/output/workspace/fitting-project.json" ]] || {
   echo 'The isolated Rust workspace did not persist a garment file' >&2; exit 1
 }
-/usr/local/bin/node --input-type=module <<'JS'
+EXO_RELEASE_QA_WORKSPACE_TOKEN="$AUTH_TOKEN" /usr/local/bin/node --input-type=module <<'JS'
 import {chromium} from 'playwright-core'
 const browser=await chromium.launch({
   headless:true,
@@ -86,6 +86,12 @@ const browser=await chromium.launch({
 const page=await browser.newPage({viewport:{width:1440,height:900}})
 const errors=[], failedAssets=[]
 let redirected=0
+// In production the signed WKWebView injects an ephemeral shell credential.
+// Reproduce that same session binding for isolated browser acceptance, without
+// making the native bridge public or disabling authentication.
+const token=process.env.EXO_RELEASE_QA_WORKSPACE_TOKEN
+if(!token || token.length<32)throw Error('Isolated browser QA workspace credential required')
+await page.addInitScript(secret=>{window.__EXO_WORKSPACE_TOKEN__=secret},token)
 page.on('pageerror', e=>errors.push(e.message))
 page.on('response', r=>{
   if(r.status()>=400&&/\.(wasm|js|css)(?:\?|$)/.test(r.url())){
@@ -104,9 +110,11 @@ try {
   await page.waitForTimeout(6000)
   const edgeCount=await page.locator('.cc-board [data-edge]').count()
   const canvases=await page.locator('canvas').count()
+  const boardCount=await page.locator('.cc-board').count()
+  const boardErrors=await page.locator('.cc-error').allTextContents()
   result={
-    pass:edgeCount>0&&canvases>0&&failedAssets.length===0,
-    title:await page.title(),edgeCount,canvases,redirected,
+    pass:edgeCount>0&&canvases>0&&failedAssets.length===0&&boardErrors.length===0,
+    title:await page.title(),edgeCount,boardCount,boardErrors:boardErrors.slice(0,4),canvases,redirected,
     jsErrors:errors.slice(0,10),failedAssets
   }
 } catch(e) {
