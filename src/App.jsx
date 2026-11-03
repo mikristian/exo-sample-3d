@@ -1,4 +1,5 @@
-import {nativeBridgeFetch} from './core/nativeWorkspaceTransport.js'
+import {nativeBridgeFetch,nativeBridgeOrigin} from './core/nativeWorkspaceTransport.js'
+import {classifyExoImportFile20261101,verifyExoPdfReference20261101} from './core/exoFileImportFormats20261101.js'
 import PatternDesignToolPanel from './components/PatternDesignToolPanel.jsx'
 import AccuMark2DLibrary from './components/AccuMark2DLibrary.jsx'
 import {offsetGradePoint,distributeGradePoint,smoothGradePoint,redistributeSizeLine} from './core/accumarkGradeRuleOperations20261023.js'
@@ -119,13 +120,17 @@ import ProjectFileLibrary from './components/ProjectFileLibrary.jsx'
 import DigitalTechPackStudio from './components/DigitalTechPackStudio.jsx'
 import TechPackWorkspace from './components/TechPackWorkspace.jsx'
 import {loadNativeTechPackWorkspace,saveNativeTechPackWorkspace} from './core/nativeTechPackWorkspaceStorage.js'
-import {buildTraditionalTechPackHTML} from './core/digitalTechPack.js'
+import {buildTraditionalTechPackHTML,createTechPackDraft,updateTechPackDraft} from './core/digitalTechPack.js'
+import {findExoReferenceCandidates,prepareExoMoodboardImport,isSafeReferenceImageDataUrl} from './core/exoReferenceLibrary20261102.js'
+import {interpretExoFashionIntent} from './core/exoFashionIntent20261102.js'
+import {transformHoodieFitGeometry} from './core/exoHoodieFitGeometry20261102.js'
+import {rankExoVisualReferences} from './core/exoVisualReferenceMatch20261102.js'
 import {buildPortableTechPackHTML,buildMarketplaceTechPackListing} from './core/techPackHtmlExport.js'
 import WorkspaceSharingPanel,{WorkspaceSharingHeader} from './components/WorkspaceSharingPanel.jsx'
 import {PHOTO_SHOOT_SETS,getPhotoShootSet} from './data/photoShootSets.js'
 import {collaboration,followProjectEvents,leaveProjectPresence,readSharedProjectMapping,updateSharedProjectMapping} from './core/projectCollaborationClient.js'
 import CloTopMenuDropdown from './components/CloTopMenuDropdown.jsx'
-import {listProjects as listLibraryProjects,listCollections as listLibraryCollections,createCollection as createLibraryCollection,saveProject as saveLibraryProject,getProject as getLibraryProject,getRevision as getLibraryRevision,listRevisions as listLibraryRevisions,listAttachments as listLibraryAttachments,addRevision as addLibraryRevision,saveAttachment as saveLibraryAttachment,deleteAttachment as deleteLibraryAttachment,downloadAttachment as retrieveLibraryAttachment,exportLibraryBackup,importLibraryBackup} from './core/projectFileLibrary.js'
+import {listProjects as listLibraryProjects,listCollections as listLibraryCollections,createCollection as createLibraryCollection,saveProject as saveLibraryProject,getProject as getLibraryProject,getRevision as getLibraryRevision,listRevisions as listLibraryRevisions,listAttachments as listLibraryAttachments,getAttachment as getLibraryAttachment,addRevision as addLibraryRevision,saveAttachment as saveLibraryAttachment,deleteAttachment as deleteLibraryAttachment,downloadAttachment as retrieveLibraryAttachment,exportLibraryBackup,importLibraryBackup} from './core/projectFileLibrary.js'
 import {requestNativeLibraryProject} from './core/nativeProjectLibraryBridge.js'
 import {ensurePreservedGarmentsInLibrary,PRESERVED_DENIM_LIBRARY_ID,PRESERVED_TSHIRT_LIBRARY_ID} from './core/preservedGarmentExamples.js'
 import {projectPatternPreview,captureVisibleCanvasPreview} from './core/projectLibraryPreview.js'
@@ -142,9 +147,18 @@ import CloPropertyEditorAccordion from './components/CloPropertyEditorAccordion.
 import {applyCloDraftProperty,validateCloDraftProperty,resolveCloDraftTarget} from './core/cloPropertyCommands.js'
 import PatternLibraryThumbnail from './components/PatternLibraryThumbnail.jsx'
 import PatternIntelligenceLibrary from './components/PatternIntelligenceLibrary.jsx'
+import ExoPatternIntelligence20261102 from './components/ExoPatternIntelligence20261102.jsx'
+import ExoPatternGeneratorStudio20261102 from './components/ExoPatternGeneratorStudio20261102.jsx'
+import {openVerifiedNativeArchiveDraft,prepareVerifiedNativeArchiveDraft} from './core/exoNativeArchiveDraftImport20261102.js'
+import ExoFashionProductDevelopment20261102 from './components/ExoFashionProductDevelopment20261102.jsx'
+import ExoDevelopmentWorkflowGraph20261102 from './components/ExoDevelopmentWorkflowGraph20261102.jsx'
+import ExoArchiveSearch20261102 from './components/ExoArchiveSearch20261102.jsx'
 import PatternFlatSheetPreview from './components/PatternFlatSheetPreview.jsx'
 import {parseSvgPattern} from './core/svgPatternImport.js'
 import {interpretAssistantIntent,ASSISTANT_ACTIONS} from './core/assistantActions.js'
+import ExoAppCharacterAssistant20261102 from './components/ExoAppCharacterAssistant20261102.jsx'
+import ExoCustomWidgetStudio20261102 from './components/ExoCustomWidgetStudio20261102.jsx'
+import {applyExoFashionTeeEdit} from './core/exoFashionPatternEdits20261102.js'
 import CadToolIcon from './components/CadToolIcon.jsx'
 import MarkerPreview from './components/MarkerPreview.jsx'
 import SeamWalkPreview from './components/SeamWalkPreview.jsx'
@@ -930,6 +944,7 @@ export default function App() {
     try{return Boolean(localStorage.getItem(STUDIO_CUSTOMIZATION_KEY))}catch{return false}
   })())
   const [studioSettingsOpen,setStudioSettingsOpen] = useState(false)
+  const [customWidgetStudioOpen,setCustomWidgetStudioOpen] = useState(false)
   const [studioSettingsTab,setStudioSettingsTab] = useState('workspace')
   const closeStudioSettings=useCallback(()=>{setPreviewStudioTheme(null);setPreview3DEnvironment(null);setThemeHoveredTarget(null);setStudioSettingsOpen(false)},[])
   const beginThemePick=useCallback(key=>{setPreviewStudioTheme(null);setThemeHoveredTarget(null);setThemePickRequestedKey(key||'globalToolbarIconColor');setStudioSettingsOpen(false)},[])
@@ -1691,10 +1706,11 @@ export default function App() {
         const prepNote=prepared.report.reversed.length||prepared.report.removed.length
           ? ` Normalized ${prepared.report.reversed.length} reversed outlines and ${prepared.report.removed.length} microscopic cutline edges in the exported copy.`:''
         setCommandResult(`Opened ${next.name} in native 2D + 3D: ${conversion.template.panels.length} editable panels, ${conversion.template.seams.length} sewn-edge relationships.${prepNote} Source drafts remain unchanged; simulate and validate physical fit.`)
+        return {ok:true,name:next.name,pieceCount:conversion.template.panels.length,seamCount:conversion.template.seams.length,engine:'native'}
       } catch(error) {
         setCommandResult(`Could not load ${next.name} into the native editor: ${error.message}`)
+        return {ok:false,error:error.message}
       }
-      return
     }
     pushUndo(cloneProject(project))
     setProject(next)
@@ -1712,6 +1728,7 @@ export default function App() {
     setAnalysisMode('surface')
     setResetSignal((signal) => signal + 1)
     setCommandResult(`Loaded ${next.name} foundation with ${next.pieces.length} pattern${next.pieces.length === 1 ? '' : 's'} and ${next.seams.length} sewing relationship${next.seams.length === 1 ? '' : 's'}`)
+    return {ok:true,name:next.name,pieceCount:next.pieces.length,seamCount:next.seams.length,engine:'browser'}
   }
   const arrangeCurrentPatternsIn3D = () => {
     const arranged = arrangePatternProject(project)
@@ -2130,6 +2147,16 @@ export default function App() {
     setFileLibraryCollections(collections)
     return entries
   }
+  // The companion may answer questions about the user's saved projects
+  // without requiring File Library to be opened first. Index only metadata;
+  // individual garment documents stay in the user's protected library until
+  // they explicitly open one.
+  const companionLibraryIndexLoaded=useRef(false)
+  useEffect(()=>{
+    if(!araiOpen||companionLibraryIndexLoaded.current)return
+    companionLibraryIndexLoaded.current=true
+    void refreshFileLibrary().catch(()=>{companionLibraryIndexLoaded.current=false})
+  },[araiOpen])
   const refreshFileCollaboration = async () => {
     try {
       const state=await collaboration.state()
@@ -6075,8 +6102,32 @@ export default function App() {
 
   const importProject = async (event,{manufacturingImport=null}={}) => {
     const file = event.target.files?.[0]
+    event.target.value=''
     if (!file) return
     try {
+      const format=classifyExoImportFile20261101(file.name)
+      if(format?.kind==='needs-conversion')throw new Error(format.description)
+      if(format?.kind==='document-reference'){
+        verifyExoPdfReference20261101(new Uint8Array(await file.arrayBuffer()))
+        setCommandResult(`Validated PDF document ${file.name} (${(file.size/1024).toFixed(1)} KB). Source reference only; this does not create editable 2D geometry. Export closed paths as SVG from Illustrator or import DXF to create editable patterns. Current garment unchanged.`)
+        return
+      }
+      if(format?.kind==='mesh-reference')throw new Error('OBJ / GLB mesh is not a 2D pattern. Use the 3D Avatar import to preview it.')
+      if(/\.svg$/i.test(file.name)){
+        const outlines=parseSvgPattern(await file.text(),{fileName:file.name})
+        const next=cloneProject(project)
+        next.name=file.name.replace(/\.svg$/i,'')||'Imported SVG draft'
+        next.pieces=outlines.pieces
+        next.seams=[];next.fasteners=[];next.trims=[];next.topstitches=[]
+        next.patternSource={type:'svg',fileName:file.name,scaleToCm:outlines.scaleToCm}
+        touchProject(next);pushUndo(cloneProject(project))
+        setProject(arrangePatternProject(next));setSelectedPieceId(next.pieces[0]?.id||null)
+        setTool('select');setActiveSection('Pattern');setObjectTab('Pattern')
+        setViewportLayout('2d');setLayout2DSignal(v=>v+1)
+        setRunning(false);setHasSimulated(false)
+        setCommandResult(`Imported ${next.pieces.length} editable SVG cutlines. Sewing must be defined separately.`)
+        return
+      }
       const source = /\.zip$/i.test(file.name) ? null : await file.text()
       if (/\.zip$/i.test(file.name)) {
         const recovered=recoverFactorySourceFromZip(await file.arrayBuffer())
@@ -6339,9 +6390,9 @@ export default function App() {
     return {pieceCount:result.project.pieces.length,changedCount:result.changedCount}
   }
 
-  const runCommand = (event) => {
+  const runCommand = (event, explicitText) => {
     event?.preventDefault?.()
-    const raw = command.trim()
+    const raw = String(explicitText ?? command).trim()
     if (!raw) return
     setAraiLastPrompt(raw)
     const intent=interpretAssistantIntent(raw,{
@@ -6435,6 +6486,98 @@ export default function App() {
       setCommandResult('I could not match that request to a verified action. Try: show fabrics, import SVG, use Foundation Tee pattern, 2D view, apply Rigid Denim, simulate, undo, or save. Other tools need an explicit capability implementation.')
     }
     setCommand('')
+  }
+
+  /** Shared, QA-preflighted pattern-draft import for the Generator and the
+   * conversational AI character. Never opens a native project unless a real
+   * File Library backup was persisted, and never silently alters Undo history.
+   * Both callers must separately obtain explicit user review/confirmation. */
+  const applyReviewedPatternDraft20261102=async (candidate,{allowLegacyParametric=false}={})=>{
+    if(clothcraftHybrid){
+      try{
+        const outcome=await openVerifiedNativeArchiveDraft(candidate,{
+          bridgeFetch:nativeBridgeFetch,bridgeOrigin:nativeBridgeOrigin(),
+          requestProject:requestNativeLibraryProject,
+          persistBackup:async snapshot=>{
+            const saved=await saveLibraryProject({
+              name:`Native backup before reviewed pattern import · ${new Date().toISOString()}`,
+              snapshot,snapshotFormat:'native',category:'garment',status:'working',
+              notes:'Automatic durable backup before a user-approved editable garment replacement',
+            })
+            await refreshFileLibrary()
+            return saved
+          },
+        })
+        setViewportLayout('split');setActiveSection('Pattern');setObjectTab('Pattern')
+        setCommandResult(`Opened reviewed garment in native editor: ${outcome.panels} panels and ${outcome.seams} seams. The previous garment was backed up in File Library (${outcome.backupId}). Native Undo history reset; physical fit remains unverified.`)
+        return true
+      }catch(error){setCommandResult(`Reviewed garment import blocked: ${error.message}`);return false}
+    }
+    try{
+      // Existing legacy ±5% parametric editor drafts predate the provenance
+      // formats. Preserve their existing Undo workflow only for the older
+      // Generator UI, never the conversational AI character or native import.
+      if(!(allowLegacyParametric&&candidate?.patternGeneration?.method==='whole_garment_parametric_scale_v1'))
+        prepareVerifiedNativeArchiveDraft(candidate)
+      mutateProject(draft=>Object.assign(draft,candidate))
+      setViewportLayout('2d');setActiveSection('Pattern');setObjectTab('Pattern')
+      setCommandResult('Reviewed garment draft applied through Undo history. Fit and size grading remain unverified.')
+      return true
+    }catch(error){setCommandResult(`Reviewed draft rejected: ${error.message}`);return false}
+  }
+
+  // The in-app animated tutor may navigate only through existing EXO
+  // workspace functions. This is not an unrestricted AI mutation gateway.
+  const navigateExoTutor20261102 = target => {
+    switch(target){
+      case 'pattern':
+        setActiveSection('Pattern');setViewportLayout('2d');setShowTopWorkspaceTabs(true);break
+      case 'fabric':
+        setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true);setRightToolsCollapsed(false);break
+      case 'fabric-library':
+        setActiveSection('Fabric');setAssetCategory('Fabric');setSidebarView('library');setLibraryVisible(true);break
+      case 'grading':
+        setActiveSection('Production');setObjectTab('Grading');setShowObjectBrowser(true);setViewportLayout('2d');setRightToolsCollapsed(false);break
+      case 'sewing':
+        setActiveSection('Sewing');setObjectTab('Seam');setShowObjectBrowser(true);setViewportLayout('2d');setShowTopWorkspaceTabs(true);break
+      case 'avatar':
+        setActiveSection('Avatar');setAssetCategory('Avatar');setShowTopWorkspaceTabs(true);setViewportLayout('3d');break
+      case 'fit':
+        setActiveSection('Fit');setViewportLayout('3d');setShowTopWorkspaceTabs(true);break
+      case 'render':
+        setActiveSection('Render');setViewportLayout('3d');setShowTopWorkspaceTabs(true);break
+      case 'animation':
+        setActiveSection('Animation');setViewportLayout('3d');setShowTopWorkspaceTabs(true);break
+      case 'print':
+        enterPrintLayoutWorkspace();break
+      case 'widgets':
+        setCustomWidgetStudioOpen(true);break
+      case 'library':
+        setLibraryVisible(true);setSidebarView('library');setShowTopWorkspaceTabs(true);break
+      case 'techpack':
+        enterTechPackWorkspace();break
+      case 'search':
+        setCommandPaletteOpen(true);break
+      case 'assistant':
+        setAraiOpen(true);break
+      case 'save':
+        // Tutorial navigation must not write the garment without an explicit action.
+        break
+      default:break
+    }
+  }
+  const askExoLocalModel20261102=async message=>{
+    const origin=nativeBridgeOrigin()
+    if(!origin)return {ok:false,reason:'The private EXO local model bridge is unavailable in this build.'}
+    try{
+      const response=await nativeBridgeFetch(`${origin}/assistant/v1/local/suggest`,{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({message,section:activeSection,view:viewportLayout,selectedPiece:selectedPiece?.name||''})
+      })
+      const packet=await response.json()
+      if(!response.ok||!packet?.ok)return {ok:false,reason:packet?.reason||'The optional local model is not available on this EXO installation.'}
+      return packet
+    }catch{return {ok:false,reason:'Could not contact the local EXO model service. Tutorials and verified commands remain available.'}}
   }
 
   const estimatedLength = marker.length / 100
@@ -7234,6 +7377,7 @@ export default function App() {
         onOpenSharing={()=>{setTechPackOpen(false);setLibraryVisible(true);setSidebarView('sharing')}}/>}
       {fileLibraryOpen&&<>
         <ProjectFileLibrary
+          onSwitchWorkspace={destination=>{setFileLibraryOpen(false);setFileLibraryStartSave(false);setFileLibraryError('');setSimulationMenuOpen(false);setOpenMenu(null);if(destination==='techpack')enterTechPackWorkspace();else if(destination==='animation')enterAnimationWorkspace();else if(destination==='print')enterPrintLayoutWorkspace();else if(destination==='pattern'){setActiveSection('Pattern');setShowTopWorkspaceTabs(true)}}}
           initialDialog={fileLibraryStartSave?'save':undefined}
           entries={fileLibraryEntries}
           collections={fileLibraryCollections}
@@ -7282,12 +7426,12 @@ export default function App() {
         </div>)}
         <div className="clo-menu-spacer"/>
         <div className="clo-header-primary-actions" aria-label="Essential garment workspace actions">
-          <button type="button" className="clo-header-pattern-launch" aria-label="Open Pattern workspace" title="Open pattern editing workspace" onClick={()=>{setActiveSection('Pattern');setShowTopWorkspaceTabs(true);setOpenMenu(null)}}><Grid3X3 size={14}/><span>PATTERN</span></button>
-          <button type="button" className="clo-command-launch clo-header-search-launch" aria-label="Search commands" title="Find working commands · ⌘K" onClick={() => setCommandPaletteOpen(true)}><Search size={15}/><span>SEARCH</span></button>
-          <button type="button" className={`clo-command-launch clo-arai-launch ${araiOpen ? 'active' : ''}`} aria-label="Open ARAI assistant chat" aria-controls="clo-arai-chat" aria-expanded={araiOpen} title="Open ARAI garment assistant" onClick={() => { setOpenMenu(null); setAraiOpen(open => !open) }}><Sparkles size={14}/><span>AI</span></button>
+          <button type="button" data-exo-guide-target="pattern" className="clo-header-pattern-launch" aria-label="Open Pattern workspace" title="Open pattern editing workspace" onClick={()=>{setActiveSection('Pattern');setShowTopWorkspaceTabs(true);setOpenMenu(null)}}><Grid3X3 size={14}/><span>PATTERN</span></button>
+          <button type="button" data-exo-guide-target="command-search" className="clo-command-launch clo-header-search-launch" aria-label="Search commands" title="Find working commands · ⌘K" onClick={() => setCommandPaletteOpen(true)}><Search size={15}/><span>SEARCH</span></button>
+          <button type="button" data-exo-guide-target="assistant-launch" className={`clo-command-launch clo-arai-launch ${araiOpen ? 'active' : ''}`} aria-label="Open ARAI assistant chat" aria-controls="clo-arai-chat" aria-expanded={araiOpen} title="Open ARAI garment assistant" onClick={() => { setOpenMenu(null); setAraiOpen(open => !open) }}><Sparkles size={14}/><span>AI</span></button>
           <div className="clo-simulate-control">
             <button className={`clo-simulate-main ${visibleRunning ? 'running' : ''}`} disabled={printLayoutActive} onClick={animationWorkspaceActive ? () => window.dispatchEvent(new Event('exo-clothcraft-animation-toggle')) : simForVisibleEngine} title={printLayoutActive?'Exit print layout to simulate':animationWorkspaceActive?'Animate or pause':'Simulate or pause visible garment · Space'}><ArrowDownToLine size={16}/><span>{printLayoutActive?'PRINT':animationWorkspaceActive?'ANIM':visibleRunning ? 'PAUSE' : 'SIM'}</span></button>
-            <button className="clo-simulate-arrow" title="Simulation and workspace modes" aria-label="Simulation and workspace modes" aria-haspopup="menu" aria-controls="exo-simulate-mode-dropdown" aria-expanded={simulationMenuOpen} onClick={() => { setLeftSimulationMenuOpen(false); setOpenMenu(null); setSimulationMenuOpen(value => !value) }}><ChevronDown size={13}/></button>
+            <button data-exo-guide-target="workspace-modes" className="clo-simulate-arrow" title="Simulation and workspace modes" aria-label="Simulation and workspace modes" aria-haspopup="menu" aria-controls="exo-simulate-mode-dropdown" aria-expanded={simulationMenuOpen} onClick={() => { setLeftSimulationMenuOpen(false); setOpenMenu(null); setSimulationMenuOpen(value => !value) }}><ChevronDown size={13}/></button>
             {simulationMenuOpen && <div id="exo-simulate-mode-dropdown" className="clo-simulation-popover exo-simulate-clear-glass" role="menu" aria-label="Simulation mode and workspace options" data-simulate-glass="clear" onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setSimulationMenuOpen(false)}}}>
               <strong>Simulation mode</strong>
               {!clothcraftHybrid&&<>
@@ -7303,7 +7447,7 @@ export default function App() {
               <button type="button" onClick={()=>{setSimulationMenuOpen(false);setLeftSimulationMenuOpen(false);setFileLibraryStartSave(false);void openFileLibrary()}}><FolderOpen size={14}/> File Library · Saved garments</button>
             </div>}
           </div>
-          <button className={`save-button ${saveState}`} disabled={clothcraftHybrid&&clothcraftLive?.busy} onClick={saveForVisibleEngine}><Save size={15} />{clothcraftHybrid ? 'SAVE' : saveState === 'saved' ? 'SAVED' : 'SAVE'}</button>
+          <button data-exo-guide-target="save" className={`save-button ${saveState}`} disabled={clothcraftHybrid&&clothcraftLive?.busy} onClick={saveForVisibleEngine}><Save size={15} />{clothcraftHybrid ? 'SAVE' : saveState === 'saved' ? 'SAVED' : 'SAVE'}</button>
         </div>
         <div className="clo-header-secondary-tools" aria-label="Additional garment tools">
 
@@ -7311,7 +7455,7 @@ export default function App() {
           <div className="file-actions clo-compact-file-actions">
           <button type="button" className="clo-command-launch" aria-label="Open Studio Settings" title="Customize workspace, toolbar, themes and profile" onClick={()=>{setStudioSettingsTab('workspace');setStudioSettingsOpen(true)}}><Settings2 size={16}/></button>
           <button type="button" className="clo-top-tabs-toggle" title="Show / hide top workspace tabs" aria-pressed={showTopWorkspaceTabs} onClick={() => setShowTopWorkspaceTabs(value => !value)}><LayoutPanelTop size={15}/></button>
-          {showTopWorkspaceTabs && <select className="clo-workspace-select" aria-label="Workspace" value={activeSection} onChange={(event) => setActiveSection(event.target.value)}>{SECTIONS.map((section) => <option key={section} value={section}>{section}</option>)}</select>}
+          {showTopWorkspaceTabs && <select data-exo-guide-target="workspace" className="clo-workspace-select" aria-label="Workspace" value={activeSection} onChange={(event) => setActiveSection(event.target.value)}>{SECTIONS.map((section) => <option key={section} value={section}>{section}</option>)}</select>}
           <select className="clo-workspace-select clo-layout-preset-select" aria-label="CLO-style workspace layout presets" value="" onChange={(event) => {
             const key = event.target.value
             if (key === 'save') saveCustomWorkspace()
@@ -7340,7 +7484,7 @@ export default function App() {
           <span className="toolbar-divider" />
           <button className="icon-button" title="Import garment" onClick={() => importInputRef.current?.click()}><Upload size={17} /></button>
           <button className="icon-button" title="Export visible garment" disabled={clothcraftHybrid&&clothcraftLive?.busy} onClick={exportForVisibleEngine}><Download size={17} /></button>
-          <input ref={importInputRef} hidden type="file" accept=".json,.garment,.dxf,.zip,.mdl,.vet,.iba,.rul" onChange={importProject} />
+          <input ref={importInputRef} hidden type="file" accept=".json,.garment,.svg,.dxf,.pdf,.ai,.zip,.mdl,.vet,.iba,.rul" onChange={importProject} />
           <input ref={factoryDxfReferenceInputRef} hidden type="file" accept=".dxf" onChange={event=>importProject(event,{manufacturingImport:'cut-reference'})}/>
           <input ref={svgPatternInputRef} hidden type="file" accept=".svg,image/svg+xml" onChange={importSvgPattern}/>
           <input ref={seamlyMeasureInputRef} hidden type="file" accept=".smis,.smms" onChange={importSeamlyMeasurements} />
@@ -7370,27 +7514,227 @@ export default function App() {
         />
       </div>
 
-      {araiOpen && <section id="clo-arai-chat" className="clo-arai-popover" role="dialog" aria-label="ARAI garment assistant" onKeyDown={event => { if (event.key === 'Escape') setAraiOpen(false) }}>
-        <header className="clo-arai-header"><div><Sparkles size={16}/><strong>ARAI</strong><span>GARMENT ASSISTANT</span></div><button type="button" title="Close ARAI chat" aria-label="Close ARAI chat" onClick={() => setAraiOpen(false)}>×</button></header>
-        <div className="clo-arai-conversation" aria-live="polite">
-          {araiLastPrompt && <div className="clo-arai-message user"><small>YOU</small><p>{araiLastPrompt}</p></div>}
-          <div className="clo-arai-message assistant"><small>ARAI</small><p>{commandResult}</p></div>
-        </div>
-        <form className="command-bar" onSubmit={runCommand}>
-          <Sparkles size={15}/>
-          <input autoFocus aria-label="EXO tool assistant" value={command} onChange={event => setCommand(event.target.value)} placeholder="Ask ARAI to edit, navigate or use a tool…"/>
-          <button type="submit" title={`${ASSISTANT_ACTIONS.length} verified assistant actions plus pattern editing verbs`}>SEND</button>
-        </form>
-        <p className="clo-arai-hint">Commands execute through verified EXO tools. Use ⌘K to browse all commands.</p>
-      </section>}
+      <ExoAppCharacterAssistant20261102
+        onOpenCustomWidgets={()=>setCustomWidgetStudioOpen(true)}
+        open={araiOpen} onOpenChange={setAraiOpen}
+        commandResult={commandResult} lastPrompt={araiLastPrompt}
+        currentThemeId={studioCustomization.appearance.theme}
+        onCommand={raw=>runCommand(null,raw)}
+        onPatternDraft={applyReviewedPatternDraft20261102}
+        nativePatternMode={clothcraftHybrid}
+        onCreateGarment={async templateId=>{
+          const result=await applyGarmentTemplate(templateId)
+          if(result?.ok){
+            setViewportLayout('2d')
+            setActiveSection('Pattern')
+            setObjectTab('Pattern')
+          }
+          return result
+        }}
+        activeTemplateId={project.templateId}
+        gradingNestVisible={clothcraftHybrid?nativeNestVisible:showGradeNest}
+        onCompanionAction={async intent=>{
+          const type=intent?.type
+          if(type==='fashionInterpret'){
+            const plan=interpretExoFashionIntent(intent.request,{garment:project.templateId||'tee'})
+            if(!plan)return {ok:false,message:'Describe the silhouette, fit or designer reference you want to interpret.'}
+            const available=plan.operations?.[0]
+            if(intent.apply===true&&project.templateId==='hoodie'&&!clothcraftHybrid){
+              const wantWidth=plan.attributes?.some(item=>['oversized','relaxed','boxy'].includes(item.id))
+              const wantCrop=plan.attributes?.some(item=>item.id==='cropped')
+              const dropRequested=plan.attributes?.some(item=>item.id==='drop-shoulder')
+              if(!wantWidth&&!wantCrop)return{ok:false,message:'That hoodie styling direction needs an engineering operation that is not connected yet. No pattern changed.'}
+              try{
+                const widthCm=wantWidth?(plan.measurementsCm?.torsoHalfSideAdd?.valueCm||4):0
+                const cropCm=wantCrop?(plan.measurementsCm?.crop?.valueCm||6):0
+                const startingWidth=project.pieces.find(p=>p.id==='front')?.points
+                const baseWidth=startingWidth?Math.abs(startingWidth[6].x-startingWidth[3].x):0
+                if(!(baseWidth>0))return{ok:false,message:'The hoodie geometry cannot be measured for resizing.'}
+                const widthScale=1+(2*widthCm/baseWidth)
+                const transformed=transformHoodieFitGeometry(project,{widthScale,bodyLengthDeltaCm:-cropCm})
+                mutateProject(draft=>Object.assign(draft,transformed.project))
+                setActiveSection('Pattern');setViewportLayout('2d');setObjectTab('Pattern')
+                return{ok:true,target:'2d-canvas',message:`Resized the editable hoodie pattern: chest width ${transformed.before.frontChestWidthCm.toFixed(1)} → ${transformed.after.frontChestWidthCm.toFixed(1)} cm, length ${transformed.before.frontBodyLengthCm.toFixed(1)} → ${transformed.after.frontBodyLengthCm.toFixed(1)} cm. ${dropRequested?'Dropped-shoulder/sleeve-cap rebalancing remains unimplemented and was NOT performed. ':''}This is an interpreted oversized block, not a brand pattern. Review every seam diagnostic, cloth simulation and physical sample before production.`}
+              }catch(error){return{ok:false,message:`No hoodie change was committed: ${error.message}`}}
+            }
+            if(intent.apply===true&&available?.type==='tee-style'&&!clothcraftHybrid){
+              try{
+                const result=applyExoFashionTeeEdit(project,available)
+                if(!result.changed)return {ok:false,message:'The interpreted fit did not contain a measurable supported change.'}
+                mutateProject(draft=>Object.assign(draft,result.project))
+                setActiveSection('Pattern');setViewportLayout('2d');setObjectTab('Pattern')
+                return {ok:true,target:'2d-canvas',message:`Applied the editable torso/hem portion of the ${plan.brandReference||'requested'} interpretation. Front and back hem widths changed by ${result.adjustmentsCm.hemWidthPerPanel} cm each; body length changed by ${result.adjustmentsCm.bodyLength} cm. ${plan.pendingConstruction.length?`Still NOT applied: ${plan.pendingConstruction.join(', ')}. `:''}Review chest, shoulder, sleeves, fit and grading; this is not a replica pattern.`}
+              }catch(error){return {ok:false,message:`This fit could not safely be applied: ${error.message}`}}
+            }
+            return {ok:true,target:'2d-canvas',message:`${plan.brandReference||'Fashion'} design direction: ${plan.attributes.map(a=>a.label).join(', ')}. ${plan.operations.length?'The current foundation tee supports the limited torso/hem edit. ':'No matching verified geometry operation is available. '}${plan.pendingConstruction.length?`Separate drafting needed for ${plan.pendingConstruction.join(', ')}. `:''}No pattern was changed. For a supported T-shirt, ask me to apply the interpretation.`}
+          }
+          if(type==='referenceSearch'||type==='referenceAdd'){
+            const query=String(intent.query||'').trim().slice(0,120)
+            if(!query)return{ok:false,message:'Tell me what reference to search for, such as oversized jacket, Gothic architecture or fabric textures.'}
+            const assets=fileLibraryEntries.flatMap(entry=>(entry.attachments||[]).map(a=>({...a,projectId:entry.id,tags:[...(entry.tags||[]),...(a.metadata?.tags||[])]})))
+            const textMatches=findExoReferenceCandidates({assets,query,limit:12})
+            const ranked=rankExoVisualReferences({assets,query,limit:12})
+            const found=[...textMatches].sort((a,b)=>(ranked.find(x=>x.id===b.id)?.score||b.score)-(ranked.find(x=>x.id===a.id)?.score||a.score))
+            if(!found.length)return{ok:false,message:`No matching indexed image attachments were found for “${query}”. Add JPG, PNG or WebP images to your saved File Library projects and try again.`}
+            if(type==='referenceSearch')return{ok:true,target:'library-window',message:`Found ${found.length} local reference image${found.length===1?'':'s'}: ${found.slice(0,5).map(x=>x.name).join(', ')}. Ask me to add matching references to the moodboard when ready.`}
+            const chosen=found.slice(0,Math.min(5,found.length))
+            const loaded=[]
+            for(const candidate of chosen){
+              const record=assets.find(a=>a.id===candidate.id)
+              if(!record||!record.projectId||String(record.projectId).startsWith('team:'))continue
+              const file=await getLibraryAttachment(candidate.id)
+              if(!file?.blob||!/^image\/(?:png|jpeg|webp)$/.test(file.blob.type)||file.blob.size>2*1024*1024)continue
+              const image=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=()=>reject(new Error('Unable to read library image'));reader.readAsDataURL(file.blob)})
+              if(isSafeReferenceImageDataUrl(image))loaded.push({...candidate,dataUrl:image})
+            }
+            const pack=createTechPackDraft(project,project.techPackStudio)
+            const staged=prepareExoMoodboardImport({candidates:loaded,existingReferences:pack.draft.references||[],auto:true,createdAt:new Date().toISOString()})
+            if(!staged.references.length)return{ok:false,message:`Found ${found.length} image records, but none could be safely embedded in the reference board. Images must be under the board's storage limit; try smaller compressed files.`}
+            setProject(current=>({...current,techPackStudio:updateTechPackDraft(createTechPackDraft(current,current.techPackStudio),{references:[...(current.techPackStudio?.draft?.references||[]),...staged.references]})}))
+            setSaveState('modified');openTechPackStudio('references')
+            return{ok:true,target:'techpack-window',message:`Added ${staged.references.length} real local image${staged.references.length===1?'':'s'} to the Tech Pack Reference Board: ${staged.references.map(x=>x.name).join(', ')}. Review the selected references; these came from your saved File Library attachments.`}
+          }
+          if(type==='simulation'&&intent.action==='start'){
+            if(!clothcraftHybrid&&!project?.pieces?.length)return{ok:false,message:'Create or load pattern pieces before starting cloth simulation.'}
+            setViewportLayout('3d');setActiveSection('Fit')
+            if(clothcraftHybrid){
+              rustCommand('toggle-sim')
+              return{ok:true,target:'3d-canvas',message:'Sent the simulation command to the native cloth engine and opened 3D Fit. Watch the simulation control to confirm that the engine is running.'}
+            }
+            if(!running)toggleSimulation()
+            return{ok:true,target:'3d-canvas',message:running?'Cloth simulation is already running in the 3D viewport.':'Started cloth simulation in the 3D viewport. The garment will drape according to its sewing and material settings.'}
+          }
+          if(type==='autoGrade'){
+            if(clothcraftHybrid)return{ok:false,message:'The native garment editor needs its own grading transaction. Open Production to grade the native pattern; the browser project was not changed.'}
+            if(!project?.pieces?.length)return{ok:false,message:'Create or load an editable pattern before automatic grading.'}
+            const sizes=['XS','S','M','L','XL','XXL']
+            const baseSize=sizes.includes(project.grading?.baseSize)?project.grading.baseSize:'M'
+            const widthPerSizeCm=Number.isFinite(project.grading?.widthPerSizeCm)&&project.grading.widthPerSizeCm>0?project.grading.widthPerSizeCm:3
+            const lengthPerSizeCm=Number.isFinite(project.grading?.lengthPerSizeCm)&&project.grading.lengthPerSizeCm>0?project.grading.lengthPerSizeCm:1.2
+            mutateProject(next=>{next.grading={...next.grading,baseSize,sizes,widthPerSizeCm,lengthPerSizeCm}})
+            setShowGradeNest(true);setViewportLayout('2d');setActiveSection('Production');setGradePreviewSize(baseSize);setObjectTab('Grading')
+            return{ok:true,message:`Applied the editable ${sizes.join('–')} automatic grading size run with ${widthPerSizeCm} cm width and ${lengthPerSizeCm} cm length increments per size. Review each nested size, seam junction, and fit before manufacturing. Undo restores the previous rules.`,target:'2d-canvas'}
+          }
+          if(type==='gradingNest'){
+            const enabled=clothcraftHybrid?nativeNestVisible:showGradeNest
+            const desired=typeof intent.value==='boolean'?intent.value:!enabled
+            if(desired===enabled)return {ok:true,message:`Grading nest outlines are already ${enabled?'visible':'hidden'}.`,target:'2d-canvas'}
+            if(clothcraftHybrid)window.dispatchEvent(new CustomEvent('exo-clothcraft-pattern-studio-command',{detail:{command:'toggle-native-nest'}}))
+            else setShowGradeNest(desired)
+            return {ok:true,message:`${desired?'Showing':'Hiding'} the XS–XXL grading nest outlines. Pattern pieces and size rules are unchanged.`,target:'2d-canvas'}
+          }
+          if(type==='workspace'){
+            if(!['2d','3d','split','stack'].includes(intent.value))return{ok:false,message:'Unknown viewport mode.'}
+            setViewportLayout(intent.value)
+            return{ok:true,message:`Switched to ${intent.value.toUpperCase()} view.`,target:intent.value==='3d'?'3d-canvas':'2d-canvas'}
+          }
+          if(type==='navigate'&&intent.target==='settings'){
+            setStudioSettingsTab(intent.tab==='theme'?'theme':'workspace');setStudioSettingsOpen(true)
+            return{ok:true,message:`Opened EXO ${intent.tab==='theme'?'Theme':'Workspace'} settings.`,target:'settings-window'}
+          }
+          if(type==='theme'){
+            if(!STUDIO_THEME_IDS.has(intent.value))return{ok:false,message:'That theme is not installed.'}
+            setStudioSettingsTab('theme');setStudioSettingsOpen(true)
+            updateStudioCustomization({...studioCustomization,appearance:{...studioCustomization.appearance,theme:intent.value}})
+            return{ok:true,message:`Applied the ${intent.value.replace(/-/g,' ')} theme and opened Theme settings to show the palette.`,target:'settings-window'}
+          }
+          if(type==='panelFinish'){
+            if(!['balanced','deep','unified','tinted'].includes(intent.value))return{ok:false,message:'Unknown interface panel finish.'}
+            setStudioSettingsTab('theme');setStudioSettingsOpen(true)
+            updateStudioCustomization({...studioCustomization,appearance:{...studioCustomization.appearance,panelFinish:intent.value}})
+            return{ok:true,message:`Applied the ${intent.value} panel finish. Garment materials and geometry were unchanged.`,target:'settings-window'}
+          }
+          if(type==='navigate'&&intent.target==='techpack'){
+            enterTechPackWorkspace()
+            return{ok:true,message:'Opened the Tech Pack workspace. I can show the measurements, construction and materials areas.',target:'techpack-window'}
+          }
+          if(type==='patternPrint'){
+            enterPrintLayoutWorkspace()
+            // Persist the request until PrintLayoutStudio mounts. Dispatching
+            // synchronously alone loses it when the workspace was closed.
+            const printSetup={paper:intent.paper||'Letter',orientation:intent.orientation||'portrait',scale:100,view:'pages'}
+            window.__exoCompanionPrintSetup=printSetup
+            window.dispatchEvent(new CustomEvent('exo-companion-print-setup',{detail:printSetup}))
+            return{ok:true,target:'print-layout-window',message:`Opened Print Layout and configured ${intent.paper||'Letter'} (${intent.paper==='A4'?'210 × 297 mm':'8.5 × 11 in'}) at actual 100% scale. I’m showing the tiled pages with alignment marks. Review the sheet count, choose one fabric if multiple are present, and download the PDF. Print at actual size with Fit to Page disabled, then measure the 100 mm calibration square.`}
+          }
+          if(type==='avatar'){
+            const chosen=AVAILABLE_AVATARS.find(entry=>entry.model===intent.value)
+            if(!chosen||avatarAvailability[chosen.model]!==true||(clothcraftHybrid&&!['makehuman-base','clo-thomas'].includes(chosen.model)))
+              return{ok:false,message:'That avatar is unavailable for this fitting engine. Open Avatar to select an installed model.'}
+            setAvatarModel(chosen.model);setActiveSection('Avatar')
+            return{ok:true,message:`Selected ${chosen.name}. Check collision fit before approving the garment.`,target:'3d-canvas'}
+          }
+          if(type==='navigate'&&intent.target==='avatar'){
+            setActiveSection('Avatar');setAssetCategory('Avatar');setSidebarView('library');setLibraryVisible(true)
+            return{ok:true,message:'Opened the Avatar library. Choose an installed fitting model.',target:'library-window'}
+          }
+          if(type==='fabric'){
+            setActiveSection('Fabric');setObjectTab('Fabric');setShowObjectBrowser(true)
+            if(intent.presetId&&FABRIC_PRESETS[intent.presetId]){
+              if(clothcraftHybrid)activateFabricFromLibrary(intent.presetId,{allPieces:true})
+              else addAndApplyFabricPreset(intent.presetId,{allPieces:true})
+              return{ok:true,message:`Applied ${FABRIC_PRESETS[intent.presetId].name} across the garment. Inspect material behavior in 3D.`,target:'3d-canvas'}
+            }
+            setAssetCategory('Fabric');setSidebarView('library');setLibraryVisible(true)
+            return{ok:true,message:'Opened the Fabric library and properties. Name a fabric such as cotton jersey, fleece, denim or silk to apply it.',target:'library-window'}
+          }
+          if(type==='hardware'){
+            const tab=intent.target==='Trim'?'Trim':intent.target
+            setActiveSection('Sewing');setObjectTab(tab);setShowObjectBrowser(true)
+            if(intent.action==='add'){
+              if(!project.pieces.length)return{ok:false,message:'Create or select a pattern piece before adding hardware.'}
+              createBrowserConstructionObject(tab,selectedPieceId)
+              return{ok:true,message:`Added a ${tab.toLowerCase()} draft annotation to the selected pattern and opened its properties. Position and dimensions remain editable.`,target:'2d-canvas'}
+            }
+            return{ok:true,message:`Opened the ${tab} tools in Sewing. Select a pattern to place or configure hardware.`,target:'2d-canvas'}
+          }
+          if(type==='navigate'&&intent.target==='library'){
+            await openFileLibrary()
+            return{ok:true,message:'Opened saved projects in File Library.',target:'library-window'}
+          }
+          return{ok:false,message:'That action does not yet have a verified EXO editor handler.'}
+        }}
+        savedProjectContext={fileLibraryEntries.slice(0,12).map(item=>({id:String(item.id||'').slice(0,64),name:String(item.name||item.title||'Untitled').slice(0,100)}))}
+        garmentContext={{
+          name:String(project.name||'Untitled garment').slice(0,90),
+          templateId:String(project.templateId||'').slice(0,40),
+          units:project.units||'cm',
+          baseSize:project.grading?.baseSize||'M',
+          pieces:(project.pieces||[]).slice(0,10).map(piece=>String(piece.name||piece.id).slice(0,50)),
+          latestStylingNote:project.productionSpec?.stylingNotes?.at(-1)||'',
+        }}
+        projectSnapshot={project}
+        projectUndoAvailable={undoStack.length>0}
+        projectRedoAvailable={redoStack.length>0}
+        onFashionEdit={async instruction=>{
+          if(clothcraftHybrid)return {ok:false,error:'Style editing in the native garment workspace needs the native pattern geometry editor. No changes were made.'}
+          try{
+            const result=applyExoFashionTeeEdit(project,instruction)
+            if(!result.changed)return {ok:false,error:'No supported measurable pattern change was identified.'}
+            mutateProject(draft=>{Object.assign(draft,result.project)})
+            setViewportLayout('2d')
+            setActiveSection('Pattern')
+            setObjectTab('Pattern')
+            setCommandResult(`Edited T-shirt: ${result.adjustmentsCm.hemWidthPerPanel>0? '+'+result.adjustmentsCm.hemWidthPerPanel+' cm per body hem; ':''}${result.adjustmentsCm.bodyLength<0? Math.abs(result.adjustmentsCm.bodyLength)+' cm shorter body length.':''} Check fit, grading and production seams.`)
+            return {ok:true,...result,project:undefined}
+          }catch(error){return {ok:false,error:error.message}}
+        }}
+        onLocalAsk={askExoLocalModel20261102}
+        onNavigate={navigateExoTutor20261102}
+        activeSection={activeSection} workspaceLayout={viewportLayout}
+        selectedPieceName={selectedPiece?.name||null}
+      />
 
       {studioSettingsOpen&&<StudioSettingsDialog value={studioCustomization} initialTab={studioSettingsTab}
+        onOpenCustomWidgets={()=>setCustomWidgetStudioOpen(true)}
         onPreviewTheme={setPreviewStudioTheme} onPreviewIconColor={setPreviewIconColor} onPreviewTwoDPalette={setPreviewTwoDPalette} onPreviewTwoDPattern={setPreviewTwoDPattern} onPreviewGradeChart={previewGradeChart} onPreview3DEnvironment={setPreview3DEnvironment} onApplySavedTheme={applyCompleteSavedTheme} onHoverTarget={setThemeHoveredTarget} onPickTarget={beginThemePick} focusKey={themePickFocusKey}
         contrastAudit={themeContrastAudit} onFixContrast={fixThemeContrast}
         onChange={updateStudioCustomization} onClose={closeStudioSettings}
         onApplyWorkspace={updateStudioCustomization} onSaveWorkspace={saveCustomWorkspace}
         onRestoreWorkspace={restoreCustomWorkspace} onReset={resetStudioCustomization}
         onResetEnvironment={resetEnvironmentCustomization}/>}
+      {customWidgetStudioOpen&&<div className="exo-cws-overlay" role="dialog" aria-modal="true" aria-label="Custom widget library"><ExoCustomWidgetStudio20261102 onClose={()=>setCustomWidgetStudioOpen(false)} commands={{'app.workspace.show2d':()=>setViewportLayout('2d'),'app.workspace.show3d':()=>setViewportLayout('3d'),'app.workspace.techpack':()=>enterTechPackWorkspace(),'app.workspace.grading':()=>navigateExoTutor20261102('grading'),'app.simulation.start':()=>{setViewportLayout('3d');if(clothcraftHybrid)rustCommand('toggle-sim');else if(!running&&project?.pieces?.length)toggleSimulation()},'app.pattern.save':()=>saveProject()}} /></div>}
+      <style>{`.exo-cws-overlay{position:fixed;inset:0;z-index:22000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(5,9,18,.72);backdrop-filter:blur(8px)}.exo-cws-overlay>.exo-cws{width:min(1150px,96vw);box-shadow:0 22px 70px rgba(0,0,0,.45)}`}</style>
       <main className="main-layout clo-adjustable-panels" data-library-visible={libraryVisible} data-inspector-visible={inspectorVisible} data-left-tools-collapsed={leftToolsCollapsed} data-right-tools-collapsed={rightToolsCollapsed} data-pattern-workspace={viewportLayout==='2d'} style={{ '--library-width': `${libraryWidth}px`, '--inspector-width': `${inspectorWidth}px`, '--object-browser-height': `${objectBrowserHeight}px`, '--effective-library-width': libraryVisible ? `${libraryWidth}px` : '0px', '--effective-inspector-width': inspectorVisible ? `${inspectorWidth}px` : '0px' }}>
         <ExoUniversalPanelHandles20261028 libraryVisible={libraryVisible} inspectorVisible={inspectorVisible} onInspectorVisibleChange={setInspectorVisible} leftVisible={!leftToolsCollapsed} rightVisible={!rightToolsCollapsed}/>
         <button type="button" className="exo-panel-edge-toggle exo-library-edge-toggle" aria-label={libraryVisible?'Collapse library panel':'Expand library panel'} aria-expanded={libraryVisible} onClick={()=>setLibraryVisible(value=>!value)}>{libraryVisible?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}</button>
@@ -7434,7 +7778,7 @@ export default function App() {
               {!clothcraftHybrid&&<button type="button" className="wide-action" onClick={arrangeCurrentPatternsIn3D}><Box size={13}/>ARRANGE CURRENT 2D IN 3D</button>}
               <span>2D outlines only · zero sewing · choose patterns to edit in the 2D viewport</span>
             </div>}
-            {assetCategory==='Patterns'&&<PatternIntelligenceLibrary search={librarySearch}/>}
+            {assetCategory==='Patterns'&&<><ExoDevelopmentWorkflowGraph20261102 project={project} onOpenTechPack={enterTechPackWorkspace}/><ExoFashionProductDevelopment20261102 pieces={project.pieces} selectedPiece={selectedPiece} onSelectPiece={setSelectedPieceId} projectFabrics={project.fabrics} seams={project.seams} project={project}/><ExoPatternIntelligence20261102 pieces={project.pieces} selectedPiece={selectedPiece} onSelectPiece={setSelectedPieceId}/><ExoPatternGeneratorStudio20261102 nativeMode={clothcraftHybrid} project={project} onApply={candidate=>applyReviewedPatternDraft20261102(candidate,{allowLegacyParametric:true})} onExportDxf={exportDxf}/><ExoArchiveSearch20261102/><PatternIntelligenceLibrary search={librarySearch}/></>}
             {(assetCategory === 'Garment' || assetCategory === 'Patterns') ? GARMENT_TEMPLATES.filter(template => libraryItemMatches(template.name)&&templateMatchesFolder(template,libraryFolder)).map((template) => (
               <LibraryAssetHover key={`${assetCategory}-${template.id}`} category={assetCategory} id={template.id} title={template.name}
                 description={template.description || 'Garment construction template with editable 2D panels.'}
@@ -7739,12 +8083,12 @@ export default function App() {
           <span className="rail-divider"/><div className="clo-rail-section"><strong>VIEW & EDIT</strong></div>
           <button onClick={() => setShow2DGrid(value => !value)} className={show2DGrid ? 'active' : ''} title="Show or hide 2D drafting grid"><CadToolIcon id="grid-2d" size={20}/></button>
           <button onClick={() => setShow2DSeams(value => !value)} className={show2DSeams ? 'active' : ''} title="Show or hide 2D sewing links"><CadToolIcon id="seam-links" size={20}/></button>
-          <button onClick={() => setActiveSection('Fabric')} title="Open fabric properties"><CadToolIcon id="fabric" size={20}/></button>
+          <button data-exo-guide-target="fabric-tool" onClick={() => setActiveSection('Fabric')} title="Open fabric properties"><CadToolIcon id="fabric" size={20}/></button>
           <button onClick={() => setActiveSection('Avatar')} title="Open avatar properties"><CadToolIcon id="avatar" size={20}/></button>
           <button onClick={() => setActiveSection('Sewing')} title="Open sewing inspector"><CadToolIcon id="sewing-inspector" size={20}/></button>
           <button onClick={() => setActiveSection('Pattern')} title="Open selected pattern properties"><CadToolIcon id="pattern-properties" size={20}/></button>
           <button onClick={() => setActiveSection('Fit')} title="Open fitting and simulation controls"><CadToolIcon id="fit" size={20}/></button>
-          <button onClick={() => setActiveSection('Production')} title="Open production and grading"><CadToolIcon id="grading" size={20}/></button>
+          <button data-exo-guide-target="grading-tool" onClick={() => setActiveSection('Production')} title="Open production and grading"><CadToolIcon id="grading" size={20}/></button>
           <button onClick={() => setActiveSection('Render')} title="Open renderer settings"><CadToolIcon id="render" size={20}/></button>
           <button onClick={() => setFitCameraSignal(value => value + 1)} title="Frame avatar in 3D"><CadToolIcon id="camera" size={20}/></button>
           <button onClick={() => duplicateSelectedPiece(false)} disabled={!selectedPiece} title="Duplicate selected pattern"><CadToolIcon id="duplicate-piece" size={20}/></button>
@@ -9341,7 +9685,7 @@ export default function App() {
         <div className="sim-left">
           <div className="sim-footer-mode-switch">
             <button className={`sim-play ${techPackWorkspaceOpen?'active':animationWorkspaceActive ? animationPlaying ? 'active' : '' : visibleRunning ? 'active' : ''}`} disabled={printLayoutActive||techPackWorkspaceOpen} onClick={animationWorkspaceActive ? () => window.dispatchEvent(new Event('exo-clothcraft-animation-toggle')) : simForVisibleEngine}>{techPackWorkspaceOpen?<FileDown size={16}/>:animationWorkspaceActive && animationPlaying || !animationWorkspaceActive && visibleRunning ? <Pause size={16} /> : <Play size={16} />}{techPackWorkspaceOpen?'TECHPACK':printLayoutActive?'PRINT LAYOUT':animationWorkspaceActive ? animationPlaying ? 'PAUSE' : 'ANIMATE' : visibleRunning ? 'PAUSE' : 'SIMULATE'}</button>
-            <button type="button" className="sim-mode-arrow" aria-label="Simulation, animation, print layout and Techpack modes" title="Switch between simulation, animation, print layout and Techpack workspaces" aria-haspopup="menu" aria-controls="exo-simulate-footer-dropdown" aria-expanded={leftSimulationMenuOpen} onClick={() => {setSimulationMenuOpen(false);setLeftSimulationMenuOpen(value => !value)}}><ChevronDown size={14}/></button>
+            <button data-exo-guide-target="workspace-modes" type="button" className="sim-mode-arrow" aria-label="Simulation, animation, print layout and Techpack modes" title="Switch between simulation, animation, print layout and Techpack workspaces" aria-haspopup="menu" aria-controls="exo-simulate-footer-dropdown" aria-expanded={leftSimulationMenuOpen} onClick={() => {setSimulationMenuOpen(false);setLeftSimulationMenuOpen(value => !value)}}><ChevronDown size={14}/></button>
             {leftSimulationMenuOpen && <div id="exo-simulate-footer-dropdown" className="sim-footer-mode-menu exo-simulate-clear-glass" role="menu" aria-label="Simulation animation and print layout workspace modes" data-simulate-glass="clear" onKeyDown={event=>{if(event.key==='Escape'){event.stopPropagation();setLeftSimulationMenuOpen(false)}}}>
               <button type="button" role="menuitem" onClick={()=>{if(animationWorkspaceActive||printLayoutActive)exitFocusedWorkspace();setTechPackWorkspaceOpen(false);setLeftSimulationMenuOpen(false)}}><Check size={13} style={{opacity:animationWorkspaceActive||printLayoutActive||techPackWorkspaceOpen?0:1}}/> Simulation · Fit & sew</button>
               <button type="button" role="menuitem" onClick={enterAnimationWorkspace}><Check size={13} style={{opacity:animationWorkspaceActive?1:0}}/> Animation Workspace · Walk presets</button>

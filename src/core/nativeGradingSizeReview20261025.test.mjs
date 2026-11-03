@@ -97,3 +97,14 @@ test('all six sizes independently reject a forged sewn mismatch despite pass=tru
     assert.equal(rows.filter(row=>row.draftingChecksPass).length,SIZES.length-1)
   }
 })
+
+test('global source sewing veto and negative seam mismatch block release without hiding size diagnostics',()=>{
+  const source=workflow()
+  source.sewingReady=false
+  assert(summarize(source,poms(),1).every(row=>!row.sewingPass&&!row.draftingChecksPass))
+  source.sewingReady=true
+  source.sewing.rows.find(row=>row.size==='XL').mismatchMm=-.3
+  const rows=summarize(source,poms(),1)
+  assert.equal(rows.find(row=>row.size==='XL').sewingPass,false)
+  assert.equal(rows.find(row=>row.size==='M').sewingPass,true)
+})

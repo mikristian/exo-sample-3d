@@ -1,0 +1,6 @@
+/* Stable globe presentation during model loads and WebGL recovery. */
+.hero-sticky .cc-runway-stage.cc-runway-fallback{background:radial-gradient(circle at 50% 48%,#263753 0%,#0e1830 33%,#02040e 78%)}
+.hero-sticky .cc-runway-stage.cc-runway-fallback #cc-runway-canvas{opacity:0}
+.hero-sticky .cc-runway-stage #cc-runway-canvas{transition:opacity .35s ease}
+@media(max-width:700px){.hero-sticky .cc-runway-stage #cc-runway-canvas{opacity:.76}}
+@media(prefers-reduced-motion:reduce){.hero-sticky .cc-runway-stage #cc-runway-canvas{transition:none;opacity:.72}}

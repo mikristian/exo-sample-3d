@@ -2,6 +2,8 @@ import React, {useEffect, useState} from 'react';
 import {DEFAULT_CLO_SETTINGS} from '../core/cloSettingsDefaults.js';
 import {CLOTHCRAFT_BRIDGE, readClothCraftHealth, readClothCraftStatus, readClothCraftCapabilities, runClothCraftAction, summarizeClothCraftSnapshot, listClothCraftApiKeys, createClothCraftApiKey, revokeClothCraftApiKey} from '../core/clothcraftApiClient.js';
 import {APP_AUTOMATION_ACTIONS, requestAppAutomation} from '../core/clothcraftAppAutomation.js';
+import {listProjects as listClosetProjects, listCollections as listClosetCollections, exportLibraryBackup, importLibraryBackup} from '../core/projectFileLibrary.js';
+import {resolveClothCraftWebsite} from '../core/clothcraftCommunityUrl.js';
 import './CloSettingsPages.css';
 
 export const CLO_SETTINGS_NAV = [
@@ -226,7 +228,101 @@ function ClothCraftApiSettings() {
     <section className="clo-config-group"><h4>HTTP integration</h4><p className="clo-config-note">Local automation clients may call these JSON endpoints. The capability manifest defines the exact commands and arguments.</p><pre className="cc-api-output">{`GET ${CLOTHCRAFT_BRIDGE}/agent/v1/capabilities\nGET ${CLOTHCRAFT_BRIDGE}/agent/v1/status\nPOST ${CLOTHCRAFT_BRIDGE}/agent/v1/actions\nContent-Type: application/json\n\n{"action":"workspace.snapshot"}`}</pre><p className="clo-config-note">Write requests additionally require <code>expectedRevision</code> from a recent snapshot. A changed revision causes a conflict instead of applying stale edits.</p></section>
   </div>;
 }
-export function CloSettingsPages({tab,value={},onChange,workspace={},onWorkspaceChange}) {
+function ClothCraftCloset({value,onChange,onClose}) {
+  const [projects,setProjects]=useState([]);
+  const [collections,setCollections]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const [working,setWorking]=useState(false);
+  const [error,setError]=useState('');
+  const [notice,setNotice]=useState('');
+  const [websiteDraft,setWebsiteDraft]=useState(value.communityWebsiteUrl||'');
+  const website=resolveClothCraftWebsite(value.communityWebsiteUrl);
+  const refresh=async()=>{
+    setLoading(true);
+    try {
+      const [saved,groups]=await Promise.all([listClosetProjects(),listClosetCollections()]);
+      setProjects(saved.sort((a,b)=>String(b.updatedAt||'').localeCompare(String(a.updatedAt||''))));
+      setCollections(groups);
+      setError('');
+    } catch(e) {setError(e.message||'Could not read the local Closet');}
+    finally {setLoading(false);}
+  };
+  useEffect(()=>{void refresh();},[]);
+  const openLibrary=async()=>{
+    setWorking(true);setError('');
+    try {
+      await requestAppAutomation('app.library.open');
+      onClose?.();
+    }catch(e){setError(e.message||'Could not open the File Library');}
+    finally{setWorking(false);}
+  };
+  const saveWebsite=event=>{
+    event.preventDefault();setError('');setNotice('');
+    const next=websiteDraft.trim();
+    if(next&&!resolveClothCraftWebsite(next)){
+      setError('Enter a full HTTPS website URL, or an HTTP localhost URL for local development.');
+      return;
+    }
+    const normalized=resolveClothCraftWebsite(next)?.root||'';
+    onChange({...value,communityWebsiteUrl:normalized});
+    setWebsiteDraft(normalized);
+    setNotice(normalized?'Website link saved on this device. Cloud accounts and automatic sync are not connected.':'Website link cleared.');
+  };
+  const exportBackup=async()=>{
+    setWorking(true);setError('');setNotice('');
+    try{
+      const backup=await exportLibraryBackup();
+      const blob=new Blob([JSON.stringify(backup)],{type:'application/json'});
+      const url=URL.createObjectURL(blob);
+      const anchor=document.createElement('a');
+      anchor.href=url;anchor.download=`clothcraft-closet-backup-${new Date().toISOString().slice(0,10)}.json`;
+      anchor.click();
+      window.setTimeout(()=>URL.revokeObjectURL(url),10000);
+      setNotice('Local Closet backup downloaded. No files were uploaded to the website.');
+    }catch(e){setError(e.message||'Could not export Closet backup');}
+    finally{setWorking(false);}
+  };
+  const importBackup=async(event)=>{
+    const file=event.target.files?.[0];
+    event.target.value='';
+    if(!file)return;
+    setWorking(true);setError('');setNotice('');
+    try{
+      const backup=JSON.parse(await file.text());
+      await importLibraryBackup(backup,{conflict:'copy'});
+      await refresh();
+      setNotice('Backup imported into your local Closet. Existing projects were preserved.');
+    }catch(e){setError(e.message||'Could not import Closet backup');}
+    finally{setWorking(false);}
+  };
+  return <div className="clo-settings-page cc-closet">
+    <h3>ClothCraft Closet</h3>
+    <p className="studio-settings-intro">Your saved garments, patterns and collections live in the Studio File Library. Connect your ClothCraft website here to move between Studio and the Marketplace.</p>
+    <section className="clo-config-group">
+      <div className="cc-closet-heading"><h4>My Closet · This device</h4><button type="button" onClick={()=>void refresh()} disabled={loading||working}>{loading?'Loading…':'Refresh'}</button></div>
+      <div className="cc-closet-stats"><div><strong>{loading?'—':projects.length}</strong><span>Saved projects</span></div><div><strong>{loading?'—':collections.length}</strong><span>Collections</span></div><div><strong>Local</strong><span>Storage status</span></div></div>
+      {!loading&&projects.length>0?<div className="cc-closet-projects">{projects.slice(0,5).map(project=><div key={project.id} className="cc-closet-project"><div><strong>{project.name||'Untitled garment'}</strong><span>{project.category||'garment'} · {project.status||'working'} · Version {project.currentVersion||1}</span></div><small>{formatApiDate(project.updatedAt)}</small></div>)}</div>:!loading&&<p className="clo-config-note">No named projects saved to this Closet yet. Save a garment to the File Library to see it here.</p>}
+      {projects.length>5&&<p className="clo-config-note">Showing the five most recently saved projects.</p>}
+      <div className="cc-closet-actions"><button type="button" disabled={working} onClick={openLibrary}>{working?'Opening…':'Open File Library'}</button></div>
+      <p className="clo-config-note">These are real locally saved Studio projects. They are not automatically available on another device or on the public Marketplace.</p>
+    </section>
+    <section className="clo-config-group">
+      <h4>Website & Marketplace</h4>
+      <p className="clo-config-note">Set the address of your ClothCraft website. Navigation works now; user sign-in, cloud synchronization and public publishing still require a connected account service.</p>
+      <form className="cc-closet-url-form" onSubmit={saveWebsite}><label htmlFor="cc-closet-website-url">ClothCraft website address</label><div><input id="cc-closet-website-url" type="url" value={websiteDraft} placeholder="https://your-clothcraft-website.example/" onChange={e=>setWebsiteDraft(e.target.value)} spellCheck="false" autoCapitalize="off"/><button type="submit" disabled={working}>Save address</button></div></form>
+      <div className="cc-closet-actions">{website?<><a href={website.marketplace} target="_blank" rel="noopener noreferrer">Open Marketplace ↗</a><a href={website.community} target="_blank" rel="noopener noreferrer">Explore Community ↗</a><a href={website.download} target="_blank" rel="noopener noreferrer">Download Studio ↗</a></>:<p className="clo-config-note">Enter your published site URL, or <code>http://127.0.0.1:8100/</code> while running the local site preview.</p>}</div>
+      <p className="cc-closet-connection-status">Cloud account: Not connected · Marketplace publishing: Not enabled</p>
+    </section>
+    <section className="clo-config-group">
+      <h4>Move or back up your work</h4>
+      <p className="clo-config-note">Export a complete local File Library backup or import one from another ClothCraft installation. Imported projects are added as copies when IDs conflict.</p>
+      <div className="cc-closet-actions"><button type="button" disabled={working} onClick={exportBackup}>Export Closet backup</button><label className="cc-closet-import">Import Closet backup<input type="file" accept=".json,application/json" disabled={working} onChange={importBackup}/></label></div>
+    </section>
+    {notice&&<p className="cc-closet-notice" role="status">{notice}</p>}
+    {error&&<p className="cc-api-error" role="alert">{error}</p>}
+  </div>;
+}
+export function CloSettingsPages({tab,value={},onChange,onClose,workspace={},onWorkspaceChange}) {
   const [expanded,setExpanded]=useState({});
   const defaults=DEFAULT_CLO_SETTINGS;
   const update=(key,v)=>onChange({...value,[key]:v});
@@ -250,7 +346,7 @@ export function CloSettingsPages({tab,value={},onChange,workspace={},onWorkspace
     return <div className="clo-config-field" key={f.key}><label>{f.label}</label><div>{control}</div></div>;
   };
   if(tab==='cloApi')return <ClothCraftApiSettings/>;
-  if(tab==='closet')return <div className="clo-settings-page"><h3>CLOSET</h3><p className="studio-settings-intro">This module has not been connected to this studio.</p><section className="clo-config-group"><h4>Connection</h4><p className="clo-config-note">Unavailable — no authenticated CLOSET integration is configured. This page is reserved for a future connection.</p></section></div>;
+  if(tab==='closet')return <ClothCraftCloset value={value} onChange={onChange} onClose={onClose}/>;
   if(tab==='cloShortcuts')return <div className="clo-settings-page"><h3>Shortcuts</h3><p className="studio-settings-intro">Explore shortcut categories and save custom key assignments. Custom assignments are not yet wired to commands.</p><div className="clo-shortcut-head"><span>Function</span><span>Shortcut Key</span><span>Reset</span><span>Delete</span></div>{Object.entries(SHORTCUT_GROUPS).map(([category,items])=><div key={category}><button className="clo-shortcut-category" aria-expanded={!!expanded[category]} onClick={()=>setExpanded(s=>({...s,[category]:!s[category]}))}>{expanded[category]?'−':'+'} &nbsp; {category}</button>{expanded[category]&&items.map(action=>{const key='shortcut:'+category+':'+action;return <div className="clo-shortcut-line" key={key}><span>{action}</span><input aria-label={action+' shortcut'} placeholder="Unassigned" value={value[key]??''} onChange={e=>update(key,e.target.value.slice(0,40))}/><button type="button" onClick={()=>update(key,defaults[key]??'')}>Reset</button><button type="button" onClick={()=>update(key,'')}>Delete</button></div>})}</div>)}</div>;
   return <div className="clo-settings-page"><h3>{CLO_SETTINGS_NAV.find(([id])=>id===tab)?.[1]}</h3>{PAGE_FIELDS[tab]?.map(({title,fields,note})=><section className="clo-config-group" key={title}><h4>{title}</h4>{fields.map(renderField)}{note&&<p className="clo-config-note">{note}</p>}</section>)}</div>;
 }

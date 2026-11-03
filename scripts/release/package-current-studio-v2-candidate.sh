@@ -48,22 +48,6 @@ if ! cp -cR "$SOURCE_APP" "$APP" 2>/dev/null; then
   cp -R "$SOURCE_APP" "$APP"
 fi
 RES="$APP/Contents/Resources"
-# The installed personal app may carry an old Rust session whose capabilities
-# predate the native document metadata fields required by current workspace.mjs.
-# Only an explicit matching local build may replace it in this isolated copy.
-if [[ -n "${EXO_RELEASE_NATIVE_SESSION_BIN:-}" ]]; then
-  source_session="$EXO_RELEASE_NATIVE_SESSION_BIN"
-  [[ -x "$source_session" ]] || { echo 'Specified release native session is missing' >&2; exit 1; }
-  /usr/bin/file "$source_session" | grep -q 'Mach-O 64-bit executable arm64' || {
-    echo 'Release native session is not macOS arm64' >&2; exit 1;
-  }
-  session_capabilities="$("$source_session" --exo-capabilities)"
-  /usr/local/bin/node -e 'const c=JSON.parse(process.argv[1]);if(c.ok!==true||c.nativePropertyMetadataV1!==true||c.nativeProjectGenerationV1!==true)process.exit(1)' "$session_capabilities" || {
-    echo 'Release native session lacks document ABI capabilities' >&2; exit 1;
-  }
-  cp "$source_session" "$RES/research/oss/clothcraft/target/debug/exo-session"
-  chmod 755 "$RES/research/oss/clothcraft/target/debug/exo-session"
-fi
 
 # The in-use personal app can predate code in the Rust-hosted desktop launcher.
 # The standalone candidate must carry the real local Rust executables and
@@ -113,19 +97,7 @@ rm -rf "$RES/web/clo-hardware-converted" "$RES/web/audit-evidence" \
   "$RES/web/fabric-scans" "$RES/web/fabric-scans-ambientcg" \
   "$RES/web/hand-tracking" "$RES/web/stage-posters" "$RES/web/hangers" \
   "$RES/web/hardware-thumbnails" "$RES/web/garment-previews" \
-  "$RES/web/avatars/opensew" "$RES/web/saved-garments"
-# The installed engineering build contains a local Downloads-only Valentina
-# fixture path. The public-facing copy must not reference the developer's home.
-bridge="$RES/integrations/clothcraft/valentinaSeamlyExecutableBridge20261031.mjs"
-if [[ -f "$bridge" ]]; then
-  python3 - "$bridge" <<'PY'
-from pathlib import Path
-import sys
-p = Path(sys.argv[1]); source = p.read_text()
-source = source.replace("'/Users/mikylecouto/Downloads/pattern-develop.zip'", "'/exo/unavailable-local-fixture/pattern-develop.zip'")
-p.write_text(source)
-PY
-fi
+  "$RES/web/avatars/opensew"
 find "$RES" -depth -type f \( -iname '*thomas*' -o -iname '*theo*' -o -iname '*nora*' \
   -o -iname '*.pem' -o -iname '*.key' -o -iname '*.p12' -o -iname '*.pfx' \
   -o -iname '*.safetensors' -o -iname '*.onnx' -o -iname '*.pt' -o -iname '*.pth' \) \

@@ -16,7 +16,7 @@ export function verifyNativeSixSizePreview20261028(source,overrides,preview){
       source?.gradeRunPersisted!==true||source?.nativePointBindings?.active!==true||
       source?.activeGradedSize!=null||source?.gradedSizePreview===true)
       throw Error('Six-size preview requires the native saved base garment and active point graph')
-    if(!validate(preview,source.revision,overrides))
+    if(!validate(preview,source.revision,overrides,source.template))
       throw Error('Native six-size preview does not validate all six sizes, cross-panel edits or measurement overrides')
     return freeze({ok:true,sourceRevision:source.revision,
       preview:structuredClone(preview),overrides:structuredClone(overrides),
@@ -34,7 +34,7 @@ export function verifyNativeSixSizeCommit20261028(source,review,committed){
       committed.gradeRunPersisted!==true||committed.nativePointBindings?.active!==true||
       committed.activeGradedSize!=null||committed.gradedSizePreview===true)
       throw Error('Native six-size commit did not return one complete base-size and graded-catalog revision')
-    if(!validate(committed.regenerationEvidence,review.sourceRevision,review.overrides)||
+    if(!validate(committed.regenerationEvidence,review.sourceRevision,review.overrides,source.template)||
       !identical(committed.regenerationEvidence,review.preview))
       throw Error('Native six-size commit evidence differs from reviewed Rust preview')
     if(committed.manufacturingApproved!==false)

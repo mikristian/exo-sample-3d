@@ -29,3 +29,16 @@ test('reject invalid page options, excessive tile count and malformed geometry',
  assert.throws(()=>patternTiledPrint(rectangle(9000,9000)),/200 tiles/)
  assert.throws(()=>patternTiledPrint([]))
 })
+test('Letter sheet reserves physical space for registration and footer across permitted margins',()=>{
+ for(const marginMm of [5,10,25])for(const overlapMm of [5,10,25]){
+  const plan=patternTiledPrint(rectangle(500,500),{format:'Letter',marginMm,overlapMm})
+  const tile=plan.tiles[0]
+  assert.equal(tile.width,215.9-2*marginMm)
+  assert.equal(tile.height,279.4-2*marginMm-14)
+  assert(tile.width>overlapMm&&tile.height>overlapMm)
+  assert.match(plan.html,/\.tile\{display:flex;flex-direction:column\}/)
+  assert.match(plan.html,/@media print\{\.page\{margin:0!important/)
+  assert.match(plan.html,/width="100" height="100"/)
+  assert.match(plan.html,/Print at 100% \/ Actual size/)
+ }
+})

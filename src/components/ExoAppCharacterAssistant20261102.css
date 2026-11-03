@@ -1,0 +1,412 @@
+/* EXO Companion: a fluid, ambient assistant that travels to real controls. */
+.exo-ai-character{position:fixed;right:23px;bottom:76px;z-index:1072;display:flex;flex-direction:column;align-items:center;gap:5px;width:max-content;height:max-content;transition:left .78s cubic-bezier(.19,1,.22,1),top .78s cubic-bezier(.19,1,.22,1),filter .4s;filter:drop-shadow(0 8px 15px #0008);pointer-events:none}
+.exo-ai-character>button{width:74px;height:74px;position:relative;display:block;border:0;border-radius:50%;background:transparent;padding:0;cursor:pointer;pointer-events:auto;isolation:isolate;outline-offset:5px}
+.exo-ai-character>button:focus-visible{outline:2px solid #b3dcff}
+.exo-ai-orb-shell{display:block;position:absolute;inset:4px;z-index:2;overflow:hidden;border:1px solid #86c7fc92;background:radial-gradient(circle at 35% 24%,#6fbcff,#1d3d69 42%,#091320 83%);border-radius:45% 55% 55% 45% / 52% 42% 58% 48%;box-shadow:inset 0 3px 9px #e5f6ff6b,inset -8px -8px 13px #06101e,0 0 17px #74baff6b,0 0 32px #338dfa42;animation:exo-ai-morph 6.5s ease-in-out infinite,exo-ai-float 3.7s ease-in-out infinite}
+.exo-ai-orb-inner{display:block;width:100%;height:100%;transform:scale(1.13);overflow:hidden;mix-blend-mode:screen;opacity:.94}
+.exo-ai-orb-inner svg{width:100%;height:100%;border-radius:inherit}
+.exo-ai-orb-halo{position:absolute;z-index:1;inset:-8px;border-radius:48%;border:1px solid #a3d5ff42;box-shadow:0 0 18px #519ee571,0 0 30px #2b74c127;animation:exo-ai-halo 3.3s ease-in-out infinite}
+.exo-ai-character.touring .exo-ai-orb-shell{animation-duration:1.45s,2s;box-shadow:0 0 21px #91d8ffae,0 0 37px #267ddd82,inset 0 5px 12px #e4f8ff79}
+.exo-ai-character.listening .exo-ai-orb-shell{animation-duration:1.1s,1.5s;box-shadow:0 0 21px #9ceaff,0 0 48px #2fbcffb6,inset 0 5px 12px #e4f8ff79}
+.exo-ai-character.speaking .exo-ai-orb-shell{animation-duration:.8s,1.3s;box-shadow:0 0 25px #b8e8ffdf,0 0 41px #56b1ff9c,inset 0 5px 12px #e4f8ff79}
+.exo-ai-character-speech{display:inline-block;white-space:nowrap;max-width:160px;text-overflow:ellipsis;overflow:hidden;color:#eef7ff;background:#1c2836ee;border:1px solid #5991b4;padding:6px 10px;border-radius:16px;font-size:10px;font-weight:780;letter-spacing:.05em;pointer-events:none;box-shadow:0 4px 14px #0006}
+.exo-ai-character.is-open:not(.touring):not(.listening):not(.speaking) .exo-ai-character-speech{opacity:.5}
+.exo-ai-guide-spotlight{position:fixed;z-index:1057;pointer-events:none;border:2px solid #9edfff;border-radius:8px;background:#67bfff13;box-shadow:0 0 0 1px #cdf0ff6e,0 0 15px #8ad5ffb6,0 0 33px #3997e984,inset 0 0 16px #a3e0ff31;transition:left .36s,top .36s,width .36s,height .36s;animation:exo-ai-highlight 2.5s ease-in-out infinite}
+.exo-ai-panel{position:fixed;z-index:1063;right:15px;bottom:163px;width:min(410px,calc(100vw - 30px));max-height:min(690px,calc(100dvh - 195px));display:flex;flex-direction:column;background:#171e25f7;color:#f0f6fb;border:1px solid #557187;border-radius:16px;box-shadow:0 17px 55px #000b,0 0 24px #429bde26;overflow:hidden;font-family:inherit;backdrop-filter:blur(14px)}
+.exo-ai-panel[data-orb-side="right"]{left:15px;right:auto}
+.exo-ai-panel-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px 15px;background:#202e3b;border-bottom:1px solid #41576a}
+.exo-ai-panel-identity{display:flex;align-items:center;gap:10px}.exo-ai-panel-identity>div{display:flex;flex-direction:column;gap:3px}.exo-ai-panel-identity strong{font-size:12px;letter-spacing:.075em}.exo-ai-panel-identity small{font-size:9px;letter-spacing:.09em;color:#afc7d9}
+.exo-ai-live-dot{width:9px;height:9px;border-radius:50%;background:#69bcff;box-shadow:0 0 12px #64bfff}.exo-ai-live-dot.speaking{animation:exo-ai-halo .6s ease-in-out infinite}
+.exo-ai-panel-actions{display:flex;gap:5px}.exo-ai-panel-actions button,.exo-ai-voice-settings button{width:30px;height:30px;display:grid;place-items:center;background:#2b3a49;color:#e3f2ff;border:1px solid #52728c;border-radius:8px;cursor:pointer}.exo-ai-panel-actions button:hover,.exo-ai-voice-settings button:hover{background:#385670}
+.exo-ai-panel-body{padding:13px;display:flex;flex-direction:column;gap:11px;min-height:140px;overflow:auto;overscroll-behavior:contain}
+.exo-ai-context{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 10px;background:#25333f;border:1px solid #40576b;border-radius:8px}.exo-ai-context span{font-size:9px;color:#aec4d3}.exo-ai-context strong{font-size:10px;font-weight:700;color:#f3f8ff;margin-right:6px}
+.exo-ai-voice-settings{display:flex;align-items:center;gap:7px;min-width:0}.exo-ai-voice-settings label{font:780 9px/1.1 inherit;letter-spacing:.09em;color:#aec7d6}.exo-ai-voice-settings select{min-width:0;flex:1;height:31px;appearance:auto;border:1px solid #46647b;border-radius:7px;padding:0 7px;background:#202d39;color:#e6f2ff;font:500 10px inherit}.exo-ai-voice-settings button{flex-shrink:0}
+.exo-ai-dialogue{display:flex;flex-direction:column;gap:10px;max-height:280px;overflow:auto;min-height:88px;padding:4px 1px 8px}
+.exo-ai-chatline{max-width:92%;background:#293b4a;border:1px solid #496b83;border-radius:12px 12px 12px 3px;padding:10px 12px;align-self:flex-start}.exo-ai-chatline.user{align-self:flex-end;background:#345069;border-color:#618bac;border-radius:12px 12px 3px 12px}
+.exo-ai-chatline small{display:block;color:#9edbff;font-size:9px;letter-spacing:.09em;font-weight:800}.exo-ai-chatline p{margin:5px 0 0;font-size:12px;line-height:1.58;color:#f0f5fb;overflow-wrap:anywhere;white-space:pre-wrap}
+.exo-ai-thinking{font-size:11px;color:#97cbee;animation:exo-ai-highlight 2s infinite}
+.exo-ai-guide-controls{display:flex;flex-wrap:wrap;gap:6px}.exo-ai-guide-controls button{border:1px solid #496a86;color:#c9e7fb;padding:9px 10px;border-radius:8px;display:flex;align-items:center;gap:7px;background:#25394a;cursor:pointer;font-size:11px;font-weight:650}.exo-ai-guide-controls button.selected{border-color:#9ae0ff;background:#25557a;color:#fff}
+.exo-ai-suggestions{display:grid;grid-template-columns:1fr 1fr;gap:6px}.exo-ai-suggestions button{background:#243440;color:#e1edf6;border:1px solid #405b70;border-radius:8px;padding:10px 7px;font-size:10px;text-align:left;display:flex;justify-content:space-between;align-items:center;gap:5px;cursor:pointer}.exo-ai-suggestions button:hover{background:#335771;border-color:#82c8ee}
+.exo-ai-notice{margin:0;border:1px solid #8e7750;border-radius:7px;padding:9px 10px;background:#3b352a;color:#f2d79a;font-size:11px;line-height:1.5}
+.exo-ai-composer{display:flex;gap:7px;align-items:center;padding:11px;border-top:1px solid #3c5467;background:#121d26}
+.exo-ai-composer button{width:37px;height:39px;display:grid;place-items:center;flex-shrink:0;color:#f2f9ff;background:#283d50;border:1px solid #53748d;border-radius:9px;cursor:pointer}.exo-ai-composer button.recording{background:#145477;animation:exo-ai-highlight .8s infinite}.exo-ai-composer button:disabled{opacity:.4;cursor:not-allowed}
+.exo-ai-composer input{flex:1;min-width:0;height:39px;color:#fff;background:#202d38;border:1px solid #476278;border-radius:9px;font-size:12px;padding:0 11px;outline:none}.exo-ai-composer input:focus{border-color:#a7deff}.exo-ai-composer input::placeholder{color:#a6bac8}
+.exo-ai-panel-footer{display:flex;align-items:center;gap:7px;background:#192632;border-top:1px solid #395167;padding:9px 12px;font-size:9px;line-height:1.3;color:#b4ccdd}
+@keyframes exo-ai-morph{0%,100%{border-radius:45% 55% 55% 45% / 52% 42% 58% 48%;transform:rotate(-6deg) scale(1)}25%{border-radius:59% 41% 47% 53% / 39% 57% 43% 61%;transform:rotate(5deg) scale(1.04,.95)}50%{border-radius:42% 58% 39% 61% / 60% 43% 57% 40%;transform:rotate(-2deg) scale(.94,1.08)}75%{border-radius:51% 49% 59% 41% / 48% 62% 38% 52%;transform:rotate(7deg) scale(1.05,.95)}}
+@keyframes exo-ai-float{0%,100%{translate:0 0}50%{translate:0 -6px}}
+@keyframes exo-ai-halo{0%,100%{opacity:.45;transform:scale(.96)}50%{opacity:1;transform:scale(1.09)}}
+@keyframes exo-ai-highlight{0%,100%{filter:brightness(.85)}50%{filter:brightness(1.3)}}
+@media(max-width:580px){.exo-ai-character{right:13px;bottom:70px}.exo-ai-character>button{width:62px;height:62px}.exo-ai-panel,.exo-ai-panel[data-orb-side="right"]{left:8px;right:8px;width:auto;bottom:143px;max-height:calc(100dvh - 162px)}.exo-ai-panel-body{padding:10px}.exo-ai-panel-footer{font-size:8px}.exo-ai-suggestions button{font-size:9px}.exo-ai-character-speech{font-size:9px;max-width:120px}}
+@media(prefers-reduced-motion:reduce){.exo-ai-character,.exo-ai-orb-shell,.exo-ai-orb-halo,.exo-ai-guide-spotlight,.exo-ai-live-dot,.exo-ai-thinking,.exo-ai-composer button{transition:none!important;animation:none!important}}
+
+/* Preserve the established flat 2D CircleEyes art and its signal palette.
+   Motion distorts the position slightly, never the circular silhouette. */
+.exo-ai-character{filter:none}
+.exo-ai-character>button{isolation:isolate}
+.exo-ai-orb-shell,.exo-ai-character.touring .exo-ai-orb-shell,.exo-ai-character.listening .exo-ai-orb-shell,.exo-ai-character.speaking .exo-ai-orb-shell{
+ inset:1px;border:0;border-radius:50%;background:#111317;box-shadow:none;
+ animation:exo-ai-2d-fly 3.8s ease-in-out infinite;
+}
+.exo-ai-orb-inner{width:100%;height:100%;transform:scale(1.28);mix-blend-mode:normal;opacity:1}
+.exo-ai-orb-inner svg{border-radius:50%}
+.exo-ai-orb-halo{inset:-1px;border:1px solid #d9ed7460;border-radius:50%;box-shadow:none;animation:exo-ai-2d-halo 3.1s ease-in-out infinite}
+.exo-ai-character.listening .exo-ai-orb-halo{border-color:#20bacc;box-shadow:0 0 9px #20bacc55}
+.exo-ai-character.speaking .exo-ai-orb-halo{border-color:#d9ed74;box-shadow:0 0 10px #d9ed7444}
+.exo-ai-character.touring .exo-ai-orb-halo{border-color:#9171ef}
+@keyframes exo-ai-2d-fly{0%,100%{transform:translateY(0) rotate(-2deg) scale(1)}50%{transform:translateY(-4px) rotate(2deg) scale(1.02)}}
+@keyframes exo-ai-2d-halo{0%,100%{opacity:.6}50%{opacity:1}}
+.exo-ai-character-speech{background:#17191e;color:#d9ed74;border-color:#5a6a45;box-shadow:0 2px 8px #0004}
+.exo-ai-guide-spotlight{border-color:#d9ed74;box-shadow:0 0 0 1px #20bacc44,0 0 17px #d9ed7484,0 0 26px #6c4ddc40,inset 0 0 11px #d9ed741a;background:#d9ed740c}
+
+/* The live 2D canvas is distinctly outlined while EXO is authoring its
+   verified foundation template. Transparent effect, no input interception. */
+.exo-ai-workspace-outline{position:fixed;z-index:1058;pointer-events:none;border-radius:12px;isolation:isolate;box-shadow:0 0 10px #6c4ddc6c,0 0 23px #20bacc44;transition:left .35s ease,top .35s ease,width .35s ease,height .35s ease}
+.exo-ai-workspace-outline:before{content:"";position:absolute;inset:0;border-radius:inherit;border:3px solid transparent;background:conic-gradient(from 0deg,#d9ed74,#20bacc,#6c4ddc,#d9ed74,#20bacc,#d9ed74) border-box;-webkit-mask:linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:exo-ai-workspace-edge 4s linear infinite}
+.exo-ai-workspace-outline:after{content:"";position:absolute;inset:3px;border-radius:inherit;box-shadow:inset 0 0 18px #20bacc35;animation:exo-ai-2d-halo 2s ease-in-out infinite}
+.exo-ai-workspace-outline span{position:absolute;top:10px;right:10px;max-width:calc(100% - 20px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:5px 9px;border:1px solid #20bacc8c;border-radius:6px;background:#111317ec;color:#d9ed74;font-size:10px;font-weight:750;letter-spacing:.04em;box-shadow:0 0 10px #20bacc40}
+@keyframes exo-ai-workspace-edge{to{filter:hue-rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.exo-ai-orb-shell,.exo-ai-orb-halo,.exo-ai-workspace-outline,.exo-ai-workspace-outline:before,.exo-ai-workspace-outline:after{animation:none!important;transition:none!important}}
+
+/* Companion glass shell: only chat bubbles and the composer field have opaque fills. */
+#clo-arai-chat.exo-ai-panel{
+ --exo-glass-edge:rgba(223,246,255,.36);
+ background:linear-gradient(130deg,rgba(25,43,61,.57),rgba(14,30,51,.48) 42%,rgba(33,27,57,.53) 90%);
+ backdrop-filter:blur(36px) saturate(185%) brightness(1.11);
+ -webkit-backdrop-filter:blur(36px) saturate(185%) brightness(1.11);
+ border:1px solid var(--exo-glass-edge);border-radius:19px;
+ box-shadow:inset 0 1px 1px #fff5,inset 0 0 20px #9be4ff09,0 16px 55px #0008,0 0 28px #9adfff32;
+ isolation:isolate;
+}
+#clo-arai-chat:before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;background:radial-gradient(ellipse at 15% 8%,#b6e6ff24,transparent 43%),radial-gradient(ellipse at 93% 82%,#a38bff18,transparent 42%)}
+#clo-arai-chat .exo-ai-panel-header{background:rgba(234,249,255,.065);border-bottom-color:#e0f1ff3d;cursor:grab;user-select:none;touch-action:none;min-height:52px}
+#clo-arai-chat .exo-ai-panel-header:active{cursor:grabbing}
+#clo-arai-chat .exo-ai-drag-grip{display:grid;place-items:center;color:#d6f3ffad;flex:none;margin-right:3px}
+#clo-arai-chat .exo-ai-panel-body{background:transparent;min-height:0}
+#clo-arai-chat .exo-ai-panel-identity strong,#clo-arai-chat .exo-ai-context strong{color:#f5faff;text-shadow:0 1px 8px #0009}
+#clo-arai-chat .exo-ai-context,#clo-arai-chat .exo-ai-guide-controls button,#clo-arai-chat .exo-ai-suggestions button{
+ background:rgba(206,238,255,.055);border-color:#d9f4ff3a;color:#e8f4ff;backdrop-filter:blur(9px)
+}
+#clo-arai-chat .exo-ai-panel-actions button,#clo-arai-chat .exo-ai-voice-settings button{background:rgba(223,245,255,.09);border-color:#c3edff4f}
+#clo-arai-chat .exo-ai-panel-actions button:hover,#clo-arai-chat .exo-ai-guide-controls button:hover{background:rgba(214,244,255,.19)}
+#clo-arai-chat .exo-ai-voice-settings select{background:rgba(30,43,58,.60);border-color:#c3edff63;color:#fff}
+#clo-arai-chat .exo-ai-chatline{border-radius:15px 15px 15px 4px;max-width:92%;padding:12px 13px;background:linear-gradient(135deg,rgba(18,103,152,.90),rgba(24,59,109,.86));border:1px solid #8ee7ff8c;box-shadow:inset 0 1px #ffffff1d,0 5px 15px #0003}
+#clo-arai-chat .exo-ai-chatline.assistant small{color:#b1f7ff}
+#clo-arai-chat .exo-ai-chatline.user{border-radius:15px 15px 4px 15px;background:linear-gradient(135deg,rgba(119,67,181,.93),rgba(81,45,141,.89));border-color:#d4b6ff9a;box-shadow:inset 0 1px #ffffff25,0 5px 15px #0003}
+#clo-arai-chat .exo-ai-chatline.user small{color:#f4d4ff}
+#clo-arai-chat .exo-ai-chatline p{color:#f7fcff;font-size:12px;line-height:1.58}
+#clo-arai-chat .exo-ai-composer{background:rgba(216,239,255,.055);border-top-color:#d4f4ff45}
+#clo-arai-chat .exo-ai-composer input{background:rgba(18,29,51,.86);border:1px solid #a3daff78;color:#fff;border-radius:11px}
+#clo-arai-chat .exo-ai-composer input:focus{border-color:#b9f8ff;box-shadow:0 0 11px #8ddfff4d}
+#clo-arai-chat .exo-ai-composer button{background:rgba(95,145,196,.27);border-color:#a9e2ff59}
+#clo-arai-chat .exo-ai-panel-footer{background:rgba(225,248,255,.04);border-top:1px solid #c5ecff34;color:#e1eff9b8}
+#clo-arai-chat .exo-ai-dock-menu{display:flex;flex-wrap:wrap;gap:6px;padding:9px 11px;border-bottom:1px solid #ccecff43;background:rgba(214,239,255,.10);backdrop-filter:blur(15px)}
+#clo-arai-chat .exo-ai-dock-menu button{display:flex;align-items:center;gap:5px;border:1px solid #d8efff55;border-radius:8px;padding:7px 8px;font-size:10px;white-space:nowrap;background:rgba(20,39,61,.29);color:#eefaff;cursor:pointer}
+#clo-arai-chat .exo-ai-dock-menu button[aria-pressed="true"]{border-color:#b6f5fd;background:#2d799a8a}
+#clo-arai-chat.exo-ai-panel--left,#clo-arai-chat.exo-ai-panel--right{top:40px;bottom:8px;max-height:calc(100dvh - 48px);width:min(385px,calc(100vw - 16px));border-radius:15px}
+#clo-arai-chat.exo-ai-panel--left{left:8px;right:auto}
+#clo-arai-chat.exo-ai-panel--right{right:8px;left:auto}
+#clo-arai-chat.exo-ai-panel--top,#clo-arai-chat.exo-ai-panel--bottom{left:50%;right:auto;transform:translateX(-50%);width:min(750px,calc(100vw - 20px));max-height:47dvh;border-radius:17px}
+#clo-arai-chat.exo-ai-panel--top{top:37px;bottom:auto}
+#clo-arai-chat.exo-ai-panel--bottom{bottom:10px;top:auto}
+#clo-arai-chat.exo-ai-panel--floating{transform:none;max-height:min(690px,calc(100dvh - 115px))}
+#clo-arai-chat.exo-ai-panel--left .exo-ai-dialogue,#clo-arai-chat.exo-ai-panel--right .exo-ai-dialogue{max-height:unset;flex:1;min-height:100px}
+#clo-arai-chat.exo-ai-panel--left .exo-ai-panel-body,#clo-arai-chat.exo-ai-panel--right .exo-ai-panel-body{flex:1}
+#clo-arai-chat.exo-ai-panel--top .exo-ai-dialogue,#clo-arai-chat.exo-ai-panel--bottom .exo-ai-dialogue{max-height:145px}
+@media(max-width:580px){#clo-arai-chat.exo-ai-panel--left,#clo-arai-chat.exo-ai-panel--right{top:34px;bottom:8px;max-height:calc(100dvh - 42px);width:min(340px,calc(100vw - 16px))}#clo-arai-chat.exo-ai-panel--top,#clo-arai-chat.exo-ai-panel--bottom{max-height:62dvh}#clo-arai-chat.exo-ai-panel--floating{max-height:calc(100dvh - 135px)}#clo-arai-chat .exo-ai-panel-header{touch-action:none}}
+
+/* Stronger Siri-like illuminated app / control borders plus a real pattern glow. */
+@property --exo-edge-angle{syntax:"<angle>";inherits:false;initial-value:0deg}
+.exo-ai-workspace-outline{border-radius:11px;box-shadow:0 0 11px 4px #6c4ddc83,0 0 33px 9px #20bacc65,0 0 68px 11px #8d79eb42;animation:exo-ai-workspace-breathe 2.9s ease-in-out infinite}
+.exo-ai-workspace-outline:before{border-width:4px;background:conic-gradient(from var(--exo-edge-angle),#d9ed74,#1affd9,#b8eeff,#8b63fc,#f8e6ff,#1affd9,#d9ed74) border-box;animation:exo-ai-edge-rotate 4.5s linear infinite;filter:drop-shadow(0 0 10px #20bacc) drop-shadow(0 0 20px #8469fa)}
+.exo-ai-workspace-outline:after{inset:3px;box-shadow:inset 0 0 25px #20bacc43,0 0 12px 5px #79e7ff3a}
+.exo-ai-guide-spotlight{border:2.5px solid #d9ed74;background:#d9ed7414;box-shadow:0 0 0 3px #20bacc55,0 0 16px 6px #a9ff9f96,0 0 33px 11px #6c4ddc68,inset 0 0 18px #d9ed7447;animation:exo-ai-workspace-breathe 1.8s ease-in-out infinite}
+.exo-ai-tool-tooltip{position:fixed;z-index:1061;max-width:215px;pointer-events:none;border:1px solid #d9ed74d9;border-radius:10px;padding:8px 10px;color:#ebfff6;background:#141a1ced;font:750 11px/1.3 inherit;box-shadow:0 0 18px #20bacc90,0 5px 16px #0008;text-overflow:ellipsis;overflow:hidden;white-space:nowrap}
+.exo-ai-pattern-craft{position:fixed;z-index:1059;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:7px;color:#f8fbff;text-shadow:0 0 12px #6c4ddc;font:bold 10px/1.3 inherit;animation:exo-ai-craft-fade 4.4s ease-out both}
+.exo-ai-pattern-craft svg{width:150px;height:150px;overflow:visible;filter:drop-shadow(0 0 9px #20bacc) drop-shadow(0 0 22px #6c4ddc)}
+.exo-ai-pattern-craft path{stroke:#d9ed74;stroke-width:3;fill:#20bacc17;stroke-dasharray:600;stroke-dashoffset:600;stroke-linejoin:round;stroke-linecap:round;animation:exo-ai-draw-pattern 1.9s cubic-bezier(.2,.7,.15,1) forwards}
+.exo-ai-pattern-active{filter:drop-shadow(0 0 6px #d9ed74) drop-shadow(0 0 14px #20bacc) drop-shadow(0 0 20px #8f6cf5)!important;animation:exo-ai-piece-glow 2.1s ease-in-out 2!important}
+@keyframes exo-ai-edge-rotate{to{--exo-edge-angle:360deg}}
+@keyframes exo-ai-workspace-breathe{0%,100%{opacity:.76}50%{opacity:1}}
+@keyframes exo-ai-draw-pattern{to{stroke-dashoffset:0}}
+@keyframes exo-ai-piece-glow{0%,100%{opacity:1}45%{opacity:.68}}
+@keyframes exo-ai-craft-fade{0%{opacity:0;transform:translateY(-15px) scale(.8)}15%,78%{opacity:1;transform:translateY(0) scale(1)}100%{opacity:0;transform:translateY(25px) scale(1.07)}}
+@media(prefers-reduced-motion:reduce){.exo-ai-workspace-outline,.exo-ai-guide-spotlight,.exo-ai-pattern-craft,.exo-ai-pattern-craft path,.exo-ai-pattern-active{animation:none!important}}
+
+/* EXO Mini companion — clearer, truly translucent glass with less frosting. */
+#clo-arai-chat.exo-ai-panel{
+ width:min(336px,calc(100vw - 24px));
+ max-height:min(505px,calc(100dvh - 148px));
+ background:linear-gradient(145deg,rgba(20,35,49,.23),rgba(16,24,43,.18) 55%,rgba(41,29,67,.22));
+ backdrop-filter:blur(9px) saturate(128%);
+ -webkit-backdrop-filter:blur(9px) saturate(128%);
+ border-color:rgba(223,251,255,.48);
+ box-shadow:inset 0 1px 0 #ffffff63,inset 0 0 14px #e8faff12,0 14px 42px #0005,0 0 12px #81ccff2d;
+}
+#clo-arai-chat:before{background:radial-gradient(circle at 10% 8%,#ffffff18,transparent 44%),radial-gradient(circle at 95% 91%,#9eb8ff1b,transparent 49%)}
+#clo-arai-chat .exo-ai-panel-header{padding:8px 11px;min-height:42px;background:rgba(218,245,255,.075)}
+#clo-arai-chat .exo-ai-panel-identity strong{font-size:10.5px}
+#clo-arai-chat .exo-ai-panel-identity small{font-size:8px}
+#clo-arai-chat .exo-ai-panel-body{padding:9px;gap:7px;min-height:0}
+#clo-arai-chat .exo-ai-context{padding:5px 7px;gap:4px;background:rgba(17,29,44,.19)}
+#clo-arai-chat .exo-ai-voice-settings{gap:5px}
+#clo-arai-chat .exo-ai-voice-settings select{height:27px;font-size:10px}
+#clo-arai-chat .exo-ai-dialogue{max-height:204px;min-height:55px;gap:7px;padding:2px 1px 4px}
+#clo-arai-chat .exo-ai-chatline{padding:8px 10px;max-width:95%;border-radius:11px 11px 11px 3px}
+#clo-arai-chat .exo-ai-chatline.user{border-radius:11px 11px 3px 11px}
+#clo-arai-chat .exo-ai-chatline p{font-size:11px;line-height:1.48;margin-top:4px}
+#clo-arai-chat .exo-ai-guide-controls{gap:4px}
+#clo-arai-chat .exo-ai-guide-controls button{padding:6px 8px;font-size:9px}
+#clo-arai-chat .exo-ai-suggestions{gap:4px}
+#clo-arai-chat .exo-ai-suggestions button{font-size:9px;padding:7px 6px}
+#clo-arai-chat .exo-ai-composer{padding:7px;gap:5px;background:rgba(235,253,255,.035)}
+#clo-arai-chat .exo-ai-composer input{height:34px;padding:0 9px;font-size:11px}
+#clo-arai-chat .exo-ai-composer button{height:34px;width:33px}
+#clo-arai-chat .exo-ai-panel-footer{padding:6px 9px;font-size:8px;background:rgba(213,240,255,.025)}
+#clo-arai-chat.exo-ai-panel--left,#clo-arai-chat.exo-ai-panel--right{width:min(328px,calc(100vw - 16px));max-height:calc(100dvh - 48px)}
+#clo-arai-chat.exo-ai-panel--top,#clo-arai-chat.exo-ai-panel--bottom{width:min(630px,calc(100vw - 18px));max-height:45dvh}
+#clo-arai-chat.exo-ai-panel--floating{max-height:min(505px,calc(100dvh - 115px))}
+
+/* Embedded Companion reserves actual grid space before the workspace paints.
+   The shell remains the grid container, so existing toolbar and canvas layout
+   continues to use its original rows within the reduced available area. */
+@media (min-width:900px) and (min-height:500px){
+ #exo-pattern-glass-shell[data-exo-companion-dock="left"]{padding-left:var(--exo-companion-dock-size,336px);box-sizing:border-box}
+ #exo-pattern-glass-shell[data-exo-companion-dock="right"]{padding-right:var(--exo-companion-dock-size,336px);box-sizing:border-box}
+ #exo-pattern-glass-shell[data-exo-companion-dock="top"]{padding-top:var(--exo-companion-dock-size,260px);box-sizing:border-box}
+ #exo-pattern-glass-shell[data-exo-companion-dock="bottom"]{padding-bottom:var(--exo-companion-dock-size,260px);box-sizing:border-box}
+ #clo-arai-chat.exo-ai-panel--embedded{z-index:1063;box-sizing:border-box;transform:none;max-height:none;box-shadow:0 0 22px #0006;border-radius:10px}
+ #clo-arai-chat.exo-ai-panel--embedded.exo-ai-panel--left{left:0;top:0;right:auto;bottom:0;width:min(328px,34vw);height:100dvh}
+ #clo-arai-chat.exo-ai-panel--embedded.exo-ai-panel--right{right:0;top:0;left:auto;bottom:0;width:min(328px,34vw);height:100dvh}
+ #clo-arai-chat.exo-ai-panel--embedded.exo-ai-panel--top{left:0;top:0;right:0;bottom:auto;width:100vw;height:min(265px,35dvh)}
+ #clo-arai-chat.exo-ai-panel--embedded.exo-ai-panel--bottom{left:0;bottom:0;right:0;top:auto;width:100vw;height:min(265px,35dvh)}
+ #clo-arai-chat.exo-ai-panel--embedded.exo-ai-panel--center-wide{left:50%;top:0;right:auto;bottom:auto;transform:translateX(-50%);width:min(900px,78vw);height:min(290px,38dvh)}
+ #clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-body{min-height:0;overflow:auto}
+}
+
+/* Drag-to-dock previews follow the Grading Table's highlighted placement model. */
+.exo-ai-dock-targets{position:fixed;z-index:1060;inset:0;pointer-events:none;isolation:isolate}
+.exo-ai-dock-target-preview{position:fixed;box-sizing:border-box;z-index:1;display:flex;align-items:center;justify-content:center;border:3px solid #d9ed74;border-radius:12px;background:#20bacc51;box-shadow:inset 0 0 42px #d9ed742a,0 0 0 6px #20bacc4a,0 0 30px #6c4ddc70;pointer-events:none}
+.exo-ai-dock-target-preview span{padding:8px 14px;border-radius:9px;background:#184b51;color:#fff;border:1px solid #d9ed74;font-size:13px;font-weight:800;box-shadow:0 3px 12px #0009}
+.exo-ai-dock-target{position:absolute;display:flex;align-items:center;justify-content:center;box-sizing:border-box;border:2px dashed #85b9dd9c;border-radius:12px;background:#27658b24;box-shadow:inset 0 0 20px #77cbff14;transition:background .13s ease,border-color .13s ease,box-shadow .13s ease}
+.exo-ai-dock-target span{padding:6px 11px;border-radius:8px;background:#102c42e8;border:1px solid #8dbbdb93;color:#e2f4ff;font-size:12px;font-weight:800;letter-spacing:.03em}
+.exo-ai-dock-target--left,.exo-ai-dock-target--right{top:12%;bottom:12%;width:min(125px,17vw)}
+.exo-ai-dock-target--left{left:6px}.exo-ai-dock-target--right{right:6px}
+.exo-ai-dock-target--top,.exo-ai-dock-target--bottom{left:19%;right:19%;height:min(110px,15vh)}
+.exo-ai-dock-target--top{top:6px}.exo-ai-dock-target--bottom{bottom:6px}
+.exo-ai-dock-target--center-wide{left:28%;right:28%;top:25%;bottom:25%;border-color:#af9aefaa;background:#6044bd17}
+.exo-ai-dock-target.is-targeted{background:#35b7d761;border:3px solid #d9ed74;box-shadow:inset 0 0 32px #d9ed7440,0 0 20px #20baccb5,0 0 0 5px #20bacc38}
+.exo-ai-dock-target.is-targeted span{background:#1d634f;border-color:#d9ed74;color:#fff}
+#clo-arai-chat.exo-ai-panel--dragging{z-index:1064;transition:none!important;box-shadow:0 24px 48px #000b,0 0 0 2px #d9ed7490}
+@media(min-width:900px) and (min-height:500px){
+ #exo-pattern-glass-shell[data-exo-companion-dock="center-wide"]{padding-top:var(--exo-companion-dock-size,298px);box-sizing:border-box}
+}
+@media(max-width:899px), (max-height:499px){.exo-ai-dock-targets{display:none}}
+
+/* Studio-wide reversible celebration lighting. Music is the original in-app
+   four-bar synthesized loop; no streaming/copyrighted track. */
+.exo-ai-party-overlay{position:fixed;z-index:1071;inset:0;pointer-events:none;border:11px solid transparent;border-image:linear-gradient(130deg,#a0ff75,#72edff,#8567ff,#ff7cac,#a0ff75) 1;animation:exo-ai-party-hue .8s linear infinite,exo-ai-party-pulse .43s ease-in-out infinite;box-shadow:inset 0 0 60px #6fffe75e,0 0 60px #b07cff83}
+.exo-ai-party-overlay span{position:absolute;top:8%;left:50%;transform:translateX(-50%);padding:7px 14px;border-radius:20px;background:#111827d8;border:1px solid #a7eaff;color:white;font:850 11px/1.3 system-ui,sans-serif;letter-spacing:.15em;white-space:nowrap;text-shadow:0 0 12px #fff}
+.exo-ai-party-overlay button{pointer-events:auto;position:absolute;top:calc(8% + 38px);left:50%;transform:translateX(-50%);padding:7px 11px;border:1px solid #ccfaff;border-radius:14px;background:#141a2adf;color:white;font:700 11px system-ui,sans-serif;cursor:pointer}
+body.exo-ai-celebrating :is(.clo-app-menu,.clo-header,.clo-right-tool-palette,.clo-rail,.tool-rail,.exo-pattern-toolpanel,.clo-edge-tabs){animation:exo-ai-party-hue .8s linear infinite;filter:drop-shadow(0 0 10px #80ffff) drop-shadow(0 0 15px #ff83e1)}
+@keyframes exo-ai-party-hue{to{filter:hue-rotate(360deg)}}
+@keyframes exo-ai-party-pulse{0%,100%{opacity:.66}50%{opacity:1}}
+
+/* Glow the actual geometry the companion edits. SVG stroke effects travel
+   with the editor's own viewBox when it performs an animated camera zoom. */
+.exo-ai-pattern-active{filter:drop-shadow(0 0 10px #c4ff7f) drop-shadow(0 0 20px #23e6ef) drop-shadow(0 0 32px #8d6cfa)!important}
+@media(max-width:580px){#clo-arai-chat.exo-ai-panel{width:min(332px,calc(100vw - 16px))}#clo-arai-chat.exo-ai-panel--left,#clo-arai-chat.exo-ai-panel--right{width:min(310px,calc(100vw - 16px))}#clo-arai-chat .exo-ai-panel-body{padding:7px}#clo-arai-chat .exo-ai-chatline p{font-size:10.5px}}
+@media(prefers-reduced-motion:reduce){.exo-ai-party-overlay,body.exo-ai-celebrating :is(.clo-app-menu,.clo-header,.clo-right-tool-palette,.clo-rail,.tool-rail,.exo-pattern-toolpanel,.clo-edge-tabs){animation:none!important}}
+
+/* Companion navigation remains translucent, but interactive controls are
+   deliberately opaque with obvious colors, contrast and focus rings. */
+#clo-arai-chat .exo-ai-guide-controls button,
+#clo-arai-chat .exo-ai-panel-actions button,
+#clo-arai-chat .exo-ai-voice-settings button,
+#clo-arai-chat .exo-ai-composer button,
+#clo-arai-chat .exo-ai-suggestions button,
+#clo-arai-chat .exo-ai-dock-menu button{
+ backdrop-filter:none;-webkit-backdrop-filter:none;
+ opacity:1;border:1px solid #8bd4f5;background:#175a85;color:#fff;
+ box-shadow:inset 0 1px 0 #ffffff3b,0 3px 8px #0006;
+ font-weight:750;transition:background .16s ease,box-shadow .16s ease,transform .16s ease
+}
+#clo-arai-chat .exo-ai-guide-controls button:nth-child(1){background:#087c7a;border-color:#5fe8d6}
+#clo-arai-chat .exo-ai-guide-controls button:nth-child(2){background:#2364d3;border-color:#98c5ff}
+#clo-arai-chat .exo-ai-guide-controls button:nth-child(3){background:#992b88;border-color:#ff9eec}
+#clo-arai-chat .exo-ai-guide-controls button:nth-child(4){background:#5644bd;border-color:#b8aeff}
+#clo-arai-chat .exo-ai-guide-controls button:nth-child(5){background:#17658b;border-color:#8ee5ff}
+#clo-arai-chat .exo-ai-guide-controls button.selected{background:#6056d9;border-color:#edf0ff;box-shadow:0 0 0 2px #83c9ff55,0 0 16px #8b8bff75}
+#clo-arai-chat .exo-ai-guide-controls button:hover,
+#clo-arai-chat .exo-ai-panel-actions button:hover,
+#clo-arai-chat .exo-ai-composer button:hover:not(:disabled),
+#clo-arai-chat .exo-ai-suggestions button:hover{filter:brightness(1.22);transform:translateY(-1px)}
+#clo-arai-chat :is(button,select,input):focus-visible{outline:2px solid #e1ff76;outline-offset:2px}
+#clo-arai-chat .exo-ai-panel-actions button:nth-child(2){background:#075e73;border-color:#55e2ec}
+#clo-arai-chat .exo-ai-panel-actions button:last-child{background:#6e364e;border-color:#ff9ba9}
+#clo-arai-chat .exo-ai-voice-settings button{background:#4869b0;border-color:#bad8ff}
+#clo-arai-chat .exo-ai-composer button:first-child{background:#087a77;border-color:#65f0db}
+#clo-arai-chat .exo-ai-composer button:last-child{background:#315fe4;border-color:#bed8ff}
+#clo-arai-chat .exo-ai-composer button:disabled{background:#3e4d63;border-color:#647387;color:#c5d1df;opacity:.7}
+#clo-arai-chat .exo-ai-suggestions button{background:#254765;border-color:#6bb4ef}
+#clo-arai-chat .exo-ai-tutorial-panel,#clo-arai-chat .exo-ai-workflow-panel{padding:9px;border:1px solid #8fbbef91;border-radius:10px;background:#172b40eb;display:flex;flex-direction:column;gap:7px}
+#clo-arai-chat .exo-ai-tutorial-panel label,#clo-arai-chat .exo-ai-workflow-panel label{font-size:10px;color:#e7f7ff;font-weight:750}
+#clo-arai-chat .exo-ai-tutorial-panel select,#clo-arai-chat .exo-ai-workflow-panel :is(select,input){background:#142b40;color:#fff;border:1px solid #83b4d6;border-radius:7px;min-height:30px;padding:4px 7px;font-size:11px;min-width:0}
+#clo-arai-chat .exo-ai-tutorial-panel button,#clo-arai-chat .exo-ai-workflow-panel button{background:#2766ad;color:white;border:1px solid #a0d6ff;border-radius:7px;min-height:30px;padding:5px 9px;font-size:10px;font-weight:750;cursor:pointer}
+#clo-arai-chat .exo-ai-workflow-panel button:disabled{opacity:.52;cursor:not-allowed}
+#clo-arai-chat .exo-ai-tutorial-actions,#clo-arai-chat .exo-ai-workflow-actions,#clo-arai-chat .exo-ai-workflow-config,#clo-arai-chat .exo-ai-workflow-custom-actions{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+#clo-arai-chat .exo-ai-workflow-config>select{flex:1}
+#clo-arai-chat .exo-ai-workflow-steps,#clo-arai-chat .exo-ai-custom-steps{list-style:none;margin:2px 0;padding:0;display:flex;flex-direction:column;gap:4px;max-height:152px;overflow:auto}
+#clo-arai-chat .exo-ai-workflow-steps li,#clo-arai-chat .exo-ai-custom-steps li{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border:1px solid #51758f;border-radius:6px;background:#1d354c;color:#d0e4f6;font-size:10px}
+#clo-arai-chat .exo-ai-workflow-steps li.current{border-color:#b1f078;background:#264f46;color:#f1ffdc}
+#clo-arai-chat .exo-ai-workflow-steps li.finished{border-color:#47998f;color:#a2f4df}
+#clo-arai-chat .exo-ai-workflow-approval{display:flex;align-items:flex-start;gap:6px;font-size:10px;line-height:1.45;color:#fff2b5}
+#clo-arai-chat .exo-ai-workflow-approval input{height:15px;width:15px;margin:1px 0 0;accent-color:#69d9a6}
+#clo-arai-chat .exo-ai-custom-builder{display:flex;flex-direction:column;gap:6px;padding:9px;border:1px solid #7190b0;border-radius:8px;background:#13273b}
+#clo-arai-chat .exo-ai-custom-steps li button{min-height:23px;padding:2px 6px;flex:none}
+#clo-arai-chat .exo-ai-tutorial-panel small,#clo-arai-chat .exo-ai-workflow-panel small{font-size:10px;line-height:1.45;color:#c9e5f8}
+.exo-ai-character>button{transform:scale(var(--exo-character-scale,1));transition:transform .7s ease;will-change:transform}
+.exo-ai-character.party{transition:left .75s cubic-bezier(.18,.85,.25,1.1),top .75s cubic-bezier(.18,.85,.25,1.1)}
+.exo-ai-character.party>button{animation:exo-ai-body-dance .46s ease-in-out infinite alternate}
+.exo-ai-character.party .exo-ai-orb-shell{animation:exo-ai-head-bop .38s ease-in-out infinite alternate!important;box-shadow:0 0 13px #d9ed74aa,0 0 25px #fd62eb83}
+.exo-ai-character.party .exo-ai-orb-halo{border:3px solid #faff9a;box-shadow:0 0 24px #f5ff54,0 0 35px #ff72d1;animation:exo-ai-party-hue .55s linear infinite}
+.exo-ai-character.party .exo-ai-character-speech{background:#a02da1;color:#fff;border-color:#ffeb79;animation:exo-ai-party-hue .72s linear infinite}
+.exo-ai-character.blinking .circle-eye-pair{transform-origin:50% 50%;animation:exo-ai-eye-blink .15s ease-out}
+@keyframes exo-ai-eye-blink{0%,100%{transform:scaleY(1)}48%{transform:scaleY(.08)}}
+@keyframes exo-ai-body-dance{0%{transform:translate(-13px,12px) rotate(-16deg) scale(calc(var(--exo-character-scale,1) * .92))}100%{transform:translate(15px,-18px) rotate(19deg) scale(calc(var(--exo-character-scale,1) * 1.14))}}
+@keyframes exo-ai-head-bop{0%{transform:translate(-5px,4px) rotate(-17deg) scale(.95)}100%{transform:translate(6px,-8px) rotate(17deg) scale(1.1)}}
+body.exo-ai-celebrating :is(.clo-header,.clo-rail,.tool-rail,.clo-top-toolbar,.clo-left-toolbar,.clo-right-tool-palette,.exo-pattern-toolpanel,.clo-app-menu,.clo-footer) :is(button,[role="button"],.tool-button,.tool-icon){
+ animation:exo-ai-party-tool-flash .85s steps(3,end) infinite!important;
+ outline:1px solid #a8fffcaa!important;outline-offset:1px;
+ box-shadow:0 0 9px #77eaff99,0 0 19px #a76bffa3!important;
+}
+body.exo-ai-celebrating :is(.tool-rail,.clo-right-tool-palette,.clo-header,.clo-rail,.clo-app-menu) :is(svg,img){animation:exo-ai-party-icon-flash .6s linear infinite}
+@keyframes exo-ai-party-tool-flash{0%,100%{background-color:#1f688b;color:#fff;filter:hue-rotate(0deg) brightness(1.15)}45%{background-color:#7028bd;color:#fff;filter:hue-rotate(120deg) brightness(1.35)}75%{background-color:#a32c65;color:#fff;filter:hue-rotate(250deg) brightness(1.2)}}
+@keyframes exo-ai-party-icon-flash{to{filter:hue-rotate(360deg) drop-shadow(0 0 6px #fd6aff)}}
+@media(prefers-reduced-motion:reduce){
+ .exo-ai-character.party>button,.exo-ai-character.party .exo-ai-orb-shell,
+ .exo-ai-character.party .exo-ai-orb-halo,.exo-ai-character.blinking .circle-eye-pair,
+ body.exo-ai-celebrating :is(.clo-header,.clo-rail,.tool-rail,.clo-top-toolbar,.clo-left-toolbar,.clo-right-tool-palette,.exo-pattern-toolpanel,.clo-app-menu,.clo-footer) :is(button,[role="button"],.tool-button,.tool-icon),
+ body.exo-ai-celebrating :is(.tool-rail,.clo-right-tool-palette,.clo-header,.clo-rail,.clo-app-menu) :is(svg,img){animation:none!important}
+}
+
+/* Theme guidance stays interactive while the real Settings dialog is open. */
+body.exo-ai-guided-settings #clo-arai-chat{z-index:2147483004}
+body.exo-ai-guided-settings .exo-ai-character{z-index:2147483005}
+body.exo-ai-guided-settings .exo-ai-guide-spotlight{z-index:2147483003}
+body.exo-ai-guided-settings .exo-ai-workspace-outline{z-index:2147483003}
+#clo-arai-chat .exo-ai-theme-explorer{display:flex;flex-direction:column;gap:7px;padding:10px;border:1px solid #7ca6d5;border-radius:10px;background:#142c45f5;color:#f5fbff}
+#clo-arai-chat .exo-ai-theme-explorer>strong{font-size:12px}
+#clo-arai-chat .exo-ai-theme-explorer>small{font-size:10px;line-height:1.35;color:#bddaff}
+#clo-arai-chat .exo-ai-theme-explorer>label{font-size:10px;font-weight:750}
+#clo-arai-chat .exo-ai-theme-explorer>input,#clo-arai-chat .exo-ai-theme-explorer>select{width:100%;min-height:32px;border:1px solid #719cca;border-radius:7px;padding:5px 7px;background:#101f34;color:#fff;font-size:11px}
+#clo-arai-chat .exo-ai-theme-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;max-height:215px;overflow-y:auto}
+#clo-arai-chat .exo-ai-theme-grid button{display:flex;flex-direction:column;gap:5px;min-width:0;align-items:stretch;padding:7px;border:1px solid #58789d;border-radius:7px;background:#1c3852;color:#fff;font-size:10px;text-align:left;cursor:pointer}
+#clo-arai-chat .exo-ai-theme-grid button[aria-pressed="true"]{border-color:#d9ed74;box-shadow:inset 0 0 0 1px #d9ed74,0 0 7px #d9ed7460}
+#clo-arai-chat .exo-ai-theme-grid button:hover{background:#315777}
+#clo-arai-chat .exo-ai-theme-colors{display:flex;height:19px;overflow:hidden;border-radius:3px;border:1px solid #fff5}
+#clo-arai-chat .exo-ai-theme-colors i{flex:1;min-width:0}
+#clo-arai-chat .exo-ai-theme-actions{display:flex;flex-wrap:wrap;gap:5px}
+#clo-arai-chat .exo-ai-theme-actions button{padding:7px 9px;min-height:31px;background:#275eaa;border:1px solid #8bbcf7;border-radius:7px;color:#fff;font-size:10px;cursor:pointer;font-weight:700}
+#clo-arai-chat .exo-ai-guide-controls button:nth-child(5){background:#5344ae;border-color:#a9b4ff}
+#clo-arai-chat .exo-ai-guide-controls button:nth-child(6){background:#17658b;border-color:#8ee5ff}
+
+/* Embedded workspace presentation: dense chrome, clear text, and independent scrolling. */
+#clo-arai-chat.exo-ai-panel--embedded{
+ --exo-embedded-border:#405b72;
+ background:#151e2b;
+ backdrop-filter:none;-webkit-backdrop-filter:none;
+ border:1px solid var(--exo-embedded-border);
+ border-radius:0;
+ box-shadow:0 2px 18px #0005;
+ min-width:0;min-height:0;
+}
+#clo-arai-chat.exo-ai-panel--embedded:before{display:none}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-header{
+ flex:0 0 auto;min-width:0;min-height:48px;padding:7px 11px;
+ background:#223145;border-bottom:1px solid #49637b;gap:8px;
+}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-drag-grip{color:#c6d7e6}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-identity{min-width:0;gap:8px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-identity>div{min-width:0}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-identity strong{font-size:11px;letter-spacing:.055em;white-space:nowrap}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-identity small{font-size:9px;color:#c4d6e7;letter-spacing:.035em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-actions{flex-shrink:0;gap:5px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-actions button{width:30px;height:30px;border-radius:7px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-dock-menu{
+ flex:0 0 auto;gap:5px;padding:7px 9px;background:#1e2c3d;border-bottom:1px solid #40566c;
+}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-dock-menu button{padding:6px 8px;font-size:10px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-body{
+ flex:1 1 auto;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;
+ overscroll-behavior:contain;scrollbar-gutter:stable;
+ padding:10px;gap:9px;background:#162232;
+}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-context{background:#233447;border-color:#465e75;padding:6px 8px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-context span{color:#bfcedc;font-size:9px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-context strong{font-size:10px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-voice-settings{flex-wrap:wrap}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-voice-settings label{color:#d8e7f1}
+#clo-arai-chat.exo-ai-panel--embedded :is(.exo-ai-voice-settings select,.exo-ai-guide-controls select){
+ background:#142739;color:#f5faff;border:1px solid #7292ab;border-radius:6px;min-width:0;max-width:100%;min-height:29px;padding:3px 6px;font-size:11px;
+}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-dialogue{
+ flex:1 0 auto;min-height:92px;max-height:none;overflow:visible;
+ display:flex;flex-direction:column;gap:8px;padding:4px 2px 7px;
+}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-chatline{
+ max-width:96%;padding:9px 11px;background:#204862;border:1px solid #427f9f;
+ box-shadow:none;border-radius:11px 11px 11px 3px;
+}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-chatline.user{
+ background:#48376d;border-color:#8670ad;border-radius:11px 11px 3px 11px;
+}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-chatline small{font-size:10px;color:#b8f3ff}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-chatline.user small{color:#f1d8ff}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-chatline p{font-size:12px;line-height:1.52;color:#f7fbff}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-guide-controls{align-items:center;gap:6px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-guide-controls label{min-width:0;max-width:100%;color:#e5eef7}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-guide-controls button{min-height:30px;padding:6px 9px;font-size:10px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-suggestions{grid-template-columns:repeat(2,minmax(0,1fr))}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-suggestions button{font-size:10px;line-height:1.35;overflow-wrap:anywhere}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-composer{
+ flex:0 0 auto;min-width:0;gap:7px;padding:9px;background:#1d2b3c;border-top:1px solid #496178;
+}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-composer input{min-width:0;height:38px;font-size:12px;background:#101e2d;border-color:#6e91ae}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-composer button{height:38px;width:37px}
+#clo-arai-chat.exo-ai-panel--embedded .exo-ai-panel-footer{
+ flex:0 0 auto;padding:7px 10px;background:#1d2938;border-top:1px solid #3d5166;color:#c8d9e8;font-size:9px;
+}
+@media(min-width:900px) and (min-height:500px){
+ #clo-arai-chat.exo-ai-panel--embedded:is(.exo-ai-panel--left,.exo-ai-panel--right){width:min(328px,34vw);height:100dvh}
+ #clo-arai-chat.exo-ai-panel--embedded:is(.exo-ai-panel--top,.exo-ai-panel--bottom,.exo-ai-panel--center-wide) .exo-ai-panel-body{padding:8px 12px;gap:7px}
+ #clo-arai-chat.exo-ai-panel--embedded:is(.exo-ai-panel--top,.exo-ai-panel--bottom,.exo-ai-panel--center-wide) .exo-ai-dialogue{min-height:66px}
+ #clo-arai-chat.exo-ai-panel--embedded:is(.exo-ai-panel--top,.exo-ai-panel--bottom,.exo-ai-panel--center-wide) .exo-ai-panel-header{min-height:40px;padding:5px 11px}
+ #clo-arai-chat.exo-ai-panel--embedded:is(.exo-ai-panel--top,.exo-ai-panel--bottom,.exo-ai-panel--center-wide) .exo-ai-composer{padding:6px 10px}
+ #clo-arai-chat.exo-ai-panel--embedded:is(.exo-ai-panel--top,.exo-ai-panel--bottom,.exo-ai-panel--center-wide) .exo-ai-panel-footer{padding:5px 10px}
+ #clo-arai-chat.exo-ai-panel--embedded.exo-ai-panel--center-wide{box-shadow:0 8px 24px #0006;border-radius:0 0 10px 10px}
+}
+/* Docking affordances stay visible without masking the pattern workspace. */
+.exo-ai-dock-target-preview{border:2px solid #b5e782;background:#31798b20;box-shadow:inset 0 0 12px #b5e78215,0 0 0 2px #1b82904d}
+.exo-ai-dock-target-preview span{background:#142b38f2;border:1px solid #91bdc0;color:#f7fbff;box-shadow:0 2px 8px #0005;font-size:11px;padding:6px 10px}
+.exo-ai-dock-target{border:1px dashed #8caec98c;background:#25587e13;box-shadow:none}
+.exo-ai-dock-target span{font-size:10px;background:#13293bd9;padding:5px 8px}
+.exo-ai-dock-target--center-wide{background:#6044bd0b;border-color:#a39aba80}
+.exo-ai-dock-target.is-targeted{border:2px solid #d9ed74;background:#3894a62c;box-shadow:inset 0 0 12px #d9ed7415,0 0 0 2px #20bacc3a}
+#clo-arai-chat.exo-ai-panel--dragging{box-shadow:0 13px 31px #0008,0 0 0 1px #b9dba575}
+/* Companion appearance controls keep the character recoverable when hidden. */
+#clo-arai-chat .exo-ai-character-settings{padding:12px;border-bottom:1px solid #6688a366;background:#192a3a;color:#eef6ff;display:grid;gap:10px;font-size:12px;max-height: min(65vh,520px);overflow:auto}
+#clo-arai-chat .exo-ai-character-settings-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#clo-arai-chat .exo-ai-character-settings-heading button{color:#effaff;background:#345476;border:1px solid #7598b8;border-radius:7px;padding:6px 9px;cursor:pointer}
+#clo-arai-chat .exo-ai-character-settings-heading span{color:#b4d0e7;font-size:10px}
+#clo-arai-chat .exo-ai-character-switch{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#clo-arai-chat .exo-ai-character-switch input{width:17px;height:17px;accent-color:#6bd4e5}
+#clo-arai-chat .exo-ai-character-field{display:grid;gap:5px}
+#clo-arai-chat .exo-ai-character-settings select{max-width:100%;min-width:0;background:#263c52;color:#f3faff;border:1px solid #6389a6;border-radius:7px;padding:6px}
+#clo-arai-chat .exo-ai-character-appearance{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:center}
+#clo-arai-chat .exo-ai-character-appearance label{display:grid;gap:5px;min-width:0;color:#d5e5f2}
+#clo-arai-chat .exo-ai-character-appearance input[type=color]{width:100%;height:32px;border:1px solid #6389a6;border-radius:6px;padding:2px;background:#263c52}
+#clo-arai-chat .exo-ai-character-appearance input[type=range]{width:100%;accent-color:#6bd4e5}
+#clo-arai-chat .exo-ai-character-preview{width:90px;height:90px;margin:auto;grid-column:1/-1;border-radius:50%;background:#34495e;overflow:hidden}
+.exo-ai-character--steady .exo-ai-orb-shell{animation:none!important}
+.exo-ai-hidden-character-launcher{position:fixed;right:18px;bottom:18px;z-index:1072;display:flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #7598b8;border-radius:10px;background:#24394f;color:#effaff;font-size:11px;font-weight:700;cursor:pointer;box-shadow:0 4px 15px #0007}
+.exo-ai-hidden-character-launcher:focus-visible{outline:2px solid #a6e4ff;outline-offset:3px}

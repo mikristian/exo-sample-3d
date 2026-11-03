@@ -20,6 +20,7 @@ export function nativeSixSizeRegenerationPreflight20261027(snapshot, disabled = 
   return ''
 }
 
+const pomCell = { padding: '7px 10px', borderBottom: '1px solid #d8dde1', textAlign: 'left', whiteSpace: 'nowrap' }
 const display = value => finite(value) ? `${value.toFixed(3)} mm` : value === null || value === undefined ? '—' : String(value)
 const displayPosition = value => position(value) ? `(${value[0].toFixed(3)}, ${value[1].toFixed(3)}) mm` : 'Not measured'
 
@@ -68,7 +69,7 @@ export default function NativeSixSizeRegeneration20261027({ snapshot, disabled =
     try {
       const report = await onPreview(request)
       if (ticket !== generation.current) return
-      if (captured !== latestSignature.current || !validateSixSizeRegenerationPreview20261027(report, revision, request.overrides)) throw Error('Native Rust preview was incomplete, stale, or did not prove all changed points across six graded sizes.')
+      if (captured !== latestSignature.current || !validateSixSizeRegenerationPreview20261027(report, revision, request.overrides, snapshot?.template)) throw Error('Native Rust preview was incomplete, stale, or did not prove all changed points across six graded sizes.')
       setPreview({ report, request, signature: captured })
       setNotice('Read-only native preview received; no garment geometry has been committed.')
     } catch (error) { if (ticket === generation.current) setNotice(error.message || String(error)) }
@@ -86,7 +87,7 @@ export default function NativeSixSizeRegeneration20261027({ snapshot, disabled =
       if (ticket !== generation.current) return
       const nativeSnapshot = result?.nativeSnapshot ?? result?.data?.nativeSnapshot ?? result
       const evidence = nativeSnapshot?.regenerationEvidence ?? nativeSnapshot?.nativeRegenerationEvidence
-      if (latestSignature.current !== expected.signature || !nativeSnapshot || nativeSnapshot.revision !== expected.request.sourceRevision + 1 || nativeSnapshot.gradeRunPersisted !== true || nativeSnapshot.nativePointBindings?.active !== true || !validateSixSizeRegenerationPreview20261027(evidence, expected.request.sourceRevision, expected.request.overrides) || JSON.stringify(evidence) !== JSON.stringify(expected.report)) throw Error('Native commit response did not prove matching preview geometry, one revision increment, retained bindings and six-size regeneration; inspect the native project before retrying.')
+      if (latestSignature.current !== expected.signature || !nativeSnapshot || nativeSnapshot.revision !== expected.request.sourceRevision + 1 || nativeSnapshot.gradeRunPersisted !== true || nativeSnapshot.nativePointBindings?.active !== true || !validateSixSizeRegenerationPreview20261027(evidence, expected.request.sourceRevision, expected.request.overrides, snapshot?.template) || JSON.stringify(evidence) !== JSON.stringify(expected.report)) throw Error('Native commit response did not prove matching preview geometry, one revision increment, retained bindings and six-size regeneration; inspect the native project before retrying.')
       setPreview(null); setConfirmed(false); setStaged(null)
       setNotice(`Native regeneration committed at revision ${nativeSnapshot.revision}. Review graded pattern geometry and engineering checks before production.`)
     } catch (error) { if (ticket === generation.current) setNotice(error.message || String(error)) }
@@ -97,7 +98,7 @@ export default function NativeSixSizeRegeneration20261027({ snapshot, disabled =
   const rows = Array.isArray(source) ? source : source && typeof source === 'object' ? Object.entries(source).map(([size, value]) => ({ size, ...value })) : []
   return <section aria-label="Native six-size dependent regeneration" data-native-six-size-regeneration="true">
     <h3>Native six-size dependent pattern regeneration</h3>
-    <p>Stage one or more saved direct measurements, then preview and commit their linked geometry on the affected piece(s) across XS–XXL as one native Rust operation and Undo step. Saved computed formulas are recalculated from direct inputs; editing formula definitions and arbitrary geometry remains unsupported. Unaffected pieces retain their saved size geometry. Factory approval requires separate checks.</p>
+    <p>Stage one or more saved direct measurements, then preview and commit their linked geometry on the affected piece(s) across XS–XXL as one native Rust operation and Undo step. Saved computed formulas are recalculated from direct inputs; editing formula definitions and arbitrary geometry remains unsupported. Saved boundary points of measure retain their named-edge stations and are remeasured in every size. Unaffected pieces retain their saved size geometry. Factory approval requires separate checks.</p>
     <p>Saved binding graph: {graph?.active ? `${graph.bindings?.length || 0} rule(s)` : 'unavailable'} · Six-size catalog: {snapshot?.gradeRunPersisted ? 'saved' : 'unavailable'}</p>
     {blocker && <p role="alert">{blocker}</p>}
     <label>Saved direct measurement <select aria-label="Six-size direct measurement" disabled={Boolean(blocker)} value={name} onChange={event => choose(event.target.value)}><option value="">Choose measurement</option>{measurements.map(([key, value]) => <option key={key} value={key}>{key} · {display(direct(value))}</option>)}</select></label>
@@ -109,6 +110,13 @@ export default function NativeSixSizeRegeneration20261027({ snapshot, disabled =
     {proposalStale && <p role="alert">Source revision or saved graph changed; preview is stale.</p>}
     {preview && !proposalStale && <div aria-label="Six-size regeneration preview"><p>Rust preview: {preview.report.changedPanels} panels · {preview.report.changedBindings} dependent bindings · {Object.keys(preview.request.overrides).length} measurement override(s). Source revision {preview.report.sourceRevision}. Factory uncertified.</p>
       <table aria-label="Per-size native geometry changes"><thead><tr><th>Size</th><th>Changed points</th><th>Measured before → after</th></tr></thead><tbody>{SIZE_NAMES.map(size => { const row = rows.find(item => item.size === size); const changes = row?.changes ?? []; return <tr key={size}><th>{size}</th><td>{changes.length}</td><td>{changes.map((change, index) => <p key={index}>{change.panelId} · P{change.pointIndex + 1}: {displayPosition(change.beforeMm)} → {displayPosition(change.afterMm)}</p>)}</td></tr> })}</tbody></table>
+      {preview.report.perSizeMeasurements?.some(row => row.measurements.length > 0) && <div>
+        <h4>Saved points of measure · all sizes</h4>
+        <p>Straight-line distances between saved boundary stations, recalculated from native material geometry. These are observed measurements, not target or fit approvals.</p>
+        <div style={{ maxHeight: 300, overflow: 'auto', border: '1px solid #cbd0d5', borderRadius: 4 }}><table aria-label="Per-size saved points of measure" style={{ width: '100%', borderCollapse: 'collapse', background: '#f7f8f9', color: '#27313a', fontVariantNumeric: 'tabular-nums' }}><thead style={{ position: 'sticky', top: 0, background: '#e7eaee', zIndex: 1 }}><tr>{['Size', 'Piece / measurement', 'Before', 'After', 'Change'].map(label => <th key={label} scope="col" style={pomCell}>{label}</th>)}</tr></thead><tbody>
+          {SIZE_NAMES.flatMap(size => (preview.report.perSizeMeasurements.find(row => row.size === size)?.measurements ?? []).map(m => <tr key={JSON.stringify([size,m.panelId,m.id])}><th scope="row" style={pomCell}>{size}</th><td style={pomCell}>{m.panelId} · {m.label}</td><td style={pomCell}>{display(m.beforeMm)}</td><td style={pomCell}>{display(m.afterMm)}</td><td style={pomCell}>{display(m.afterMm-m.beforeMm)}</td></tr>))}
+        </tbody></table></div>
+      </div>}
       <label><input type="checkbox" checked={confirmed} disabled={busy || Boolean(blocker)} onChange={event => setConfirmed(event.target.checked)}/> I reviewed all six size changes and authorize the native commit</label>
       <button type="button" disabled={!confirmed || Boolean(blocker) || typeof onCommit !== 'function'} onClick={commit}>Commit confirmed six-size regeneration</button>
     </div>}

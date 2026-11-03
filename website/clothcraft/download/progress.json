@@ -1,0 +1,64 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-11-01T20:52:02.662Z",
+  "sourceSha": "f37674abc8084d333362682f1ac8563ee2da2450",
+  "method": "Presence-based checkpoint evidence — not certified completion",
+  "systems": [
+    {
+      "id": "pattern2d",
+      "label": "2D Pattern Workspace",
+      "description": "Drafting, editing and pattern tools",
+      "total": 8,
+      "passed": 7
+    },
+    {
+      "id": "simulation",
+      "label": "3D & Simulation",
+      "description": "Solver integration and verified physics",
+      "total": 6,
+      "passed": 3
+    },
+    {
+      "id": "grading",
+      "label": "Grading & Sizing",
+      "description": "Multi-size rules and geometry consistency",
+      "total": 6,
+      "passed": 4
+    },
+    {
+      "id": "manufacturing",
+      "label": "Production & Export",
+      "description": "CUT geometry, files and receiving QA",
+      "total": 7,
+      "passed": 4
+    },
+    {
+      "id": "materials",
+      "label": "Fabrics & Materials",
+      "description": "Material authoring and validation",
+      "total": 5,
+      "passed": 3
+    },
+    {
+      "id": "vector",
+      "label": "Vector & Technical Design",
+      "description": "Editable flats, anchors and graphical design",
+      "total": 5,
+      "passed": 3
+    },
+    {
+      "id": "desktop",
+      "label": "Desktop Application",
+      "description": "Native host, packaging and platform validation",
+      "total": 6,
+      "passed": 3
+    },
+    {
+      "id": "rust",
+      "label": "Rust Migration",
+      "description": "Authoritative native implementation",
+      "total": 6,
+      "passed": 4
+    }
+  ]
+}

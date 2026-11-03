@@ -1,0 +1,35 @@
+/* Compact ArtCraft-style interior mastheads; homepage is deliberately excluded. */
+.page-main .page-hero.cc-interior-hero,
+.page-main .about-v2-hero.cc-interior-hero,
+.page-main .cc-hub-hero.cc-interior-hero{
+  position:relative!important;display:block!important;min-height:0!important;height:auto!important;
+  padding:clamp(105px,10vw,145px) clamp(22px,6vw,106px) clamp(38px,4.2vw,64px)!important;
+  margin:0!important;background:#242424!important;background-image:none!important;
+  border-bottom:1px solid #565656!important;overflow:visible!important;isolation:auto!important;color:#ededed!important;
+}
+.cc-interior-hero:before,.cc-interior-hero:after,
+.cc-interior-hero .cc-hero-geometry,.cc-interior-hero .cc-hero-media,
+.cc-interior-hero .cc-hero-number,.cc-interior-hero .cc-hero-bottom-rule,
+.cc-interior-hero .about-v2-hero-photo{display:none!important}
+.cc-interior-hero .cc-hero-overline{display:block;position:relative!important;z-index:1;font:750 10px/1.5 Manrope,Arial,sans-serif!important;letter-spacing:.18em!important;color:#a6a6a6!important;margin:0 0 14px!important;max-width:780px}
+.cc-interior-hero h1,.cc-interior-hero .about-v2-intro h1{
+  display:block!important;position:relative!important;z-index:1;max-width:980px!important;
+  font:780 clamp(33px,4.3vw,64px)/1.07 Manrope,Arial,sans-serif!important;
+  letter-spacing:-.055em!important;color:#eee!important;margin:0 0 16px!important;text-wrap:balance;
+}
+.cc-interior-hero h1 em{font-style:normal!important;color:#a6a6a6!important}
+.cc-interior-hero .page-lead,.cc-interior-hero .about-v2-intro>p,.cc-interior-hero>p{
+  position:relative!important;max-width:720px!important;margin:0!important;
+  color:#b6b6b6!important;font:400 clamp(13px,1.1vw,16px)/1.65 Manrope,Arial,sans-serif!important;
+}
+.cc-interior-hero .page-breadcrumb,.cc-interior-hero .about-v2-breadcrumb,.cc-interior-hero>.cc-deep-kicker{position:relative!important;font-size:10px!important;letter-spacing:.13em!important;color:#9e9e9e!important;margin:0 0 12px!important}
+.cc-interior-hero .hero-actions,.cc-interior-hero .about-v2-hero-actions{display:flex!important;justify-content:flex-start!important;gap:10px!important;flex-wrap:wrap!important;margin:21px 0 0!important}
+.cc-interior-hero .hero-tags,.cc-interior-hero .about-v2-hero-foot{display:none!important}
+.cc-interior-hero .about-v2-intro{position:relative!important;width:100%!important;max-width:100%!important;min-width:0!important;padding:0!important;margin:0!important}
+.cc-interior-hero .about-v2-kicker{display:none!important}
+.cc-interior-hero .btn,.cc-interior-hero .about-v2-text-link{font-size:12px!important}
+@media(max-width:680px){.page-main .page-hero.cc-interior-hero,.page-main .about-v2-hero.cc-interior-hero,.page-main .cc-hub-hero.cc-interior-hero{padding:99px 20px 38px!important}.cc-interior-hero h1,.cc-interior-hero .about-v2-intro h1{font-size:clamp(32px,8vw,44px)!important;max-width:100%!important}}
+/* Prevent legacy decorative imagery/letter effects from widening compact headers. */
+.page-main .cc-interior-hero{overflow:hidden!important}
+.page-main .cc-interior-hero h1{overflow-wrap:anywhere}
+@media(min-width:1100px){.page-main .cc-interior-hero h1{font-size:clamp(36px,4vw,55px)!important}}

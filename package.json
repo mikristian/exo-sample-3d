@@ -15,6 +15,7 @@
     "qa:modaris-native-chart-browser": "node integrations/clothcraft/qa-v2-modaris-native-per-size-chart-browser-20261027.mjs",
     "qa:modaris-native-chart-authoring-ui": "node integrations/clothcraft/qa-v2-modaris-native-per-size-chart-ui-20261027.mjs",
     "qa:modaris-native-intake": "node --test src/core/modarisNativeFormatIntake20261028.test.mjs",
+    "qa:modaris-connected-receiver": "node --test src/core/modarisConnectedDevelopmentReceiver20261101.test.mjs src/core/modarisConnectedDevelopmentPackage20261101.test.mjs",
     "qa:modaris-licensed-receiver-gate": "node --test scripts/qa-modaris-licensed-receiver-gate-20261027.test.mjs && node scripts/qa-modaris-licensed-receiver-gate-20261027.mjs",
     "qa:modaris-industrial-six-size": "node --test src/core/modarisIndustrialSixSizeWitness20261027.test.mjs src/components/ModarisIndustrialSixSizeWitness20261027.test.mjs src/core/modarisConnectedIndustrialDerivatives20261027.test.mjs src/core/modarisNativeSixSizeDependencyTransaction20261027.test.mjs",
     "qa:modaris-native-industrial-reactive": "node --test src/core/modarisNativeIndustrialReactiveWitness20261027.test.mjs && node integrations/clothcraft/check-v2-reactive-industrial-notch-propagation-20261027.mjs",

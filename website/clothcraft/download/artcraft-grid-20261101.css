@@ -1,0 +1,28 @@
+/* Dark neutral gray revision; no bright paper background or gradients. */
+:root{color-scheme:dark!important;color:#e5e5e5!important;background:#242424!important}
+html,body{background:#242424!important;color:#e5e5e5!important;background-image:none!important}
+body :where(.hero,.progress,.overall,.systems,.method,.card,.download-card,.platform-card,.system,.release-card){background:#292929!important;color:#e5e5e5!important;border-color:#515151!important}
+body :where(h1,h2,h3,h4,strong,.wordmark,.top,.section-top,.system-title){color:#e5e5e5!important}
+body :where(p,small,.subline,.section-copy,.overall-sub,.muted,.eyebrow,.overline){color:#aaa!important}
+.top.shell{background:#242424!important;border-color:#515151!important}
+.systems,.systems>*{border-color:#515151!important}
+
+/* Border-led download grid remains neutral. */
+.systems{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:0!important;border-left:1px solid #515151!important;border-top:1px solid #515151!important}
+.systems>*{border:0!important;border-right:1px solid #515151!important;border-bottom:1px solid #515151!important;border-radius:0!important;box-shadow:none!important;padding:clamp(22px,3vw,44px)!important;background:transparent!important}
+@media(max-width:650px){.systems{grid-template-columns:1fr!important}}
+
+/* Colored checkpoint bars — progress is still real evidence counts, not a readiness certification. */
+.overall .track,.system .track,.track{background:#464646!important;border:1px solid #606060!important;border-radius:999px!important;overflow:hidden}
+.overall .fill,#overall-fill{background:#63a8ff!important;background-image:none!important;border-radius:inherit!important}
+.system[data-system="pattern2d"]{--progress-color:#74c5ff}
+.system[data-system="simulation"]{--progress-color:#b69cff}
+.system[data-system="grading"]{--progress-color:#7bdcb1}
+.system[data-system="manufacturing"]{--progress-color:#f0ad72}
+.system[data-system="materials"]{--progress-color:#dfb5e7}
+.system[data-system="vector"]{--progress-color:#e3c867}
+.system[data-system="desktop"]{--progress-color:#82d6d5}
+.system[data-system="rust"]{--progress-color:#b8df87}
+.system .fill{background:var(--progress-color,#74c5ff)!important;background-image:none!important;border-radius:inherit!important}
+.system .system-value{color:var(--progress-color,#74c5ff)!important;font-variant-numeric:tabular-nums;font-weight:850}
+#overall-value{color:#74c5ff!important;font-variant-numeric:tabular-nums}

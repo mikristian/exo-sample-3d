@@ -13,7 +13,14 @@ import { createAgentApi } from './agent-api.mjs'
 import { createAgentKeyStore } from './agent-key-store.mjs'
 import { createCollaborationApi } from './collaboration.mjs'
 import { createAppleVisionHand } from './apple-vision-hand.mjs'
+import {suggestExoAssistantLocal20261102} from './exoAppAssistantLocal20261102.mjs'
 import { readPatternIntelligenceCatalog } from './pattern-intelligence-catalog.mjs'
+import { readGarmentCodeDataV2Catalog } from './garmentcodedata-v2-catalog.mjs'
+import { searchExoArchivePatterns } from '../../src/core/exoArchivePatternRetrieval20261102.js'
+import { readArchiveSourceGeometry } from './source-geometry-bridge-20261102.mjs'
+import {runResearchContourDecoder20261102} from './research-contour-bridge-20261102.mjs'
+import {suggestResearchSewing20261102} from './research-seam-bridge-20261102.mjs'
+import {analyzeExoGarmentPhotoVision20261102} from './photo-vision-semantic-20261102.mjs'
 import { evaluateSeamly2DRequest20261023 } from './seamly2dEngineRoute20261023.mjs'
 import {evaluateValentina2DRequest20261031} from './valentinaEngineRoute20261031.mjs'
 import {evaluateValentinaConnected2DRequest20261031} from './valentinaConnectedCalculation20261031.mjs'
@@ -199,8 +206,35 @@ const server = http.createServer(async (req, res) => {
   if (await collaborationApi.handle(req, res)) return
   // Agent/collaboration routes above retain their separately scoped auth.
   // All remaining state-changing native endpoints share the shell session.
-  if (!['GET','HEAD','OPTIONS'].includes(req.method) && !workspaceAuth.authorize(req.headers.authorization))
+  if (!['GET','HEAD','OPTIONS'].includes(req.method) && !workspaceAuth.authorize(req.headers.authorization)) {
+    // Diagnostics contain request metadata only. Never log session credentials.
+    console.warn('[workspace-auth-denied]',JSON.stringify({method:req.method,path:req.url?.split('?')[0],
+      origin,hasAuthorization:typeof req.headers.authorization==='string',
+      bearer:typeof req.headers.authorization==='string'&&req.headers.authorization.startsWith('Bearer ')}))
     return send(res,401,{ok:false,code:'WORKSPACE_AUTH_REQUIRED',error:'Workspace authorization required'},origin)
+  }
+  if(req.url==='/assistant/v1/local/suggest'){
+    if(req.method!=='POST')return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if(!origin||!origins.has(origin))return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try{
+      const result=await suggestExoAssistantLocal20261102(await readBody(req))
+      return send(res,result.ok?200:result.code==='INVALID_REQUEST'?400:result.code==='MODEL_NOT_INSTALLED'?404:result.code==='MODEL_TIMEOUT'?504:503,result,origin)
+    }catch{return send(res,400,{ok:false,code:'INVALID_REQUEST'},origin)}
+  }
+  // On-demand semantic PHOTO reference analysis runs exclusively on the
+  // already-installed local Ollama vision model. It returns reviewable visible
+  // attributes, NEVER hidden cut-panel geometry or a native garment mutation.
+  if(req.url==='/pattern-intelligence/v1/photo-vision'){
+    if(req.method!=='POST')return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if(!origin||!origins.has(origin))return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try{
+      const packet=await readBody(req)
+      const result=await analyzeExoGarmentPhotoVision20261102(packet)
+      return send(res,result.ok?200:result.code==='MODEL_BUSY'?429:
+        result.code==='MODEL_TIMEOUT'?504:result.code==='INVALID_IMAGE'?422:503,result,origin)
+    }catch{return send(res,422,{ok:false,code:'INVALID_PHOTO_VISION_REQUEST',
+      manufacturingApproved:false,measurementCalibrationVerified:false},origin)}
+  }
   if (req.url?.split('?')[0]?.startsWith('/techpack/gridcraft/v2/workbook/')) {
     if (!origin || !origins.has(origin))return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
     if (req.url==='/techpack/gridcraft/v2/workbook/status')
@@ -277,6 +311,84 @@ const server = http.createServer(async (req, res) => {
     try { const result = readPatternIntelligenceCatalog(root)
       return send(res, result.ok ? 200 : 503, result, origin)
     } catch { return send(res, 503, {ok:false,code:'CATALOG_READ_FAILED'}, origin) }
+  }
+  if (req.url?.split('?')[0] === '/pattern-intelligence/v1/garmentcodedata-v2') {
+    if (req.method !== 'GET') return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if (!origin || !origins.has(origin)) return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try {
+      const query = new URL(req.url, 'http://127.0.0.1').searchParams
+      const result = readGarmentCodeDataV2Catalog(root, Object.fromEntries(query))
+      return send(res,result.ok ? 200 : 503,result,origin)
+    } catch { return send(res,503,{ok:false,code:'GARMENTCODE_V2_CATALOG_READ_FAILED'},origin) }
+  }
+  if (req.url?.split('?')[0] === '/pattern-intelligence/v1/archive-search') {
+    if (req.method !== 'GET') return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if (!origin || !origins.has(origin)) return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try {
+      const params = new URL(req.url, 'http://127.0.0.1').searchParams
+      const allowed = new Set(['query','sourceId','body','minPanels','maxPanels','limit','offset'])
+      if ([...params.keys()].some(key => !allowed.has(key) || params.getAll(key).length !== 1))
+        return send(res,400,{ok:false,code:'INVALID_ARCHIVE_SEARCH_PARAMETERS',results:[]},origin)
+      const filters = Object.fromEntries(params)
+      for (const key of ['minPanels','maxPanels','limit','offset']) {
+        if (key in filters && !/^\d{1,7}$/.test(filters[key]))
+          return send(res,400,{ok:false,code:'INVALID_ARCHIVE_SEARCH_PARAMETERS',results:[]},origin)
+      }
+      const result = await searchExoArchivePatterns(filters)
+      return send(res,result.ok?200:result.error==='archive_index_unavailable'?503:400,result,origin)
+    } catch {
+      return send(res,503,{ok:false,code:'ARCHIVE_SEARCH_FAILED',results:[]},origin)
+    }
+  }
+  if (req.url?.split('?')[0] === '/pattern-intelligence/v1/source-geometry') {
+    if(req.method!=='GET')return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if(!origin||!origins.has(origin))return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try {
+      const params=new URL(req.url,'http://127.0.0.1').searchParams
+      if([...params.keys()].some(key=>key!=='sourceId'||params.getAll(key).length!==1)||!params.has('sourceId'))
+        return send(res,400,{ok:false,error:'invalid_source_id'},origin)
+      const result=await readArchiveSourceGeometry(params.get('sourceId'))
+      return send(res,result.ok?200:result.error==='source_specification_not_local'||result.error==='archive_index_unavailable'?503:422,result,origin)
+    }catch{return send(res,503,{ok:false,error:'source_geometry_unavailable'},origin)}
+  }
+  if(req.url?.split('?')[0]==='/pattern-intelligence/v1/research-contour'){
+    if(req.method!=='POST')return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if(!origin||!origins.has(origin))return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try{
+      const body=await readBody(req)
+      const result=await runResearchContourDecoder20261102(body)
+      const status=result.ok?200:result.code==='RESEARCH_INFERENCE_BUSY'?429:
+        ['RESEARCH_MODEL_NOT_AVAILABLE','INVALID_RESEARCH_MODEL_EVIDENCE','RESEARCH_MODEL_PROCESS_FAILED'].includes(result.code)?503:
+        result.code==='RESEARCH_MODEL_TIMEOUT'?504:422
+      return send(res,status,result,origin)
+    }catch{return send(res,422,{ok:false,code:'INVALID_RESEARCH_CONTOUR_REQUEST',manufacturingApproved:false},origin)}
+  }
+  if(req.url?.split('?')[0]==='/pattern-intelligence/v1/research-seam'){
+    if(req.method!=='GET')return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if(!origin||!origins.has(origin))return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try{
+      const params=new URL(req.url,'http://127.0.0.1').searchParams
+      if([...params.keys()].some(key=>!['sourceId','limit'].includes(key)||params.getAll(key).length!==1)||
+         !params.has('sourceId')||(params.has('limit')&&!/^\d{1,2}$/.test(params.get('limit'))))
+        return send(res,400,{ok:false,code:'INVALID_SEAM_RESEARCH_QUERY',manufacturingApproved:false},origin)
+      const result=await suggestResearchSewing20261102({sourceId:params.get('sourceId'),limit:Number(params.get('limit')||8)})
+      return send(res,result.ok?200:result.code==='SEAM_RESEARCH_BUSY'?429:
+        result.code==='SEAM_RESEARCH_TIMEOUT'?504:422,result,origin)
+    }catch{return send(res,503,{ok:false,code:'SEAM_RESEARCH_UNAVAILABLE',manufacturingApproved:false},origin)}
+  }
+  if (req.url?.split('?')[0] === '/pattern-intelligence/v1/geometry-neighbors') {
+    if (req.method !== 'GET') return send(res,405,{ok:false,code:'METHOD_NOT_ALLOWED'},origin)
+    if (!origin || !origins.has(origin)) return send(res,403,{ok:false,code:'TRUSTED_UI_REQUIRED'},origin)
+    try {
+      const params = new URL(req.url,'http://127.0.0.1').searchParams
+      if ([...params.keys()].some(key=>!['sourceId','limit'].includes(key)||params.getAll(key).length!==1) ||
+          !params.has('sourceId') || (params.has('limit')&&!/^\d{1,2}$/.test(params.get('limit'))))
+        return send(res,400,{ok:false,code:'INVALID_GEOMETRY_NEIGHBOR_PARAMETERS',results:[]},origin)
+      const result=await searchExoArchivePatterns({...Object.fromEntries(params),mode:'nearest'})
+      return send(res,result.ok?200:['geometry_embeddings_unavailable','numpy_unavailable','archive_index_unavailable'].includes(result.error)?503:400,result,origin)
+    } catch {
+      return send(res,503,{ok:false,code:'GEOMETRY_NEIGHBOR_SEARCH_FAILED',results:[]},origin)
+    }
   }
   if (req.method==='GET'&&req.url==='/vision/hand/status')return send(res,200,{ok:true,...appleVisionHand.status()},origin)
   if (req.url?.split('?')[0]?.startsWith('/production/native-verified/v1/')) {

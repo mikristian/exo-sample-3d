@@ -1,0 +1,46 @@
+/* Flat, neutral ArtCraft-style design palette. Original ClothCraft identity retained. */
+:root{--site-bg:#0b0b0b;--site-bg-alt:#101010;--site-panel:#151515;--site-sidebar:#111;--site-raised:#1c1c1c;--site-text:#f4f4f4;--site-muted:#a3a3a3;--site-border:#353535;--site-accent:#eee;--site-accent-ink:#0b0b0b;--bg:#0b0b0b;--bg2:#101010;--panel:#151515;--panel2:#1a1a1a;--ink:#f4f4f4;--muted:#a3a3a3;--line:#353535;--blue:#ddd;--blue2:#ccc;--brand-blue:#eee;--brand-bg:#0b0b0b;--brand-panel:#151515;--brand-muted:#aaa}
+html,body{background:#0b0b0b;color:#f4f4f4}
+/* No decorative gradient is permitted in the website surface. */
+.hero,.hero-atmosphere,.hero-media-overlay,.hero-media-edge,.cc-measure-glass,.cc-app-launch,.cc-app-launch-visual,.cc-app-icon-frame,.cc-feature-section,.workflow,.film,.story-section,.features,.open-section,.faq-section,.community,.cc-marketplace-spotlight,.final-cta,.cta-glow,.ticker,.intro-strip,.savings-panel,.site-footer,.footer,.film-overlay,.cc-video-frame,.cc-video-feature,.story-layout,.viewer-sticky,.viewer-stage,.hero-sculpture{background-image:none!important;background-color:#0b0b0b!important}
+.hero-atmosphere,.cta-glow{display:none!important}
+.header,.nav-menu{background:#0b0b0b!important;border-color:#383838!important;box-shadow:none!important;backdrop-filter:none!important}
+.header .nav-actions a,.btn,.cc-app-launch-actions .btn{border-radius:2px!important;box-shadow:none!important}
+.btn-blue,.nav-download{background:#eee!important;color:#0b0b0b!important;border-color:#eee!important}
+.btn-glass,.nav-start{background:transparent!important;color:#f0f0f0!important;border:1px solid #666!important;backdrop-filter:none!important}
+.hero h1 em,.cc-feature-section-head i,.cc-app-launch-copy i,.film-heading i,.story-intro i{color:#f5f5f5!important}
+.cc-brand-reveal-title{color:#f5f5f5!important}.cc-brand-reveal-edition,.eyebrow,.section-code,.cc-app-launch-platform{color:#aaa!important}
+.cc-measure-glass{background:#0b0b0b!important;opacity:.76}
+.cc-video-grid{border-color:#383838!important}.cc-video-feature{border-color:#383838!important;border-radius:0!important;box-shadow:none!important}.cc-feature-copy,.cc-feature-top{background:#0b0b0b!important}
+/* Product / marketplace previews belong to the same editorial grid, not floating cards. */
+.cc-app-launch{padding-inline:clamp(16px,4vw,64px);border-top:1px solid #353535;border-bottom:1px solid #353535}
+.cc-app-launch-layout{max-width:1320px;margin-inline:auto;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0!important;border:1px solid #383838}
+.cc-app-launch-layout>.cc-app-launch-visual,.cc-app-launch-layout>.cc-app-launch-copy{border-radius:0!important;min-width:0;padding:clamp(28px,4.5vw,74px);background:#0e0e0e!important;box-shadow:none!important}
+.cc-app-launch-layout>.cc-app-launch-visual{border-right:1px solid #383838;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.cc-app-icon-frame{border:0!important;box-shadow:none!important;background:transparent!important}
+.cc-app-launch-layout>.cc-app-launch-copy{background:#111!important}
+.cc-app-capabilities{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid #3b3b3b;border-left:1px solid #3b3b3b;gap:0!important}
+.cc-app-capabilities>div{border-right:1px solid #3b3b3b;border-bottom:1px solid #3b3b3b;border-radius:0!important;padding:16px!important;background:transparent!important}
+.cc-marketplace-spotlight{background:#101010!important}
+.cc-marketplace-spotlight .cc-marketplace-layout,.cc-marketplace-spotlight .cc-marketplace-grid,.cc-marketplace-spotlight .cc-marketplace-content{border-radius:0!important;box-shadow:none!important}
+@media(max-width:900px){.cc-app-launch-layout{grid-template-columns:1fr}.cc-app-launch-layout>.cc-app-launch-visual{border-right:0;border-bottom:1px solid #383838}}
+/* User-directed final palette: dark neutral gray (not white, no gradients). */
+:root{color-scheme:dark;--site-bg:#242424;--site-bg-alt:#2b2b2b;--site-panel:#303030;--site-raised:#353535;--site-text:#e5e5e5;--site-muted:#999;--site-border:#454545;--site-accent:#d5d5d5;--site-accent-ink:#222;--bg:#242424;--bg2:#2b2b2b;--panel:#303030;--panel2:#353535;--ink:#e5e5e5;--muted:#999;--line:#454545;--blue:#d5d5d5;--blue2:#bcbcbc;--brand-blue:#dedede;--brand-bg:#242424;--brand-panel:#303030;--brand-muted:#999}
+html,body,body,body main,body section,body article,.hero,.cc-app-launch,.cc-feature-section,.workflow,.film,.story-section,.features,.open-section,.faq-section,.community,.cc-marketplace-spotlight,.final-cta,.ticker,.intro-strip,.savings-panel{background:#242424!important;background-image:none!important;color:#e5e5e5!important}
+.header,.header .nav-menu{background:#242424!important;color:#e5e5e5!important;border-color:#454545!important}
+.header a,.header summary,.header .logo,.header .nav-actions .nav-start,.hero h1,.cc-app-launch h2,.cc-feature-section h2,.story-intro h2,.film-heading h2,.final-cta h2,.features h2,.community h2,.cc-marketplace-spotlight h2,.intro h2,.hero h1 em,.cc-feature-section-head i,.cc-app-launch-copy i,.film-heading i,.story-intro i,.cc-brand-reveal-title{color:#e5e5e5!important}
+.hero p,.cc-app-launch p,.cc-feature-section p,.cc-feature-copy p,.story-intro p,.film-heading p,.community p,.cc-app-launch-note,.cc-app-launch-lead{color:#ababab!important}
+.eyebrow,.section-code,.cc-app-launch-platform,.hero-meta,.cc-feature-top,.cc-brand-reveal-edition{color:#a1a1a1!important}
+.header .nav-actions .nav-download,.btn-blue,.cc-app-launch-actions .btn-blue{background:#dedede!important;color:#222!important;border-color:#dedede!important}
+.header .nav-actions .nav-start,.btn-glass{background:transparent!important;color:#e5e5e5!important;border-color:#777!important}
+.cc-app-launch-layout,.cc-app-launch-layout>.cc-app-launch-visual,.cc-app-launch-layout>.cc-app-launch-copy,.cc-app-capabilities,.cc-app-capabilities>div,.cc-video-grid,.cc-video-feature,.cc-feature-copy,.cc-feature-top{border-color:#515151!important}
+.cc-app-launch-layout>.cc-app-launch-visual,.cc-app-launch-layout>.cc-app-launch-copy,.cc-feature-copy,.cc-feature-top,.cc-video-feature{background:#292929!important;color:#e5e5e5!important}
+.cc-app-capabilities>div strong,.cc-app-capabilities>div span,.cc-feature-copy h3{color:#e5e5e5!important}
+.cc-measure-glass{background:#242424!important;opacity:.97}.cc-measure-tick{background:#777!important}.cc-measure-tick.is-active,.cc-measure-cursor-line{background:#e2e2e2!important}.cc-measure-tick span,.cc-measure-cursor-label{color:#cacaca!important}.cc-measure-viewport{border-color:#777!important;background:#ffffff06!important}
+.cc-measure-chapter.is-current .cc-chapter-name,.cc-measure-chapter.is-preview .cc-chapter-name,.cc-measure-chapter:hover .cc-chapter-name{color:#f1f1f1!important}.cc-measure-chapter.is-past .cc-chapter-name{color:#999!important}.cc-measure-chapter.is-upcoming .cc-chapter-name{color:#747474!important}
+.cc-chapter-line{background:#777!important}.cc-measure-chapter.is-current .cc-chapter-line{background:#dedede!important}
+.cc-brand-reveal-title,.hero-copy .eyebrow,.hero-meta{color:#e8e8e8!important}
+.cc-marketplace-spotlight{background:#242424!important}
+
+/* Final design system: neutral dark gray surfaces, no decorative backgrounds. */
+:root{color-scheme:dark!important}body,body main{background-color:#242424!important}body :where(.hero,.hero-sticky,.hero-atmosphere,.cc-app-launch,.workflow,.film,.story-section,.features,.open-section,.faq-section,.community,.principles,.savings-panel,.ticker,.intro-strip,.final-cta){background-color:#242424!important;background-image:none!important}body :where(.cc-app-launch-layout,.cc-video-grid,.cc-feature-section,.cc-marketplace-layout,.cc-app-capabilities){box-shadow:none!important}body :where(.cc-video-feature,.cc-feature-copy,.cc-feature-top,.cc-app-launch-copy,.cc-app-launch-visual){background-color:#292929!important;background-image:none!important}body :where(.cc-measure-rail,.cc-measure-glass,.cc-measure-floating){background-image:none!important}body :where(.hero-media-overlay,.film-overlay){background-image:none!important}body :where(.hero-atmosphere,.cta-glow){display:none!important}

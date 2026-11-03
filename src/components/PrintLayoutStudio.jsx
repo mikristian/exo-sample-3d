@@ -71,6 +71,25 @@ export default function PrintLayoutStudio({source,native=false,graphics=[],revis
   const [autoFit,setAutoFit]=useState(true)
   const [boardView,setBoardView]=useState('board')
   const [paperPageBatch,setPaperPageBatch]=useState(0)
+  useEffect(()=>{
+    const configure=event=>{
+      const setup=event.detail||{}
+      if(!['Letter','A4','Legal','Tabloid'].includes(setup.paper))return
+      if(window.__exoCompanionPrintSetup===setup)delete window.__exoCompanionPrintSetup
+      setPaper(setup.paper)
+      setOrientation(setup.orientation==='landscape'?'landscape':'portrait')
+      setPrintScale(100)
+      setPreviewPage(1)
+      setPaperPageBatch(0)
+      setBoardView('pages')
+    }
+    window.addEventListener('exo-companion-print-setup',configure)
+    if(window.__exoCompanionPrintSetup){
+      configure({detail:window.__exoCompanionPrintSetup})
+      delete window.__exoCompanionPrintSetup
+    }
+    return()=>window.removeEventListener('exo-companion-print-setup',configure)
+  },[])
   const [panEnabled,setPanEnabled]=useState(false)
   const selectedPattern=active.find(p=>p.id===selectedPiece)||null
   const savedLayouts=useRef({})

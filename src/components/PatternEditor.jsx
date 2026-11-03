@@ -201,6 +201,8 @@ export default function PatternEditor({
   const [pointError, setPointError] = useState('')
   const [edgeAllowanceDraft, setEdgeAllowanceDraft] = useState('')
   const [view, setView] = useState({ x: 0, y: 0, width: VIEWBOX.width, height: VIEWBOX.height })
+  const companionViewRef = useRef(view)
+  companionViewRef.current = view
   const [canvasSize,setCanvasSize] = useState([800,500])
   useEffect(()=>{
     if(!svgRef.current || typeof ResizeObserver==='undefined')return
@@ -445,6 +447,39 @@ export default function PatternEditor({
     if (piece) focusPieces([piece], 12)
     else focusPieces(project.pieces)
   }
+  // Companion-guided editing zooms the actual SVG camera toward the affected
+  // source panels. The camera interpolates in drawing units: no fake CSS
+  // scaling or change to the garment/project geometry.
+  useEffect(() => {
+    let frame = 0
+    const focusFromAssistant = event => {
+      const requested = Array.isArray(event.detail?.pieceIds) ? event.detail.pieceIds : []
+      const relevant = project.pieces.filter(piece => requested.includes(piece.id))
+      if (!relevant.length) return
+      const bounds = relevant.flatMap(piece => samplePieceBoundary(piece, 18).points
+        .map(point => svgPoint(point, piece.layout2d)))
+      if (!bounds.length) return
+      const xs=bounds.map(point=>point.x),ys=bounds.map(point=>point.y)
+      const minX=Math.min(...xs)-12,maxX=Math.max(...xs)+12,minY=Math.min(...ys)-12,maxY=Math.max(...ys)+12
+      const canvas=svgRef.current?.getBoundingClientRect()
+      const ratio=Math.max(.1,(canvas?.width||500)/(canvas?.height||700))
+      const width=Math.max(maxX-minX,(maxY-minY)*ratio)
+      const height=width/ratio
+      const target={x:(minX+maxX-width)/2,y:(minY+maxY-height)/2,width,height}
+      const start={...companionViewRef.current}
+      cancelAnimationFrame(frame)
+      if(matchMedia('(prefers-reduced-motion: reduce)').matches){setView(target);return}
+      const startTime=performance.now()
+      const tick=now=>{
+        const t=Math.min(1,(now-startTime)/850),ease=1-(1-t)**3
+        setView(Object.fromEntries(Object.keys(target).map(key=>[key,start[key]+(target[key]-start[key])*ease])))
+        if(t<1)frame=requestAnimationFrame(tick)
+      }
+      frame=requestAnimationFrame(tick)
+    }
+    window.addEventListener('exo-companion-focus-pattern',focusFromAssistant)
+    return()=>{cancelAnimationFrame(frame);window.removeEventListener('exo-companion-focus-pattern',focusFromAssistant)}
+  },[project])
   // Opening a new garment frames its pieces instead of preserving the old
   // zoom and leaving the 2D editor looking empty or illegibly small.
   useEffect(() => {

@@ -1,6 +1,7 @@
 import {nativeBridgeFetch} from '../core/nativeWorkspaceTransport.js'
 import React, {useEffect, useMemo, useState} from 'react'
 import './PatternIntelligenceLibrary.css'
+import GarmentCodeV2Library from './GarmentCodeV2Library.jsx'
 
 const normalize = value => String(value || '').toLowerCase().replaceAll(/[_-]/g, ' ')
 
@@ -69,5 +70,6 @@ export default function PatternIntelligenceLibrary({search = ''}) {
       {results.length > 45 && <p className="exo-pi-overflow">Showing the first 45 matches. Refine the Library search to find specific patterns.</p>}
       <p className="exo-pi-disclaimer">Third-party research DXF fixture rights require review before training or redistribution. All files are unapproved development references.</p>
     </>}
+    <GarmentCodeV2Library search={search}/>
   </section>
 }

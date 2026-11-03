@@ -220,10 +220,13 @@ cp research/oss/clothcraft/LICENSE "$RES/research/oss/clothcraft/LICENSE"
 cp research/oss/clothcraft/assets/makehuman/mannequin.obj "$RES/research/oss/clothcraft/assets/makehuman/mannequin.obj"
 cp research/oss/clothcraft/assets/makehuman/LICENSE.ASSETS.md "$RES/research/oss/clothcraft/assets/makehuman/LICENSE.ASSETS.md"
 
-SWIFT_STAGING_FLAGS=()
-if [[ "${EXO_SWIFT_STAGING:-0}" == 1 ]]; then SWIFT_STAGING_FLAGS=(-D EXO_V2_STAGED); fi
-xcrun swiftc "${SWIFT_STAGING_FLAGS[@]}" -parse-as-library -O -target "arm64-apple-macos13.0" -framework AppKit -framework WebKit \
-  "${EXO_DESKTOP_SWIFT_SOURCE:-integrations/clothcraft/macos/EXOClothCraft.swift}" -o "$APP/Contents/MacOS/EXOClothCraft"
+if [[ "${EXO_SWIFT_STAGING:-0}" == 1 ]]; then
+  xcrun swiftc -D EXO_V2_STAGED -parse-as-library -O -target "arm64-apple-macos13.0" -framework AppKit -framework WebKit \
+    "${EXO_DESKTOP_SWIFT_SOURCE:-integrations/clothcraft/macos/EXOClothCraft.swift}" -o "$APP/Contents/MacOS/EXOClothCraft"
+else
+  xcrun swiftc -parse-as-library -O -target "arm64-apple-macos13.0" -framework AppKit -framework WebKit \
+    "${EXO_DESKTOP_SWIFT_SOURCE:-integrations/clothcraft/macos/EXOClothCraft.swift}" -o "$APP/Contents/MacOS/EXOClothCraft"
+fi
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

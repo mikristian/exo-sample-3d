@@ -1,0 +1,89 @@
+/* Scoped to the Solutions reference pass; existing site identity/content retained. */
+.cc-ruler-page{--cc-grid-line:#ffffff26;--cc-frame:1280px}
+.cc-ruler-solutions .page-main{max-width:var(--cc-frame);margin-inline:auto;border-inline:1px solid var(--cc-grid-line)}
+.cc-ruler-solutions main>section{position:relative;overflow:visible;padding:0 40px 72px;border-block:0;border-bottom:1px solid var(--cc-grid-line);scroll-margin-top:48px;background-image:none!important}
+.cc-ruler-solutions .page-hero:before{display:none}
+.cc-ruler-solutions .page-hero h1{font-size:64px;line-height:1.06;letter-spacing:-.055em;max-width:1000px}
+.cc-ruler-solutions .page-hero h1 em,.cc-ruler-solutions h2 em{color:inherit}
+.cc-ruler-solutions .page-hero .page-lead{font-size:18px;line-height:1.65}
+.cc-ruler-solutions .page-breadcrumb{display:none}
+.cc-ruler-solutions main>section:before,.cc-ruler-solutions main>section:after{content:'';position:absolute;top:-5px;width:11px;height:11px;background:linear-gradient(var(--cc-grid-line),var(--cc-grid-line)) center/1px 11px no-repeat,linear-gradient(var(--cc-grid-line),var(--cc-grid-line)) center/11px 1px no-repeat;z-index:4;pointer-events:none}
+.cc-ruler-solutions main>section:before{left:-6px}.cc-ruler-solutions main>section:after{right:-6px}
+.cc-ruler-solutions .cc-section-index{position:sticky;top:48px;z-index:15;display:flex;justify-content:space-between;align-items:center;min-height:42px;margin:0 -40px 64px;padding:10px 40px;max-width:none;border-bottom:1px solid var(--cc-grid-line);background:#242424e6;backdrop-filter:blur(9px);font:10px/1.4 ui-monospace,monospace;letter-spacing:.16em;color:#aaa}
+.cc-ruler-solutions .cc-index-detail{color:#777}.cc-ruler-solutions .page-hero .cc-section-index{margin-bottom:78px}
+.cc-ruler-solutions footer{max-width:1280px;margin-inline:auto;border-inline:1px solid var(--cc-grid-line)}
+.cc-page-ruler{position:fixed;z-index:80;inset:0 0 0 auto;width:60px;overflow:hidden;cursor:crosshair;touch-action:none;user-select:none;color:#eee}
+.cc-ruler-glass{position:absolute;inset:0;background:#2424248c;backdrop-filter:blur(9px);mask-image:linear-gradient(to left,#000 40%,transparent)}
+.cc-page-scale{position:absolute;inset:0 0 auto;pointer-events:none;will-change:transform}
+.cc-page-tick{position:absolute;left:0;right:0;height:0}.cc-page-tick i{position:absolute;right:0;width:10px;height:1px;background:currentColor;opacity:.4}.cc-page-tick.major i{width:20px;opacity:.8}.cc-page-tick>span{position:absolute;right:24px;transform:translateY(-50%);font:9px/1 ui-monospace,monospace;letter-spacing:.08em;opacity:.5}
+.cc-page-cursor{position:absolute;inset:0 0 auto;height:1px;background:#eee;pointer-events:none;will-change:transform}
+.cc-page-counter{position:absolute;right:2px;display:flex;font:9px/1 ui-monospace,monospace;letter-spacing:.08em;color:#eee}
+.cc-digit-mask{height:1em;overflow:hidden;display:inline-block}.cc-digit-col{display:flex;flex-direction:column;transition:transform .18s ease}.cc-digit-col>span{display:block;height:1em;flex-shrink:0}
+.cc-page-hover{position:absolute;left:0;right:0;height:3px;margin-top:-1.5px;background:#eee;opacity:0;pointer-events:none}
+.cc-page-chapters{position:fixed;inset:0;z-index:81;pointer-events:none;overflow:hidden}
+.cc-page-chapter{position:absolute;pointer-events:auto;display:flex;align-items:center;justify-content:center;white-space:pre;text-decoration:none;font:800 34px/1 Manrope,Arial,sans-serif;letter-spacing:-.04em;transform-origin:center;text-shadow:0 0 4px #242424,0 0 10px #242424;will-change:transform;transition:color .12s}
+.cc-page-chapter>span{width:auto;text-align:center}.cc-page-chapter:focus-visible{outline:1px solid #eee;outline-offset:6px}.cc-page-ruler:focus-visible{outline:1px solid #eee;outline-offset:-2px}
+.cc-page-ruler[hidden],.cc-page-chapters[hidden],.cc-page-chapter[hidden]{display:none}
+@media(min-width:1024px){.cc-ruler-solutions .header{height:48px;min-height:48px;padding:0 20px;z-index:100}.cc-ruler-solutions .header .logo{font-size:20px}.cc-ruler-solutions .header .nav-dropdown>summary{padding-block:14px}.cc-ruler-solutions .header .nav-actions a{padding:9px 14px;border-radius:0}.cc-ruler-solutions main{padding-top:0}.cc-ruler-solutions .header .logo-edition{display:none}}
+@media(min-width:1024px) and (max-width:1439px){.cc-ruler-solutions .page-main,.cc-ruler-solutions footer{margin-left:24px;margin-right:80px}}
+@media(max-width:1023px){.cc-page-ruler,.cc-page-chapters{display:none!important}.cc-ruler-solutions main>section{padding:0 22px 52px;scroll-margin-top:72px}.cc-ruler-solutions .cc-section-index{top:72px;margin-inline:-22px;margin-bottom:40px;padding-inline:22px}.cc-ruler-solutions .page-hero .cc-section-index{margin-bottom:42px}.cc-ruler-solutions .page-hero h1{font-size:clamp(40px,7vw,64px)}.cc-ruler-solutions .cc-index-detail{display:none}}
+@media(prefers-reduced-motion:reduce){.cc-digit-col,.cc-page-chapter{transition:none!important}.cc-page-chapter{will-change:auto}}
+
+/* The live interior-hero layer also owns padding: integrate without replacing it. */
+body.cc-ruler-solutions .page-main .page-hero.cc-interior-hero{padding:0 40px 64px!important}
+body.cc-ruler-solutions .page-hero .cc-section-index{max-width:none!important}
+body.cc-ruler-solutions .page-hero .page-breadcrumb,body.cc-ruler-solutions .page-hero .cc-hero-overline{display:none!important}
+body.cc-ruler-solutions{overflow-x:clip}
+body.cc-ruler-solutions .cc-solutions-table-wrap{width:100%;min-width:0;max-width:100%;overflow-x:auto}
+@media(max-width:1023px){body.cc-ruler-solutions .page-main .page-hero.cc-interior-hero{padding:0 22px 48px!important}}
+/* Reserve lazy workspace media to keep chapter coordinates stable before decode. */
+.cc-ruler-solutions .page-screenshot img[src$="/workspace.jpg"]{aspect-ratio:16/9;width:100%;height:auto}
+@media(max-width:1023px){.cc-ruler-solutions main>section:before{left:0}.cc-ruler-solutions main>section:after{right:0}}
+/* ArtCraft-inspired next-section row and measurement focus. */
+.cc-page-futures{position:fixed;z-index:79;left:clamp(22px,4vw,72px);right:84px;bottom:17px;display:flex;justify-content:flex-start;align-items:center;gap:clamp(12px,2vw,36px);height:38px;overflow:hidden;white-space:nowrap;pointer-events:none;mask-image:linear-gradient(90deg,#000 85%,transparent)}
+.cc-page-futures.is-empty{opacity:0}.cc-page-future{flex-shrink:0;text-decoration:none;color:#8d8d8d!important;font:700 clamp(9px,.83vw,12px)/1.2 Manrope,Arial,sans-serif;letter-spacing:.055em;text-transform:uppercase;pointer-events:auto;max-width:220px;overflow:hidden;text-overflow:ellipsis;transition:opacity .16s,color .16s}
+.cc-page-future.is-next{color:#aaa!important}.cc-page-future:hover,.cc-page-future:focus-visible{color:#eee!important;text-decoration:underline;text-underline-offset:5px}
+.cc-page-ruler .cc-page-tick:not(.major){opacity:.15}.cc-page-ruler .cc-page-tick:not(.major) i{opacity:.18;width:5px}
+.cc-page-ruler .cc-page-tick.major:not(:nth-child(20n + 1))>span{opacity:.0}
+.cc-page-ruler.is-expanded .cc-page-tick:not(.major){opacity:1}
+.cc-page-ruler.is-expanded .cc-page-tick:not(.major) i{opacity:.55;width:8px}
+.cc-page-ruler.is-expanded .cc-page-tick.major>span{opacity:.75}
+.cc-page-ruler.is-expanded .cc-page-tick.major i{width:20px;opacity:.85}
+.cc-page-ruler .cc-page-scale{transition:height .24s cubic-bezier(.2,.65,.2,1),transform .24s cubic-bezier(.2,.65,.2,1)}
+.cc-page-ruler .cc-page-chapter>span{display:inline-block;transition:none;transform-origin:center}
+.cc-ruler-page .cc-page-chapters{z-index:82}
+.cc-ruler-page .cc-page-futures[hidden]{display:none}
+@media(max-width:1023px){.cc-page-futures{display:none!important}}
+@media(prefers-reduced-motion:reduce){.cc-page-ruler .cc-page-scale,.cc-page-future,.cc-page-chapter>span{transition:none!important;transform-origin:center}}
+.cc-page-futures{justify-content:space-between;gap:6px;mask-image:none!important}
+.cc-page-future{flex:1 1 0;min-width:0;max-width:none!important;text-align:center;font-size:clamp(8px,.75vw,10px)!important}
+/* Keep the future-title row legible over video and screenshot backgrounds. */
+.cc-page-futures{bottom:0;height:46px;padding:0 14px;background:#242424ef;border-top:1px solid #595959;backdrop-filter:blur(10px);z-index:80}
+.cc-page-chapter[aria-current="location"]{font-weight:850;text-shadow:0 0 12px #242424}
+.cc-page-chapter[aria-current="false"]{text-shadow:0 0 7px #242424}
+
+/* The interior ruler shares the fluid focus scale and glass behavior. */
+.cc-page-ruler{isolation:isolate}
+.cc-page-ruler .cc-ruler-glass{background:rgba(38,38,38,.42)!important;backdrop-filter:blur(18px) saturate(.65)!important;-webkit-backdrop-filter:blur(18px) saturate(.65)!important;mask-image:linear-gradient(to left,#000 48%,transparent 100%)}
+.cc-page-ruler.is-expanded .cc-ruler-glass{background:rgba(47,47,47,.55)!important;backdrop-filter:blur(27px) saturate(.6)!important;-webkit-backdrop-filter:blur(27px) saturate(.6)!important}
+.cc-page-ruler .cc-page-scale{transition:none!important}
+.cc-page-ruler .cc-page-tick:not(.major){opacity:calc(.15 + .85*var(--ruler-focus,0))!important}
+.cc-page-ruler .cc-page-tick:not(.major) i{opacity:calc(.22 + .45*var(--ruler-focus,0))!important;width:calc(5px + 3px*var(--ruler-focus,0))!important}
+.cc-page-ruler .cc-page-tick.major>span{opacity:calc(.18 + .62*var(--ruler-focus,0))!important}
+.cc-page-futures{background:rgba(38,38,38,.60)!important;backdrop-filter:blur(23px) saturate(.65)!important;-webkit-backdrop-filter:blur(23px) saturate(.65)!important;border-top:1px solid #ffffff2c!important}
+
+/* Compact lower-right chapter list, matching the ArtCraft reference rather than a bottom banner. */
+.cc-page-futures{left:auto!important;right:84px!important;bottom:35px!important;width:min(245px,24vw)!important;height:auto!important;max-height:260px!important;display:flex!important;flex-direction:column!important;align-items:flex-end!important;justify-content:flex-end!important;gap:7px!important;overflow:visible!important;padding:0!important;border:0!important;mask-image:none!important;-webkit-mask-image:none!important;background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.cc-page-future{flex:0 0 auto!important;max-width:100%!important;width:auto!important;text-align:right!important;white-space:nowrap!important;font:700 clamp(9px,.85vw,12px)/1.15 Manrope,Arial,sans-serif!important;color:#a8a8a8!important;text-shadow:0 1px 6px #17171788}
+.cc-page-future[hidden]{display:none!important}
+.cc-page-ruler .cc-ruler-glass{backdrop-filter:blur(22px) saturate(.65)!important;-webkit-backdrop-filter:blur(22px) saturate(.65)!important}
+.cc-page-ruler:not(.is-expanded) .cc-page-tick:not(.major){opacity:.58!important}.cc-page-ruler:not(.is-expanded) .cc-page-tick:not(.major) i{opacity:.58!important;background:#bbb!important;width:9px!important}
+.cc-page-ruler:not(.is-expanded) .cc-page-tick.major i{background:#ddd!important;opacity:1!important;width:22px!important}
+.cc-page-ruler:not(.is-expanded) .cc-page-tick.major>span{opacity:.9!important;color:#bbb!important}
+.cc-page-cursor{background:#cba8ff!important;height:2px!important;box-shadow:0 0 8px #a776eb8c!important}.cc-page-counter{color:#e8d5ff!important}
+@media(max-width:1023px){.cc-page-futures{display:none!important}}
+
+.cc-page-futures.is-inspecting .cc-page-future:not([hidden]){color:#f8f8f8!important;opacity:1!important;font-weight:850!important;text-shadow:0 1px 9px #111,0 0 12px #ffffff20!important;transform:translateX(-5px) scale(1.045);transform-origin:right center;transition:transform .2s,color .2s}
+.cc-page-futures .cc-page-future{transition:transform .2s,color .2s,opacity .15s}
+.cc-page-hover{background:#cba8ff!important;box-shadow:0 0 8px #b783ec9c!important}
+.cc-page-counter{color:#f3e5ff!important;font-weight:900!important}

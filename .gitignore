@@ -165,3 +165,7 @@ public/references/zozo-dress/
 # V2 local ignored dependency symlinks
 node_modules
 native_cpp/build-cmake
+
+# Research-only GarmentCodeData v2 dataset: preserve on the local disk, not in Git.
+# Importer, test code, README and attribution remain tracked in tools/docs.
+download/garment-dxf-library-20261023/garmentcodedata-v2/

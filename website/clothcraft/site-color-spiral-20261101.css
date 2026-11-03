@@ -1,0 +1,17 @@
+/* Original, self-contained ArtCraft-style chromatic spiral.
+   Subtle colored motion behind the actual ClothCraft logo and orbital videos. */
+.hero-sticky .cc-hero-color-spiral{position:absolute;z-index:0;top:50%;left:50%;width:min(78vw,820px);aspect-ratio:1;transform:translate(-50%,-50%);pointer-events:none;overflow:hidden;opacity:.68;filter:saturate(1.13);border-radius:50%;mask-image:radial-gradient(circle,black 10%,#000d 50%,transparent 72%);-webkit-mask-image:radial-gradient(circle,black 10%,#000d 50%,transparent 72%)}
+.cc-spiral-ring{position:absolute;inset:0;border-radius:50%;transform-origin:center;mix-blend-mode:screen}
+.cc-spiral-ring-a{background:conic-gradient(from 28deg,#fc635288 0 26deg,transparent 26deg 47deg,#da53d388 47deg 98deg,transparent 98deg 137deg,#5c77f6b8 137deg 190deg,transparent 190deg 226deg,#6bc7b8aa 226deg 285deg,transparent 285deg 322deg,#ffc96c99 322deg 360deg);mask:radial-gradient(circle,transparent 0 31%,black 43% 61%,transparent 70%);animation:cc-chromatic-turn 24s linear infinite}
+.cc-spiral-ring-b{inset:12%;background:conic-gradient(from 145deg,transparent 0 23deg,#6a82ff99 23deg 78deg,transparent 78deg 117deg,#ec62b98e 117deg 192deg,transparent 192deg 230deg,#f6b66baf 230deg 308deg,transparent 308deg 360deg);mask:radial-gradient(circle,transparent 0 23%,black 35% 57%,transparent 69%);animation:cc-chromatic-turn-reverse 19s linear infinite}
+.cc-spiral-ring-c{inset:23%;background:conic-gradient(from 40deg,#74c9e2bd,transparent 55deg,#c063d4c2 120deg,transparent 180deg,#ffc36cba 245deg,transparent 315deg,#6d78fbb4);mask:radial-gradient(circle,transparent 0 15%,black 34% 56%,transparent 72%);animation:cc-chromatic-turn 12s linear infinite}
+.cc-spiral-core{position:absolute;inset:30%;border-radius:50%;background:radial-gradient(circle,transparent 15%,#9a70eb14 60%,transparent 78%)}
+@keyframes cc-chromatic-turn{to{transform:rotate(360deg)}}
+@keyframes cc-chromatic-turn-reverse{to{transform:rotate(-360deg)}}
+@media(max-width:700px){.hero-sticky .cc-hero-color-spiral{width:105vw;opacity:.35}}
+@media(prefers-reduced-motion:reduce){.cc-spiral-ring{animation:none!important}}
+/* Smooth chromatic ribbon fallback without hard-edged wedges. */
+.hero-sticky .cc-hero-color-spiral{opacity:.53;filter:blur(22px) saturate(1.1);width:min(77vw,820px)}
+.cc-spiral-ring-a{background:conic-gradient(from 0deg,#ad5cbe90,#f4a36b88,#76bea68d,#6b8cf39c,#b25bad9b,#ad5cbe90)}
+.cc-spiral-ring-b{background:conic-gradient(from 130deg,#6283ec9d,#dd78a99e,#f2bd7796,#67bfa29e,#6283ec9d)}
+.cc-spiral-ring-c{background:conic-gradient(from 50deg,#75b1e6b5,#db84bea8,#e6b86da9,#75b1e6b5)}

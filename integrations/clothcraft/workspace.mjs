@@ -9,11 +9,14 @@ import {createMetadataValidator} from './rust-service/validator-client.mjs'
 import {assertNativeAvatarPersistence} from './avatarPersistenceContract.mjs'
 import {nativeWorkspaceSummary20261030} from './nativeWorkspaceSummary20261030.mjs'
 import {beginNativeMirrorSave20261030,commitNativeMirrorSave20261030,recoverNativeMirror20261030,abortUnchangedNativeMirrorSave20261030} from './nativeMirrorTransaction20261030.mjs'
+import {fileURLToPath} from 'node:url'
+import {exoCc0Avatar20261102,EXO_CC0_AVATAR_MODELS_20261102} from '../../src/data/exoAvatarLibrary20261102.js'
 export const chooseNativeGpuPhysics=(env,capabilities)=>
  env.EXO_CLOTHCRAFT_GPU==='1' &&
  capabilities?.ok===true && capabilities?.gpuSimulation===true &&
  env.EXO_CLOTHCRAFT_ALLOW_EXPERIMENTAL_GPU==='1'
 export function createWorkspace(outputRoot) {
+ const trustedRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..')
  const metadataValidator=createMetadataValidator()
  let child=null,pending=null,busy=false,loaded=false,lastError='',stepsSinceSave=0,running=false,pump=null,current=null,runError=null,lastPoll=Date.now()
  let nativeGpuSupported=null,nativeGpuRequested=process.env.EXO_CLOTHCRAFT_GPU==='1',nativeGpuActive=false
@@ -36,6 +39,16 @@ export function createWorkspace(outputRoot) {
  ]
  let avatarModel='makehuman-base'
  const avatarPathFor=model=>{
+  const curated=exoCc0Avatar20261102(model)
+  if(curated){
+   // Only explicitly registered source-hashed CC0 models may enter
+   // the native solver. No request path, symlink or custom upload accepted.
+   const absolute=path.resolve(trustedRoot,curated.collider)
+   if(!absolute.startsWith(path.join(trustedRoot,'public/avatars/exo')+path.sep) ||
+      !fs.existsSync(absolute) || fs.lstatSync(absolute).isSymbolicLink())
+     throw Error('EXO curated fitting avatar collider is not installed')
+   return absolute
+  }
   if(model==='makehuman-base'){
    const upstream=path.join(paths().upstream,'assets/makehuman/mannequin.obj')
    const source=fs.existsSync(upstream)?upstream:process.env.EXO_CLOTHCRAFT_AVATAR_MAKEHUMAN_OBJ
@@ -53,6 +66,9 @@ export function createWorkspace(outputRoot) {
   const saved=JSON.parse(fs.readFileSync(saveFile,'utf8'))
   const thomas=process.env.EXO_CLOTHCRAFT_AVATAR_THOMAS_OBJ
   if(thomas&&path.resolve(saved.avatar_path||'')===path.resolve(thomas))avatarModel='clo-thomas'
+  for(const curated of EXO_CC0_AVATAR_MODELS_20261102){
+   if(path.resolve(saved.avatar_path||'')===path.resolve(trustedRoot,curated.collider))avatarModel=curated.id
+  }
  }catch{}
  let propertyMetadata=null
  const bindMetadata=async(opened,fresh=false,reopen=false)=>{
@@ -284,30 +300,28 @@ export function createWorkspace(outputRoot) {
    if(data.op==='select-avatar'){
     const nextModel=data.model
     // Validate before touching the active Rust process or saved project.
-    avatarPathFor(nextModel)
+    const nextPath=avatarPathFor(nextModel)
     if(nextModel===avatarModel)return {ok:true,data:{...current,avatarModel}}
-    const savedResult=await save()
-    if(!savedResult.ok)throw new Error(savedResult.error||'Could not preserve the current garment before avatar change')
-    const previousProject=JSON.parse(fs.readFileSync(saveFile,'utf8'))
+    // The old restart/open strategy invalidated the Rust linked Undo/Redo
+    // journal because it changed avatar_path before matching that journal's
+    // project digest. Ask the SAME authoritative Rust session to compile the
+    // candidate collider first; it preserves exact pattern history and commits
+    // geometry + history atomically in the following native save.
     const previousModel=avatarModel
-    const restart=async(model,project)=>{
-     const previous=child;child=null;previous?.kill()
-     avatarModel=model;loaded=false;start()
-     return rpc({op:'open',project,avatar:true})
-    }
+    const switched=await rpc({op:'avatar-change',revision:current?.revision,
+     avatarPath:nextPath,avatar:true})
+    if(!switched.ok)return{ok:false,error:switched.error||'Native collider change rejected',data:current}
+    avatarModel=nextModel
+    const result=remember(switched);runError=null;stepsSinceSave=0
     try{
-     // Keep authored patterns, seams and materials. A different collision
-     // body requires a fresh solver state; the saved pose can be recovered.
-     const opened=await restart(nextModel,{...previousProject,state:null,mesh_signature:null})
-     if(!opened.ok)throw new Error(opened.error||'Avatar mesh could not be loaded')
-     const result=remember(opened);loaded=true;runError=null;stepsSinceSave=0
-     await save()
+     const persisted=await save()
+     if(!persisted.ok)throw Error(persisted.error||'Native avatar change was not saved')
      return {...result,data:{...result.data,avatarModel}}
     }catch(error){
-     const restored=await restart(previousModel,previousProject)
-     if(!restored.ok)throw new Error(`Avatar change failed (${error.message}); previous garment also could not reopen: ${restored.error}`)
-     remember(restored);loaded=true
-     return {ok:false,error:`Could not render ${nextModel}: ${error.message}. Previous garment restored.`,data:current}
+     // A failed linked commit is never success: force a cold recovery from
+     // the authoritative native files before permitting any other edit.
+     loaded=false;child?.kill();child=null;avatarModel=previousModel
+     throw Error('Native avatar change could not be durably committed. Reopen the saved workspace: '+error.message)
     }
    }
    if(!loaded||data.op==='open'){

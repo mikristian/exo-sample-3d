@@ -1,0 +1,42 @@
+/* Marketplace editorial header — uncluttered, single visual hierarchy. */
+.website .topbar{position:sticky;top:0;z-index:3000;display:flex!important;align-items:center!important;gap:clamp(16px,2vw,32px)!important;min-height:70px!important;height:auto!important;padding:12px clamp(16px,3.5vw,56px)!important;background:#f2f1ee!important;color:#101014!important;border-bottom:1px solid #cccac7!important;box-shadow:none!important;backdrop-filter:none!important}
+.website .topbar .brand{flex:0 0 auto!important;min-width:155px!important;display:flex;flex-direction:column;gap:4px;color:#101014!important;white-space:nowrap;text-decoration:none}
+.website .topbar .brand>span{font-size:18px!important;font-weight:800!important;letter-spacing:-.045em}.website .topbar .brand small{font-size:9px!important;letter-spacing:.15em;color:#626260!important}
+.website .topbar .main-links{display:flex!important;flex:1 1 auto!important;align-items:center!important;justify-content:flex-start!important;gap:clamp(11px,1.4vw,24px)!important;min-width:0!important;overflow:visible!important;flex-wrap:wrap!important;margin:0!important;padding:0!important}
+.website .topbar .nav-link{background:none!important;border:0!important;padding:10px 0!important;border-radius:0!important;font:600 12px/1.25 Inter,'DM Sans',system-ui,sans-serif!important;color:#5e5e5e!important;white-space:nowrap!important;box-shadow:none!important}
+.website .topbar .nav-link.selected,.website .topbar .nav-link:hover{color:#101014!important}
+.website .topbar .main-links>a.nav-link[href="/"],.website .topbar .main-links>a.nav-link[href="/download/"]{display:none!important}
+.website .topbar .top-actions{flex:0 0 auto!important;display:flex!important;align-items:center!important;gap:10px!important;margin-left:auto!important;max-width:none!important}
+.website .topbar .top-actions .header-team{display:none!important}
+.website .topbar .top-actions .header-submit{border:1px solid #101014!important;background:#101014!important;color:#f2f1ee!important;border-radius:2px!important;font-size:11px!important;font-weight:700!important;padding:11px 15px!important;white-space:nowrap}
+.website .topbar .nav-search-trigger,.website .topbar .avatar-button{border-color:#c7c5c1!important;color:#101014!important;background:transparent!important;box-shadow:none!important}
+.website .topbar .nav-discover-menu{background:#f2f1ee!important;border-color:#c7c5c1!important;box-shadow:0 10px 22px #0001!important}
+.website .topbar .nav-discover-menu button{color:#101014!important}
+.website .topbar .nav-discover-menu button:hover{background:#e7e5e0!important}
+.prototype-ribbon{background:#e7e5df!important;color:#4c4b47!important;border-color:#cccac7!important}
+@media(max-width:1100px){.website .topbar{flex-wrap:wrap!important;gap:9px 20px!important}.website .topbar .brand{min-width:130px!important}.website .topbar .main-links{order:3!important;flex:0 0 100%!important;justify-content:flex-start!important;gap:20px!important;border-top:1px solid #ceccc8;padding-top:8px!important}.website .topbar .top-actions{margin-left:auto!important}}
+@media(max-width:600px){.website .topbar{padding:9px 15px!important;gap:8px!important}.website .topbar .brand>span{font-size:16px!important}.website .topbar .main-links{gap:12px!important;overflow-x:auto!important;flex-wrap:nowrap!important;scrollbar-width:none}.website .topbar .nav-link{font-size:11px!important}.website .topbar .top-actions .header-submit{display:none!important}.website .topbar .top-actions{gap:6px!important}.prototype-ribbon .ribbon-right{display:none!important}}
+
+/* User-confirmed dark gray design system: no pure-white surfaces or gradients. */
+:root{color-scheme:dark}html,body{background:#242424!important;color:#e5e5e5!important}
+.website .topbar{background:#242424!important;color:#e5e5e5!important;border-color:#505050!important}
+.website .topbar .brand,.website .topbar .nav-link.selected,.website .topbar .nav-link:hover,.website .topbar .nav-search-trigger,.website .topbar .avatar-button{color:#e5e5e5!important}
+.website .topbar .brand small,.website .topbar .nav-link{color:#a4a4a4!important}
+.website .topbar .top-actions .header-submit{background:#ddd!important;color:#242424!important;border-color:#ddd!important}
+.website .topbar .nav-search-trigger,.website .topbar .avatar-button,.website .topbar .main-links{border-color:#555!important}
+.website .topbar .nav-discover-menu{background:#2b2b2b!important;border-color:#555!important;box-shadow:none!important}
+.website .topbar .nav-discover-menu button{color:#ddd!important}.website .topbar .nav-discover-menu button:hover{background:#3c3c3c!important}
+.prototype-ribbon{background:#303030!important;color:#aaa!important;border-color:#505050!important}
+
+/* Visible cross-site wayfinding without crowding primary marketplace tabs. */
+.website .topbar .main-links>a.cc-return-studio,.website .topbar .main-links>a.cc-return-download{display:inline-flex!important;align-items:center;color:#ddd!important;font-size:11px!important;letter-spacing:.02em!important}
+.website .topbar .main-links>a.cc-return-studio{margin-left:auto!important;padding-left:17px!important;border-left:1px solid #555!important}
+.website .topbar .main-links>a.cc-return-download{color:#c8c8c8!important}
+.website .topbar .main-links>a.cc-return-studio:hover,.website .topbar .main-links>a.cc-return-download:hover{color:#fff!important}
+@media(max-width:1100px){.website .topbar .main-links>a.cc-return-studio{margin-left:0!important;border-left:0!important;padding-left:0!important}}
+@media(max-width:600px){.website .topbar .main-links>a.cc-return-studio,.website .topbar .main-links>a.cc-return-download{flex:0 0 auto;display:inline-flex!important}}
+/* The older hide rule must not suppress these critical cross-site links. */
+.website .topbar nav.main-links > a.cc-return-studio.nav-link,.website .topbar nav.main-links > a.cc-return-download.nav-link{display:inline-flex!important;visibility:visible!important;opacity:1!important}
+
+/* On narrow phones, place the return links in the always-visible brand/actions row. */
+@media(max-width:600px){.website .topbar .main-links>a.cc-return-studio,.website .topbar .main-links>a.cc-return-download{display:inline-flex!important}.website .topbar{position:relative}.website .topbar:after{content:'Studio Home  /  Download App';position:absolute;right:14px;top:13px;font-size:10px;color:#bbb;pointer-events:none;display:none}}

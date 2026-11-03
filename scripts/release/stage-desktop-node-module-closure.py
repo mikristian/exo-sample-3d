@@ -42,7 +42,7 @@ while queue:
     if not source.is_file():
         raise SystemExit(f'Missing server-side module: {rel}')
     # Only allow first-party sources, not private local runtime data.
-    if not (rel.startswith('integrations/clothcraft/') or rel.startswith('src/core/')):
+    if not (rel.startswith('integrations/clothcraft/') or rel.startswith('src/core/') or rel == 'src/data/exoAvatarLibrary20261102.js'):
         raise SystemExit(f'Unreviewed server-side module location: {rel}')
     destination = resources / rel
     destination.parent.mkdir(parents=True, exist_ok=True)

@@ -47,3 +47,23 @@ test('cached Node runtime is pinned by bundled SHA rather than spoofable size or
   assert.match(swift,/rename\(stagedNode\.path, node\.path\) == 0/)
   assert.doesNotMatch(swift,/let sizeMatches = |let timeMatches = /)
 })
+
+test('WebKit credential recovery is restricted to the signed local UI main frame',()=>{
+  assert.match(swift,/configuration\.userContentController\.add\(self, name: "exoWorkspaceAuth"\)/)
+  assert.match(swift,/message\.name == "exoWorkspaceAuth"/)
+  assert.match(swift,/message\.frameInfo\.isMainFrame/)
+  assert.match(swift,/message\.frameInfo\.securityOrigin\.protocol == "http"/)
+  assert.match(swift,/message\.frameInfo\.securityOrigin\.host == "127\.0\.0\.1"/)
+  assert.match(swift,/message\.frameInfo\.securityOrigin\.port == webPort/)
+  assert.match(swift,/message\.body as\? String == "request"/)
+  assert.match(swift,/window\.dispatchEvent\(new Event\('exo-workspace-credential-ready'\)\)/)
+})
+
+test('native WebKit places the workspace bearer in the trusted page world and heals navigation races',()=>{
+ assert.match(swift,/injectionTime: \.atDocumentStart, forMainFrameOnly: true, in: \.page/)
+ assert.match(swift,/func webView\(_ webView: WKWebView, didCommit navigation: WKNavigation!\)/)
+ assert.match(swift,/url\.scheme == "http", url\.host == "127\.0\.0\.1", url\.port == webPort/)
+ assert.match(swift,/window\.dispatchEvent\(new Event\('exo-native-auth-restored'\)\)/)
+ const ui=fs.readFileSync(path.join(root,'../../../src/components/ClothCraftWorkspace.jsx'),'utf8')
+ assert.match(ui,/window\.addEventListener\('exo-native-auth-restored',recover\)/)
+})

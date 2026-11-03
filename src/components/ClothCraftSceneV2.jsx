@@ -11,6 +11,10 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js'
 import {TransformControls} from 'three/addons/controls/TransformControls.js'
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js'
 import {fitImportedAvatarToNative20261029,canonicalImportedWalkBone20261029} from '../core/metaHumanGlbBridge20261029.js'
+import {EXO_CC0_AVATAR_MODELS_20261102,exoCc0Avatar20261102} from '../data/exoAvatarLibrary20261102.js'
+import {inspectExoAvatarVisualCollider20261102} from '../core/exoAvatarVisualColliderAlignment20261102.js'
+import {styleExoAvatarHair20261102} from '../core/exoAvatarHairStyling20261102.js'
+import {inspectExoMotionRig20261102,EXO_MOTION_CLIPS_20261102,exoMotionClip20261102} from '../core/exoAvatarMotionRig20261102.js'
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js'
 import {paintStudioGradient} from './studioGradientBackdrop.js'
 import {applySceneCameraViewport} from '../core/sceneCameraViewport.js'
@@ -28,6 +32,14 @@ const COLORS = ['#638da2', '#d49b70', '#8caf87', '#b69bc7', '#ceb96d', '#82b7b1'
 const SEAM_COLORS = ['#eb775e', '#55aecd', '#dbb44c', '#8dc575', '#a98cd9', '#dd91b9']
 const WALK_AVATAR_SOURCES = [
   {id:'native',label:'Current fitted avatar · MakeHuman / CLO'},
+  ...EXO_CC0_AVATAR_MODELS_20261102.map(item=>({id:item.id,label:item.label,url:item.visual,poseClipUrl:item.poseClipUrl})),
+  {id:'exo-motion-pose-a',label:'EXO · Fitting A-pose (rigged preview)',url:'/avatars/exo/motions/EXO_Fit_A.glb'},
+  {id:'exo-motion-pose-t',label:'EXO · Fitting T-pose (rigged preview)',url:'/avatars/exo/motions/EXO_Fit_T.glb'},
+  {id:'exo-motion-relaxed',label:'EXO · Relaxed pose (rigged preview)',url:'/avatars/exo/motions/EXO_Fit_Relaxed.glb'},
+  {id:'exo-motion-walk',label:'EXO · Runway walk (experimental motion)',url:'/avatars/exo/motions/EXO_Runway_Walk_Original.glb'},
+  {id:'exo-motion-turn',label:'EXO · 360° turn (experimental motion)',url:'/avatars/exo/motions/EXO_360_Turnaround_Original.glb'},
+  {id:'exo-motion-stepturn-180',label:'EXO · 180° stepped runway turn (preview)',url:'/avatars/exo/motions/EXO_Contact_StepTurn_180_v3.glb'},
+  {id:'exo-motion-stepturn-360',label:'EXO · 360° stepped runway turn (preview)',url:'/avatars/exo/motions/EXO_Contact_StepTurn_360_v3.glb'},
   {id:'theo',label:'Theo · rigged visual avatar',url:'/avatars/opensew/theo.glb'},
   {id:'nora',label:'Nora · rigged visual avatar',url:'/avatars/opensew/nora.glb'},
   {id:'thomas-preview',label:'CLO Thomas · visual preview',url:'/avatars/preview/clo-thomas.glb'},
@@ -153,7 +165,7 @@ export default function ClothCraftSceneV2({
   showBoundingBox = false, showContactDots = true, spread = 0,
   onStretchDrag, onStretchStart, onStretchCancel, environmentPreset = 'studio', stageId = 'none', showFloor = true,
   cameraSettings = null, sceneLight = null, sceneLight2 = null, exposure = 1.1, studioAppearance = null, studioPreferences = null, stageSettings = null,
-  customAvatar = null,
+  customAvatar = null, avatarHairAppearance = null,
   onContextMenuRequest, onCanvasActivate, onFoamSelect,
 }) {
   const host = useRef(null)
@@ -164,6 +176,7 @@ export default function ClothCraftSceneV2({
   const [grabRefresh, setGrabRefresh] = useState(0)
   const [showConstructionGuides, setShowConstructionGuides] = useState(false)
   const [walkAvatarSource, setWalkAvatarSource] = useState('native')
+  const [walkMotionClipId, setWalkMotionClipId] = useState('none')
   const [walkAvatarError, setWalkAvatarError] = useState('')
   const [photoStatus, setPhotoStatus] = useState('')
   const [walkPresetId, setWalkPresetId] = useState('runway')
@@ -209,19 +222,20 @@ export default function ClothCraftSceneV2({
   const [walkDistance, setWalkDistance] = useState(2.4)
   const [walkDirection, setWalkDirection] = useState('forward')
   const [walkLoop, setWalkLoop] = useState(true)
+  const [walkClipDuration, setWalkClipDuration] = useState(0)
   const [walkProgress, setWalkProgress] = useState(0)
   const walkProgressRef = useRef(0)
   const walkKeyDragRef = useRef(null)
   const walkPreviewRef = useRef({})
   const currentWalkKeys=walkKeys({sequence:walkSequenceId,keyframes:walkSequenceEdits[walkSequenceId]})
   const selectedWalkKey=currentWalkKeys.find(key=>key.id===walkSelectedKeyId)||currentWalkKeys[0]
-  const walkFrames=Math.max(2,Math.ceil(walkDuration({
+  const walkFrames=Math.max(2,Math.ceil((walkClipDuration||walkDuration({
     preset:walkPresetId,sequence:walkSequenceId,keyframes:currentWalkKeys,
     distance:walkDistance,speed:walkSpeed,
-  })*walkFps))
+  }))*walkFps))
   walkPreviewRef.current = {preset:walkPresetId,playing:walkPlaying,speed:walkSpeed,
     distance:walkDistance,direction:walkDirection,loop:walkLoop,
-    sequence:walkSequenceId,keyframes:currentWalkKeys}
+    sequence:walkSequenceId,keyframes:currentWalkKeys,clipDuration:walkClipDuration}
   const updateWalkKey=(id,field,value)=>{
     setWalkSequenceEdits(old=>{
       const keys=walkKeys({sequence:walkSequenceId,keyframes:old[walkSequenceId]})
@@ -443,6 +457,7 @@ export default function ClothCraftSceneV2({
     state.walkBodyBounds = {minY:0,height:1.75}
     state.walkAvatarRoot=null
     state.walkAvatarBones=[]
+    state.walkAnimator=null
     state.walkAvatarSource='native'
     state.walkLastFrame = 0
     state.walkApplied = false
@@ -471,6 +486,23 @@ export default function ClothCraftSceneV2({
       }
       const pose=walkPose(progress,cfg)
       const active=progress>0
+      if(state.walkAnimator){
+        const {mixer,clip}=state.walkAnimator
+        // Real rig keys from Blender. Do not superimpose fake vertex gait or
+        // translate the separately authoritative static cloth collider.
+        mixer.setTime(Math.min(1,Math.max(0,progress))*clip.duration)
+        canvas.dataset.walkPreview='skinned-clip-visual-only'
+        canvas.dataset.walkAvatarSource=state.walkAvatarSource
+        canvas.dataset.walkClipDuration=String(clip.duration)
+        canvas.dataset.metahumanPhysics='native-collider-static-during-animation'
+        state.walkApplied=active
+        return
+      }
+      if(state.walkMotionBlocked||state.walkNoMotion){
+        canvas.dataset.walkPreview=state.walkMotionBlocked?'unmapped-rig':'rest-pose'
+        canvas.dataset.metahumanPhysics='native-collider-static-no-gait'
+        return
+      }
       if(!active && !state.walkApplied){
         canvas.dataset.walkPreview='idle'
         return
@@ -1500,7 +1532,7 @@ export default function ClothCraftSceneV2({
       lastFrame=now
       const cfg=walkPreviewRef.current
       if(cfg.playing){
-        let next=walkProgressRef.current+dt/walkDuration(cfg)
+        let next=walkProgressRef.current+dt/(cfg.clipDuration||walkDuration(cfg))
         if(next>=1){
           if(cfg.loop)next%=1
           else {next=1;setWalkPlaying(false)}
@@ -1589,6 +1621,15 @@ export default function ClothCraftSceneV2({
     else setWalkAvatarSource(current=>current==='custom-import'?'native':current)
   },[customAvatar?.url,customAvatar?.type])
 
+  // The curated EXO library's physical body has its OWN Rust collider,
+  // generated from the identical source as the GLB's character body mesh.
+  // Keep the displayed character coupled to that selected native identity.
+  useEffect(()=>{
+    const model=snapshot?.avatarModel
+    if(exoCc0Avatar20261102(model))setWalkAvatarSource(model)
+    else setWalkAvatarSource(current=>exoCc0Avatar20261102(current)?'native':current)
+  },[snapshot?.avatarModel])
+
   // Preview-only avatar selector. The Rust collision body remains the same
   // authoritative fitted mesh; Theo/Nora and compact Thomas are visual actors
   // that can reuse the identical walking preset on any curated 3D stage.
@@ -1605,12 +1646,22 @@ export default function ClothCraftSceneV2({
     state.applyWalkPreview?.(0)
     state.walkGeometries.clear()
     state.walkAvatarBones=[]
+    state.walkAnimator=null
+    state.walkMotionBlocked=false
+    state.walkNoMotion=false
+    delete state.renderer.domElement.dataset.exoMotionGroundOffsetMm
+    delete state.renderer.domElement.dataset.exoMotionRigStatus
+    delete state.renderer.domElement.dataset.exoMotionReview
+    setWalkClipDuration(0)
     state.walkAvatarSource=walkAvatarSource
     state.avatar.visible=showAvatar&&walkAvatarSource==='native'
     setWalkAvatarError('')
-    if(!source?.url)return undefined
+    if(!source?.url){
+      if(walkMotionClipId!=='none')setWalkAvatarError('Choose a rigged EXO avatar to preview this skeletal motion. The native body alone has no verified animation skeleton.')
+      return undefined
+    }
     const loader=new GLTFLoader()
-    loader.load(source.url,gltf=>{
+    loader.load(source.url,async gltf=>{
       if(cancelled||sceneRef.current!==state){
         disposeTree(gltf.scene)
         return
@@ -1618,6 +1669,32 @@ export default function ClothCraftSceneV2({
       const root=gltf.scene
       root.name='exo-stage-walk-visual-avatar-'+walkAvatarSource
       root.visible=showAvatar
+      if(source.poseClipUrl){
+        // Source pose actions are bound by exact bone names onto the skinned
+        // masked body whose own deformed vertices were baked as the Rust
+        // collider. Before displaying, validate *the resulting pose*, not
+        // the GLB's original rest shape.
+        try{
+          const poseGltf=await loader.loadAsync(source.poseClipUrl)
+          if(cancelled||sceneRef.current!==state){disposeTree(root);disposeTree(poseGltf.scene);return}
+          const poseClip=poseGltf.animations?.[0]
+          if(!poseClip||poseClip.tracks.length<100)throw Error('Fitting pose has no complete bone tracks')
+          const mixer=new THREE.AnimationMixer(root)
+          const action=mixer.clipAction(poseClip)
+          action.setLoop(THREE.LoopOnce,1)
+          action.clampWhenFinished=true
+          action.play()
+          mixer.setTime(poseClip.duration)
+          root.updateMatrixWorld(true)
+          state.renderer.domElement.dataset.exoFittingPhysicalPose=String(exoCc0Avatar20261102(walkAvatarSource)?.physicalPose||'')
+          disposeTree(poseGltf.scene)
+        }catch(error){
+          disposeTree(root)
+          state.avatar.visible=showAvatar
+          setWalkAvatarError('Physical fitting pose cannot be verified: '+String(error.message||error).slice(0,110))
+          return
+        }
+      }
       if(walkAvatarSource==='custom-import'){
         try {
           const fitted=fitImportedAvatarToNative20261029(THREE,root,state.avatar)
@@ -1631,12 +1708,102 @@ export default function ClothCraftSceneV2({
           return
         }
       }
+      const samePhysicalBody=exoCc0Avatar20261102(walkAvatarSource)&&
+        snapshot?.avatarModel===walkAvatarSource
+      if(samePhysicalBody){
+        // No arbitrary scaling to make the actor "look close". If the body
+        // does not agree with the solver, render the trustworthy native mesh.
+        let maxError=Infinity
+        try{
+          const comparison=inspectExoAvatarVisualCollider20261102(THREE,root,state.avatar,
+            exoCc0Avatar20261102(walkAvatarSource).alignmentToleranceM??.035)
+          maxError=comparison.maxErrorM
+        }catch(error){
+          setWalkAvatarError('Cannot verify EXO native body alignment: '+String(error.message||error))
+        }
+        state.renderer.domElement.dataset.exoAvatarColliderAlignmentM=String(maxError)
+        if(!Number.isFinite(maxError)||maxError>
+          (exoCc0Avatar20261102(walkAvatarSource).alignmentToleranceM??.035)){
+          disposeTree(root)
+          state.avatar.visible=showAvatar
+          setWalkAvatarError('EXO body mesh differs from the native collider by '+
+            (Number.isFinite(maxError)?(maxError*1000).toFixed(1)+' mm':'invalid geometry')+
+            '. Rendering the native physical body instead.')
+          return
+        }
+        state.renderer.domElement.dataset.metahumanPhysics='exo-native-matching-body-static-pose'
+      }
       root.traverse(node=>{
         if(!node.isBone)return
         const name=canonicalImportedWalkBone20261029(node.name)
         if(name)
           state.walkAvatarBones.push({name,bone:node,restX:node.rotation.x,restZ:node.rotation.z})
       })
+      if(source.id.startsWith('exo-motion-')&&gltf.animations.length){
+        const clip=gltf.animations[0]
+        const mixer=new THREE.AnimationMixer(root)
+        const action=mixer.clipAction(clip)
+        action.setLoop(THREE.LoopOnce,1)
+        action.clampWhenFinished=true
+        action.play()
+        mixer.setTime(0)
+        state.walkAnimator={mixer,clip}
+        setWalkClipDuration(clip.duration)
+      }
+      else if(walkMotionClipId!=='none'&&source.id!=='native'){
+        // User selects a visual motion independently of the avatar. That
+        // motion can only play when the target rig matches its bones; do not
+        // silently apply MakeHuman tracks to a Mixamo/MetaHuman skeleton.
+        try{
+          const motion=exoMotionClip20261102(walkMotionClipId)
+          if(!motion.url)throw Error('Unknown motion asset')
+          const animation=await loader.loadAsync(motion.url)
+          if(cancelled||sceneRef.current!==state){disposeTree(root);disposeTree(animation.scene);return}
+          const clip=animation.animations?.[0]
+          const audit=inspectExoMotionRig20261102(root,clip)
+          state.renderer.domElement.dataset.exoMotionRigStatus=audit.compatible?'compatible':'blocked'
+          state.renderer.domElement.dataset.exoMotionRigMatchedBones=String(audit.matched)
+          state.renderer.domElement.dataset.exoMotionReview=motion.review
+          if(!audit.compatible){
+            state.walkMotionBlocked=true
+            setWalkAvatarError(`Motion blocked for ${source.label}: ${audit.reason}. The rig needs verified retargeting.`)
+          }else if(motion.review==='research-slow'&&
+            !Object.hasOwn(motion.bodyGroundOffsets||{},source.id)){
+            // This experiment has a calibrated foot-sole profile only for
+            // four source-checked avatars. Sharing 163 bone names is not a
+            // license to silently assume identical physical shoe contact.
+            state.walkMotionBlocked=true
+            state.renderer.domElement.dataset.exoMotionRigStatus='uncalibrated-foot-contact'
+            setWalkAvatarError('Research walk unavailable: actual sole-grounding calibration has not passed on this avatar body.')
+          }else{
+            const mixer=new THREE.AnimationMixer(root)
+            const action=mixer.clipAction(clip)
+            action.setLoop(THREE.LoopOnce,1)
+            action.clampWhenFinished=true
+            action.play()
+            mixer.setTime(0)
+            if(motion.review==='research-slow'){
+              root.position.y=motion.bodyGroundOffsets[source.id]
+              state.renderer.domElement.dataset.exoMotionGroundOffsetMm=String(root.position.y*1000)
+              state.renderer.domElement.dataset.exoMotionReview='research-slow-not-professional'
+            }
+            state.walkAnimator={mixer,clip}
+            setWalkClipDuration(clip.duration)
+            if(motion.review==='failed-contact')setWalkAvatarError('Experimental walk: exported foot-slide QA failed. This is NOT approved runway motion.')
+            if(motion.review==='research-slow')setWalkAvatarError('Measured foot-sole study only: .24 m/s is too slow for professional runway motion; clothing collider remains static.')
+          }
+          disposeTree(animation.scene)
+        }catch(error){
+          state.walkMotionBlocked=true
+          setWalkAvatarError('Motion could not be loaded or validated: '+String(error?.message||error).slice(0,130))
+        }
+      }else if(exoCc0Avatar20261102(source.id)){
+        state.walkNoMotion=true
+      }
+      // Hair adjusts independently of the native physics body. A preview
+      // color/volume/length change never edits skinned body vertices or Rust.
+      try{styleExoAvatarHair20261102(THREE,root,avatarHairAppearance||{})}
+      catch(error){setWalkAvatarError('Hair appearance controls unavailable: '+String(error.message||error))}
       state.scene.add(root)
       state.walkAvatarRoot=root
       state.walkGeometries.clear()
@@ -1657,16 +1824,26 @@ export default function ClothCraftSceneV2({
       }
       state.walkAvatarRoot=null
       state.walkAvatarBones=[]
+      state.walkAnimator?.mixer?.stopAllAction()
+      state.walkAnimator=null
+      setWalkClipDuration(0)
       state.walkGeometries.clear()
       state.walkAvatarSource='native'
       if(state.renderer?.domElement){
         state.renderer.domElement.dataset.metahumanPhysics=''
+        state.renderer.domElement.dataset.exoFittingPhysicalPose=''
         state.renderer.domElement.dataset.metahumanVisualHeightM=''
         state.renderer.domElement.dataset.metahumanVisualScale=''
       }
       if(state.renderer?.domElement)state.renderer.domElement.dataset.walkAvatarLoaded=''
     }
-  },[walkAvatarSource,customAvatar?.url,customAvatar?.type])
+  },[walkAvatarSource,walkMotionClipId,customAvatar?.url,customAvatar?.type,snapshot?.avatarModel])
+
+  useEffect(()=>{
+    const visual=sceneRef.current?.walkAvatarRoot
+    if(visual)styleExoAvatarHair20261102(THREE,visual,avatarHairAppearance||{})
+  },[avatarHairAppearance?.color,avatarHairAppearance?.visible,
+    avatarHairAppearance?.volume,avatarHairAppearance?.length])
 
   // A native 3D mode change can originate from keyboard shortcuts, the
   // embedded quick bar, or a context menu instead of a CLO A/B slot. Release
@@ -2531,6 +2708,13 @@ export default function ClothCraftSceneV2({
             {customAvatar?.type==='glb'&&<option value="custom-import">Imported Unreal / MetaHuman GLB · visual only</option>}
           </select>
         </label>
+        <label>Rigged motion
+          <select aria-label="Avatar skeletal motion clip" value={walkMotionClipId}
+            onChange={event=>{resetWalk();setWalkMotionClipId(event.target.value)}}>
+            {EXO_MOTION_CLIPS_20261102.map(clip=><option key={clip.id} value={clip.id}>{clip.label}</option>)}
+          </select>
+        </label>
+        {walkMotionClipId!=='none'&&<span role="status" title="The skeletal movement is only a 3D preview; garment simulation stays on the native static fitting body" className="cc-walk-physics-warning">Visual motion only · cloth collider remains still</span>}
         <label>Motion sequence
           <select aria-label="Walk motion sequence" value={walkSequenceId} onChange={event=>selectWalkSequence(event.target.value)}>
             {WALK_SEQUENCES.map(sequence=><option key={sequence.id} value={sequence.id}>{sequence.label}</option>)}
@@ -2559,7 +2743,7 @@ export default function ClothCraftSceneV2({
           <button type="button" aria-label="Go to last animation frame" onClick={()=>seekWalkFrame(walkFrames)}>⏭</button>
           <button type="button" aria-label="Reset walk animation" onClick={resetWalk}>↺</button>
         </div>
-        <span className="cc-animation-frame-counter">FRAME <b>{String(Math.round(walkProgress*walkFrames)).padStart(4,'0')}</b> / {walkFrames} <small>· {walkDuration(walkPreviewRef.current).toFixed(2)}s</small></span>
+        <span className="cc-animation-frame-counter">FRAME <b>{String(Math.round(walkProgress*walkFrames)).padStart(4,'0')}</b> / {walkFrames} <small>· {(walkClipDuration||walkDuration(walkPreviewRef.current)).toFixed(2)}s</small></span>
         <label>FPS
           <select aria-label="Animation frame rate" value={walkFps} onChange={event=>setWalkFps(Number(event.target.value))}>
             {[24,30,60].map(fps=><option key={fps} value={fps}>{fps}</option>)}

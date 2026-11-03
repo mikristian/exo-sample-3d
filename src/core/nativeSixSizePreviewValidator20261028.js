@@ -6,7 +6,7 @@ const asCount=x=>Number.isSafeInteger(x)&&x>=0?x:null
 const position=x=>Array.isArray(x)&&x.length===2&&x.every(finite)
 const directOverrides=value=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length>0&&Object.keys(value).length<=64&&Object.entries(value).every(([key,mm])=>/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(key)&&finite(mm)&&Math.abs(mm)<=5000)
 
-export function validateSixSizeRegenerationPreview20261027(report,revision,expectedOverrides=null){
+export function validateSixSizeRegenerationPreview20261027(report,revision,expectedOverrides=null,expectedTemplate=null){
   if(!report||report.format!=='exo-native-reactive-size-run.v1'||report.sourceRevision!==revision||report.manufacturerApproved!==false||report.factoryApproved!==false)return false
   if(asCount(report.changedPanels)===null||asCount(report.changedBindings)===null||report.changedPanels<1||report.changedPanels>32||report.changedBindings<report.changedPanels||report.changedBindings>128)return false
   if(!Array.isArray(report.panelIds)||report.panelIds.length!==report.changedPanels||report.panelIds.some(id=>typeof id!=='string'||!id)||new Set(report.panelIds).size!==report.changedPanels)return false
@@ -37,6 +37,28 @@ export function validateSixSizeRegenerationPreview20261027(report,revision,expec
         !validCount(entry.namedEdgeCount)||entry.namedEdgeCount!==first.namedEdgeCount||
         !validCount(entry.industrialPanelCount)||entry.industrialPanelCount!==first.industrialPanelCount)
         return false
+    }
+  }
+  const expectedPoms=Array.isArray(expectedTemplate?.panels)?expectedTemplate.panels.flatMap(panel=>(panel.polygon?.measurements??[]).map(m=>({panelId:panel.id,id:m.id,label:m.label}))):null
+  if(expectedPoms?.length&&report.perSizeMeasurements===undefined)return false
+  if(report.perSizeMeasurements!==undefined){
+    const rows=report.perSizeMeasurements
+    if(!Array.isArray(rows)||rows.length!==6||!SIZE_NAMES.every(size=>rows.filter(row=>row?.size===size).length===1))return false
+    let reference=null
+    for(const row of rows){
+      if(!Array.isArray(row.measurements)||row.measurements.length>8192)return false
+      const identities=new Map()
+      for(const m of row.measurements){
+        if(!m||typeof m.panelId!=='string'||!m.panelId||typeof m.id!=='string'||!m.id||
+          typeof m.label!=='string'||!m.label.trim()||!finite(m.beforeMm)||m.beforeMm<=0.01||
+          !finite(m.afterMm)||m.afterMm<=0.01)return false
+        const key=JSON.stringify([m.panelId,m.id])
+        if(identities.has(key))return false
+        identities.set(key,m.label)
+      }
+      if(expectedPoms&&(identities.size!==expectedPoms.length||expectedPoms.some(m=>identities.get(JSON.stringify([m.panelId,m.id]))!==m.label)))return false
+      if(reference&&(reference.size!==identities.size||[...reference].some(([key,label])=>identities.get(key)!==label)))return false
+      reference=identities
     }
   }
   const identities=new Set()

@@ -1,0 +1,720 @@
+{
+  "schemaVersion": 1,
+  "license": "CC0",
+  "sourceKind": "original-cc0",
+  "commercialSourceAuthorized": true,
+  "renderedOnly": true,
+  "generatedWith": "Blender 5.1.2",
+  "framesPerDirection": 8,
+  "directions": [
+    0,
+    90,
+    180,
+    270
+  ],
+  "rows": 4,
+  "columns": 8,
+  "width": 144,
+  "height": 256,
+  "fps": 8,
+  "models": {
+    "masculine": {
+      "atlas": "./masculine.webp",
+      "atlasURL": "./assets/fashion-avatars/rendered-cc0-proof-20261102/masculine.webp",
+      "width": 144,
+      "height": 256,
+      "columns": 8,
+      "rows": 4,
+      "framesPerDirection": 8,
+      "directions": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "fps": 8,
+      "source": "../garment-v1/EXO_masculine_cc0_distincthead_20261102.glb",
+      "sourceSha256": "3ec4b3c2f9cff1d5c859df8e822be58b38d6e91acace2ab628a9be4df96e95ae",
+      "atlasSha256": "4de8f051d1d120122cd596d5b7745bed6a47b302b66cf409b1bc685e019e073a",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaFrames": [
+        {
+          "direction": 0,
+          "frame": 0,
+          "alphaBoundingBox": [
+            26,
+            16,
+            117,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 1,
+          "alphaBoundingBox": [
+            26,
+            16,
+            114,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 2,
+          "alphaBoundingBox": [
+            26,
+            15,
+            112,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 3,
+          "alphaBoundingBox": [
+            27,
+            15,
+            114,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 4,
+          "alphaBoundingBox": [
+            27,
+            15,
+            118,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 5,
+          "alphaBoundingBox": [
+            28,
+            15,
+            119,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 6,
+          "alphaBoundingBox": [
+            29,
+            16,
+            120,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 7,
+          "alphaBoundingBox": [
+            28,
+            16,
+            119,
+            159
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 0,
+          "alphaBoundingBox": [
+            60,
+            16,
+            106,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 1,
+          "alphaBoundingBox": [
+            58,
+            16,
+            113,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 2,
+          "alphaBoundingBox": [
+            54,
+            15,
+            115,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 3,
+          "alphaBoundingBox": [
+            54,
+            15,
+            112,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 4,
+          "alphaBoundingBox": [
+            51,
+            15,
+            106,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 5,
+          "alphaBoundingBox": [
+            49,
+            15,
+            112,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 6,
+          "alphaBoundingBox": [
+            48,
+            16,
+            114,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 7,
+          "alphaBoundingBox": [
+            52,
+            16,
+            111,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 0,
+          "alphaBoundingBox": [
+            27,
+            16,
+            118,
+            159
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 1,
+          "alphaBoundingBox": [
+            30,
+            16,
+            118,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 2,
+          "alphaBoundingBox": [
+            32,
+            15,
+            118,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 3,
+          "alphaBoundingBox": [
+            30,
+            15,
+            117,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 4,
+          "alphaBoundingBox": [
+            26,
+            15,
+            117,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 5,
+          "alphaBoundingBox": [
+            24,
+            15,
+            116,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 6,
+          "alphaBoundingBox": [
+            24,
+            16,
+            115,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 7,
+          "alphaBoundingBox": [
+            25,
+            16,
+            116,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 0,
+          "alphaBoundingBox": [
+            38,
+            16,
+            84,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 1,
+          "alphaBoundingBox": [
+            31,
+            16,
+            86,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 2,
+          "alphaBoundingBox": [
+            29,
+            15,
+            90,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 3,
+          "alphaBoundingBox": [
+            32,
+            15,
+            90,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 4,
+          "alphaBoundingBox": [
+            38,
+            15,
+            93,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 5,
+          "alphaBoundingBox": [
+            32,
+            15,
+            95,
+            161
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 6,
+          "alphaBoundingBox": [
+            30,
+            16,
+            96,
+            159
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 7,
+          "alphaBoundingBox": [
+            33,
+            16,
+            92,
+            159
+          ]
+        }
+      ],
+      "sizeBytes": 216668
+    },
+    "feminine": {
+      "atlas": "./feminine.webp",
+      "atlasURL": "./assets/fashion-avatars/rendered-cc0-proof-20261102/feminine.webp",
+      "width": 144,
+      "height": 256,
+      "columns": 8,
+      "rows": 4,
+      "framesPerDirection": 8,
+      "directions": [
+        0,
+        90,
+        180,
+        270
+      ],
+      "fps": 8,
+      "source": "../garment-v1/EXO_feminine_cc0_distincthead_20261102.glb",
+      "sourceSha256": "7a1cdf90308384a7c54cf289c3348f943980188c8b98d6f7a670fedc6665fe49",
+      "atlasSha256": "5f09052c5e443d764c7d468423bf8084a4857052eefdfcb44fb2512cdcaf1df2",
+      "alphaExtrema": [
+        0,
+        255
+      ],
+      "alphaFrames": [
+        {
+          "direction": 0,
+          "frame": 0,
+          "alphaBoundingBox": [
+            26,
+            16,
+            117,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 1,
+          "alphaBoundingBox": [
+            26,
+            16,
+            114,
+            160
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 2,
+          "alphaBoundingBox": [
+            26,
+            16,
+            113,
+            159
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 3,
+          "alphaBoundingBox": [
+            26,
+            16,
+            115,
+            159
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 4,
+          "alphaBoundingBox": [
+            27,
+            16,
+            118,
+            159
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 5,
+          "alphaBoundingBox": [
+            28,
+            16,
+            120,
+            159
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 6,
+          "alphaBoundingBox": [
+            29,
+            16,
+            120,
+            159
+          ]
+        },
+        {
+          "direction": 0,
+          "frame": 7,
+          "alphaBoundingBox": [
+            28,
+            16,
+            119,
+            159
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 0,
+          "alphaBoundingBox": [
+            44,
+            16,
+            108,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 1,
+          "alphaBoundingBox": [
+            44,
+            16,
+            113,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 2,
+          "alphaBoundingBox": [
+            44,
+            16,
+            115,
+            159
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 3,
+          "alphaBoundingBox": [
+            44,
+            16,
+            112,
+            159
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 4,
+          "alphaBoundingBox": [
+            44,
+            16,
+            108,
+            159
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 5,
+          "alphaBoundingBox": [
+            44,
+            16,
+            112,
+            159
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 6,
+          "alphaBoundingBox": [
+            44,
+            16,
+            114,
+            160
+          ]
+        },
+        {
+          "direction": 90,
+          "frame": 7,
+          "alphaBoundingBox": [
+            44,
+            16,
+            111,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 0,
+          "alphaBoundingBox": [
+            27,
+            16,
+            118,
+            159
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 1,
+          "alphaBoundingBox": [
+            30,
+            16,
+            118,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 2,
+          "alphaBoundingBox": [
+            31,
+            16,
+            118,
+            159
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 3,
+          "alphaBoundingBox": [
+            29,
+            15,
+            118,
+            159
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 4,
+          "alphaBoundingBox": [
+            26,
+            15,
+            117,
+            159
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 5,
+          "alphaBoundingBox": [
+            24,
+            15,
+            116,
+            160
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 6,
+          "alphaBoundingBox": [
+            24,
+            16,
+            115,
+            159
+          ]
+        },
+        {
+          "direction": 180,
+          "frame": 7,
+          "alphaBoundingBox": [
+            25,
+            16,
+            116,
+            159
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 0,
+          "alphaBoundingBox": [
+            36,
+            16,
+            100,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 1,
+          "alphaBoundingBox": [
+            31,
+            16,
+            100,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 2,
+          "alphaBoundingBox": [
+            29,
+            16,
+            100,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 3,
+          "alphaBoundingBox": [
+            32,
+            16,
+            100,
+            159
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 4,
+          "alphaBoundingBox": [
+            36,
+            16,
+            100,
+            159
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 5,
+          "alphaBoundingBox": [
+            32,
+            16,
+            100,
+            160
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 6,
+          "alphaBoundingBox": [
+            30,
+            16,
+            100,
+            159
+          ]
+        },
+        {
+          "direction": 270,
+          "frame": 7,
+          "alphaBoundingBox": [
+            33,
+            16,
+            100,
+            159
+          ]
+        }
+      ],
+      "sizeBytes": 236448
+    }
+  },
+  "qualityLimitations": [
+    "Preview-size 144x256 raster poses; noticeable pixelation at close zoom.",
+    "Source walk is experimental; feet, garments and silhouette are not approved for production visual quality.",
+    "Single camera pitch and fixed lighting; atlas headings rotate source model around center.",
+    "No CLO Academic source images, meshes, heads or rendered media are included."
+  ]
+}

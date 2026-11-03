@@ -5,7 +5,7 @@ export const NATIVE_GRADE_SIZES_20261025 = Object.freeze(['XS','S','M','L','XL',
 
 const finitePositive=value=>typeof value==='number'&&Number.isFinite(value)&&value>0
 const validSeam=row=>row?.pass===true&&Number.isFinite(row.mismatchMm)&&
-  finitePositive(row.sourceLengthMm)&&finitePositive(row.targetLengthMm)&&
+  row.mismatchMm>=0&&finitePositive(row.sourceLengthMm)&&finitePositive(row.targetLengthMm)&&
   Math.abs(Math.abs(row.sourceLengthMm-row.targetLengthMm)-Math.abs(row.mismatchMm))<=.01
 const validPom=row=>row?.pass===true&&finitePositive(row.actualMm)&&
   finitePositive(row.targetMm)&&Number.isFinite(row.toleranceMm)&&row.toleranceMm>=0&&
@@ -34,10 +34,12 @@ export function summarizeNativeGradingSizes20261025(workflow,pom,definitionCount
     // failed all-size source audit. Keep both facts without promoting either
     // to factory readiness.
     const geometryPass=Boolean(workflow?.previewReady)&&geometryDiagnosticPass
+    // A grading preview that is globally blocked can still display the local
+    // diagnosis, but no size may be called release-ready in that state.
     const seams=seamRows.filter(row=>row?.size===size)
     const sewingPass=seamCount>0&&seams.length===seamCount&&
       new Set(seams.map(row=>row.seamId)).size===seamCount&&
-      seams.every(validSeam)
+      seams.every(validSeam)&&workflow?.sewingReady!==false
     const poms=pomRows.filter(row=>row?.size===size)
     const pomPass=authoredPOM>0&&poms.length===authoredPOM&&
       new Set(poms.map(row=>row.id)).size===authoredPOM&&

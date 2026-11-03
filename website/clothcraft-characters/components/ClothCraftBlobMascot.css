@@ -1,0 +1,33 @@
+.cc-character-avatar{position:relative;display:block;width:100%;aspect-ratio:220/238;isolation:isolate;filter:drop-shadow(0 12px 13px rgba(0,0,0,.18))}
+.cc-character-avatar svg{display:block;width:100%;height:100%;overflow:visible}
+.cc-character-mini{width:100%;filter:none}
+.cc-blob-character{filter:none}
+.cc-blob-character .cc-blob-rig{transform-origin:180px 191px;transform-box:view-box}
+.cc-blob-character .cc-character-blink{transform-origin:180px 182px;transform-box:view-box}
+.cc-blob-character .cc-character-eye-pair{transform-box:view-box}
+.cc-blob-character .cc-character-pupils{transition:transform .18s cubic-bezier(.22,.82,.32,1)}
+.cc-blob-character .cc-blob-eye-breath{transform-origin:180px 182px;transform-box:view-box}
+.cc-blob-character .cc-blob-body{filter:none;stroke:none}
+.cc-blob-character .cc-blob-eyes{filter:none;transform-origin:180px 181px}
+.cc-blob-character .cc-alien-eye{stroke:none;filter:none}
+.cc-blob-character.cc-character-animated .cc-blob-eye-breath{animation:ccblob-breathe 4.6s ease-in-out infinite}
+.cc-blob-character.cc-character-animated .cc-character-blink{animation:ccblob-blink 5.8s ease-in-out infinite}
+.cc-blob-character.cc-character-blinking .cc-character-blink{animation:ccblob-force-blink .51s ease-in-out 1!important}
+.cc-blob-character.cc-character-emotion-sleepy .cc-character-blink{animation:none!important;transform:scaleY(.22)}
+.cc-blob-character.cc-character-emotion-surprised .cc-blob-eye-breath{animation:none;transform:scale(1.07,1.12)}
+.cc-blob-character.cc-character-emotion-excited .cc-blob-eye-breath{animation:ccblob-excited .7s ease-in-out infinite alternate}
+.cc-blob-character.cc-character-dancing .cc-blob-rig{animation:ccblob-dance .45s ease-in-out infinite alternate}
+.cc-blob-character.cc-character-waving .cc-blob-rig{animation:ccblob-wave .55s ease-in-out 2}
+.cc-blob-character.cc-character-bouncing .cc-blob-rig{animation:ccblob-hop .65s cubic-bezier(.26,.8,.28,1) 2}
+.cc-blob-character.cc-character-speaking .cc-blob-eye-breath{animation:ccblob-speech 1.2s ease-in-out infinite alternate}
+.cc-blob-character.cc-character-mini{filter:none}
+.cc-blob-character.cc-character-mini .cc-blob-rig,.cc-blob-character.cc-character-mini .cc-blob-eye-breath{animation:none!important}
+@keyframes ccblob-blink{0%,21%,23%,48%,50%,76%,78%,100%{transform:scaleY(1)}22%,49%,77%{transform:scaleY(.025)}}
+@keyframes ccblob-force-blink{0%,100%{transform:scaleY(1)}33%,65%{transform:scaleY(.02)}}
+@keyframes ccblob-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.023,1.018)}}
+@keyframes ccblob-excited{from{transform:scale(1)}to{transform:scale(1.10,1.1)}}
+@keyframes ccblob-speech{0%{transform:scale(.98,1.03)}100%{transform:scale(1.035,.97)}}
+@keyframes ccblob-dance{from{transform:translateX(-7px) rotate(-5deg)}to{transform:translateX(7px) rotate(5deg)}}
+@keyframes ccblob-wave{0%,100%{transform:rotate(-1deg)}50%{transform:rotate(8deg)}}
+@keyframes ccblob-hop{0%,100%{transform:translateY(0)}48%{transform:translateY(-31px) scale(1.04,.96)}}
+@media(prefers-reduced-motion:reduce){.cc-blob-character *{animation:none!important;transition:none!important}}

@@ -113,9 +113,16 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.websiteDataStore = staging ? .nonPersistent() : .default()
         configuration.userContentController.add(self, name: "exoStudioFullscreen")
+        // The editor can re-request the per-launch bearer if WebKit drops its
+        // document-start script during a restored/reloaded page lifecycle.
+        // Only messages from this signed app's localhost main frame qualify.
+        configuration.userContentController.add(self, name: "exoWorkspaceAuth")
+        // The bearer must live in the page's JavaScript world, where the Vite
+        // app reads it. Explicitly select .page: isolated WebKit content worlds
+        // do not share properties on their distinct window wrappers.
         configuration.userContentController.addUserScript(WKUserScript(
             source: "window.__EXO_WORKSPACE_TOKEN__ = '\(workspaceToken)';",
-            injectionTime: .atDocumentStart, forMainFrameOnly: true))
+            injectionTime: .atDocumentStart, forMainFrameOnly: true, in: .page))
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.navigationDelegate = self
@@ -436,7 +443,29 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
         }
     }
 
+    // Some WKWebView navigations can commit before the early user script is
+    // visible to app code. Reassert the session credential only for the trusted
+    // local main frame; never expose the bearer to a different page or frame.
+    func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+        guard let url = webView.url,
+              url.scheme == "http", url.host == "127.0.0.1", url.port == webPort else { return }
+        webView.evaluateJavaScript("window.__EXO_WORKSPACE_TOKEN__ = '\(workspaceToken)';",
+                                   completionHandler: nil)
+    }
+
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if let url = webView.url,
+           url.scheme == "http", url.host == "127.0.0.1", url.port == webPort {
+            // Heal a first-load race, then retry the failed workspace snapshot.
+            // Neither the secret nor its value is written to diagnostics.
+            let script = "if (window.__EXO_WORKSPACE_TOKEN__ !== '\(workspaceToken)') { " +
+                "window.__EXO_WORKSPACE_TOKEN__ = '\(workspaceToken)'; " +
+                "window.dispatchEvent(new Event('exo-native-auth-restored')); true } else false"
+            webView.evaluateJavaScript(script) { [weak self] repaired, error in
+                if error != nil { self?.traceStartup("web page credential verification failed") }
+                else if repaired as? Bool == true { self?.traceStartup("web page credential restored") }
+            }
+        }
         startupLabel.removeFromSuperview()
         window.title = "EXO ClothCraft Studio V2"
     }
@@ -508,6 +537,17 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
     // Only the bundled localhost UI may request native window fullscreen.
     // The separate 2D editor and saved garment are not changed by this toggle.
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "exoWorkspaceAuth" {
+            guard message.frameInfo.isMainFrame,
+                  message.frameInfo.securityOrigin.protocol == "http",
+                  message.frameInfo.securityOrigin.host == "127.0.0.1",
+                  message.frameInfo.securityOrigin.port == webPort,
+                  message.body as? String == "request" else { return }
+            // Send the credential only to the already trusted WKWebView page.
+            // No URL or HTTP endpoint exposes it to arbitrary local processes.
+            webView.evaluateJavaScript("window.__EXO_WORKSPACE_TOKEN__ = '\(workspaceToken)'; window.dispatchEvent(new Event('exo-workspace-credential-ready'));", completionHandler: nil)
+            return
+        }
         guard message.name == "exoStudioFullscreen", message.frameInfo.isMainFrame,
               message.frameInfo.securityOrigin.host == "127.0.0.1",
               message.frameInfo.securityOrigin.port == webPort,
@@ -547,6 +587,7 @@ final class EXOClothCraftApp: NSObject, NSApplicationDelegate, WKNavigationDeleg
 
     func applicationWillTerminate(_ notification: Notification) {
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "exoStudioFullscreen")
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "exoWorkspaceAuth")
         NotificationCenter.default.removeObserver(self)
         processes.forEach { process in if process.isRunning { process.terminate() } }
         // The watchdog exits by observing its parent disappear; it also handles
