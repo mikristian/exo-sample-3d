@@ -54,16 +54,16 @@
       "caption": "Linked garment and pattern workspace",
       "sha256": "5c4653162c6dbd52f498094afcbb015caa6a6285f6fee0350df5f245a0a5c1b6",
       "bytes": 185234
+    },
+    {
+      "file": "08-current-full-techpack-workspace.jpg",
+      "time_seconds": 296,
+      "caption": "Complete technical specification page in current Tech Pack workspace, shown in original 2026-10-29 UI tour",
+      "sha256": "06be44937d4f2774a8d30856cf3a9dae6be1929fee4f2a23197dbd3e2551c8a6",
+      "bytes": 176732
     }
   ],
   "other_screenshots": [
-    {
-      "file": "08-techpack-measurement-workspace.png",
-      "source_file": "screenshots/qa-techpack-workspace-20261025.png",
-      "caption": "Technical pack and measurement specification editor, 2026-10-25",
-      "sha256": "618ef1dc1b6fa71221b1f31543b330954284613efc7e296cfd8f4fb546b18d8c",
-      "bytes": 247389
-    },
     {
       "file": "09-grading-widget.png",
       "source_file": "screenshots/exo-v2-floating-grading-20261017.png",

@@ -82,11 +82,11 @@ Cloth Craft offers fabric presets, material assignments, texture maps and weave 
 
 The **Tech Pack workspace** is a major part of the product direction. There are working UI/editor paths for style specifications, POM and size tables, material/BOM information, construction details, review states and editable technical-package output. A newer development branch adds source-linked production review and guarded export behavior; factory sign-off and authenticated release are **not** yet achieved.
 
-| Design and technical documentation | Measurement specifications and technical editor |
+| Design and technical documentation | Complete technical-package page and specifications |
 | :---: | :---: |
-| [![Digital technical package and construction annotations in Cloth Craft](docs/gallery/2026-11/04-techpack-design.jpg)](docs/gallery/2026-11/04-techpack-design.jpg) | [![Actual Cloth Craft Tech Pack workspace with measurement specs, October 25](docs/gallery/2026-11/08-techpack-measurement-workspace.png)](docs/gallery/2026-11/08-techpack-measurement-workspace.png) |
+| [![Digital technical package and construction annotations in Cloth Craft](docs/gallery/2026-11/04-techpack-design.jpg)](docs/gallery/2026-11/04-techpack-design.jpg) | [![Full technical package page and specifications in the current Cloth Craft Tech Pack workspace, from the October 29 UI tour](docs/gallery/2026-11/08-current-full-techpack-workspace.jpg)](docs/gallery/2026-11/08-current-full-techpack-workspace.jpg) |
 
-*The right-hand screenshot is from October 25. It demonstrates the real technical-pack editor, not an approved factory specification.*
+*Both images are from the October 29 real UI walkthrough. The right-hand image shows a complete technical specification page inside the Tech Pack workspace. These are editable development documents, not factory-approved specifications.*
 
 ### 08 Manufacturing exports and factory handoff
 

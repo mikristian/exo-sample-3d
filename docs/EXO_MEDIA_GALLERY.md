@@ -2,7 +2,7 @@
 
 ## Expanded November 6, 2026 GitHub presentation
 
-The [front-page gallery](../README.md#explore-the-application) now includes selected real interface scenes from the **October 29, 2026 7-minute 24-second Cloth Craft Studio V2 UI tour**, an **October 25 technical-pack editor** capture, and additional genuine drafting/grading/arrangement QA images. The video is independently reachable at [the dedicated playback page](https://exo-clothcraft-video.vercel.app/) and [direct MP4](https://exo-clothcraft-video.vercel.app/exo-studio-tour.mp4). Video-derived stills live under [`docs/gallery/2026-11/`](gallery/2026-11/) and carry source timecodes and SHA-256 checksums in [`media-provenance.json`](gallery/2026-11/media-provenance.json).
+The [front-page gallery](../README.md#explore-the-application) now includes selected real interface scenes from the **October 29, 2026 7-minute 24-second Cloth Craft Studio V2 UI tour**, a **second full-page Tech Pack view** from that same recording, and additional genuine drafting/grading/arrangement QA images. The video is independently reachable at [the dedicated playback page](https://exo-clothcraft-video.vercel.app/) and [direct MP4](https://exo-clothcraft-video.vercel.app/exo-studio-tour.mp4). Video-derived stills live under [`docs/gallery/2026-11/`](gallery/2026-11/) and carry source timecodes and SHA-256 checksums in [`media-provenance.json`](gallery/2026-11/media-provenance.json).
 
 | Gallery section | Evidence | Interpretation |
 | --- | --- | --- |
@@ -11,7 +11,7 @@ The [front-page gallery](../README.md#explore-the-application) now includes sele
 | [Grading](gallery/2026-11/01-size-grading.jpg) | Video frame at 00:35 | Grading comparison board and tools, not graded factory certification |
 | [3D garment](gallery/2026-11/03-linked-2d-3d.jpg) | Video frame at 03:39 | Real avatar and garment display, not validated moving-cloth contact |
 | [Technical pack](gallery/2026-11/04-techpack-design.jpg) | Video frame at 04:40 | Technical documentation UI |
-| [Tech-pack measurement editor](gallery/2026-11/08-techpack-measurement-workspace.png) | First-party QA screenshot, October 25 | Editable measurement specification, not factory approval |
+| [Full Tech Pack document view](gallery/2026-11/08-current-full-techpack-workspace.jpg) | Oct 29 tour frame at 04:56 | A full technical specification page within the actual Tech Pack editor; not a factory-approved production release |
 | [Multi-piece pattern layout](gallery/2026-11/05-multipiece-patterns.jpg) | Video frame at 05:17 | Editable pattern assembly and sizing context |
 | [Studio themes](gallery/2026-11/06-studio-themes.jpg) | Video frame at 06:15 | UI customization settings |
 | [Hoodie arrangement](gallery/2026-11/11-hoodie-panel-arrangement.png) | First-party QA screenshot, October 18 | Experimental staging, not production-ready draping |
