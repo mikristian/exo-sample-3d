@@ -1,110 +1,140 @@
-# EXO Sample 3D
+# Cloth Craft Studio V2
 
-## Download EXO ClothCraft Studio V2 — macOS Beta
+**Professional garment design, from pattern to production.** A developing open-source workspace for **fashion designers, apparel brands, pattern makers, technical designers and manufacturers**. The goal is to connect drafting, grading, digital sewing, 3D garment design, fabrics, technical packages and production exports within a single editable garment project—rather than passing inconsistent information between separate applications.
 
-**[Download EXO ClothCraft Studio V2 v0.3.0-beta.1 for Apple Silicon](https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-beta.1)**. The GitHub release contains a self-contained, **unnotarized** DMG and the corresponding-source candidate archive. Supported target: Apple Silicon running macOS 13 or later; no Node, Rust, Xcode, or development environment needs to be installed to launch the bundled app.
+The public source repository is still named `exo-sample-3d` for historical reasons. **Cloth Craft Studio V2 is the garment-design application shown here**; the independent Rust [ClothCraft project by erythrofr](https://github.com/erythrofr/ClothCraft) is a separate upstream effort we are studying for integration.
 
-Open the DMG and drag the app to Applications. Because this is not Apple-notarized, macOS may require manual approval under **System Settings → Privacy & Security → Open Anyway** after you verify and trust the download. Do not disable Gatekeeper globally. This is an experimental prerelease: optional private models/assets are excluded, factory-readiness is not certified, and clean-Mac first-launch testing remains outstanding. [Installation details](docs/EXO_V2_UNNOTARIZED_BETA_INSTALL.md).
+**Development status:** This is real, working research software with functional UI, drafting tools and selected export workflows. **It is not yet a certified commercial garment-fit simulator or a factory-approved pattern system.** Screenshots show the actual application at documented development dates, not a promise that every visible control is supported by the downloadable beta.
 
-**An open-source, experimental platform for fashion CAD, 2D patterns, 3D garments, cloth simulation, material visualization, and production engineering.**
+[**Watch the complete 7:24 studio walkthrough**](https://exo-clothcraft-video.vercel.app/) · [**Download the experimental macOS beta**](https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-beta.1) · [**Explore the feature gallery**](#explore-the-application) · [**Run from source**](#quick-start) · [**Development status**](#what-works-and-whats-still-in-development)
 
-EXO Sample 3D is a research-driven garment design workspace that aims to connect the entire apparel-development process: draft a pattern, sew digital panels, assemble and simulate fabric on an avatar, refine material behavior, grade sizes, visualize the product, and prepare manufacturing deliverables. The long-term goal is an extensible alternative workflow inspired by the capabilities designers value in tools such as CLO3D, without distributing proprietary software, artwork, model assets, or internal code.
+## Watch the full Studio V2 UI walkthrough
 
-**Project status: active development.** Pattern-editing and selected manufacturing operations have working tests; fitting physics, avatar contact, stable live cloth behavior and factory-ready exports remain under development. A screenshot, film or passing unit test is not a garment-fit certificate or a statement of feature-for-feature parity with commercial apparel CAD.
+[![Cloth Craft Studio V2 — watch the real seven-minute application walkthrough](https://exo-clothcraft-video.vercel.app/poster.jpg)](https://exo-clothcraft-video.vercel.app/)
 
-[Explore the system](#what-exo-sample-3d-can-do) · [Current ClothCraft Studio V2 UI](#clothcraft-studio-v2--real-ui-gallery) · [Earlier research screenshots](#earlier-application-screenshots) · [Start locally](#quick-start) · [Detailed documentation](#project-documentation) · [Roadmap](docs/EXO_MASTER_ROADMAP.md) · [Contribute](CONTRIBUTING.md)
+**[Play the 7-minute, 24-second UI tour](https://exo-clothcraft-video.vercel.app/)** · [Open the MP4 directly](https://exo-clothcraft-video.vercel.app/exo-studio-tour.mp4)
 
----
-
-## ClothCraft Studio V2 — real UI gallery
-
-**Updated October 19, 2026.** These are screenshots of the running EXO ClothCraft Studio V2 interface: real 2D pattern surfaces, a neutral fitting avatar, a live Three.js garment viewport, garment and fabric libraries, property editing, and appearance settings. The capture used a fresh Chrome browser session at **1600 × 900** and a separate local Rust test workspace. Cropped detail images are from the same interface. The screenshots do not imply production-ready simulation or certified fit.
-
-[![ClothCraft Studio V2 with garment asset library, 3D avatar, 2D drafting canvas and property editor](screenshots/clothcraft-v2-20261019-01-overview.jpg)](screenshots/clothcraft-v2-20261019-01-overview.jpg)
-
-| Pattern drafting detail | Neutral avatar and live 3D viewport |
-| --- | --- |
-| [![Real 2D native front/back garment cutlines](screenshots/clothcraft-v2-20261019-02-pattern-drafting.jpg)](screenshots/clothcraft-v2-20261019-02-pattern-drafting.jpg) | [![Real 3D fitting avatar with a staged T-shirt](screenshots/clothcraft-v2-20261019-07-3d-viewport.jpg)](screenshots/clothcraft-v2-20261019-07-3d-viewport.jpg) |
-
-| Garment starter library | Fabric library and swatches |
-| --- | --- |
-| [![Current garment library and linked pattern workspace](screenshots/clothcraft-v2-20261019-06-garments.jpg)](screenshots/clothcraft-v2-20261019-06-garments.jpg) | [![Real fabric browser with material presets](screenshots/clothcraft-v2-20261019-04-fabrics.jpg)](screenshots/clothcraft-v2-20261019-04-fabrics.jpg) |
-
-| Sewing workspace | Theme customization |
-| --- | --- |
-| [![Current sewing workspace and inspector controls](screenshots/clothcraft-v2-20261019-03-sewing.jpg)](screenshots/clothcraft-v2-20261019-03-sewing.jpg) | [![Current ClothCraft theme preset settings](screenshots/clothcraft-v2-20261019-08-theme-settings.jpg)](screenshots/clothcraft-v2-20261019-08-theme-settings.jpg) |
-
-[Explore the hardware and trims tree](screenshots/clothcraft-v2-20261019-09-hardware.jpg) · [Capture method and honest feature status](docs/EXO_MEDIA_GALLERY.md)
+Recorded **October 29, 2026**, from a real development build. The tour covers the grading board, pattern drawing, measurement tools, split 2D/3D workspace, tech-pack screens, multi-piece layouts and studio customization. The recording is hosted separately to keep the source checkout lightweight. It documents UI states and workflows—not validated drape or factory-cut acceptance.
 
 ---
 
-## Earlier application screenshots
+## Explore the application
 
-These earlier October 16, 2026 captures come from the first-party EXO Sample 3D React/Three.js application in an isolated Foundation Tee test session. They remain available as historical comparisons; the **ClothCraft Studio V2 gallery above is the newest visual documentation**. No image is a certified simulated garment fit, and none is a third-party CLO3D application screenshot.
+**Jump to:** [Studio](#01-main-studio-2d-and-3d) · [2D patterns](#02-pattern-drafting) · [Grading](#03-grading-and-measurements) · [3D/cloth](#04-3d-garment-construction-and-simulation) · [Sewing](#05-digital-sewing-and-construction) · [Fabrics](#06-fabrics-materials-and-hardware) · [Tech packs](#07-technical-packages-and-production-engineering) · [Manufacturing](#08-manufacturing-exports-and-factory-handoff) · [Rendering](#09-render-studio-and-digital-clothing) · [Progress](#what-works-and-whats-still-in-development)
 
-### 3D garment on the neutral grid
+### 01 Main studio 2D and 3D
 
-[![A recent 3D garment and neutral fitting avatar on the real app's floor grid](screenshots/exo-2026-3d-model-grid-detail.png)](screenshots/exo-2026-3d-model-grid-detail.png)
+The main interface brings together a **3D avatar/garment viewport**, an editable **2D drafting board**, garment/file library and property inspector. Users can see how garment pieces are organized while navigating drafting and visualization within the same workspace. View selection, library management and property panels are implemented; exact physics fit is still an engineering goal.
 
-### Full CAD workspace: garment next to pattern pieces
+[![Real Cloth Craft Studio V2 UI with linked 2D garment pieces and 3D avatar, October 2026](docs/gallery/2026-11/07-studio-overview.jpg)](docs/gallery/2026-11/07-studio-overview.jpg)
 
-[![Current 3D grid beside a complete editable 2D pattern layout](screenshots/exo-2026-current-pattern-and-3d-grid.png)](screenshots/exo-2026-current-pattern-and-3d-grid.png)
+*October 29 development recording — the real linked studio, not a concept mockup.*
 
-| Current pattern drafting grid | Material workspace and 3D model |
-| --- | --- |
-| ![Real 2D pattern points and guide grid](screenshots/exo-2026-current-2d-pattern-grid.png) | ![Current materials pane and staged 3D model](screenshots/exo-2026-fabric-and-3d-grid.png) |
+| Earlier complete studio layout | Garment asset library and project controls |
+| :---: | :---: |
+| [![October 19 Cloth Craft Studio complete interface](screenshots/clothcraft-v2-20261019-01-overview.jpg)](screenshots/clothcraft-v2-20261019-01-overview.jpg) | [![October 19 Cloth Craft garment library and linked workspace](screenshots/clothcraft-v2-20261019-06-garments.jpg)](screenshots/clothcraft-v2-20261019-06-garments.jpg) |
 
-| Render Studio with natural grid | Sewing and assembly workspace |
-| --- | --- |
-| ![Current EXO Sample 3D render workspace and fitting avatar](screenshots/exo-2026-3d-render-studio.png) | ![Current sewing controls with linked 2D and 3D garment views](screenshots/exo-2026-sewing-workspace.png) |
+### 02 Pattern drafting
 
-[View the dedicated 3D viewport](screenshots/exo-2026-current-3d-garment-grid.png) · [View the isolated fabric viewport](screenshots/exo-2026-fabric-viewport.png) · [All media notes](docs/EXO_MEDIA_GALLERY.md)
+The 2D CAD surface includes editable polygon/curve geometry, points, measurements, internal construction lines, grain direction, notches, seam allowance concepts, splitting, unfolding and alignment/snapping tools. These are working drafting implementations with regression tests; **industrial topology and arbitrary DXF round trips still need broader verification**.
 
-These earlier captures can be regenerated with the legacy gallery command below; the latest ClothCraft V2 captures use the new private-session script.
+| Real drafting and editing | Linked pattern selection and dimensions |
+| :---: | :---: |
+| [![Cloth Craft 2D drafting interface with garment pattern outlines, October 29](docs/gallery/2026-11/02-pattern-drafting.jpg)](docs/gallery/2026-11/02-pattern-drafting.jpg) | [![Pattern selection with 2D measurement inspector and 3D workspace](docs/gallery/2026-11/10-2d-measurements.png)](docs/gallery/2026-11/10-2d-measurements.png) |
+
+### 03 Grading and measurements
+
+Size-related pattern data, grading operations, point-of-measurement (POM) tools and garment dimensions already exist. The goal is a reliable multi-size drafting and validation workflow that feeds both garment simulation and accurate cutting documentation. **Rule-file interchange and complete production grading sign-off remain incomplete.**
+
+| Development grading board and comparison | Grading-tool editor |
+| :---: | :---: |
+| [![Live pattern grading board and compare controls](docs/gallery/2026-11/01-size-grading.jpg)](docs/gallery/2026-11/01-size-grading.jpg) | [![Real Cloth Craft 2D grading widget in the application](docs/gallery/2026-11/09-grading-widget.png)](docs/gallery/2026-11/09-grading-widget.png) |
+
+### 04 3D garment construction and simulation
+
+The 3D viewport links patterns to garment panels and avatars for positioning, materials and iterative visual checks. Cloth Craft has **browser dynamics, experimental native C++/XPBD paths and an optional separate Rust PPF research connector**. Stable physically calibrated draping, self-collision, body contact and real-world fit validation remain open; a viewport image is not a certified simulated fit.
+
+| Live split 2D/3D garment scene | 3D render workspace |
+| :---: | :---: |
+| [![3D garment on avatar alongside 2D pattern workspace](docs/gallery/2026-11/03-linked-2d-3d.jpg)](docs/gallery/2026-11/03-linked-2d-3d.jpg) | [![Garment preview on neutral fitting avatar in 3D render studio](screenshots/exo-2026-3d-render-studio.png)](screenshots/exo-2026-3d-render-studio.png) |
+
+[![Experimental hoodie panel arrangement, not certified sewn drape](docs/gallery/2026-11/11-hoodie-panel-arrangement.png)](docs/gallery/2026-11/11-hoodie-panel-arrangement.png)
+
+*Hoodie construction staging — an experimental garment-panel preview, not a claim of completed fabric fit.*
+
+### 05 Digital sewing and construction
+
+Drafted edges can be related through sewn boundaries, seam directions and full/partial-edge correspondence. There are experiments for easing, gathering and elastic assembly. The sewing workspace and inspection tools are usable development surfaces; advanced seam/contact physics and sewing semantics are still under test.
+
+| Sewing interface and edge inspector | 2D/3D sewing workspace |
+| :---: | :---: |
+| [![Cloth Craft studio sewing controls and seam inspector](screenshots/clothcraft-v2-20261019-03-sewing.jpg)](screenshots/clothcraft-v2-20261019-03-sewing.jpg) | [![Real connected sewing workspace](screenshots/exo-2026-sewing-workspace.png)](screenshots/exo-2026-sewing-workspace.png) |
+
+### 06 Fabrics materials and hardware
+
+Cloth Craft offers fabric presets, material assignments, texture maps and weave visualization, with PBR-style surface controls such as roughness, normal detail and shading. Fabric appearance and physical bending/stretch calibration are different problems; current visual swatches should not be mistaken for measured textile test results. Garment-library, trim and hardware browsers are part of the studio interface.
+
+| Fabric/material library | Trims and hardware tree |
+| :---: | :---: |
+| [![Cloth Craft textile swatches and material browser](screenshots/clothcraft-v2-20261019-04-fabrics.jpg)](screenshots/clothcraft-v2-20261019-04-fabrics.jpg) | [![Cloth Craft hardware, button and zipper library categories](screenshots/clothcraft-v2-20261019-09-hardware.jpg)](screenshots/clothcraft-v2-20261019-09-hardware.jpg) |
+
+### 07 Technical packages and production engineering
+
+The **Tech Pack workspace** is a major part of the product direction. There are working UI/editor paths for style specifications, POM and size tables, material/BOM information, construction details, review states and editable technical-package output. A newer development branch adds source-linked production review and guarded export behavior; factory sign-off and authenticated release are **not** yet achieved.
+
+| Design and technical documentation | Measurement specifications and technical editor |
+| :---: | :---: |
+| [![Digital technical package and construction annotations in Cloth Craft](docs/gallery/2026-11/04-techpack-design.jpg)](docs/gallery/2026-11/04-techpack-design.jpg) | [![Actual Cloth Craft Tech Pack workspace with measurement specs, October 25](docs/gallery/2026-11/08-techpack-measurement-workspace.png)](docs/gallery/2026-11/08-techpack-measurement-workspace.png) |
+
+*The right-hand screenshot is from October 25. It demonstrates the real technical-pack editor, not an approved factory specification.*
+
+### 08 Manufacturing exports and factory handoff
+
+The codebase includes working or testable workflows for **DXF pattern export, grading data, marker/cutting layouts, BOM, POM, fabric use, costing, technical documents and factory export ZIPs**. These are development outputs: AAMA/ASTM receiving compatibility, full-scale calibration, real cutter acceptance and physical sample verification remain to be completed. Properly scaled industrial plotting and standard-printer tiling are important goals, not blanket guarantees for every pattern.
+
+| Multi-piece pattern and size layout | Production/factory review interface |
+| :---: | :---: |
+| [![Multi-piece cutting pattern construction layout from live Studio V2](docs/gallery/2026-11/05-multipiece-patterns.jpg)](docs/gallery/2026-11/05-multipiece-patterns.jpg) | [![Cloth Craft experimental factory release and review workspace](docs/gallery/2026-11/12-factory-review-workspace.png)](docs/gallery/2026-11/12-factory-review-workspace.png) |
+
+For a deeper engineering description, see [the production pipeline](docs/EXO_PRODUCTION_PIPELINE.md), [technical-pack roadmap](docs/EXO_MASTER_ROADMAP.md) and [production status](docs/EXO_RELEASE_STATUS.md).
+
+### 09 Render Studio and digital clothing
+
+The Three.js environment supports interactive garment and avatar previews, materials, scene/lighting controls and image capture; OBJ/glTF/GLB-related interchange paths are under development. This also supports research toward clothing for **characters, animation and game assets**. It is a real-time visualization tool, not a proven path-traced or physically accepted cloth renderer.
+
+| 3D clothing visualization | Customizable studio UI themes |
+| :---: | :---: |
+| [![Cloth Craft rendering workspace with neutral avatar and draped garment visualization](screenshots/exo-2026-3d-model-grid-detail.png)](screenshots/exo-2026-3d-model-grid-detail.png) | [![Real studio personalization and themes control panel](docs/gallery/2026-11/06-studio-themes.jpg)](docs/gallery/2026-11/06-studio-themes.jpg) |
+
+**More gallery context:** [UI capture provenance and limitations](docs/EXO_MEDIA_GALLERY.md) · [Full image timestamp/hash manifest](docs/gallery/2026-11/media-provenance.json) · [Detailed feature inventory](docs/EXO_FEATURE_ATLAS.md)
 
 ---
 
-## What EXO Sample 3D can do
+## What works and what's still in development
 
-Feature groups below distinguish a working implemented workflow from what still needs engineering verification.
-
-| Area | Current functionality | Engineering status / next acceptance |
+| System | Available now / current progress | Validation still required |
 | --- | --- | --- |
-| **2D pattern CAD** | Editable pattern geometry, points, curved edges, internal lines, notches and drafting tools | Working operations and regression tests; needs broader industrial pattern compatibility |
-| **3D garment assembly** | 2D/3D linkage, garment-piece arrangements, sewn edges and staging around an avatar | Functional previews, but exact contact-safe assembled fit is not yet certified |
-| **Sewing** | Full/partial seams, direction, stitching graph, easing/gather/elastic experiments | Semantics covered by targeted tests; complex zipper/virtual/contact cases remain under validation |
-| **Fabric and materials** | PBR-like fabric controls, texture maps, weave families, photo-normal/roughness experiments | Editor and shaders exist; calibrated physical coefficients and cross-renderer parity are pending |
-| **Avatars and size** | Measurement-driven procedural avatar and CC0 neutral MakeHuman base | Imported meshes can be visual-only; collision mesh validity differs by backend |
-| **Cloth simulation** | Browser preview, experimental native XPBD sidecar and optional Rust PPF connector | Not yet a general, collision-certified, deterministic fit solver |
-| **Production** | Pattern/grading data, BOM/POM, DXF, markers, HTML tech pack and factory ZIP generation | Many tools work; native package byte parity and physical factory acceptance are incomplete |
-| **Export / integration** | OBJ/GLB, DXF, XML/CSV/JSON and external garment program adapters | Specific documented formats and fixtures are tested; industrial roundtrip fidelity needs independent review |
-| **Render Studio** | Three.js scene, HDR/environment controls, still-image export and material previews | Interactive preview—not a certified path-traced or production-studio renderer |
-| **Automation** | JSON document model, command palette and backend protocol | APIs are evolving; never assume an experimental command means an industrial feature is complete |
+| **2D pattern CAD** | Interactive editing, curves, dimensions, notches, allowance geometry, splitting/unfolding | Robust arbitrary commercial pattern round-trips and topology edge cases |
+| **Size grading / POM** | Grading and measurements code, UI widgets, fixture-based tests | Industrial size-rule compatibility, independent measurement and size-set acceptance |
+| **3D & sewing** | 2D/3D linkage, garment staging, sewn-edge authoring and preview | Collision-safe assembly, full multi-frame fabric/garment correctness |
+| **Fabrics / rendering** | Material/preset libraries, PBR previews, viewport and image output | Measured textile behavior, cross-renderer and physical material calibration |
+| **Tech packs** | Technical-pack editor, specs, BOM/POM and draft review/export paths | Factory-approved source traceability, validated prints and authenticated sign-off |
+| **Manufacturing** | DXF, markers, BOM/POM, cost and factory package generation in selected paths | Importer/cutter review, plot scale, exact native/JS parity and physical sampling |
+| **Automation** | Structured document and local experimental command/API tooling | Secure production workflow controls and integration reliability |
 
-Read the full [feature atlas](docs/EXO_FEATURE_ATLAS.md) and [validation plan](docs/EXO_VALIDATION_TEST_PLAN.md) before relying on results for production.
+### How the design-to-production workflow is intended to fit together
+
+**Draft the pattern → add sewing and construction → grade sizes and measure → stage/inspect in 3D → assign and visualize fabrics → verify the simulated behavior → produce tech packs and cut/marker files → review manufacturing preflight → independently sample and approve.** Each stage should reference the same versioned garment project rather than silently creating inconsistent files. Today, the individual modules exist at differing levels of maturity; this full flow is the product goal, **not an already-qualified manufacturing pipeline**.
+
+### Two development efforts, one integration goal
+
+The main **EXO / Cloth Craft Studio V2** application has the richer React/Three.js interface and pattern/manufacturing workflows, with optional C++ and early Rust modules. The separate [erythrofr/ClothCraft](https://github.com/erythrofr/ClothCraft) project is a Rust-native garment editor and simulation research system. The projects have separate maintainers and licenses. We are investigating a versioned interoperability bridge and selective Rust adoption so that the studio UI, pattern geometry, seams, materials and simulation can share consistent garment data—without claiming the two projects are already merged or that the upstream project is ours.
 
 ---
 
-## Core idea: one garment project, many engines
+## Download the experimental macOS beta
 
-EXO Sample 3D keeps the pattern/garment document as the source of truth. It should be possible to switch viewing, simulation, export and production services without losing the underlying editable pattern or fabric metadata.
-
-~~~text
-EXO Sample 3D document
-  ├─ 2D Pattern CAD ─────────────────── points, curves, seams, notches
-  ├─ 3D Construction ───────────────── mesh, avatar staging, cloth panels
-  ├─ Materials & Trims ─────────────── properties, optics, sewing metadata
-  ├─ Solver adapters
-  │    ├─ Browser preview (JavaScript / Three.js)
-  │    ├─ Rust PPF contact solver (optional external service)
-  │    └─ Native XPBD / C++ research backends (optional)
-  ├─ Production preparation ───────── grading, BOM/POM, DXF, markers
-  └─ Render / interchange ─────────── glTF/OBJ, image stills, JSON/XML
-~~~
-
-The original **Rust PPF** approach is retained. Finishing the entire C++ migration is **not required** for EXO Sample 3D to move forward. Existing native C++/Qt components are kept for research, regression comparisons and optional desktop integration.
-
-For implementation details see [system architecture](docs/EXO_ARCHITECTURE.md), [data model](docs/EXO_DATA_MODEL.md), [simulation research](docs/EXO_SIMULATION_RESEARCH.md) and [backend API](docs/BACKEND_API.md).
+**[Cloth Craft Studio V2 v0.3.0-beta.1 — Apple Silicon](https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-beta.1)** is an **unnotarized, experimental** application bundle for macOS 13+. It is a snapshot, not necessarily identical to the later local development screens shown above. Follow [the installation notes](docs/EXO_V2_UNNOTARIZED_BETA_INSTALL.md). Do not bypass system security globally; only approve the specific download after verifying that you trust it. Clean-Mac first-launch testing, complete native release review and factory-readiness verification remain outstanding.
 
 ---
 
@@ -157,9 +187,9 @@ npm run check:native-service
 
 The native sidecar uses the loopback host; actual port selection and build dependencies are documented in [developer guide](docs/EXO_DEVELOPER_GUIDE.md). It is an experimental backend, not a guaranteed replacement for the browser or Rust solver.
 
-### Reproduce the latest screenshot gallery
+### Reproduce the archived October 19 UI gallery
 
-For the current ClothCraft Studio V2 gallery, start the first-party Vite UI (default for this capture: port 5386) and a **private** local Rust test server (default: port 5688). Load a non-personal Foundation Tee fixture in that private backend, then run:
+For the archived October 19 ClothCraft Studio V2 gallery, start the first-party Vite UI (default for this capture: port 5386) and a **private** local Rust test server (default: port 5688). Load a non-personal Foundation Tee fixture in that private backend, then run:
 
 ~~~bash
 node scripts/capture-clothcraft-v2-github-gallery.mjs
@@ -213,7 +243,7 @@ This repository includes **historic research logs** from October 2026 and a grow
 | [Contributor Playbook](docs/EXO_CONTRIBUTION_GUIDE.md) | Review standards, subsystem ownership, good first issues and documentation hygiene |
 | [Milestone Issue Board](docs/EXO_MILESTONE_ISSUE_BOARD.md) | 54 prioritized engineering tickets, dependencies and acceptance tests |
 | [Project History](docs/EXO_PROJECT_HISTORY.md) | Dated architecture, feature development and experiment provenance |
-| [Media Gallery](docs/EXO_MEDIA_GALLERY.md) | Current ClothCraft V2 screenshots, older comparison images and capture provenance |
+| [Media Gallery](docs/EXO_MEDIA_GALLERY.md) | November 2026 visual tour and older real-UI capture evidence |
 | [Release Readiness](docs/EXO_RELEASE_STATUS.md) | Public-source controls, current limitations and release checklist |
 
 Additional system references: [Backend API](docs/BACKEND_API.md), [Existing architecture](docs/ARCHITECTURE.md), [Rust backend](docs/RUST_BACKEND.md), [Third-party licensing](docs/LICENSING.md), [Security](SECURITY.md), and the [legacy comprehensive parity plan](docs/GARMENT_STUDIO_COMPLETE_CLO3D_PARITY_MASTER_PLAN_2026-10-13.md).
@@ -246,15 +276,15 @@ Read the full [master roadmap](docs/EXO_MASTER_ROADMAP.md) for design constraint
 | src/core/ | Geometry, drafting, sewing, simulation, materials, manufacturing and adapters |
 | src/data/ | Sample templates and controlled test documents |
 | scripts/ | Reproducibility, functional tests, visual QA and development tools |
-| screenshots/ | October 2026 ClothCraft V2 interface screenshots and earlier research captures |
-| docs/ | Master manuals, architectural notes, test reports and historic experiments |
+| screenshots/ | Cloth Craft V2 interface screenshots and earlier research captures |
+| docs/ | Master manuals, visual gallery, architectural notes, test reports and historic experiments |
 | native_backend/ | Native XPBD/solver sidecar and interop experiments |
 | ppf_backend/ | Integration server for external Rust PPF runtime |
 | native_cpp/ | Optional C++ core, CLI and Qt desktop research path |
 | blender_bridge/ | Blender import/scene/render interchange tools |
 | .github/ | CI, issues, discussions and contribution templates |
 
-Research clones, generated binaries, proprietary reference avatars, local user projects, credentials, SDKs and video render intermediates are intentionally excluded from Git.
+Research clones, generated binaries, proprietary reference avatars, local user projects, credentials, SDKs and video render intermediates are intentionally excluded from Git. The full 7:24 UI walkthrough is hosted separately and linked from the README; only sourced still frames are committed here.
 
 ---
 
@@ -279,4 +309,4 @@ Constructive contributions are welcome in pattern CAD, physically credible cloth
 5. Do not report passing CTest alone as complete physical-fit certification.
 6. Discuss changes to the canonical garment document format or solver-backend contract before merging.
 
-**EXO Sample 3D is a work in progress, built for people who want to make digital clothing creation more open, inspectable and extensible.**
+**Cloth Craft Studio V2 is work in progress toward a professional bridge between fashion design, pattern engineering, 3D clothing and real-world manufacturing.**

@@ -1,0 +1,96 @@
+{
+  "source_file": "integrations/clothcraft/output/exo-video-share-vercel-20261029/exo-studio-tour.mp4",
+  "source_sha256": "5b8f5893f59887a3d132968a2eab2ab9fa66f3688943a8b54b031fbbae696890",
+  "source_public_url": "https://exo-clothcraft-video.vercel.app/exo-studio-tour.mp4",
+  "video_duration_seconds": 444.267,
+  "capture_date": "2026-10-29",
+  "source_kind": "first-party UI walkthrough recording (not simulation proof)",
+  "frames": [
+    {
+      "file": "01-size-grading.jpg",
+      "time_seconds": 35,
+      "caption": "Grading board and comparison controls",
+      "sha256": "888dc736e3770d3ec9583ba033c5c2e751b03b7e63a45627e4d133af26ac0b79",
+      "bytes": 176128
+    },
+    {
+      "file": "02-pattern-drafting.jpg",
+      "time_seconds": 148,
+      "caption": "Precision editing of pattern geometry",
+      "sha256": "d25c01a6a31739a65deffd5ea1bfc56c51d32e2a4741337c8f2dce670677f54a",
+      "bytes": 89470
+    },
+    {
+      "file": "03-linked-2d-3d.jpg",
+      "time_seconds": 219,
+      "caption": "3D avatar beside 2D garment pattern",
+      "sha256": "59d72647e9ffd3efc54d9688e287a34d713bfb079ea056cb96febd863ab0a71f",
+      "bytes": 153404
+    },
+    {
+      "file": "04-techpack-design.jpg",
+      "time_seconds": 280,
+      "caption": "Digital technical documentation workspace",
+      "sha256": "e9e4439adb189ac7ae91197d180a47618878d0f70420f5a9fc44559e608bcd06",
+      "bytes": 162012
+    },
+    {
+      "file": "05-multipiece-patterns.jpg",
+      "time_seconds": 317,
+      "caption": "Multi-piece garment pattern and grading layout",
+      "sha256": "da4707c5ec85c2f8360fd3e071a89138788253d6681bb82be9c029b011bd4523",
+      "bytes": 146074
+    },
+    {
+      "file": "06-studio-themes.jpg",
+      "time_seconds": 375,
+      "caption": "Studio preferences and appearance presets",
+      "sha256": "1ae00f99b88f7699244e808f93571372b6fe41e8844adb42487db44d4ab577ae",
+      "bytes": 202790
+    },
+    {
+      "file": "07-studio-overview.jpg",
+      "time_seconds": 426,
+      "caption": "Linked garment and pattern workspace",
+      "sha256": "5c4653162c6dbd52f498094afcbb015caa6a6285f6fee0350df5f245a0a5c1b6",
+      "bytes": 185234
+    }
+  ],
+  "other_screenshots": [
+    {
+      "file": "08-techpack-measurement-workspace.png",
+      "source_file": "screenshots/qa-techpack-workspace-20261025.png",
+      "caption": "Technical pack and measurement specification editor, 2026-10-25",
+      "sha256": "618ef1dc1b6fa71221b1f31543b330954284613efc7e296cfd8f4fb546b18d8c",
+      "bytes": 247389
+    },
+    {
+      "file": "09-grading-widget.png",
+      "source_file": "screenshots/exo-v2-floating-grading-20261017.png",
+      "caption": "2D grading tool and pattern editor, 2026-10-17",
+      "sha256": "491e3a4559603c3daa24efc5be43ec71e6ccedd3260afd033c9743a5537113ce",
+      "bytes": 339112
+    },
+    {
+      "file": "10-2d-measurements.png",
+      "source_file": "screenshots/exo-v2-2d-graphic-selection-measurements-20261017.png",
+      "caption": "Linked 2D/3D pattern selection and measurements, 2026-10-17",
+      "sha256": "65e6aec190a9c014d5af607912b714ed7d36fc1626a72af443f471240d84f0e6",
+      "bytes": 427335
+    },
+    {
+      "file": "11-hoodie-panel-arrangement.png",
+      "source_file": "screenshots/qa-hoodie-3d-arrangement-20261018.png",
+      "caption": "Experimental hoodie panel arrangement preview, 2026-10-18",
+      "sha256": "34ab80e8e699343516af98abd70ba3d950b498bbac68b784dfdca4da8ee0f6bd",
+      "bytes": 180355
+    },
+    {
+      "file": "12-factory-review-workspace.png",
+      "source_file": "screenshots/qa-installed-v2-techpack-20261018.png",
+      "caption": "Experimental factory release/review panel, 2026-10-18",
+      "sha256": "7585dc229db1ca120f4431e5d06279a43628e86bfb88c27c3e2ffd642d06864f",
+      "bytes": 88984
+    }
+  ]
+}

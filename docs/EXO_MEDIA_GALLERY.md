@@ -1,8 +1,31 @@
-# EXO Sample 3D — current ClothCraft UI screenshot gallery
+# Cloth Craft Studio V2 — UI gallery provenance and evidence
+
+## Expanded November 6, 2026 GitHub presentation
+
+The [front-page gallery](../README.md#explore-the-application) now includes selected real interface scenes from the **October 29, 2026 7-minute 24-second Cloth Craft Studio V2 UI tour**, an **October 25 technical-pack editor** capture, and additional genuine drafting/grading/arrangement QA images. The video is independently reachable at [the dedicated playback page](https://exo-clothcraft-video.vercel.app/) and [direct MP4](https://exo-clothcraft-video.vercel.app/exo-studio-tour.mp4). Video-derived stills live under [`docs/gallery/2026-11/`](gallery/2026-11/) and carry source timecodes and SHA-256 checksums in [`media-provenance.json`](gallery/2026-11/media-provenance.json).
+
+| Gallery section | Evidence | Interpretation |
+| --- | --- | --- |
+| [Connected Studio](gallery/2026-11/07-studio-overview.jpg) | Video frame at 07:06 | Actual split 2D/3D editor, not a finished cloth-fit result |
+| [2D Drafting](gallery/2026-11/02-pattern-drafting.jpg) | Video frame at 02:28 | Onscreen real pattern editing |
+| [Grading](gallery/2026-11/01-size-grading.jpg) | Video frame at 00:35 | Grading comparison board and tools, not graded factory certification |
+| [3D garment](gallery/2026-11/03-linked-2d-3d.jpg) | Video frame at 03:39 | Real avatar and garment display, not validated moving-cloth contact |
+| [Technical pack](gallery/2026-11/04-techpack-design.jpg) | Video frame at 04:40 | Technical documentation UI |
+| [Tech-pack measurement editor](gallery/2026-11/08-techpack-measurement-workspace.png) | First-party QA screenshot, October 25 | Editable measurement specification, not factory approval |
+| [Multi-piece pattern layout](gallery/2026-11/05-multipiece-patterns.jpg) | Video frame at 05:17 | Editable pattern assembly and sizing context |
+| [Studio themes](gallery/2026-11/06-studio-themes.jpg) | Video frame at 06:15 | UI customization settings |
+| [Hoodie arrangement](gallery/2026-11/11-hoodie-panel-arrangement.png) | First-party QA screenshot, October 18 | Experimental staging, not production-ready draping |
+| [Factory review](gallery/2026-11/12-factory-review-workspace.png) | First-party QA screenshot, October 18 | Experimental release/review UI, not signed-off manufacturing |
+
+**What was not added:** proprietary CLO3D UI or restricted avatar assets, third-party commercial garment imagery, private user's garments, artificial composite “success” screenshots, unreviewed audio/movie intermediates, or the older V16 film. The full 7:24 movie is linked from the existing video host rather than duplicated as a large Git blob.
+
+**Build vs. release caveat:** The Oct 29 frames come from an active development build, while the public beta installer is `v0.3.0-beta.1`. A feature pictured in the later recording should not be interpreted as guaranteed to ship in that earlier beta. Every gallery frame is observational UI evidence—not acceptance of cloth physics, cut-piece geometry, advanced grading, or authenticated factory release.
+
+## Archived October 19, 2026 base gallery
 
 This document explains what the real UI screenshots in the public repository show, how they were captured, and the limits of their evidence.
 
-## Latest ClothCraft Studio V2 gallery (October 19, 2026)
+### October 19 base capture (archived)
 
 Captured directly from the currently running EXO ClothCraft V2 React/Three.js application in a fresh **1600 × 900** Chrome browser context. All `/workspace` calls were routed to an isolated local Rust backend; any request to production port 5385 was blocked. The visible neutral fitting avatar and T-shirt belong to the first-party test scene. Screenshots show the actual UI, not a finished physics fit, commercial CLO3D interface, AI-generated mockup or claimed manufacturing result.
 
@@ -80,13 +103,14 @@ The browser session points to http://127.0.0.1:5173/?desktop=1&testSession=tee b
 - Keep screenshots to useful representative scenes. Update after meaningful UI changes instead of filling the README with old duplicates.
 - A photo of a real sewn garment would require provenance, permissions and sample-fit annotations, and is **not equivalent** to a simulation screenshot.
 
-## Media publication
+## Video and media publication
 
-The outdated V16 promotional MP4 and its poster were removed from the current GitHub repository tree in favor of recent UI screenshots. Historic Git commits may still reference those files; this update does not rewrite repository history. Local film masters stay in the existing ignored working folders.
+The outdated V16 promotional MP4 and its poster were removed from the current GitHub repository tree. The newer October 29 7:24 video is hosted externally and linked for viewers alongside real screenshots. Historic Git commits may still reference those files; this update does not rewrite repository history. Local film masters stay in the existing ignored working folders.
 
 ## Media acceptance checklist
 
-- [x] Eight current ClothCraft Studio V2 screenshots linked from the README.
+- [x] New October 29 tour stills and October 25 tech pack integrated into README.
+- [x] Eight October 19 baseline Cloth Craft Studio V2 screenshots retained and linked.
 - [x] Earlier first-party screenshots documented separately.
 - [x] Neutral avatar and natural 3D ground grid visible.
 - [x] Outdated showcase video removed from the current repository tree and README.
