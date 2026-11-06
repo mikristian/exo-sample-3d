@@ -6,7 +6,7 @@ The public source repository is still named `exo-sample-3d` for historical reaso
 
 **Development status:** This is real, working research software with functional UI, drafting tools and selected export workflows. **It is not yet a certified commercial garment-fit simulator or a factory-approved pattern system.** Screenshots show the actual application at documented development dates, not a promise that every visible control is supported by the downloadable beta.
 
-[**Watch the complete 7:24 studio walkthrough**](https://exo-clothcraft-video.vercel.app/) · [**Download the experimental macOS beta**](https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-beta.1) · [**Explore the feature gallery**](#explore-the-application) · [**Run from source**](#quick-start) · [**Development status**](#what-works-and-whats-still-in-development)
+[**Watch the complete 7:24 studio walkthrough**](https://exo-clothcraft-video.vercel.app/) · [**macOS downloads**](#macos-downloads-latest-public-builds) · [**Explore the feature gallery**](#explore-the-application) · [**Run from source**](#quick-start) · [**Development status**](#what-works-and-whats-still-in-development)
 
 ## Watch the full Studio V2 UI walkthrough
 
@@ -132,9 +132,18 @@ The main **EXO / Cloth Craft Studio V2** application has the richer React/Three.
 
 ---
 
-## Download the experimental macOS beta
+## macOS downloads: latest public builds
 
-**[Cloth Craft Studio V2 v0.3.0-beta.1 — Apple Silicon](https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-beta.1)** is an **unnotarized, experimental** application bundle for macOS 13+. It is a snapshot, not necessarily identical to the later local development screens shown above. Follow [the installation notes](docs/EXO_V2_UNNOTARIZED_BETA_INSTALL.md). Do not bypass system security globally; only approve the specific download after verifying that you trust it. Clean-Mac first-launch testing, complete native release review and factory-readiness verification remain outstanding.
+The public downloads below are **development builds**, not certified factory-production tools. Both target Apple Silicon and are **ad-hoc signed, not Apple-notarized**. Check the release notes and SHA-256 values before installation. They are not identical to the current developer workstation's newer local app.
+
+| Published | Download | What it represents |
+| --- | --- | --- |
+| **November 1, 2026** | **[Studio V2 macOS developer snapshot — download DMG](https://github.com/mikristian/exo-sample-3d/releases/download/v0.3.0-dev-20261101/EXO-ClothCraft-Studio-V2-macOS-Apple-Silicon-2026-11-01.dmg)** · [notes](https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-dev-20261101) | **Most recently published** GitHub DMG; intended for personal cross-laptop testing. Source/redistribution and clean-Mac reviews remain incomplete. |
+| **October 24, 2026** | [v0.3.0-beta.1 macOS release](https://github.com/mikristian/exo-sample-3d/releases/tag/v0.3.0-beta.1) | Earlier conservative public beta with corresponding-source candidate archive and documented isolated smoke tests. |
+
+**November 6 release status:** There is **no independently verified November 6 DMG yet**. The main installed Studio V2 app was last rebuilt locally on November 2. A newer public binary cannot be represented as ready until its exact source revision, Rust/native parity, private-asset filtering, licensing, installation smoke tests and release packaging pass. Development code and local assets may therefore be newer than both downloadable snapshots.
+
+For the earlier beta, see [the installation and Gatekeeper notes](docs/EXO_V2_UNNOTARIZED_BETA_INSTALL.md). If you trust a downloaded build, approve that specific application in macOS Privacy & Security; **do not disable Gatekeeper globally**. Both releases remain experimental and are not statements of reliable cloth fitting or factory-ready output.
 
 ---
 
