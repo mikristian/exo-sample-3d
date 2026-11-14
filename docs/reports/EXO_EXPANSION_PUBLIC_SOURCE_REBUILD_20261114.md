@@ -5,6 +5,7 @@
 ## Source identity and storage
 
 - Original public EXO base: [`mikristian/exo-sample-3d`](https://github.com/mikristian/exo-sample-3d), commit `1e4a9e3b51ee20244fd5e193aca5806f6579abee` at the time of the source freeze.
+- **Current reviewed public `main` as of the privacy follow-up:** `16a219d31ffb09bfa168d6f0637540ea00543f6c`. `git diff` confirms **zero changes** to the EXO engineering runtime source (`src`, the ClothCraft integration, native Rust/C++/Swift, package lock and Vite config) between the frozen archive commit and this GitHub revision. Subsequent changes were privacy-safe documentation, source staging scripts and removal of restricted legacy binaries; the original immutable archive SHA remains valid.
 - Upstream Rust dependency: [`erythrofr/ClothCraft`](https://github.com/erythrofr/ClothCraft), with the explicitly reviewed EXO corresponding-source modifications already present in the selected Git commit. No claim that these modifications have been merged upstream.
 - Physical Jarvis Expansion location (relative to the mounted physical volume): `EXO-Engineering/SourceRebuilds/EXO-V2-20261114-main-1e4a9e3b/`.
 - Portable source archive: `inputs/exo-v2-public-source-main-1e4a9e3b-20261114.tar.gz`.
@@ -20,8 +21,9 @@
 |---|---|---|
 | Rust core/grade | Clean Git source in isolated physical Expansion folder; Rust/Cargo 1.99.1; locked offline `exo-session` tests, no default UI feature | **9/9 focused grading tests passed** |
 | Complete Rust session unit suite | Same pinned Git source, `cargo test --offline --locked --no-default-features --bin exo-session` | **62/62 passed** |
-| React/Vite | Extracted, SHA-verified media-reduced source archive on Apple Silicon Mac; linked the already installed local Node dependency tree (not a fresh npm-ci proof) | **2,735 modules transformed; production build passed** |
+| React/Vite | Extracted SHA-verified media-reduced source, then independently repeated from a fresh directory using `npm ci --ignore-scripts --no-audit --no-fund` with Node v24.13.1, npm 11.8.0 and the checked-in lockfile | **Fresh npm install passed; 2,735 modules transformed; production build passed** |
 | Browser smoke | Isolated HTTP static server plus headless Chrome against newly compiled public-source frontend | **HTTP 200, populated React UI, no page-script errors and no HTTP 5xx responses** |
+| Fresh dependency verification | Fresh lockfile source and separate `npm ci` and Vite logs saved with SHA-256 readback under `evidence/web-lockfile-rebuild/` on Jarvis Expansion | **PASS**. Clean JS output SHA-256 `edb57f05fdfeb3938df81927ab16c4781c6c5fd052f897c1e08f1913856996a4` |
 | Native Swift launcher | Compiled first-party EXO V2 Swift source with `-D EXO_V2_STAGED -parse-as-library -O -target arm64-apple-macos13.0` | **Compiled Apple Silicon executable**; SHA-256 `58f937762d8db37768630617523ec6b2a60ea613bc2cae9e633ed1b1edc4746e`; independently read back from physical Expansion |
 | Native C++ 2D drafting | Pinned source cross-built on Jarvis with Apple clang; executed x86_64 fixture there and arm64 fixture on Apple Silicon Mac | **Both tests passed**, arm64 output SHA-256 `f047400e7e1233ab7b1e9642774a83d1ea575575ddb37f02f562142ff52a9ab2` |
 
@@ -36,9 +38,13 @@ The public-source archive contains **source files and build metadata**, not the 
 5. Source-only publication is compatible with omitting private CLO3D exports and machine paths, but any private-built installed app bundle containing those resources **must not be copied unchanged to GitHub**. Full release qualification also needs codesign/notarization status, clean-Mac install/rollback and independent garment/industrial approval where advertised.
 6. Existing installation and user work remain untouched; no native candidate is installed or promoted by this report.
 
+## Current public GitHub branch privacy cleanup
+
+The source-only audit work was published to `main` (first at `c633aee760bbffa71e06bd9161cdb773f5c11867`, then the privacy normalization at `16a219d31ffb09bfa168d6f0637540ea00543f6c`). Three unnecessary CLO project/inspector binaries were removed from the **current branch tree**, with conservative `.gitignore` patterns added. The remaining 36 previously tracked documentation/research files containing absolute macOS personal home paths were normalized to portable placeholders; a repository-wide text search of the resulting Git tree found **zero** `/Users/<local>/` matches. The private local working tree and active EXO installation were not modified by those Git-tree changes. Older Git commits retain their historical objects until a separately reviewed history-rewrite policy is considered; this report makes no claim of Git history erasure.
+
 ## Repeating the physical Expansion source export
 
-The new source-only tool, `scripts/release/stage-exo-public-source-on-jarvis-expansion-20261114.sh`, stages allowlisted Git source through a configured SSH host alias, sanitizes machine-specific paths, omits optional media, hashes every member and seals a new archive on the physical Expansion drive. It never writes an existing staging folder or live application. Syntax and its dry-run/SSH argument handling were checked; the documented 4,991-file checkpoint above was staged and verified using the equivalent individual commands, **not by rerunning the combined script**.
+The new source-only tool, `scripts/release/stage-exo-public-source-on-jarvis-expansion-20261114.sh`, stages allowlisted Git source through a configured SSH host alias, resolves the actual remote `main` when no immutable commit argument was provided, sanitizes machine-specific paths, omits optional media, hashes every member and seals a new archive on the physical Expansion drive. It never writes an existing staging folder or live application. Syntax and its dry-run/SSH argument handling were checked; the documented 4,991-file checkpoint above was staged and verified using the equivalent individual commands, **not by rerunning the combined script**.
 
 ```bash
 bash scripts/release/stage-exo-public-source-on-jarvis-expansion-20261114.sh --dry-run

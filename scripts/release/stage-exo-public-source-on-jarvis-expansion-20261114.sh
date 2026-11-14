@@ -7,8 +7,16 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 cd "$ROOT"
 HOST="${EXO_JARVIS_SSH_HOST:-jarvis-lan}"
 REMOTE_ROOT='/Volumes/Expansion/EXO-Engineering/SourceRebuilds'
-SHA="${2:-$(git rev-parse --verify 'origin/main^{commit}')}"
-if [[ "${1:-}" != '--dry-run' ]]; then SHA="${1:-$SHA}";fi
+# Never quietly use a stale local cached origin/main. Resolve the actual
+# published head, or use a caller-supplied exact immutable commit.
+if [[ "${1:-}" == '--dry-run' ]]; then
+  SHA="${2:-}"
+else
+  SHA="${1:-}"
+fi
+if [[ -z "$SHA" ]]; then
+  SHA="$(git ls-remote --heads origin main | awk '{print $1}')"
+fi
 [[ "$SHA" =~ ^[a-f0-9]{40}$ ]] || { echo 'Refuse: require a full 40-hex Git commit' >&2; exit 2; }
 [[ "$HOST" =~ ^[A-Za-z0-9._-]+$ ]] || { echo 'Refuse: untrusted SSH host alias' >&2; exit 3; }
 git cat-file -e "$SHA^{commit}"
