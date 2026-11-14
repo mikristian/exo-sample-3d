@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import re
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,6 +31,17 @@ TEXT_EXT = {
 }
 PRIVATE_BINARY = re.compile(r"(?:clo-thomas|clo-hardware-converted|proprietary-clo|clo3d-private)", re.I)
 BINARY_EXT = {'.glb', '.gltf', '.obj', '.fbx', '.blend', '.zip', '.dmg', '.app', '.mov', '.mp4', '.png', '.jpg', '.jpeg', '.webp'}
+
+# Follows the application's EXO_PUBLIC_DISTRIBUTION asset policy. Keep the
+# permitted MakeHuman neutral collider and first-party source interfaces.
+OPTIONAL_PUBLIC_MEDIA = (
+    'public/stage-scenes', 'public/hardware-premium', 'public/hangers',
+    'public/library-3d', 'public/fabric-scans',
+    'public/fabric-scans-ambientcg', 'public/hand-tracking',
+    'public/audit-evidence', 'public/avatars/opensew',
+    'public/avatars/preview', 'public/garment-previews',
+    'public/hardware-thumbnails', 'public/stage-posters',
+)
 
 
 def digest(path: Path) -> str:
@@ -60,6 +72,7 @@ def main():
     parser.add_argument('--manifest', type=Path, required=True)
     parser.add_argument('--git-commit', required=True)
     parser.add_argument('--sanitize', action='store_true')
+    parser.add_argument('--omit-optional-media', action='store_true')
     args=parser.parse_args()
     src=args.source.resolve(strict=True)
     # A dedicated source-only staging tree, never an installed/working app.
@@ -67,12 +80,27 @@ def main():
         parser.error('Refusing unsafe source path; require new source-public-safe without .git')
     if src in args.manifest.resolve().parents or src == args.manifest.resolve():
         parser.error('Manifest must be outside the source tree')
+    omitted=[]
+    if args.omit_optional_media:
+        if not args.sanitize:
+            parser.error('--omit-optional-media requires --sanitize and a fresh source-only directory')
+        for relative in OPTIONAL_PUBLIC_MEDIA:
+            target=src/relative
+            if target.is_symlink():
+                raise RuntimeError('Unsafe optional-media symlink: '+relative)
+            if target.is_dir():
+                if src not in target.resolve().parents:
+                    raise RuntimeError('Optional-media path escaped the source directory')
+                omitted.extend(p.relative_to(src).as_posix() for p in target.rglob('*') if p.is_file())
+                shutil.rmtree(target)
     files=sorted(p for p in src.rglob('*') if p.is_file() and not p.is_symlink())
     manifest={'schema':'exo.portable-source-checkpoint.v1', 'commit':args.git_commit,
               'createdUtc':datetime.now(timezone.utc).isoformat(),
               'scope':'source-only; Git tracked paths selected for EXO build',
               'runtimeInstallerQualified':False,'privateCloAssetsIncluded':False,
               'fileCount':0,'redactedTextFiles':[],'excludedRestrictedMedia':[],
+              'excludedOptionalMediaFolders':list(OPTIONAL_PUBLIC_MEDIA) if args.omit_optional_media else [],
+              'excludedOptionalMediaFiles':len(omitted),
               'files':{}}
     for p in files:
         relative=p.relative_to(src).as_posix()
@@ -111,6 +139,7 @@ def main():
       'sourceCommit':args.git_commit,'files':manifest['fileCount'],
       'redactions':manifest['redactedFileCount'],
       'excludedRestrictedCloMedia':len(manifest['excludedRestrictedMedia']),
+      'excludedOptionalMedia':manifest['excludedOptionalMediaFiles'],
     }))
 
 if __name__=='__main__':main()

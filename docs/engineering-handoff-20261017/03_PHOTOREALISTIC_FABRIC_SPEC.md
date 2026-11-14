@@ -1,6 +1,6 @@
 # EXO ClothCraft Studio V2 — photorealistic fabric engineering specification
 
-Date: 2026-10-17. Target: `/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2`, specifically its left Fabric Library, hover/detail preview and native V2 garment materials. This is an execution plan, not a claim that photorealism is already achieved.
+Date: 2026-10-17. Target: `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2`, specifically its left Fabric Library, hover/detail preview and native V2 garment materials. This is an execution plan, not a claim that photorealism is already achieved.
 
 ## 1. Goal and external reference
 

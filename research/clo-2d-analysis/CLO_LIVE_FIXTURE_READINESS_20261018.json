@@ -1,6 +1,6 @@
 {
   "checked_at": "2026-10-18T21:23:09.138828+00:00",
-  "fixture": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/research/clo-2d-analysis/native-fixtures/Male_T-shirt-direct-test-20261018.zpac",
+  "fixture": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/research/clo-2d-analysis/native-fixtures/Male_T-shirt-direct-test-20261018.zpac",
   "fixture_bytes": 912850,
   "fixture_integrity": true,
   "fixture_sha256": "eb24014f28e46cd513ea603a3c441ceeda9dc62bc301d6457848ffe906b87a83",

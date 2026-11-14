@@ -11,8 +11,8 @@
     null
   ],
   "execution": "GPU requested (--gpu), single garment smoke",
-  "binary": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/target/debug/exo-session",
-  "avatar": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/assets/makehuman/mannequin.obj",
+  "binary": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/target/debug/exo-session",
+  "avatar": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/assets/makehuman/mannequin.obj",
   "binarySha256": "55bbb94ebecac80e4da49395d8f8a29cb212de2643ca0f58d21991e1fa7346d2",
   "sourceSha256": "f60332c94f3abf9d5ce3e065bdb9b1164b9be43284db108d031e08744497ae3b",
   "sourceHashNote": "Current working-tree source fingerprint only; provenance of prebuilt executable cannot be independently established",

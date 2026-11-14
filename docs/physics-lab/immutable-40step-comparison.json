@@ -1,7 +1,7 @@
 {
   "schema": "exo.physics-cpu-gpu-parity.v1",
-  "cpuFile": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/docs/physics-lab/immutable-cpu-arm64-40step.json",
-  "gpuFile": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/docs/physics-lab/immutable-gpu-arm64-40step.json",
+  "cpuFile": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/docs/physics-lab/immutable-cpu-arm64-40step.json",
+  "gpuFile": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/docs/physics-lab/immutable-gpu-arm64-40step.json",
   "binarySha256": "b3c2258e590d3bb794787f6e754e640c2f83db5cf6acfeb1de813c8057d137eb",
   "preconditions": {
     "sameBinary": true,

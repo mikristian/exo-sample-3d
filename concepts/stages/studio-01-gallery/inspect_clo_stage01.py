@@ -5,7 +5,7 @@ import bpy,zipfile,io,os,tempfile,json,math
 from mathutils import Vector
 from pathlib import Path
 root=Path(__file__).resolve().parent
-src=Path('/Users/mikylecouto/Documents/clo/Assets/Stage/Stage_01.zprj')
+src=Path(os.environ.get('EXO_LOCAL_CLO_STAGE01', str(Path.home()/'Documents/clo/Assets/Stage/Stage_01.zprj')))
 with zipfile.ZipFile(src) as outer:
     with zipfile.ZipFile(io.BytesIO(outer.read('Stage_01.zip'))) as archive:
         stage=Path(tempfile.mkdtemp(prefix='exo-clo-stage-01-readonly-'))

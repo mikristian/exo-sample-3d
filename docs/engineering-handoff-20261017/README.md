@@ -19,7 +19,7 @@ unverified future requirements. The original dated inventory remains intact.
 
 ## Executor start
 
-Open `/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2` on Blender Mac. Check current worktree and relevant local instructions. Preserve existing changes; this repo is being edited concurrently. Re-read current tool capability data before implementation; counts are a dated source snapshot, not a permanent guarantee.
+Open `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2` on Blender Mac. Check current worktree and relevant local instructions. Preserve existing changes; this repo is being edited concurrently. Re-read current tool capability data before implementation; counts are a dated source snapshot, not a permanent guarantee.
 
 Build incrementally using each spec's ordered work packets. Deliver tests plus visual evidence and report exactly whether source, built web assets or the installed native bundle changed. Keep unsupported tools honestly disabled/inspection-only until their native behavior is verified.
 

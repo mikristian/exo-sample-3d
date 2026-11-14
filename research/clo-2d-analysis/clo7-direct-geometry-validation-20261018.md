@@ -4,7 +4,7 @@
 
 This is a follow-up to `clo7-direct-mcp-testing-20261018.md` and `clo7-native-tool-mode-parity-20261018.md`. Tests were driven in the **real installed CLO Standalone OnlineAuth Academic 7.0.242 (r39887)** through the signed **EXO CLO Inspector.app** using native macOS Accessibility and CGEvent input, with ScreenCaptureKit before/after captures. The only edited CLO document was the disposable, locally copied `research/clo-2d-analysis/native-fixtures/Male_T-shirt-direct-test-20261018.zpac`. No original CLO sample or EXO production garment file was saved over.
 
-The original `/Users/mikylecouto/Documents/clo/Assets/Garment/Male_T-shirt.zpac` and the disposable fixture were verified byte-for-byte identical with `cmp -s` **after** the edit tests. The formerly identical SHA-256 of both was `eb24014f28e46cd513ea603a3c441ceeda9dc62bc301d6457848ffe906b87a83`. The helper's native code-signature verification passed. The CLO UI was inspected again with Accessibility: one running main CLO window, no helper warnings.
+The original `${EXO_LOCAL_HOME}/Documents/clo/Assets/Garment/Male_T-shirt.zpac` and the disposable fixture were verified byte-for-byte identical with `cmp -s` **after** the edit tests. The formerly identical SHA-256 of both was `eb24014f28e46cd513ea603a3c441ceeda9dc62bc301d6457848ffe906b87a83`. The helper's native code-signature verification passed. The CLO UI was inspected again with Accessibility: one running main CLO window, no helper warnings.
 
 ### Storage preparation
 

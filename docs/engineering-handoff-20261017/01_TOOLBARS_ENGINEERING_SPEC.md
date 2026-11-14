@@ -4,7 +4,7 @@ Date: 2026-10-17. Scope: **EXO ClothCraft Studio V2 only**. This is a backlog an
 
 ## 1. Correct application and evidence
 
-- Authoritative working repository on Blender Mac: `/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2`.
+- Authoritative working repository on Blender Mac: `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2`.
 - Installed target: `~/Applications/EXO ClothCraft Studio V2.app`; do not implement in older `garment-studio`, community website prototypes, or the contribution checkout.
 - Observed HEAD: `64c3be9`; working tree already contains substantial changes from other work. Preserve them. Snapshot only touched files before edits; never reset/clean/rewrite the tree.
 - Inventory: `src/data/clo7ToolbarOrder.js` defines **70 slots**: left 3D A=20/B=18, right 2D A=17/B=15. Positions are stable IDs, not viewport pixel coordinates. Repeated A01/B01 require a dimension prefix.

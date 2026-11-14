@@ -13,8 +13,8 @@
     "ClothCraft CPU VBD + OGC"
   ],
   "execution": "CPU default (no --gpu)",
-  "binary": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/target/debug/exo-session",
-  "avatar": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/assets/makehuman/mannequin.obj",
+  "binary": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/target/debug/exo-session",
+  "avatar": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/assets/makehuman/mannequin.obj",
   "binarySha256": "97865bd21e75fdeff15aab3e4d8d8c665f7d24e93332219cda9d57e2e21f75ed",
   "sourceSha256": "f60332c94f3abf9d5ce3e065bdb9b1164b9be43284db108d031e08744497ae3b",
   "sourceHashNote": "Current working-tree source fingerprint only; provenance of prebuilt executable cannot be independently established",

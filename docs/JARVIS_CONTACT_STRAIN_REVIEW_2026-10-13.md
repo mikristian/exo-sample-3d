@@ -10,7 +10,7 @@ Reference: https://github.com/st-tech/ppf-contact-solver
 
 Reviewed the upstream README, installed Blender add-on, current Garment Studio sources, and saved PPF results. Installed runtime is dated 2026-09-22; current upstream documentation is not proof that this installed build has identical behavior. Upstream describes penetration-free successful steps and strict strain bounds, not guaranteed completion of every scene or a real-time replacement.
 
-Project root on Blender Mac: `/Users/mikylecouto/Chat On Steroids Workspace/garment-studio`.
+Project root on Blender Mac: `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/garment-studio`.
 
 ## Findings, in priority order
 

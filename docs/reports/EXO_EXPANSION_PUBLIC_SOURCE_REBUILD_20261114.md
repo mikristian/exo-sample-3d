@@ -36,6 +36,16 @@ The public-source archive contains **source files and build metadata**, not the 
 5. Source-only publication is compatible with omitting private CLO3D exports and machine paths, but any private-built installed app bundle containing those resources **must not be copied unchanged to GitHub**. Full release qualification also needs codesign/notarization status, clean-Mac install/rollback and independent garment/industrial approval where advertised.
 6. Existing installation and user work remain untouched; no native candidate is installed or promoted by this report.
 
+## Repeating the physical Expansion source export
+
+The new source-only tool, `scripts/release/stage-exo-public-source-on-jarvis-expansion-20261114.sh`, stages allowlisted Git source through a configured SSH host alias, sanitizes machine-specific paths, omits optional media, hashes every member and seals a new archive on the physical Expansion drive. It never writes an existing staging folder or live application. Syntax and its dry-run/SSH argument handling were checked; the documented 4,991-file checkpoint above was staged and verified using the equivalent individual commands, **not by rerunning the combined script**.
+
+```bash
+bash scripts/release/stage-exo-public-source-on-jarvis-expansion-20261114.sh --dry-run
+# After validating your configured Jarvis SSH alias and external volume:
+bash scripts/release/stage-exo-public-source-on-jarvis-expansion-20261114.sh
+```
+
 ## Reproducibility and privacy controls
 
 Source staging starts from a **specific Git commit**, includes only allowlisted application source and permitted fixtures, and refuses restricted media/personal paths. A full per-file SHA-256 ledger is available on Expansion. After transfer, verify archive SHA-256 and every manifest entry before building; do not infer bit-for-bit app reconstruction from checksum-valid installed bytes.

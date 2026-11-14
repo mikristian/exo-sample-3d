@@ -1,7 +1,7 @@
 # Garment Studio · architecture and cloth simulation audit
 
 **Date:** 2026-10-13  
-**Scope:** Live garment code in `/Users/mikylecouto/Chat On Steroids Workspace/garment-studio`. Findings are drawn from inspected source and named test runs. This is **not** a claim that the T-shirt has passed fit acceptance.
+**Scope:** Live garment code in `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/garment-studio`. Findings are drawn from inspected source and named test runs. This is **not** a claim that the T-shirt has passed fit acceptance.
 
 ## Executive assessment
 

@@ -3,7 +3,7 @@
 **Date:** 2026-10-18
 **Application:** CLO Standalone OnlineAuth Academic 7.0.242 (r39887), on the actual Mac desktop.
 **Driver:** the signed `EXO CLO Inspector.app`, sending real macOS Accessibility menu actions and CGEvent mouse input, with ScreenCaptureKit image capture.
-**Garment:** in-memory copy `Male_T-shirt-direct-test-20261018.zpac`. The built-in original is `/Users/mikylecouto/Documents/clo/Assets/Garment/Male_T-shirt.zpac`. No changes were saved back to either on-disk garment.
+**Garment:** in-memory copy `Male_T-shirt-direct-test-20261018.zpac`. The built-in original is `${EXO_LOCAL_HOME}/Documents/clo/Assets/Garment/Male_T-shirt.zpac`. No changes were saved back to either on-disk garment.
 
 ## Direct outcomes and evidence classification
 

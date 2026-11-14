@@ -2,7 +2,7 @@
 
 **Date:** 2026-10-15  
 **Scope:** Fabric appearance, textile families, textures, physical data, file interchange, material UI, rendering and optical-edit behavior.  
-**Working source:** `/Users/mikylecouto/Chat On Steroids Workspace/garment-studio` (development folder, not public GitHub release).  
+**Working source:** `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/garment-studio` (development folder, not public GitHub release).
 **CLO reference:** User's installed, running `CLO_Standalone_OnlineAuth.app` (visible application identified as CLO 7.0.242 Academic), plus CLO's current, published feature documentation. The latter documents capabilities added since the local installation. No proprietary CLO implementation, private asset, zfab internals, or original garment data were copied.
 
 ## Executive result

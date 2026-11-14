@@ -4,7 +4,7 @@ Date: October 18, 2026. Application: CLO Standalone OnlineAuth Academic, version
 
 ## Safe sample and environment
 
-- A disposable **on-disk copy** of the built-in T-shirt sample was created at `research/clo-2d-analysis/native-fixtures/Male_T-shirt-direct-test-20261018.zpac` from `/Users/mikylecouto/Documents/clo/Assets/Garment/Male_T-shirt.zpac`.
+- A disposable **on-disk copy** of the built-in T-shirt sample was created at `research/clo-2d-analysis/native-fixtures/Male_T-shirt-direct-test-20261018.zpac` from `${EXO_LOCAL_HOME}/Documents/clo/Assets/Garment/Male_T-shirt.zpac`.
 - CLO's live document title was confirmed as `Male_T-shirt-direct-test-20261018.zpac` before geometry edit probes. The helper's opt-in geometry flags refuse to act when the copied fixture is not the sole identified document.
 - Original file and copied fixture remain **bit-for-bit identical on disk** (SHA-256 `eb24014f28e46cd513ea603a3c441ceeda9dc62bc301d6457848ffe906b87a83`; both 912,850 bytes, original modification timestamp preserved). Changes tested in memory were not saved to either file.
 - The signed helper's TCC checks returned Accessibility `true` and Screen Recording `true`. Build retained the previously approved stable Apple Development signing identity; `codesign --verify --strict` passed.

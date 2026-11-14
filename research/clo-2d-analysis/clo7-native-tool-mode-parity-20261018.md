@@ -19,7 +19,7 @@ The approved, stably signed `EXO CLO Inspector.app` was extended with an **opt-i
 
 **Critical limitation of this round:** The copied garment name remains in the active document title, but the current CLO canvas contains no visible pattern or 3D garment. Therefore only **menu activation and mode state**, not shape editing, were newly verified today. The earlier direct run *did* visibly edit a neckline handle and move a point with a loaded T-shirt; retain that separately verified evidence (2D curve length 17.00 cm before handle drag and 17.51 cm after). In both rounds Undo is **unverified**, and the read-only mode round must not be presented as validating curve/point editing on loaded geometry.
 
-Original `/Users/mikylecouto/Documents/clo/Assets/Garment/Male_T-shirt.zpac` and the research copy still have the same SHA-256: `eb24014f28e46cd513ea603a3c441ceeda9dc62bc301d6457848ffe906b87a83`. During this round the disk had approximately **1.7 GiB free**; CLO previously displayed a warning when free space was below 10 GiB, so no attempt was made to reload/modify the garment. The restored selection mode and result contain no inspector warnings.
+Original `${EXO_LOCAL_HOME}/Documents/clo/Assets/Garment/Male_T-shirt.zpac` and the research copy still have the same SHA-256: `eb24014f28e46cd513ea603a3c441ceeda9dc62bc301d6457848ffe906b87a83`. During this round the disk had approximately **1.7 GiB free**; CLO previously displayed a warning when free space was below 10 GiB, so no attempt was made to reload/modify the garment. The restored selection mode and result contain no inspector warnings.
 
 ## Actual behavior contract from current CLO documentation
 

@@ -30,7 +30,7 @@
   "icloud_downloaded_entries": 0,
   "icloud_verified_matching_sha256": 0,
   "installed_root": "/Applications/CLO_Standalone_OnlineAuth.app/Contents/Assets/Materials/Hardware_and_Trims",
-  "icloud_documents_mirror": "/Users/mikylecouto/Documents/clo/Assets/Materials/Hardware_and_Trims",
+  "icloud_documents_mirror": "${EXO_LOCAL_HOME}/Documents/clo/Assets/Materials/Hardware_and_Trims",
   "additional_zipper_preset_files": 10,
   "preset_names_absent_from_core": [
     "Transparent.png"

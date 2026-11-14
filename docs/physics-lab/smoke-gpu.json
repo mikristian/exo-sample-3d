@@ -11,8 +11,8 @@
     "ClothCraft GPU VBD + CPU OGC"
   ],
   "execution": "GPU requested (--gpu), single garment smoke",
-  "binary": "/Users/mikylecouto/Applications/EXO ClothCraft Studio V2.app/Contents/Resources/research/oss/clothcraft/target/debug/exo-session",
-  "avatar": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/assets/makehuman/mannequin.obj",
+  "binary": "${EXO_LOCAL_HOME}/Applications/EXO ClothCraft Studio V2.app/Contents/Resources/research/oss/clothcraft/target/debug/exo-session",
+  "avatar": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/assets/makehuman/mannequin.obj",
   "binarySha256": "008222d311eadcc5b6b604ea8ce4569a9c5d7830a47b7d36fc3310b9334e6513",
   "sourceSha256": "f60332c94f3abf9d5ce3e065bdb9b1164b9be43284db108d031e08744497ae3b",
   "sourceHashNote": "Current working-tree source fingerprint only; provenance of prebuilt executable cannot be independently established",

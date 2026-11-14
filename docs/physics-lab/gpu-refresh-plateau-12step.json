@@ -11,8 +11,8 @@
     "ClothCraft GPU VBD + CPU OGC"
   ],
   "execution": "GPU requested (--gpu), single garment smoke",
-  "binary": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/.exo-build-scratch/physics-gpu-plateau-diagnostics/exo-session",
-  "avatar": "/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/assets/makehuman/mannequin.obj",
+  "binary": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/.exo-build-scratch/physics-gpu-plateau-diagnostics/exo-session",
+  "avatar": "${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2/research/oss/clothcraft/assets/makehuman/mannequin.obj",
   "binarySha256": "2fc125b669194fe2768c5aa571e14e85aa4bf5d5992f694d155314bf17ac5a08",
   "sourceSha256": "a11d05e97de5438e44a139e3429d53c27a195f12edca585908762b6e97c827d3",
   "sourceHashNote": "Current working-tree source fingerprint only; provenance of prebuilt executable cannot be independently established",

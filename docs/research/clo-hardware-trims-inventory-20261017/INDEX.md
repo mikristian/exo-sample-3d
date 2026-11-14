@@ -5,7 +5,7 @@
 ## Source folders
 
 - **Installed and available offline:** `/Applications/CLO_Standalone_OnlineAuth.app/Contents/Assets/Materials/Hardware_and_Trims`
-- **iCloud Documents mirror:** `/Users/mikylecouto/Documents/clo/Assets/Materials/Hardware_and_Trims`
+- **iCloud Documents mirror:** `${EXO_LOCAL_HOME}/Documents/clo/Assets/Materials/Hardware_and_Trims`
 - **Separate installed zipper presets:** `/Applications/CLO_Standalone_OnlineAuth.app/Contents/Resources/Preset/Zipper`
 
 All 162 entries in the installed folder have matching relative names and listed sizes in Documents. The Documents mirror now has 0 files allocated locally and 162 dataless placeholders. 0 downloaded entries have identical SHA-256 hashes to installed CLO files. The installed CLO copy was used for the mesh conversion; macOS Optimize Storage could evict iCloud copies again later.

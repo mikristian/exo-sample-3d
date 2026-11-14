@@ -1,7 +1,7 @@
 # Native C++ / ZOZO PPF integration checkpoint — 2026-10-14
 
 Owner: Jarvis, continuing the authorized Garment Studio project on Blender Mac.
-Project: `/Users/mikylecouto/Chat On Steroids Workspace/garment-studio`.
+Project: `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/garment-studio`.
 Upstream: https://github.com/st-tech/ppf-contact-solver
 
 ## Implemented

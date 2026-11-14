@@ -22,7 +22,7 @@ Generated using `node scripts/prepare-zozo-reference-dress.mjs`. This generator 
 
 ## How to use in the actual desktop app
 
-The app is `/Users/mikylecouto/Applications/GarmentStudioNative.app`. It has been updated *in place* with the tested Vite UI/assets while preserving the native executable, WebKit localStorage, CLO Thomas private GLB and all existing project documents. App signature was refreshed and verified; its **Workspace > Reload Interface** item was invoked to show the update in the already running app. The prior UI assets were backed up under `native_app/backups/zozo-github-dress-20261014-202941/`.
+The app is `${EXO_LOCAL_HOME}/Applications/GarmentStudioNative.app`. It has been updated *in place* with the tested Vite UI/assets while preserving the native executable, WebKit localStorage, CLO Thomas private GLB and all existing project documents. App signature was refreshed and verified; its **Workspace > Reload Interface** item was invoked to show the update in the already running app. The prior UI assets were backed up under `native_app/backups/zozo-github-dress-20261014-202941/`.
 
 In **Fit** or **Sewing**, click **OPEN GITHUB DRESS · ORIGINAL PPF TEST**. This switches the left 3D viewport to the original GitHub dress with its actual animated pinned body. The right 2D editor and saved patterns remain unchanged. Use **START**, **PLAY/PAUSE**, **FINAL FRAME**, **HIDE/SHOW BODY** and the 0–240 frame scrubber. Clicking **RETURN TO EDITABLE GARMENT** returns to the user's live editable 3D garment; the dress test never imports fake garment patterns or changes their sewing edges.
 

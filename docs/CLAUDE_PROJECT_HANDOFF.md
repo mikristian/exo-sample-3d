@@ -6,7 +6,7 @@ This is the live native Mac Garment Studio project, a CLO3D-inspired 2D/3D cloth
 
 ## Repository path
 
-`/Users/mikylecouto/Chat On Steroids Workspace/garment-studio`
+`${EXO_LOCAL_HOME}/Chat On Steroids Workspace/garment-studio`
 
 ## Instructions to Claude
 

@@ -1,6 +1,6 @@
 # EXO ClothCraft Studio V2 — curved garment/pattern hover specification
 
-Date: 2026-10-17. Target repository: `/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2` on Blender Mac. Read `01_TOOLBARS_ENGINEERING_SPEC.md` for version boundaries, preservation rules and native command architecture.
+Date: 2026-10-17. Target repository: `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2` on Blender Mac. Read `01_TOOLBARS_ENGINEERING_SPEC.md` for version boundaries, preservation rules and native command architecture.
 
 ## 1. Desired result and reference status
 

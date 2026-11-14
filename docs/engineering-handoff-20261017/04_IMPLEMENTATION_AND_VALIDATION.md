@@ -4,7 +4,7 @@ Date: 2026-10-17.
 
 ## Correct target
 
-Remote repository: `/Users/mikylecouto/Chat On Steroids Workspace/exo-clothcraft-v2`.
+Remote repository: `${EXO_LOCAL_HOME}/Chat On Steroids Workspace/exo-clothcraft-v2`.
 Observed HEAD before work: `64c3be9`. Many pre-existing modified/untracked files were present. No resets, cleans, commits or wholesale replacements were performed. The earlier `garment-studio` investigation was superseded after the user specified V2; no changes were applied to that older repository.
 
 ## Source changes applied
