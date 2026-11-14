@@ -169,3 +169,9 @@ native_cpp/build-cmake
 # Research-only GarmentCodeData v2 dataset: preserve on the local disk, not in Git.
 # Importer, test code, README and attribution remain tracked in tools/docs.
 download/garment-dxf-library-20261023/garmentcodedata-v2/
+
+# Source-only public EXO release: never vendor restricted CLO3D containers or
+# proprietary native inspector binaries, even if local QA uses them.
+*.zpac
+*.zprj
+research/clo-2d-analysis/.EXOCLOInspector-*
