@@ -1,0 +1,1398 @@
+{
+  "date": "2026-11-14",
+  "goal": "Convert all EXO-owned executable engineering operations and all first-party UI to Rust over gated phases, retaining the original erythrofr ClothCraft Rust engine as a compatible upstream dependency.",
+  "upstream": {
+    "url": "https://github.com/erythrofr/ClothCraft",
+    "localPath": "research/oss/clothcraft",
+    "crate": "marvelous-cloth",
+    "edition": "2024",
+    "uiStack": "eframe / egui / wgpu",
+    "engines": "garment, authoring, fitting, VBD, OGC, CPU solver, feature-gated GPU",
+    "localGitHEAD": "20b4db9",
+    "checkoutNote": "The local upstream checkout has uncommitted EXO modifications; its HEAD is not proof of the current upstream GitHub tip. Freeze clean upstream and EXO patch inventory before claiming upstream compatibility."
+  },
+  "exoRepo": "https://github.com/mikristian/exo-sample-3d",
+  "interpretation": "Rust percentages are first-party backend source-line ratios by filename classification, NOT converted behavior or a promised percent complete. Upstream-derived Rust reference lines, generated bundles, CSS and UI are counted separately. Rust-native end goal includes egui/wgpu UI and desktop shell; any minimal OS API calls need recorded non-Rust exceptions.",
+  "systemCount": 41,
+  "phases": [
+    {
+      "id": "F0 Core contracts",
+      "description": "Source identity, Rust/EXO adapter, canonical model, typed command transport, crash-safe history. First protect dirty trees and pin upstream."
+    },
+    {
+      "id": "F1 2D CAD",
+      "description": "Source geometry, parametric dependencies, grading, POM, allowances and precise interactive CAD behavior."
+    },
+    {
+      "id": "F2 Sewing and meshing",
+      "description": "Rust seam/constructive sewing and deterministic panel mesh compilation."
+    },
+    {
+      "id": "F3 Simulation and 3D",
+      "description": "Validated solver, contact, avatars, physical fabrics and garment fitting."
+    },
+    {
+      "id": "F4 Materials and assets",
+      "description": "Materials, PBR, trims, padding, library assets and 3D export."
+    },
+    {
+      "id": "F5 Factory and exports",
+      "description": "Industrial interchange, markers, plotting, tech packs, cost and manufacturing safety."
+    },
+    {
+      "id": "F6 Agents, tools and platform",
+      "description": "Agent safety, collaboration, diagnostics, ownership review and workspace commands."
+    },
+    {
+      "id": "F7 Rust-native UI",
+      "description": "Replace React/Three/WebKit UI with upstream-compatible egui/wgpu desktop after backend parity; keep old UI until full acceptance."
+    }
+  ],
+  "systems": [
+    {
+      "id": 1,
+      "phase": "F0 Core contracts",
+      "upstream": "project.rs, fitting.rs, authoring.rs",
+      "work": "Define versioned ExoGarmentV2 with stable piece/edge/size IDs, SI units and serde migrations. Make Rust the only committed mutation owner; map existing C++ and JS documents through adapters without stripping metadata.",
+      "acceptance": "Open legacy and new projects; change a curve, reload, compare serialized schema and unchanged seam IDs; reject stale or future schema atomically.",
+      "dependencies": [
+        37
+      ],
+      "name": "Project model / source-of-truth",
+      "sourceLines": 3277,
+      "files": 32,
+      "rustSourcePercent": 1.6,
+      "rustSourceLines": 54,
+      "sourceExamples": [
+        "src/data/defaultProject.js",
+        "native_cpp/core/garment_document.cpp",
+        "src/core/project.js",
+        "native_cpp/core/clothcraft_export.cpp",
+        "native_cpp/core/native_simulation_payload_builder.cpp",
+        "native_cpp/core/pattern_mesh.cpp",
+        "native_cpp/core/native_payload.cpp"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 2,
+      "phase": "F1 2D CAD",
+      "upstream": "authoring/geometry.rs, garment/curves.rs, math.rs",
+      "work": "Move intersections, ruler construction, snaps, constraints and high-DPI coordinate conversion into a typed Rust geometry API. React pointer interactions become commands, not independent math.",
+      "acceptance": "Millimetre-golden geometric fixtures at multiple zoom/DPI; invalid/nonfinite inputs reject; traced pointer command equals Rust result and undo works.",
+      "dependencies": [
+        1,
+        3,
+        33
+      ],
+      "name": "Drafting primitives and snapping",
+      "sourceLines": 2815,
+      "files": 33,
+      "rustSourcePercent": 4.8,
+      "rustSourceLines": 134,
+      "sourceExamples": [
+        "src/core/draftingTopology.js",
+        "src/core/draftingUnfold.js",
+        "src/core/draftingPrecision.js",
+        "native_cpp/core/drafting_snapping.cpp",
+        "src/core/draftingSnapping.js",
+        "native_cpp/core/drafting_precision.cpp",
+        "src/core/accumarkLineConstruction20261024_1341.js"
+      ],
+      "nativeRustReferenceLines": 327
+    },
+    {
+      "id": 3,
+      "phase": "F1 2D CAD",
+      "upstream": "garment/curves.rs, garment/precision_curve_20261030.rs",
+      "work": "Consolidate Bézier, freehand smoothing, arc length, tangent and offset logic. Remove duplicated JS/C++ results only after Rust exact-coordinate and tolerance parity.",
+      "acceptance": "Curve closure, tangency, area and sampled lengths match independent numerical oracles; preserve shape and control-point IDs after save/reopen.",
+      "dependencies": [
+        1,
+        33,
+        37
+      ],
+      "name": "Curves, freehand and geometry",
+      "sourceLines": 2567,
+      "files": 29,
+      "rustSourcePercent": 30.0,
+      "rustSourceLines": 770,
+      "sourceExamples": [
+        "src/core/nativeFreeCurvePoints.js",
+        "src/core/vectorPatternBezier.js",
+        "rust/exo_geometry_kernel/src/lib.rs",
+        "src/core/rustGeometryKernel.js",
+        "src/core/modarisDerivedContour20261027.js",
+        "src/core/advancedCadCurveHandle20261024_1423.js",
+        "src/core/advancedCadGradedCurveQA20261024_1423.js"
+      ],
+      "nativeRustReferenceLines": 232
+    },
+    {
+      "id": 4,
+      "phase": "F1 2D CAD",
+      "upstream": "ogc/topology.rs, garment/polygon.rs, authoring.rs",
+      "work": "Implement atomic cut, split, merge, mirror and unfold transactions on the canonical Rust panel graph; remap seam links, notches and allowances using stable IDs.",
+      "acceptance": "Self-intersections and orphan references fail without mutation; reversible mirrored curved panel works across undo/redo and six graded sizes.",
+      "dependencies": [
+        1,
+        3,
+        29
+      ],
+      "name": "Topology / split / unfold / mirror",
+      "sourceLines": 1058,
+      "files": 12,
+      "rustSourcePercent": 14.6,
+      "rustSourceLines": 154,
+      "sourceExamples": [
+        "src/core/accumarkCurvedSourceRigidTransform20261024_1400.js",
+        "blender_bridge/tune_ppf_shoulder_folds.py",
+        "src/core/gradedStraightEdgeSplit20261024_1453.js",
+        "src/core/accumarkPieceRigidActions20261024_1341.js",
+        "rust/exo_split_kernel/src/lib.rs",
+        "src/core/appLinkedMirror20261030.mjs",
+        "src/core/rustSplitKernel.js"
+      ],
+      "nativeRustReferenceLines": 53
+    },
+    {
+      "id": 5,
+      "phase": "F1 2D CAD",
+      "upstream": "native_reference_recompute_20261027.rs, native_cross_piece_link_20261030.rs",
+      "work": "Make the Rust parameter dependency DAG authoritative for point formulas, cross-panel references, unit-aware constraints and selective regeneration. Eliminate detached JS recalculation.",
+      "acceptance": "Cycle and unit-error negative tests; changing an armhole formula deterministically updates sleeve, facing and every graded derivative; cold reopen preserves graph.",
+      "dependencies": [
+        1,
+        3,
+        29
+      ],
+      "name": "Parametric references / formulas",
+      "sourceLines": 1493,
+      "files": 10,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/modarisNativeFreeKnotReactiveWitness20261027.js",
+        "src/core/nativeParametricPoint20261023.js",
+        "src/core/modarisNativeIndustrialReactiveWitness20261027.js",
+        "src/core/nativeParametricFormula20261023.js",
+        "src/core/modarisNativeReferenceRecompute20261027.js",
+        "src/core/modarisNativeCrossPieceReference20261027.js",
+        "src/core/accumarkReferencePieceExtraction20261024_1341.js"
+      ],
+      "nativeRustReferenceLines": 1473
+    },
+    {
+      "id": 6,
+      "phase": "F1 2D CAD",
+      "upstream": "native_six_size_recompute_20261027.rs, grade_pom_audit_20261027.rs",
+      "work": "Integrate Rust WASM/native size transforms into one graded master with named size correspondence, graded Bézier controls, persistent grade rules and activation from real editor controls.",
+      "acceptance": "Six nonuniform named sizes plus 24-size stress; independent coordinate checks; UI save/undo/redo/reopen; no size-rule drift in CUT/DXF.",
+      "dependencies": [
+        1,
+        3,
+        5,
+        7,
+        29
+      ],
+      "name": "Pattern grading / size runs",
+      "sourceLines": 7408,
+      "files": 62,
+      "rustSourcePercent": 3.5,
+      "rustSourceLines": 260,
+      "sourceExamples": [
+        "src/core/grading.js",
+        "src/core/nativeGradingPOM20261025.js",
+        "native_cpp/core/grading.cpp",
+        "src/core/nativeGradeIndependentReviewEvidence20261027.js",
+        "rust/exo_grading_kernel/src/lib.rs",
+        "src/core/nativeGradingPhysicalSampleReview20261026.js",
+        "src/core/jeans501WaistGradeCandidate.js"
+      ],
+      "nativeRustReferenceLines": 298
+    },
+    {
+      "id": 7,
+      "phase": "F1 2D CAD",
+      "upstream": "native_measurement_formulas_20261027.rs, native_multi_panel_measurement_20261030.rs",
+      "work": "Port POM definitions, body-size chart formulas, dimension rulers and chart recomputation into canonical Rust SI-unit records with explicit target references.",
+      "acceptance": "Compare known POMs on tee/trousers in every size, including curved garment landmarks; invalid units, orphan targets and circular charts fail closed.",
+      "dependencies": [
+        1,
+        5
+      ],
+      "name": "Measurements / POM / body charts",
+      "sourceLines": 1865,
+      "files": 19,
+      "rustSourcePercent": 5.0,
+      "rustSourceLines": 93,
+      "sourceExamples": [
+        "src/core/measurements.js",
+        "native_cpp/core/measurement_export.cpp",
+        "src/core/modarisNativeMultiPanelMeasurementCommit20261030.js",
+        "src/core/modarisNativeMeasurementCommit20261027.js",
+        "src/core/vectorcraftPenDimensions20261025.js",
+        "src/core/seamlyMeasurements.js",
+        "src/core/nativeGradeFactoryMeasurementMatrix20261025.js"
+      ],
+      "nativeRustReferenceLines": 666
+    },
+    {
+      "id": 8,
+      "phase": "F2 Sewing and meshing",
+      "upstream": "garment/seam.rs, atelier/seam_links.rs, authoring.rs",
+      "work": "Unify seam endpoint, direction, partial seam, easing and stitch sequencing in Rust. Remove alternate JS/C++ sewing authority only when linked seams survive remesh and grade.",
+      "acceptance": "Closed/open-zipper fixtures and seam-length tolerance; sew/edit/undo/reopen; report unmatched intervals and invalid sewing instead of covering them visually.",
+      "dependencies": [
+        1,
+        4,
+        6,
+        10
+      ],
+      "name": "Sewing / seam matching",
+      "sourceLines": 3508,
+      "files": 33,
+      "rustSourcePercent": 9.0,
+      "rustSourceLines": 316,
+      "sourceExamples": [
+        "integrations/clothcraft/seam-prediction-research-20261102.py",
+        "src/core/backends/nativeSeamCandidateGate.js",
+        "src/core/gradedComplexSeamConstructionAcceptance20261024_1501.js",
+        "src/core/industrialGradedSeamCorrection20261024_1516.js",
+        "native_cpp/core/cloth_seam_constraints.cpp",
+        "src/core/sewingMismatchRepair20261024.js",
+        "src/core/industrialSixSizeSeamContinuity20261024.js"
+      ],
+      "nativeRustReferenceLines": 589
+    },
+    {
+      "id": 9,
+      "phase": "F2 Sewing and meshing",
+      "upstream": "authoring.rs, garment/shapes.rs, garment/seam.rs",
+      "work": "Add explicit Rust darts, tuck, pleat, facing and fold construction entities, orientation rules and reversible pattern transfers with derivative links.",
+      "acceptance": "Dart transfer and curved facing reconstruct after change, split, undo and grading; no silently discarded sewing marks or material groups.",
+      "dependencies": [
+        3,
+        4,
+        5,
+        8
+      ],
+      "name": "Darts / pleats / facings",
+      "sourceLines": 824,
+      "files": 8,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/accumarkLinkedFacing20261027.js",
+        "src/core/nativePhysicalPleat20261025.js",
+        "blender_bridge/refine_501_cuffs_and_shoes.py",
+        "blender_bridge/finalize_501_hem_material_v12.py",
+        "blender_bridge/project_501_hem_stitches_to_surface.py",
+        "src/core/nativeDartPrecision20261023.js",
+        "src/core/experimentalDartGeometry20261023.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 10,
+      "phase": "F1 2D CAD",
+      "upstream": "garment/cutline.rs, garment/precision_curve_20261030.rs",
+      "work": "Make Rust seam allowances, corner treatments, cut/stitch offsets, notch/drill placement and fold markers canonical by edge/size ID.",
+      "acceptance": "No inverted corner or self-overlap; notches remain attached when curved edges change; 100-mm scale export and negative cutter preflight.",
+      "dependencies": [
+        1,
+        3,
+        4,
+        6
+      ],
+      "name": "Allowance / notch / cutline",
+      "sourceLines": 3170,
+      "files": 29,
+      "rustSourcePercent": 4.5,
+      "rustSourceLines": 142,
+      "sourceExamples": [
+        "src/core/physicalCutOverlapPreflight20261023_2000.mjs",
+        "src/core/industrialCutterQualification20261028.mjs",
+        "src/core/approvedGradedNotchGeometry20261023_1600.js",
+        "src/core/gradedNotchIntervalAudit.js",
+        "src/core/approvedNotchGeometry20261023_1500.js",
+        "src/core/industrialAamaAllowanceOffset20261028.mjs",
+        "src/core/industrialAllowanceLinks20261027.js"
+      ],
+      "nativeRustReferenceLines": 304
+    },
+    {
+      "id": 11,
+      "phase": "F2 Sewing and meshing",
+      "upstream": "garment/meshing.rs, garment/embedding.rs",
+      "work": "Compile the Rust panel/seam graph into deterministic triangles, UV/grain mapping, material and vertex IDs, remeshing policies and incremental invalidation.",
+      "acceptance": "Mesh area/normal quality and boundary/seam invariants on tee, pants and jacket; source IDs survive tessellation changes; no orphan sewing endpoints.",
+      "dependencies": [
+        1,
+        8,
+        10
+      ],
+      "name": "Cloth mesh / tessellation",
+      "sourceLines": 1161,
+      "files": 19,
+      "rustSourcePercent": 16.9,
+      "rustSourceLines": 196,
+      "sourceExamples": [
+        "native_cpp/core/cloth_meshing_pipeline.cpp",
+        "native_cpp/core/quality_triangulation.cpp",
+        "src/core/physics/qualityTriangulation.js",
+        "native_cpp/core/cloth_meshing.cpp",
+        "src/core/physics/restMeshFidelityResearch.js",
+        "rust/exo_foam_triangulation_kernel/src/lib.rs",
+        "src/core/clothMeshing.js"
+      ],
+      "nativeRustReferenceLines": 371
+    },
+    {
+      "id": 12,
+      "phase": "F3 Simulation and 3D",
+      "upstream": "solver.rs, vbd.rs, gpu_vbd.rs",
+      "work": "Consolidate cloth stepping and constraint material parameters behind one Rust solver contract with CPU reference and feature-gated GPU; retain isolated legacy benchmarks until acceptance.",
+      "acceptance": "Multiple garment classes, long-run energy/strain traces, deterministic CPU controls, CPU/GPU tolerance cases and real executable ABI; no false certified-fit status.",
+      "dependencies": [
+        11,
+        16,
+        33
+      ],
+      "name": "Cloth physics and solver",
+      "sourceLines": 15839,
+      "files": 89,
+      "rustSourcePercent": 3.2,
+      "rustSourceLines": 505,
+      "sourceExamples": [
+        "src/core/physics.js",
+        "native_backend/src/garment_xpbd_cli.cpp",
+        "blender_bridge/ppf_run_configured.py",
+        "src/core/backends/ppfPayload.js",
+        "blender_bridge/ppf_prepare_scene.py",
+        "src/core/backends/nativeSleeveCoupledCandidateAdmissionResearch20261025.js",
+        "blender_bridge/ppf_body_tee_pipeline.py"
+      ],
+      "nativeRustReferenceLines": 1820
+    },
+    {
+      "id": 13,
+      "phase": "F3 Simulation and 3D",
+      "upstream": "contact.rs, ogc/mod.rs, ogc/bvh.rs",
+      "work": "Use Rust OGC/BVH broadphase, self/contact and CCD where independently proven. Define collision masks, thickness, skin/body clearances and temporal consistency.",
+      "acceptance": "Two-frame and long-run cloth/body plus cloth/cloth tests on moving avatars; negative inverted normals and tunnelling; measured penetrations with thresholds.",
+      "dependencies": [
+        11,
+        12,
+        15
+      ],
+      "name": "Collision / contact / penetration",
+      "sourceLines": 5157,
+      "files": 54,
+      "rustSourcePercent": 9.4,
+      "rustSourceLines": 487,
+      "sourceExamples": [
+        "src/core/backends/nativeCoupledClothContactResearch.js",
+        "src/core/backends/nativeIntrapanelContactResearch.js",
+        "src/core/backends/nativeSleeveCreaseQualityContactResearch20261025.js",
+        "rust/exo_self_collision_pass_kernel/src/lib.rs",
+        "src/core/accumarkMarkerRulerInkClearance20261024.mjs",
+        "src/core/physics/selfCollision.js",
+        "rust/exo_self_collision_kernel/src/w11_spatial_candidates.rs"
+      ],
+      "nativeRustReferenceLines": 89
+    },
+    {
+      "id": 14,
+      "phase": "F3 Simulation and 3D",
+      "upstream": "fitting.rs, avatar.rs, atelier/workspace.rs",
+      "work": "Move fitting state, staging transforms, panel initialization and drape caches to versioned Rust records; optional Blender scripts remain offline reference tools.",
+      "acceptance": "Saved garment repositioned and replayed identically, no float-up or ghosted caches; source edit invalidates stage/fit snapshots; multi-pose review.",
+      "dependencies": [
+        1,
+        11,
+        12,
+        13,
+        15
+      ],
+      "name": "Garment fit / stage / drape",
+      "sourceLines": 6460,
+      "files": 53,
+      "rustSourcePercent": 2.9,
+      "rustSourceLines": 185,
+      "sourceExamples": [
+        "blender_bridge/import_garment.py",
+        "blender_bridge/finish_501_lightwash.py",
+        "blender_bridge/nonrigid_ppf_assembly.py",
+        "native_cpp/core/seam_assembly_advanced.cpp",
+        "blender_bridge/build_501_onbody_reference.py",
+        "src/core/sewingAssemblyWorkflow20261024.js",
+        "src/core/backends/seamAssembly.js"
+      ],
+      "nativeRustReferenceLines": 1414
+    },
+    {
+      "id": 15,
+      "phase": "F3 Simulation and 3D",
+      "upstream": "avatar.rs, fitting.rs, render.rs",
+      "work": "Define Rust avatar geometry, landmarks, skeleton/pose sampling, collision proxies and animation transport; retain license provenance and isolate presentation controls.",
+      "acceptance": "GLB/OBJ import normals/scale, two body sizes, multiple poses and swept collision; never ship private avatar or assume a visible mesh equals collision source.",
+      "dependencies": [
+        1
+      ],
+      "name": "Avatar / pose / animation",
+      "sourceLines": 794,
+      "files": 11,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/avatarWornTeeDisplay.js",
+        "src/core/avatarWalkPreview20261025.js",
+        "native_cpp/core/avatar_surface_correction.cpp",
+        "integrations/clothcraft/attach-exo-skeletal-walk-to-clothed-glb-20261102.py",
+        "src/core/exoAvatarRenderedMediaRights20261102.js",
+        "src/data/avatarWornTeeNativeProject.js",
+        "src/core/exoAvatarHairStyling20261102.js"
+      ],
+      "nativeRustReferenceLines": 461
+    },
+    {
+      "id": 16,
+      "phase": "F3 Simulation and 3D",
+      "upstream": "fabrics.rs, model.rs, vbd.rs",
+      "work": "Canonicalize fabric stiffness, density, bending, friction, warp/weft and thickness in Rust with SI units and per-panel grain alignment. Keep optical controls separate.",
+      "acceptance": "Fabric measured swatches versus calibrated drape tests; mechanical edits invalidate solver state, optical edits do not; unit conversion roundtrips.",
+      "dependencies": [
+        1,
+        11
+      ],
+      "name": "Fabric mechanics / materials",
+      "sourceLines": 3052,
+      "files": 30,
+      "rustSourcePercent": 8.6,
+      "rustSourceLines": 262,
+      "sourceExamples": [
+        "src/core/clothcraftFabrics.js",
+        "src/core/clothcraftFabricSurface.js",
+        "src/core/modarisFabricBoundChart20261027.js",
+        "src/data/polyhavenFabricAssignments.js",
+        "rust/exo_fabric_kernel/src/calibration.rs",
+        "src/core/fabricAssetRegistry.js",
+        "src/core/fabricEvidenceCalibration.js"
+      ],
+      "nativeRustReferenceLines": 878
+    },
+    {
+      "id": 17,
+      "phase": "F4 Materials and assets",
+      "upstream": "render.rs, fabrics.rs",
+      "work": "Port reproducible texture transforms, scan metadata and material asset validation to Rust where measurable; bind Rust material records into wgpu shaders instead of mirroring entire CSS/JS shader code.",
+      "acceptance": "Golden pixels and color-space/UV scale checks on named PBR swatches; offline renderer and native UI agree on fabric assignment; no visual claim of mechanical calibration.",
+      "dependencies": [
+        16,
+        21,
+        36
+      ],
+      "name": "Fabric visuals / textures / PBR",
+      "sourceLines": 1682,
+      "files": 22,
+      "rustSourcePercent": 14.4,
+      "rustSourceLines": 242,
+      "sourceExamples": [
+        "src/core/textileProcedurals.js",
+        "src/core/clothWashProcedurals.js",
+        "src/core/clothWashImage.js",
+        "rust/exo_pbr_pixels_kernel/src/lib.rs",
+        "src/core/fabricPbrAppearance.js",
+        "native_cpp/core/fabric_pbr_pixels.cpp",
+        "src/data/fabricTextureLibrarySources.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 18,
+      "phase": "F4 Materials and assets",
+      "upstream": "fitting.rs, garment/seam.rs, render.rs",
+      "work": "Represent buttons, zippers, trims, hardware anchors and size-specific placements as Rust project entities; use upstream geometry/render surfaces for actual attachment.",
+      "acceptance": "Zipper teeth and fastener position persist through grade, cut and undo; invalid detached anchors fail; renderer and BOM share the same hardware identity.",
+      "dependencies": [
+        1,
+        8,
+        14
+      ],
+      "name": "Hardware / fastener / trims",
+      "sourceLines": 877,
+      "files": 11,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/data/hardwarePresets.js",
+        "src/core/clo7NativeHardwareActions.js",
+        "src/core/importedCloHardware3D.js",
+        "native_cpp/core/trims.cpp",
+        "src/core/trims.js",
+        "src/data/cloImportedHardwareCatalog.js",
+        "src/core/appHardwarePresetValues20261030.mjs"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 19,
+      "phase": "F4 Materials and assets",
+      "upstream": "fitting.rs, garment/embedding.rs, render.rs",
+      "work": "Define attached print/embroidery placement geometry, scalable projection anchors and artwork asset hashes as Rust-editable project data; keep texture compositing in Rust/wgpu.",
+      "acceptance": "Artwork orientation, print repeat and location survive mesh regeneration, grading and save/reopen; no unresolved asset path escapes export bundle.",
+      "dependencies": [
+        1,
+        11,
+        17,
+        27
+      ],
+      "name": "Garment print graphics / embroidery",
+      "sourceLines": 405,
+      "files": 1,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/nativeGarmentGraphics.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 20,
+      "phase": "F4 Materials and assets",
+      "upstream": "garment/meshing.rs, fabrics.rs, vbd.rs",
+      "work": "Merge foam/trapunto kernel math into the Rust garment representation; attach padding/loft sections and physical thickness semantics per panel with reversible edits.",
+      "acceptance": "Padding seam and loft retention in grading, mesh, material and production records; negative zero-thickness/invalid loft controls and visual cross-checks.",
+      "dependencies": [
+        8,
+        11,
+        12,
+        16
+      ],
+      "name": "Foam / padding / trapunto",
+      "sourceLines": 570,
+      "files": 5,
+      "rustSourcePercent": 24.7,
+      "rustSourceLines": 141,
+      "sourceExamples": [
+        "src/core/foamPaddingGeometry.js",
+        "rust/exo_foam_kernel/src/lib.rs",
+        "src/core/foamCompressionModel.js",
+        "src/core/rustFoamKernel.js",
+        "src/core/foamPaddingPatternExport.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 21,
+      "phase": "F4 Materials and assets",
+      "upstream": "garment/export.rs, project.rs, render.rs",
+      "work": "Replace duplicate C++ OBJ/glTF exporters with canonical Rust geometry serializations preserving scale, materials, winding, texture paths and revision metadata.",
+      "acceptance": "External glTF/OBJ viewers load test meshes; roundtrip metric scale, normal orientation and UV; no stale simulation mesh or missing asset claims.",
+      "dependencies": [
+        1,
+        11
+      ],
+      "name": "3D export and scene assets",
+      "sourceLines": 351,
+      "files": 5,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "native_cpp/core/gltf_export.cpp",
+        "native_cpp/core/obj_export.cpp",
+        "src/data/stagePresets.js",
+        "native_cpp/core/gltf_export.hpp",
+        "native_cpp/core/obj_export.hpp"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 22,
+      "phase": "F5 Factory and exports",
+      "upstream": "garment/polygon.rs, garment/cutline.rs",
+      "work": "Build deterministic Rust marker/nesting engines for fabric width, grain, size ratios, quantities and defect constraints, with explicit industrial output revision.",
+      "acceptance": "Marker does not overlap/out-of-bounds; roll, grain and defect cases reject invalid orders; compare independently measured utilization and cutter-ready layout.",
+      "dependencies": [
+        6,
+        10,
+        23
+      ],
+      "name": "Marker layout / nesting / yield",
+      "sourceLines": 4352,
+      "files": 34,
+      "rustSourcePercent": 5.2,
+      "rustSourceLines": 226,
+      "sourceExamples": [
+        "src/core/accumarkMarkerProduction20261023.js",
+        "integrations/clothcraft/native-verified-single-ply-roll-plan-run44.mjs",
+        "native_cpp/core/marker_layout.cpp",
+        "src/core/accumarkMarkerPlotParity20261024.mjs",
+        "src/core/markerArtifacts.js",
+        "rust/exo_marker_kernel/src/lib.rs",
+        "native_cpp/core/marker_pdf.cpp"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 23,
+      "phase": "F5 Factory and exports",
+      "upstream": "garment/export.rs, garment/curves.rs, project.rs",
+      "work": "Use a Rust DXF import/export layer with declared AAMA/ASTM flavor, layers, physical units, annotations and reliable curve approximation. Keep original importer as conformance fixture.",
+      "acceptance": "Roundtrip in licensed receiving CAD and re-export without measured POM/grade drift; malformed/duplicate entities reject; cutter acceptance remains external.",
+      "dependencies": [
+        1,
+        3,
+        6,
+        10
+      ],
+      "name": "DXF / CAD interop",
+      "sourceLines": 11648,
+      "files": 90,
+      "rustSourcePercent": 0.3,
+      "rustSourceLines": 33,
+      "sourceExamples": [
+        "src/core/dxf.js",
+        "src/core/modarisConnectedDevelopmentReceiver20261101.js",
+        "native_cpp/core/dxf_import.cpp",
+        "src/core/modarisToolbarCatalog20261028.js",
+        "integrations/clothcraft/valentinaUniversalSeamlyBridge20261031.mjs",
+        "native_cpp/core/construction_dxf.cpp",
+        "src/core/modaris2DGradeDraftJournal20261029.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 24,
+      "phase": "F5 Factory and exports",
+      "upstream": "garment/export.rs, garment/cutline.rs",
+      "work": "Generate plotted SVG/PDF tiles from one Rust geometry source, including 100-mm X/Y rulers, print boundaries, notch styles and page join marks.",
+      "acceptance": "Independently measure printed X/Y 100-mm scale, page alignment and all graded pattern dimensions; invalid scale/unit must fail preflight.",
+      "dependencies": [
+        10,
+        22,
+        23
+      ],
+      "name": "SVG / PDF / physical plot",
+      "sourceLines": 1473,
+      "files": 18,
+      "rustSourcePercent": 2.6,
+      "rustSourceLines": 39,
+      "sourceExamples": [
+        "src/core/printLayout20261025.js",
+        "native_cpp/core/marker_svg.cpp",
+        "src/core/techPackSvgToNativePaths20261031.js",
+        "src/core/accumarkPrintedPageRegistration20261024.mjs",
+        "src/core/svgPatternImport.js",
+        "src/core/accumarkMarkerSafePageBreaks20261024.mjs",
+        "src/core/printPatternAppearance20261025.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 25,
+      "phase": "F5 Factory and exports",
+      "upstream": "garment/diagnostics.rs, garment/cutline.rs",
+      "work": "Move production preflight to fail-closed Rust with exact source revision, size run, seam allowances, POM tolerances, geometric validity and external approval flags.",
+      "acceptance": "Mutation/stale-hash tests reject altered source and forged factory status; independent technician measured approval required for true manufacturerReady.",
+      "dependencies": [
+        1,
+        6,
+        8,
+        10,
+        23,
+        24
+      ],
+      "name": "Factory preflight / measurement QA",
+      "sourceLines": 3635,
+      "files": 37,
+      "rustSourcePercent": 3.6,
+      "rustSourceLines": 130,
+      "sourceExamples": [
+        "src/core/industrialSignedNotchReceivingGate20261030.mjs",
+        "native_cpp/core/production_preflight.cpp",
+        "src/core/industrialReceivingRegistryVersionFloor20261029.mjs",
+        "src/core/factorySampleApproval.js",
+        "src/core/industrialReceivingSignedEvidence20261028.mjs",
+        "src/core/productionPreflight.js",
+        "src/core/industrialReceivingEntityInventory20261028.mjs"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 26,
+      "phase": "F5 Factory and exports",
+      "upstream": "project.rs, garment/export.rs",
+      "work": "Package signed/hash-checked factory manifests in Rust with immutable pattern revision, BOM, grade, cut order, materials, labels and audit trail; no JS sole-source ZIP authority.",
+      "acceptance": "Byte/content checksum verification, cross-file source identity, safe ZIP names, negative altered count/material; cutter signoff required before cuttingAuthorized=true.",
+      "dependencies": [
+        22,
+        23,
+        24,
+        25,
+        27
+      ],
+      "name": "Production packages / factory orders",
+      "sourceLines": 8746,
+      "files": 69,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/factoryPackage.js",
+        "integrations/clothcraft/native-verified-cutroom-intake-run44.mjs",
+        "src/core/factoryZipMetadataGuard20261024_0400.mjs",
+        "src/core/industrialSignedFactoryZipIsolated20261030.mjs",
+        "src/core/nativeVerifiedProductionOrderClient20261029.js",
+        "src/core/factoryZipIndependentRasterHardened20261024_1854.py",
+        "integrations/clothcraft/native-verified-order-handoff-run36-20261029.mjs"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 27,
+      "phase": "F5 Factory and exports",
+      "upstream": "project.rs, fitting.rs, garment/export.rs",
+      "work": "Model BOM, techpack measurements, construction diagrams and spec sheets in Rust data contracts, with a native Rust page editor eventually replacing React composition.",
+      "acceptance": "Techpack, grade and BOM share revision, quantities and materials; XLSX/PDF/JSON parity; reopen a document without lost assets or inline controls.",
+      "dependencies": [
+        7,
+        18,
+        22
+      ],
+      "name": "Techpacks / BOM / specification",
+      "sourceLines": 7894,
+      "files": 94,
+      "rustSourcePercent": 2.8,
+      "rustSourceLines": 218,
+      "sourceExamples": [
+        "src/core/techPackWorkspacePrint.js",
+        "src/core/techPackPageComposer.js",
+        "src/core/techpack-spreadsheet/exporterXlsx.js",
+        "src/core/techPackVectorPathTools20261031.js",
+        "src/core/techpack-spreadsheet/gridcraftTableCommands20261030.js",
+        "src/core/techPackVisualThemes20261031.js",
+        "native_cpp/core/tech_pack_export.cpp"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 28,
+      "phase": "F5 Factory and exports",
+      "upstream": "fabrics.rs, garment/export.rs",
+      "work": "Replace JS/C++ cost arithmetic with Rust deterministic fabric yield, trim/labor cost and price revision logic linked to marker and BOM versions.",
+      "acceptance": "Numerical and currency-rounding fixtures, lot/roll sensitivity and formula undo; no quote from a superseded marker or bill of materials.",
+      "dependencies": [
+        16,
+        22,
+        27
+      ],
+      "name": "Cost / pricing / estimates",
+      "sourceLines": 495,
+      "files": 6,
+      "rustSourcePercent": 21.6,
+      "rustSourceLines": 107,
+      "sourceExamples": [
+        "native_cpp/core/fabric_cost.cpp",
+        "src/core/rustFabricCostKernel.js",
+        "rust/exo_fabric_cost_kernel/src/lib.rs",
+        "src/core/productionCost.js",
+        "rust/exo_fabric_cost_kernel/build.mjs",
+        "native_cpp/core/fabric_cost.hpp"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 29,
+      "phase": "F0 Core contracts",
+      "upstream": "authoring.rs, project.rs, bin/exo-session.rs",
+      "work": "Make one Rust revisioned transaction/event journal authoritative for CAD, grade, sewing, materials and exports; provide safe crash-consistent save/undo/redo and schema migration.",
+      "acceptance": "Real UI mixed-draft/native history command sends Rust undo/redo; power-failure injection, cold restart, file hash and history recovery; no original project overwritten.",
+      "dependencies": [
+        1,
+        33
+      ],
+      "name": "Persistence / undo / history / restore",
+      "sourceLines": 2469,
+      "files": 18,
+      "rustSourcePercent": 4.0,
+      "rustSourceLines": 98,
+      "sourceExamples": [
+        "integrations/clothcraft/workspace.mjs",
+        "integrations/clothcraft/nativeMirrorTransaction20261030.mjs",
+        "src/core/nativeGradeSidecarCodec.js",
+        "src/core/accumarkNativeGradedTemplateTransaction20261024.js",
+        "src/core/modarisNativeSixSizeDependencyTransaction20261027.js",
+        "src/core/projectRestore.js",
+        "src/core/nativeGradeCanonicalSizeTransaction20261028.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 30,
+      "phase": "F4 Materials and assets",
+      "upstream": "garment/presets.rs, project.rs",
+      "work": "Port catalog search/indexing, provenance, license records and reusable template validation into Rust; keep pure media asset listings declarative where appropriate.",
+      "acceptance": "Deterministic asset catalog, valid relative paths, duplicate-ID rules and backward-compatible template instantiate/grade/reopen; no unlicensed bundled content.",
+      "dependencies": [
+        1,
+        7,
+        33
+      ],
+      "name": "Libraries / templates / presets",
+      "sourceLines": 4251,
+      "files": 33,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/data/templates.js",
+        "src/core/projectFileLibrary.js",
+        "src/core/garmentCode.js",
+        "src/core/accumarkCommandParityCatalog20261024.js",
+        "src/data/jeans501.js",
+        "src/core/nativeGradeCatalogBridge20261025.js",
+        "src/core/exoTemplateSeamTrueing20261102.js"
+      ],
+      "nativeRustReferenceLines": 952
+    },
+    {
+      "id": 31,
+      "phase": "F6 Agents, tools and platform",
+      "upstream": "authoring/geometry.rs, garment/curves.rs",
+      "work": "Expose Rust image-to-pattern measured vector intake with perspective/scale calibration; keep optional OCR/ML service as isolated auxiliary with provenance.",
+      "acceptance": "Reference photo with verified calibration produces a valid Rust source contour; wrong units, untrusted image and orphan marks fail without mutating user pattern.",
+      "dependencies": [
+        2,
+        3,
+        33
+      ],
+      "name": "Image digitizing / vision / references",
+      "sourceLines": 742,
+      "files": 8,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/exoGarmentPhotoReference20261102.js",
+        "integrations/clothcraft/pattern-source-geometry-20261102.py",
+        "src/core/accumarkPhotoDigitize20261024.js",
+        "src/core/exoLocalPhotoVisionClient20261102.js",
+        "src/core/accumarkDigitizing20261023.js",
+        "src/core/referenceImageDrop20261028.js",
+        "src/core/referenceImageImportGate20261029.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 32,
+      "phase": "F6 Agents, tools and platform",
+      "upstream": "authoring.rs, project.rs, bin/exo-session.rs",
+      "work": "Wrap AI-generated drafts/commands through typed Rust capabilities and preview/diff approval; never let model output directly bypass document, factory or license checks.",
+      "acceptance": "Hostile or malformed agent commands reject; generated sewing proposal requires acceptance; no factory-ready flags or raw file writes from model output.",
+      "dependencies": [
+        1,
+        29,
+        33,
+        25
+      ],
+      "name": "AI assistant / generation / automation",
+      "sourceLines": 3828,
+      "files": 29,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/exoCompanionExperience20261102.js",
+        "src/core/exoCompanionVoice20261102.js",
+        "integrations/clothcraft/agent-api.mjs",
+        "src/core/exoCompanionCharacterPreferences20261102.js",
+        "src/core/exoCompanionCommands20261102.js",
+        "integrations/clothcraft/pattern-synthesis-model-20261102.py",
+        "src/core/exoTextSketchPatternCandidate20261102.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 33,
+      "phase": "F0 Core contracts",
+      "upstream": "bin/exo-session.rs, lib.rs, project.rs",
+      "work": "Create a versioned typed Rust command/RPC boundary between EXO and marvelous-cloth; migrate Node decision logic and transport through a compatibility shim while pairing Rust binaries to source hashes.",
+      "acceptance": "Browser/desktop IPC schema tests, credential/origin checks, backpressure, transport errors, native ABI probes, full real edit/save/reopen across subprocess restart.",
+      "dependencies": [
+        1,
+        37
+      ],
+      "name": "API / processes / transport",
+      "sourceLines": 7093,
+      "files": 64,
+      "rustSourcePercent": 23.0,
+      "rustSourceLines": 1630,
+      "sourceExamples": [
+        "native_cpp/cli/main.cpp",
+        "integrations/clothcraft/exo-session.rs",
+        "integrations/clothcraft/server.mjs",
+        "ppf_backend/server.mjs",
+        "integrations/clothcraft/rust-mcp-server/src/main.rs",
+        "integrations/clothcraft/runtime-provenance.mjs",
+        "src/core/backends/nativeServiceBackend.js"
+      ],
+      "nativeRustReferenceLines": 4240
+    },
+    {
+      "id": 34,
+      "phase": "F6 Agents, tools and platform",
+      "upstream": "project.rs, authoring.rs",
+      "work": "Move authoritative permissions, optimistic-lock source revisions and collaboration merge validation to Rust; retain any UI presence and rendering in the client.",
+      "acceptance": "Concurrent edit collision/rollback cases, privilege-denied mutation, stale revision, secure secrets, deterministic merge and authorization negative fixtures.",
+      "dependencies": [
+        1,
+        29,
+        33
+      ],
+      "name": "Collaboration / security / sync",
+      "sourceLines": 871,
+      "files": 7,
+      "rustSourcePercent": 17.3,
+      "rustSourceLines": 151,
+      "sourceExamples": [
+        "integrations/clothcraft/collaboration.mjs",
+        "rust/exo_collaboration_sse_kernel/src/lib.rs",
+        "src/core/projectCollaborationClient.js",
+        "src/core/patternVisualTokens.js",
+        "src/core/rustCollaborationSseKernel.js",
+        "integrations/clothcraft/agent-key-store.mjs",
+        "integrations/clothcraft/workspace-auth.mjs"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 35,
+      "phase": "F6 Agents, tools and platform",
+      "upstream": "solver.rs, garment/diagnostics.rs",
+      "work": "Expose Rust structured timing, solver/geometry diagnostics, invariants and provenance logs with optional tracing streams. Keep cross-language QA harnesses until conversion evidence closes.",
+      "acceptance": "Trace links source/size/solver/schema/commit; performance baselines across machines with no hidden green status for failed collision/plot/grade gates.",
+      "dependencies": [
+        12,
+        25,
+        33
+      ],
+      "name": "Diagnostics / performance / misc",
+      "sourceLines": 221,
+      "files": 5,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/accumarkSewlineMismatchDiagnostic20261023.js",
+        "src/core/sewingLengthDiagnostics.js",
+        "ppf_backend/stagingDiagnostics.mjs",
+        "blender_bridge/inspect_fit_scene.py",
+        "ppf_backend/processStatus.mjs"
+      ],
+      "nativeRustReferenceLines": 28
+    },
+    {
+      "id": 36,
+      "phase": "F7 Rust-native UI",
+      "upstream": "atelier.rs, atelier/workspace.rs, editor.rs",
+      "work": "Adopt and extend upstream egui authoring interactions as EXO's Rust-native interface, mapping current 2D/3D and inspector commands to Rust canonical document without duplicating geometry authority.",
+      "acceptance": "Keyboard/mouse/touch smoke, undo transaction parity, screenshots and accessibility audit; editable tee and hood; no regression in EXO save/reopen or solver state.",
+      "dependencies": [
+        1,
+        2,
+        29,
+        33,
+        37
+      ],
+      "name": "Native Rust editor / backend UI glue",
+      "sourceLines": 0,
+      "files": 0,
+      "rustSourcePercent": 0,
+      "rustSourceLines": 0,
+      "sourceExamples": [],
+      "nativeRustReferenceLines": 5960
+    },
+    {
+      "id": 37,
+      "phase": "F0 Core contracts",
+      "upstream": "lib.rs, fitting.rs, solver.rs, garment/mod.rs",
+      "work": "Pin the clean erythrofr upstream commit as an auditable Rust dependency. Separate EXO extensions via adapter crate and explicit feature flags; reconcile dirty local modifications before integration; prepare upstreamable patches individually.",
+      "acceptance": "Clean upstream Cargo tests + EXO adapter tests; API/serde compatibility, identical units, original upstream editor opens base fixture; no source copying without provenance.",
+      "dependencies": [],
+      "name": "Native Rust engine shared core",
+      "sourceLines": 471,
+      "files": 7,
+      "rustSourcePercent": 94.9,
+      "rustSourceLines": 447,
+      "sourceExamples": [
+        "rust/exo_ui_kernel/src/lib.rs",
+        "rust/exo_material_guide_kernel/src/lib.rs",
+        "rust/exo_core_math_kernel/src/lib.rs",
+        "rust/exo_selection_metrics_kernel/src/lib.rs",
+        "rust/exo_anchor_kernel/src/lib.rs",
+        "src/core/garmentPreviewPaging.js",
+        "rust/exo_preview_offset_kernel/src/lib.rs"
+      ],
+      "nativeRustReferenceLines": 13438
+    },
+    {
+      "id": 38,
+      "phase": "F6 Agents, tools and platform",
+      "upstream": "lib.rs, authoring.rs, project.rs",
+      "work": "Trace unclassified JS imports and actual runtime calls. Assign every command to a Rust module or mark pure presentation and remove only proven dead duplicates; preserve tests.",
+      "acceptance": "100% of 108 classified source files have reviewed ownership ledger, deterministic Rust migration or documented UI-only retention; never delete on filename alone.",
+      "dependencies": [
+        1,
+        33,
+        39
+      ],
+      "name": "Unclassified JS business logic",
+      "sourceLines": 9221,
+      "files": 108,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "src/core/backends/nativePayload.js",
+        "src/core/manufacturingReleaseReadiness.js",
+        "src/core/backends/nativeFoundationTeeHingedBodyConstraintInventory20261025.js",
+        "src/core/industrialPatternQA.js",
+        "src/core/backends/nativeCreaseRepairCandidateGate20261024.js",
+        "src/core/nativePatternConstraintBindings20261023.js",
+        "src/core/createStageEnvironment.js"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 39,
+      "phase": "F6 Agents, tools and platform",
+      "upstream": "atelier/workspace.rs, authoring.rs",
+      "work": "Recreate tools, keymaps, property inspectors, customization and command routing in egui Rust; persist user preferences in versioned Rust schema.",
+      "acceptance": "Input-equivalence tests for select, draw, grade, seam and undo; keyboard shortcut collisions and restored layout/theme after relaunch.",
+      "dependencies": [
+        29,
+        33,
+        37
+      ],
+      "name": "Workspace commands / tools / preferences",
+      "sourceLines": 2208,
+      "files": 35,
+      "rustSourcePercent": 4.9,
+      "rustSourceLines": 108,
+      "sourceExamples": [
+        "src/core/themePresetManager.js",
+        "src/core/clo7NativeToolCapabilities.js",
+        "src/core/cloPropertyCommands.js",
+        "src/core/exoSettingsColorPresets20261028.js",
+        "src/core/studioCustomization.js",
+        "src/data/clo7ToolbarOrder.js",
+        "rust/exo_command_contract/src/lib.rs"
+      ],
+      "nativeRustReferenceLines": 325
+    },
+    {
+      "id": 40,
+      "phase": "F7 Rust-native UI",
+      "upstream": "main.rs, editor.rs, render.rs",
+      "work": "Replace Swift WKWebView shell only after Rust-native eframe/wgpu packaging handles windows, menu, dialogs, file access, GPU startup and safe lifecycle; keep limited native OS FFI when unavoidable.",
+      "acceptance": "Clean Apple Silicon macOS installer and Windows/Linux smoke, open/save/reopen, cancellation and GPU recovery; codesign/notarization, rollback and bundle/source parity.",
+      "dependencies": [
+        33,
+        36,
+        37
+      ],
+      "name": "macOS native host / lifecycle",
+      "sourceLines": 3680,
+      "files": 5,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "integrations/clothcraft/macos/clo-inspector-bridge/main.swift",
+        "integrations/clothcraft/macos/EXOClothCraftWorkspaceV2.swift",
+        "integrations/clothcraft/macos/EXOClothCraftWorkspace.swift",
+        "integrations/clothcraft/macos/EXOClothCraft.swift",
+        "integrations/clothcraft/macos/vision-hand-landmarks.swift"
+      ],
+      "nativeRustReferenceLines": 0
+    },
+    {
+      "id": 41,
+      "phase": "F6 Agents, tools and platform",
+      "upstream": "lib.rs, project.rs",
+      "work": "Inventory miscellaneous integration and techpack-studio backends; assign Rust service boundaries or discard only evidence-proven abandoned prototypes.",
+      "acceptance": "Each remaining file has owner, dependency, test fixture, license classification and native replacement or documented noncritical presentation exception.",
+      "dependencies": [
+        27,
+        33,
+        38
+      ],
+      "name": "Other backend source",
+      "sourceLines": 539,
+      "files": 5,
+      "rustSourcePercent": 0.0,
+      "rustSourceLines": 0,
+      "sourceExamples": [
+        "techpack-studio/src/model.js",
+        "integrations/clo_sdk/cli.mjs",
+        "integrations/clo_sdk/plan_501_arrangement.py",
+        "techpack-studio/src/visualModel.js",
+        "src/hooks/useNativeWorkspaceRequest.js"
+      ],
+      "nativeRustReferenceLines": 0
+    }
+  ],
+  "ui": {
+    "date": "2026-11-14",
+    "method": "Non-test React UI component JS/JSX/TS and matching CSS from src/App.jsx, src/main.jsx, src/components/**, src/*.css; filename-based primary UI area; CSS listed as UI styles, not Rust; excludes third-party CSS, assets, external Rust/egui UI and code contained in backend paths. Product-feature completion is not measured.",
+    "jsLines": 61552,
+    "jsFiles": 220,
+    "cssLines": 19576,
+    "cssFiles": 130,
+    "groups": [
+      {
+        "name": "Shell & primary workspaces",
+        "js": 18906,
+        "css": 148,
+        "files": 7,
+        "sample": [
+          "src/App.jsx",
+          "src/main.jsx",
+          "src/components/ClothCraftBoardV2.jsx",
+          "src/components/ClothCraftWorkspace.jsx",
+          "src/components/StudioWorkspaceWidgets.jsx"
+        ],
+        "lines": 19054,
+        "sharePercent": 23.49,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "eframe/egui dock and workspace state; replace React app shell, navigation and multi-window layout with Rust commands and persisted geometry.",
+        "acceptance": "Match desktop 2D/3D split, tool access, preferences, file state and reopening; comparison screenshot and keyboard walkthrough."
+      },
+      {
+        "name": "3D viewport & simulation",
+        "js": 9354,
+        "css": 641,
+        "files": 30,
+        "sample": [
+          "src/components/ClothCraftSceneV2.jsx",
+          "src/components/HardwareButton3D.js",
+          "src/components/ViewportQuickTools.jsx",
+          "src/components/Library3DAssetPreview.jsx",
+          "src/components/ZipperHardware3D.js"
+        ],
+        "lines": 9995,
+        "sharePercent": 12.32,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "egui_wgpu / upstream render.rs; migrate all 3D view manipulation, solve playback, overlay legends and GPU memory handling while keeping solver independent of render.",
+        "acceptance": "Camera/picking/parity and stable CPU/GPU frame playback with versioned document, no ghost frame."
+      },
+      {
+        "name": "Other UI components",
+        "js": 2764,
+        "css": 6147,
+        "files": 28,
+        "sample": [
+          "src/components/ClothCraftGraphicEditor.jsx",
+          "src/components/ValentinaSourceRelink20261031.jsx",
+          "src/components/NativePersistedCrossPieceStudio20261030.jsx",
+          "src/components/IndustrialGradeWorkbench.jsx",
+          "src/components/ClothCraftStudioSilhouette.jsx"
+        ],
+        "lines": 8911,
+        "sharePercent": 10.98,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Audit every uncategorized UI file before assigning to egui widget groups, underlying Rust services or optional non-critical UI; inventory CSS theme tokens.",
+        "acceptance": "File-by-file 100% ownership and screenshot/interactions acceptance; no silent deletion."
+      },
+      {
+        "name": "Tech packs & specifications",
+        "js": 6836,
+        "css": 1951,
+        "files": 39,
+        "sample": [
+          "src/components/PatternFlatSheetPreview.jsx",
+          "src/components/ExoFashionProductDevelopment20261102.jsx",
+          "src/components/TechPackBottomTablePicker20261031.jsx",
+          "src/components/TechPackMiddleTemplatePreview20261031.jsx",
+          "src/components/TechPackWorkspace.jsx"
+        ],
+        "lines": 8787,
+        "sharePercent": 10.83,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Native egui techpack page editor driven by Rust BOM/POM/spec document; import visual page objects and responsive grids.",
+        "acceptance": "Export PDF/XLSX with same engineering content, page rendering and saved edit history."
+      },
+      {
+        "name": "Tools, inspectors & settings",
+        "js": 4637,
+        "css": 3646,
+        "files": 45,
+        "sample": [
+          "src/components/StudioSettingsDialog.jsx",
+          "src/components/CloSettingsPages.jsx",
+          "src/components/StudioCustomToolbar.jsx",
+          "src/components/WorkspaceCommandPalette.jsx",
+          "src/components/StudioToolbarBuilder.jsx"
+        ],
+        "lines": 8283,
+        "sharePercent": 10.21,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Convert React inspectors, color/theme settings, commands, palettes, custom widgets to typed Rust egui state and persisted preferences.",
+        "acceptance": "All panel controls, shortcuts, customizations, undo routing and layout restoration tested."
+      },
+      {
+        "name": "CAD drawing & pattern editing",
+        "js": 4793,
+        "css": 1350,
+        "files": 42,
+        "sample": [
+          "src/components/nativeInternalCurve.js",
+          "src/components/NativePatternBindingsInspector20261023.jsx",
+          "src/components/ModarisProfessionalPanels20261027.jsx",
+          "src/components/assembledTeePreviewGeometry.js",
+          "src/components/PatternEditor.jsx"
+        ],
+        "lines": 6143,
+        "sharePercent": 7.57,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Create Rust 2D canvas using upstream authoring and egui painter with calibrated coordinate space, snapping and selection.",
+        "acceptance": "DPI/zoom/pointer/snap parity, millimeter ruler, multi-step undo and real sketch-to-pattern smoke."
+      },
+      {
+        "name": "Factory & interchange",
+        "js": 3909,
+        "css": 1916,
+        "files": 43,
+        "sample": [
+          "src/components/AccuMarkSewlineMismatchInspector20261023.jsx",
+          "src/components/AccuMarkFoundationStudio20261024.jsx",
+          "src/components/AccuMarkDraftGradeOverlay20261023.jsx",
+          "src/components/AccuMarkProductionControls.jsx",
+          "src/components/AccuMarkNativeGradePointInspector20261023.jsx"
+        ],
+        "lines": 5825,
+        "sharePercent": 7.18,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Eg ui factory panels, DXF import/export dialogs, size marker controls and clear production safety flags backed by Rust validation.",
+        "acceptance": "UI cannot authorize invalid CUT; generated DXF/PDF and marker metadata match Rust project."
+      },
+      {
+        "name": "Sewing & construction",
+        "js": 2176,
+        "css": 1484,
+        "files": 31,
+        "sample": [
+          "src/components/ModarisLinkedFacingStudy20261027.jsx",
+          "src/components/NativeSeamEndpointEditor20261025.jsx",
+          "src/components/NativeDartPrecisionTool20261023.jsx",
+          "src/components/NativeSewingGestureDock20261025.jsx",
+          "src/components/SeamWalkPreview.jsx"
+        ],
+        "lines": 3660,
+        "sharePercent": 4.51,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Use upstream atelier/seams_ui.rs and seam_links.rs to build native edge binding, stitch direction, sewing status and staged construction panels.",
+        "acceptance": "Real pointer seam connection, orphan rejection, cold reopen and sewn mesh view consistency."
+      },
+      {
+        "name": "Grading & measurements",
+        "js": 2277,
+        "css": 923,
+        "files": 21,
+        "sample": [
+          "src/components/ModarisGradedCurvedNotchStudy20261027.jsx",
+          "src/components/ModarisF7SizeEvolution20261028.jsx",
+          "src/components/NativeGradingPOMEditor20261025.jsx",
+          "src/components/AccuMarkGradingPrecisionControls20261023.jsx",
+          "src/components/NativeGradingPOMOverlay20261025.jsx"
+        ],
+        "lines": 3200,
+        "sharePercent": 3.94,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Native egui grading table, six-size overlay, formula and POM inspectors bound directly to Rust master size run.",
+        "acceptance": "Real edit/Save/Undo/Redo on six distinct graded sizes, output coordinate equivalence."
+      },
+      {
+        "name": "Libraries & references",
+        "js": 2097,
+        "css": 532,
+        "files": 23,
+        "sample": [
+          "src/components/ExoArchiveSearch20261102.jsx",
+          "src/components/ModarisNativeReferenceRecompute20261027.jsx",
+          "src/components/PatternLibraryThumbnail.jsx",
+          "src/components/StageCatalog.jsx",
+          "src/components/GarmentCodeV2Library.jsx"
+        ],
+        "lines": 2629,
+        "sharePercent": 3.24,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Rust catalog previews, template browser, searchable indexed file library, image import and provenance panel.",
+        "acceptance": "Source hash/rights displayed; valid file open, missing asset and migration behaviors tested."
+      },
+      {
+        "name": "Fabrics, trims & materials",
+        "js": 2130,
+        "css": 335,
+        "files": 31,
+        "sample": [
+          "src/components/HardwareLibrary.jsx",
+          "src/components/CloButtonShapeEditor.jsx",
+          "src/components/FabricScanMacroPreview.jsx",
+          "src/components/PantoneColorLibrary.jsx",
+          "src/components/ClothCraftImportedHardwareOverlay.jsx"
+        ],
+        "lines": 2465,
+        "sharePercent": 3.04,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Native color/fabric browser, physically meaningful material sliders and trim placement via egui/wgpu and Rust material records.",
+        "acceptance": "Optical-only change does not reset physics; mechanical edit does, with exact texture and visual QA."
+      },
+      {
+        "name": "AI & assistant",
+        "js": 1673,
+        "css": 503,
+        "files": 10,
+        "sample": [
+          "src/components/ExoCompanionPatternReview20261102.jsx",
+          "src/components/ExoAppCharacterAssistant20261102.jsx",
+          "src/components/ExoCompanionCharacterSettingsPage20261102.jsx",
+          "src/components/ExoPatternIntelligence20261102.jsx",
+          "src/components/PatternIntelligenceLibrary.jsx"
+        ],
+        "lines": 2176,
+        "sharePercent": 2.68,
+        "rustPercent": 0,
+        "phase": "F7 Rust-native UI",
+        "rustTarget": "Native conversational/agent panel invokes validated Rust tool commands; keep ML services optional isolated integrations.",
+        "acceptance": "Review/diff before apply, unauthorized proposal rejection and no factory-ready claim from AI output."
+      }
+    ],
+    "nativeRustUIReferenceLines": 5960,
+    "totalLines": 81128
+  },
+  "globalAcceptance": [
+    "No repository-wide rewrite in one step: each migration unit is a module or transaction with traced current runtime ownership, source hash and accepted tests.",
+    "One shared project source of truth using versioned Rust structs, metres/kilograms/seconds/Newtons internally and explicit mm conversions at manufacturing/export boundaries.",
+    "Clean original erythrofr/ClothCraft baseline must build/test without EXO patches; EXO Rust adapters must build against pinned upstream APIs; upstream patch proposals stay separately reviewable.",
+    "For each system: golden source fixtures, JS/C++/Python-to-Rust parity where reference is reliable, malformed-input negatives, integrated UI command tests, undo/reopen and migration/recovery checks.",
+    "No tested source module automatically qualifies as active installed code; stage exact binary hashes, CPU/GPU feature metadata, new-app installer evidence and rollback.",
+    "Production exports need independent external CAD and measured print/cutter evidence; drape/fit needs physical and multi-frame contact acceptance; never infer certification from percentages.",
+    "Native UI migration captures feature inventory, interaction contracts, screenshots, keyboard access and persistency; current React desktop remains operational until Rust egui UI passes independent parity.",
+    "Every system and UI area gets a tracked owner, upstream compatibility version, acceptance reviewer, positive and negative tests; percent increases require durable proof of source/runtime migration."
+  ],
+  "completionModel": {
+    "sourceRustPercent": 5.16,
+    "rustVerifiedOwnershipPercent": null,
+    "uiRustPercent": 0,
+    "uiNativeReferenceLines": 5960,
+    "uiLineShareOfScopedApp": 36.99,
+    "backendLineShareOfScopedApp": 63.01
+  }
+}

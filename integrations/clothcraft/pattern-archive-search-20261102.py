@@ -3,7 +3,11 @@ import json
 import os
 import sqlite3
 import sys
+from importlib.machinery import SourceFileLoader
 from pathlib import Path
+
+geometry_index = SourceFileLoader('exo_trained_geometry_index_20261103',
+    str(Path(__file__).with_name('trained-geometry-index-20261103.py'))).load_module()
 
 def archive_root():
     """Keep the large, user-owned index outside the signed native application."""
@@ -37,19 +41,14 @@ def nearest(options):
         return {'ok': False, 'error': 'invalid_limit', 'results': []}
     if not 1 <= limit <= 30:
         return {'ok': False, 'error': 'invalid_limit', 'results': []}
-    directory = ROOT / 'training/geometry-encoder-full-archive'
-    embeddings_path = directory / 'source-embeddings-v1.npz'
-    checkpoint_path = directory / 'geometry-encoder-v1.npz'
-    manifest_path = directory / 'training-manifest.json'
-    if not all(p.is_file() for p in (embeddings_path, checkpoint_path, manifest_path)):
-        return {'ok': False, 'error': 'geometry_embeddings_unavailable', 'results': []}
     try:
         import numpy as np
     except ImportError:
         return {'ok': False, 'error': 'numpy_unavailable', 'results': []}
-    with np.load(embeddings_path, allow_pickle=False) as arrays:
-        ids = arrays['sourceIds']
-        vectors = arrays['embeddings']
+    selected = geometry_index.best(ROOT, source_id=source_id)
+    if selected is None:
+        return {'ok': False, 'error': 'source_embedding_unavailable', 'results': []}
+    ids, vectors = selected['ids'], selected['vectors']
     if vectors.ndim != 2 or vectors.shape[1] != 16 or len(ids) != len(vectors) or not np.isfinite(vectors).all():
         return {'ok': False, 'error': 'invalid_geometry_embeddings', 'results': []}
     # Exact source identity; no prompt encoding, approximation, or fallback query vector.
@@ -83,10 +82,11 @@ def nearest(options):
             item['specificationLocallyAvailable'] = (ROOT / item['source_path']).is_file()
             item['dxfLocallyAvailable'] = bool(item['dxf_path'] and (ROOT / item['dxf_path']).is_file())
             results.append(item)
-        manifest = json.loads(manifest_path.read_text())
+        manifest = selected['manifest']
         return {'ok': True, 'sourceId': source_id, 'results': results,
                 'embeddingCount': len(ids), 'embeddingDimensions': vectors.shape[1],
                 'similarityMetric': 'cosine', 'searchMode': 'learned_geometry_embedding_nearest_source',
+                'checkpointDirectory': selected['checkpointDirectory'],
                 'modelType': manifest.get('modelType', 'geometry encoder'),
                 'sourceDOI': manifest.get('sourceDOI'),
                 'limitations': 'Cosine similarity is not a fit score, calibrated confidence, new pattern generation, or manufacturing approval. Requires an existing encoded sourceId; only source patterns in the saved embedding checkpoint can be queried.'}
@@ -144,9 +144,10 @@ def search(options):
             item['dxfLocallyAvailable'] = bool(item['dxf_path'] and (ROOT / item['dxf_path']).is_file())
             item['hasRecordedDxfPath'] = bool(item['dxf_path'])
             results.append(item)
+        latest = geometry_index.best(ROOT)
         return {'ok': True, 'results': results, 'matched': total, 'limit': limit, 'offset': offset,
                 'coverage': {'indexed': indexed[0], 'recordedDxfPaths': indexed[1] or 0,
-                             'geometryEmbeddings': 50036 if (ROOT / 'training/geometry-encoder-full-archive/source-embeddings-v1.npz').is_file() else 0},
+                             'geometryEmbeddings': latest['count'] if latest else 0},
                 'searchMode': 'source_id_or_literal_tag',
                 'limitations': 'Catalog entries are not factory-approved patterns. Many source specifications reside in archives, and most entries have no DXF path. Text queries match recorded body/element IDs only.'}
     finally:

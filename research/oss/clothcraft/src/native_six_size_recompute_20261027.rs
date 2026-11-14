@@ -73,11 +73,11 @@ fn qualified(template: &GarmentTemplate, panel_id: &str) -> Result<(), String> {
         || !poly.lines.is_empty()
         || !poly.target_lengths.is_empty()
         || !poly.annotations.is_empty()
-        || !poly.measurements.is_empty()
     {
         return Err("Attached geometry or manufacturing metadata is unsupported".into());
     }
     contour(&poly.points)?;
+    poly.validate_measurements()?;
     qualified_free_knots(poly)?;
     // Only native single-span cubic pairs on existing named boundaries qualify.
     // The physical offset kernel and grade validator independently check curves.
@@ -360,14 +360,12 @@ fn verify_industrial(poly: &PolygonPattern) -> Result<(), String> {
     Ok(())
 }
 
-fn direct(graph: &NativeDraftPointBindings, name: &str) -> Result<f64, String> {
+fn direct(evaluated: &BTreeMap<String, f64>, name: &str) -> Result<f64, String> {
     // Geometry distances may refer to computed named measurements, but the
     // *overrides* themselves must still be direct authored inputs (enforced
     // by the caller's match below). Evaluate the complete saved worksheet in
     // Rust before deriving any dependent point coordinate; cycles, unknown
     // names, invalid arithmetic and nonfinite results must fail closed.
-    let evaluated=crate::native_measurement_formulas_20261027::
-        evaluate_native_measurements_20261027(&graph.measurements)?;
     let mm=*evaluated.get(name).ok_or("Unknown native measurement distance")?;
     if !mm.is_finite() || mm.abs() > 5000. {
         return Err("Native computed measurement exceeds ±5000 mm".into());
@@ -431,9 +429,11 @@ pub fn recompute_native_six_size_measurement20261027(
     if !saved.source_matches(&project.template) {
         return Err("Stale native source graph".into());
     }
+    let saved_values = crate::native_measurement_formulas_20261027::
+        evaluate_native_measurements_20261027(&saved.measurements)?;
     let mut graph = saved.clone();
     for (key, value) in overrides {
-        direct(&graph, key)?;
+        direct(&saved_values, key)?;
         if !value.is_finite() || value.abs() > 5000. {
             return Err("Invalid direct mm override".into());
         }
@@ -450,6 +450,8 @@ pub fn recompute_native_six_size_measurement20261027(
         }
     }
     graph.valid_against(&project.template)?;
+    let next_values = crate::native_measurement_formulas_20261027::
+        evaluate_native_measurements_20261027(&graph.measurements)?;
     let mut by_id = BTreeMap::new();
     let mut by_target = BTreeMap::new();
     for rule in &graph.bindings {
@@ -484,7 +486,7 @@ pub fn recompute_native_six_size_measurement20261027(
         let poly = project.template.panels.iter()
             .find(|p| p.id == rule.panel_id).unwrap().polygon.as_ref().unwrap();
         let a = poly.points[rule.a];
-        let old_distance = direct(saved, &rule.distance_formula)?;
+        let old_distance = direct(&saved_values, &rule.distance_formula)?;
         let expected = match rule.mode.as_str() {
             "polar" => {
                 let angle = rule.angle_deg.unwrap_or(0.).to_radians();
@@ -536,7 +538,7 @@ pub fn recompute_native_six_size_measurement20261027(
             .as_mut()
             .unwrap();
         let a = poly.points[rule.a];
-        let distance = direct(&graph, &rule.distance_formula)?;
+        let distance = direct(&next_values, &rule.distance_formula)?;
         let next = match rule.mode.as_str() {
             "polar" => {
                 let angle = rule.angle_deg.unwrap_or(0.).to_radians();
@@ -765,6 +767,31 @@ pub fn recompute_native_six_size_measurement20261027(
                 "namedEdgeCount":named_edge_count,"notchCount":notch_count,
                 "nativeCutAndSewValidated":true})
         }).collect::<Vec<_>>();
+    // Measure from actual material-space boundaries, not stale cached lengths
+    // or point displacement estimates. Stable stations survive shape changes;
+    // all six catalogs must preserve every authored measurement exactly.
+    let mut per_size_measurements = Vec::new();
+    for (i, size) in run.sizes.iter().enumerate() {
+        let mut measurements = Vec::new();
+        for (before, after) in run.graded_templates[i].panels.iter()
+            .zip(&next_run.graded_templates[i].panels) {
+            if let (Some(old), Some(new)) = (&before.polygon, &after.polygon) {
+                if old.measurements != new.measurements {
+                    return Err(format!("Grade {size} changed saved POM references: {}", before.id));
+                }
+                old.validate_measurements()?;
+                new.validate_measurements()?;
+                for pom in &old.measurements {
+                    measurements.push(serde_json::json!({
+                        "panelId":before.id,"id":pom.id,"label":pom.label,
+                        "beforeMm":old.measurement_length(pom)? * 1000.,
+                        "afterMm":new.measurement_length(pom)? * 1000.,
+                    }));
+                }
+            }
+        }
+        per_size_measurements.push(serde_json::json!({"size":size,"measurements":measurements}));
+    }
     let by_size = run
         .sizes
         .iter()
@@ -803,6 +830,7 @@ pub fn recompute_native_six_size_measurement20261027(
         "changedBindings":changed_ids.len(), "panelIds":changes.keys().collect::<Vec<_>>(),
         "bindingIds":changed_ids, "bySize":by_size,"sizes":run.sizes, "baseSize":run.base_size,
         "perSizeIntegrity":per_size_integrity,
+        "perSizeMeasurements":per_size_measurements,
         "measurementOverrides":overrides, "manufacturerApproved":false,
     });
     Ok((next_base, next_run, graph, report))
@@ -1750,4 +1778,90 @@ mod tests {
         assert!(recompute_native_six_size_measurement20261027(
             &cycle,&BTreeMap::from([("half_neck".into(),40.)])).is_err());
     }
+    fn with_poms(mut project: FittingProject) -> FittingProject {
+        use crate::garment::polygon::{MeasurementAnchor, PatternMeasurement};
+        for panel in &mut project.template.panels {
+            let poly = panel.polygon.as_mut().unwrap();
+            poly.measurements.push(PatternMeasurement {
+                id: "span".into(), label: "Authored edge span".into(),
+                a: MeasurementAnchor { edge: poly.edges[0].clone(), t: 0.15 },
+                b: MeasurementAnchor { edge: poly.edges[0].clone(), t: 0.85 },
+            });
+        }
+        let run = project.grade_run.as_mut().unwrap();
+        run.base_template = project.template.clone();
+        for grade in &mut run.graded_templates {
+            for (base, panel) in project.template.panels.iter().zip(&mut grade.panels) {
+                panel.polygon.as_mut().unwrap().measurements = base.polygon.as_ref().unwrap().measurements.clone();
+            }
+        }
+        project.native_point_bindings.as_mut().unwrap().source_template = project.template.clone();
+        project
+    }
+
+    #[test]
+    fn persistent_poms_recalculate_straight_cubic_and_free_knot_six_sizes() {
+        for source in [sewn_fixture(), cubic_sewn_fixture(), free_knot_sewn_fixture()] {
+            let mut project = with_poms(source);
+            for width in [380., 410., 395.] {
+                let original = serde_json::to_value(&project).unwrap();
+                let (base, run, graph, report) = recompute_native_six_size_measurement20261027(
+                    &project, &BTreeMap::from([("neck_distance".into(), width)])).unwrap();
+                assert_eq!(serde_json::to_value(&project).unwrap(), original);
+                let evidence = report["perSizeMeasurements"].as_array().unwrap();
+                assert_eq!(evidence.len(), 6);
+                for (i, row) in evidence.iter().enumerate() {
+                    assert_eq!(row["size"], run.sizes[i]);
+                    assert_eq!(row["measurements"].as_array().unwrap().len(), base.panels.len());
+                    for (j, entry) in row["measurements"].as_array().unwrap().iter().enumerate() {
+                        let old = project.grade_run.as_ref().unwrap().graded_templates[i].panels[j].polygon.as_ref().unwrap();
+                        let new = run.graded_templates[i].panels[j].polygon.as_ref().unwrap();
+                        assert_eq!(old.measurements, new.measurements);
+                        assert!((entry["beforeMm"].as_f64().unwrap() - old.measurement_length(&old.measurements[0]).unwrap()*1000.).abs() < 1e-9);
+                        assert!((entry["afterMm"].as_f64().unwrap() - new.measurement_length(&new.measurements[0]).unwrap()*1000.).abs() < 1e-9);
+                        assert!((entry["afterMm"].as_f64().unwrap()-entry["beforeMm"].as_f64().unwrap()).abs()>0.01);
+                    }
+                }
+                project.template=base;project.grade_run=Some(run);project.native_point_bindings=Some(graph);
+            }
+        }
+    }
+
+    #[test]
+    fn persistent_poms_reject_invalid_stations_duplicates_and_size_metadata_drift() {
+        let good=with_poms(sewn_fixture());
+        for kind in 0..4 {
+            let mut bad=good.clone();
+            let poly=bad.grade_run.as_mut().unwrap().graded_templates[0].panels[0].polygon.as_mut().unwrap();
+            match kind {
+                0=>poly.measurements[0].a.edge="missing".into(),
+                1=>poly.measurements[0].a.t=1.5,
+                2=>poly.measurements.push(poly.measurements[0].clone()),
+                _=>poly.measurements[0].label="silently renamed".into(),
+            }
+            let before=serde_json::to_value(&bad).unwrap();
+            assert!(recompute_native_six_size_measurement20261027(&bad,
+                &BTreeMap::from([("neck_distance".into(),380.)])).is_err());
+            assert_eq!(serde_json::to_value(&bad).unwrap(),before);
+        }
+    }
+
+    #[test]
+    fn worksheet_batch_evaluates_final_state_not_invalid_intermediate_state() {
+        use crate::fitting::NativeDraftMeasurementDefinition;
+        let mut project=fixture();
+        let graph=project.native_point_bindings.as_mut().unwrap();
+        graph.measurements.insert("a".into(),NativeDraftMeasurement::Number(1.));
+        graph.measurements.insert("b".into(),NativeDraftMeasurement::Number(2.));
+        graph.measurements.insert("neck_distance".into(),NativeDraftMeasurement::Definition(
+            NativeDraftMeasurementDefinition { formula:Some("76.321687612 / (b - a)".into()),value_mm:None }));
+        // BTree order updates a first, momentarily making b-a zero. Only the
+        // complete atomic worksheet is meaningful; final b-a is 2.
+        let (base,run,_,_)=recompute_native_six_size_measurement20261027(&project,
+            &BTreeMap::from([("a".into(),2.),("b".into(),4.)])).unwrap();
+        run.validate(&base).unwrap();
+        assert!(recompute_native_six_size_measurement20261027(&project,
+            &BTreeMap::from([("a".into(),2.)])).is_err());
+    }
+
 }

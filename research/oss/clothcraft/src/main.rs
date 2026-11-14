@@ -13,6 +13,8 @@ use std::{
 #[cfg(feature = "desktop")]
 mod editor;
 #[cfg(feature = "desktop")]
+mod workspace_ui;
+#[cfg(feature = "desktop")]
 use marvelous_cloth::render;
 
 #[derive(Parser)]

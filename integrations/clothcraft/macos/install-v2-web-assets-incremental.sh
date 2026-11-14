@@ -33,6 +33,7 @@ SERVICE="$APP/Contents/Resources"
 BRIDGE_RELEASE=(
   integrations/clothcraft/server.mjs
   integrations/clothcraft/pattern-archive-search-20261102.py
+  integrations/clothcraft/trained-geometry-index-20261103.py
   integrations/clothcraft/pattern-source-geometry-20261102.py
   integrations/clothcraft/source-geometry-bridge-20261102.mjs
   integrations/clothcraft/research-contour-bridge-20261102.mjs

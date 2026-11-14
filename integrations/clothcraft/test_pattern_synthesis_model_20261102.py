@@ -38,7 +38,7 @@ class SynthesisTests(unittest.TestCase):
         self.assertNotEqual(result['donorSourceId'], self.source)
         self.assertGreater(result['embeddingCosineSimilarity'], 0)
         self.assertGreater(result['changedPanels'], 0)
-        self.assertEqual(result['geometryTrainingExamplesVerified'], 50036)
+        self.assertEqual(result['geometryTrainingExamplesVerified'], 73069)
         self.assertIn('remote-seam-40k', result['seamCheckpoint'])
 
     def test_donor_path_traversal_is_rejected(self):

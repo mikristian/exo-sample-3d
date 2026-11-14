@@ -13,6 +13,7 @@
 //! Presentation only: the worker thread, solver calls, file I/O and camera
 //! interaction below are unchanged from the previous layout.
 use crate::render::{Camera, Viewport};
+use crate::workspace_ui::{ViewLayout, WorkspaceAction, WorkspaceUi};
 use eframe::egui::{self, Color32, RichText, Stroke, Vec2};
 use marvelous_cloth::{
     model::{Mesh, Scene, State},
@@ -160,6 +161,7 @@ struct Editor {
     status: String,
     selected_edge: Option<usize>,
     tab: usize,
+    workspace: WorkspaceUi,
 }
 impl Editor {
     fn new(
@@ -201,6 +203,11 @@ impl Editor {
                 }
             })?;
         let project_path = output.join("project.json").to_string_lossy().into_owned();
+        let (workspace, workspace_warning) =
+            match WorkspaceUi::load(&output.join(WorkspaceUi::FILE_NAME)) {
+                Ok(workspace) => (workspace, None),
+                Err(reason) => (WorkspaceUi::default(), Some(reason)),
+            };
         Ok(Self {
             active: project.clone(),
             draft: project,
@@ -219,9 +226,11 @@ impl Editor {
             receive,
             project_path,
             output,
-            status: "Ready. The Simulation menu starts the CPU FEM solver.".into(),
+            status: workspace_warning
+                .unwrap_or_else(|| "Ready. The Simulation menu starts the CPU FEM solver.".into()),
             selected_edge: None,
             tab: 0,
+            workspace,
         })
     }
     fn reset(&mut self, project: Project) {
@@ -368,6 +377,15 @@ impl Editor {
                 ui.checkbox(&mut self.heat, "Strain");
                 ui.checkbox(&mut self.contacts, "Contacts");
             });
+            let mut native_action = None;
+            ui.menu_button("Workspace", |ui| native_action = self.workspace.menu(ui));
+            match native_action {
+                Some(WorkspaceAction::SaveProject) => self.save(),
+                Some(WorkspaceAction::LoadProject) => self.load(),
+                Some(WorkspaceAction::Frame3D) => self.camera = Camera::default(),
+                Some(WorkspaceAction::ResetSimulation) => self.reset(self.active.clone()),
+                None => {}
+            }
             ui.menu_button("Simulation", |ui| {
                 if ui.button(self.playing_label()).clicked() {
                     self.playing = !self.playing;
@@ -439,6 +457,13 @@ impl Editor {
             ui.checkbox(&mut self.wire, "Wireframe");
             ui.checkbox(&mut self.heat, "Strain");
             ui.checkbox(&mut self.contacts, "Contacts");
+            ui.separator();
+            ui.label("VIEW");
+            self.workspace.layout_controls(ui);
+            ui.separator();
+            if ui.button("Layout settings").clicked() {
+                self.workspace.settings_open = !self.workspace.settings_open;
+            }
             ui.separator();
             ui.label(format!("t = {:.3} s", self.state.time));
             if self.pending {
@@ -927,24 +952,65 @@ impl eframe::App for Editor {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.poll();
         let ctx = ui.ctx().clone();
+        let previous_workspace = self.workspace.clone();
         egui::Panel::top("menubar").show(ui, |ui| self.menu_bar(ui));
         egui::Panel::top("toolbar").show(ui, |ui| self.tool_strip(ui, &ctx));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
-        egui::Panel::left("palette")
-            .default_size(58.0)
-            .resizable(false)
-            .show(ui, |ui| self.palette(ui));
-        egui::Panel::right("inspector")
-            .default_size(320.0)
-            .size_range(260.0..=460.0)
-            .resizable(true)
-            .show(ui, |ui| self.inspector(ui));
-        egui::CentralPanel::default().show(ui, |ui| {
-            ui.columns(2, |cols| {
-                self.window_3d(&mut cols[0], &ctx);
-                self.window_2d(&mut cols[1]);
-            });
+        if self.workspace.palette_open {
+            egui::Panel::left("palette")
+                .default_size(58.0)
+                .resizable(false)
+                .show(ui, |ui| self.palette(ui));
+        }
+        if self.workspace.inspector_open {
+            let old_width = self.workspace.inspector_width;
+            let response = egui::Panel::right("inspector")
+                .default_size(old_width)
+                .size_range(260.0..=460.0)
+                .resizable(true)
+                .show(ui, |ui| self.inspector(ui));
+            self.workspace.inspector_width = response.response.rect.width().clamp(260.0, 460.0);
+        }
+        egui::CentralPanel::default().show(ui, |ui| match self.workspace.layout {
+            ViewLayout::Split => {
+                let available = ui.available_size();
+                let gutter = 10.0;
+                let left_width = ((available.x - gutter) * self.workspace.viewport_split).max(1.0);
+                let right_width = (available.x - gutter - left_width).max(1.0);
+                ui.horizontal(|ui| {
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(left_width, available.y),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| self.window_3d(ui, &ctx),
+                    );
+                    ui.add_space(gutter);
+                    ui.allocate_ui_with_layout(
+                        Vec2::new(right_width, available.y),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| self.window_2d(ui),
+                    );
+                });
+            }
+            ViewLayout::ThreeD => self.window_3d(ui, &ctx),
+            ViewLayout::TwoD => self.window_2d(ui),
         });
+        if self.workspace.settings_open {
+            let mut open = true;
+            egui::Window::new("EXO native workspace")
+                .open(&mut open)
+                .default_width(330.0)
+                .resizable(true)
+                .show(&ctx, |ui| self.workspace.settings(ui));
+            self.workspace.settings_open = open;
+        }
+        if previous_workspace != self.workspace {
+            if let Err(err) = self
+                .workspace
+                .save(&self.output.join(WorkspaceUi::FILE_NAME))
+            {
+                self.status = format!("Workspace settings could not be saved: {err}");
+            }
+        }
         if self.playing {
             self.step(&ctx);
         }

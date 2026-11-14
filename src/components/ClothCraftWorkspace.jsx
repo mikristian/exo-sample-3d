@@ -1,6 +1,7 @@
 import {useNativeWorkspaceRequest} from '../hooks/useNativeWorkspaceRequest.js'
 import {nativeAnchorCoordinateRequest20261030,nativeBoardResetBatchRequest20261030,nativeFacadeWireRequest20261030} from '../core/nativeWorkspaceCommandFacade20261030.mjs'
 import {nativeBridgeFetch,nativeWorkspaceHeaders as workspaceHeaders} from '../core/nativeWorkspaceTransport.js'
+import {nativeGradeActivateCommandV1,nativeGradeRestoreCommandV1} from '../core/exoNativeGradeCommandV1.js'
 import {patternTiledPrint,nativeCutlineTiledPrint} from '../core/patternTiledPrint.js'
 import {patternPrintReference} from '../core/patternPrintReference.js'
 import {selectNativePatternPrintSnapshot20261030} from '../core/nativePatternPrintSnapshot20261030.mjs'
@@ -76,6 +77,7 @@ import NativePatternAuditPanel from './NativePatternAuditPanel.jsx'
 import NativePatternConstructionTools20261023 from './NativePatternConstructionTools20261023.jsx'
 import {fingerprintNativePatternBindingsSource20261023} from '../core/nativePatternConstraintBindings20261023.js'
 import {resolveModaris2DHistoryPriority20261029} from '../core/modaris2DHistoryPriority20261029.js'
+import {inspectScopedNativeGradeHistory20261112,verifyScopedNativeGradeResult20261112} from '../core/scopedNativeGradeHistory20261112.js'
 import {persistModaris2DGradeDraftJournal20261029,decodeModaris2DGradeDraftJournal20261029,clearModaris2DGradeDraftJournal20261029} from '../core/modaris2DGradeDraftJournal20261029.js'
 import {inspectInterruptedModaris2DGradeDraftStage20261030,recoverInterruptedModaris2DGradeDraftStage20261030} from '../core/modaris2DGradeDraftJournal20261029.js'
 import {routeModarisNativeNumericalAnchor20261027} from '../core/modarisNativeAutomaticAnchor20261027.js'
@@ -263,6 +265,9 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const [nativePOMDefinitions,setNativePOMDefinitions]=useState([])
  const [selectedGradingPOMId,setSelectedGradingPOMId]=useState('')
  const [nativeGradeCatalogStatus,setNativeGradeCatalogStatus]=useState(null)
+ // Strictly scoped native catalog Undo/Redo is independent of the browser
+ // point-rule draft journal. Global Cmd+Z still refuses mixed chronology.
+ const scopedNativeGradeRedoWitness=useRef(null)
  const [nativeGradeCatalogMessage,setNativeGradeCatalogMessage]=useState('')
  const nativeGradeLastError=useRef('')
  const [nativeGradeRuleMessage,setNativeGradeRuleMessage]=useState('')
@@ -427,6 +432,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
    const verified=status?.persistedInProject?
      verifyNativeGradeCatalog20261025(state.current,nativeGradeRules,status,
        {durablySaved:true,pomDefinitions:nativePOMDefinitions}):null
+   scopedNativeGradeRedoWitness.current=null
    setNativeGradeCatalogStatus(verified?.ok?verified:null)
    setNativeGradeCatalogMessage(verified?.ok?
      `${nativeGradeRules.sizes.length} graded templates saved into the current native Rust project. 3D fit and graded CUT still require separate verification.`:
@@ -506,7 +512,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  const activateSavedNativeGradeSize=async size=>{
    if(!state.current||busy||playing||!state.current.nativeGradeActivationSupported||!nativeGradeCatalogStatus?.persisted)return
    if(!nativeGradeRules?.sizes?.includes(size)&&!Object.hasOwn(nativeGradeRules?.sizeEvolution?.correspondences||{},size))return
-   const result=await request({op:'grade-run-activate',revision:state.current.revision,size})
+   const result=await request(nativeGradeActivateCommandV1(state.current.revision,size))
    if(result?.activeGradedSize===size){
      setGradeNestSelectedSize(size)
      setNativeGradeCatalogMessage(`Native ${size} is active in both 2D and 3D. The original source and all six saved grade templates remain preserved. Factory approval is blocked.`)
@@ -514,7 +520,7 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
  }
  const restoreOriginalNativeGradeSize=async()=>{
    if(!state.current||busy||playing)return
-   const result=await request({op:'grade-run-restore',revision:state.current.revision})
+   const result=await request(nativeGradeRestoreCommandV1(state.current.revision))
    if(result&&result.activeGradedSize==null){
      setNativeGradeCatalogMessage('Restored the exact original native garment and preserved the complete XS–XXL grade catalog.')
    }else setNativeGradeCatalogMessage('Original garment restoration was not confirmed.')
@@ -2196,6 +2202,68 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
    return request({op})
   return null
  }
+ const requestScopedNativeGradeHistory=async direction=>{
+   if(!['undo','redo'].includes(direction))return null
+   if(busy||playing||running.current||lock.current)return null
+   const before=state.current
+   const draftBefore=nativeGradeDraftHistory.current
+   const rulesBefore=nativeGradeRulesRef.current
+   const decision=inspectScopedNativeGradeHistory20261112({direction,snapshot:before,
+     catalogStatus:nativeGradeCatalogStatus,redoWitness:scopedNativeGradeRedoWitness.current,
+     busy,playing,nativeBusy:running.current||lock.current,draftRuleSet:rulesBefore})
+   if(!decision.ok){setNativeGradeCatalogMessage('Rust catalog history blocked: '+decision.reason);return null}
+   // The history operation is permitted only for the same authoritative
+   // garment and revision confirmed by Rust after the user clicked this
+   // specific scoped control. Never guess chronological global history.
+   const latest=await request({op:'snapshot',revision:decision.revision})
+   const second=inspectScopedNativeGradeHistory20261112({direction,snapshot:latest,
+     catalogStatus:nativeGradeCatalogStatus,redoWitness:scopedNativeGradeRedoWitness.current,
+     busy,playing,nativeBusy:running.current||lock.current,draftRuleSet:rulesBefore})
+   if(!second.ok||latest?.revision!==decision.revision||
+      second.templateKey!==decision.templateKey||
+      state.current?.revision!==decision.revision||
+      nativeGradeDraftHistory.current!==draftBefore||nativeGradeRulesRef.current!==rulesBefore){
+     setNativeGradeCatalogMessage('Rust catalog history blocked: source or local grading draft changed during verification.')
+     return null
+   }
+   const result=await request({op:direction,revision:decision.revision})
+   const checked=verifyScopedNativeGradeResult20261112({decision,response:result,direction})
+   if(nativeGradeDraftHistory.current!==draftBefore||
+      nativeGradeRulesRef.current!==rulesBefore){
+     scopedNativeGradeRedoWitness.current=null
+     setNativeGradeCatalogStatus(null)
+     setNativeGradeCatalogMessage('Native Rust history may have completed, but the local grading draft changed during its transaction. Reopen and reconcile the native document; do not retry blindly.')
+     return null
+   }
+   if(!checked.ok){
+     scopedNativeGradeRedoWitness.current=null
+     setNativeGradeCatalogStatus(null)
+     setNativeGradeCatalogMessage('Rust catalog history requires review: '+checked.reason+' Reopen and verify the native document; do not retry blindly.')
+     return null
+   }
+   if(direction==='undo'){
+     scopedNativeGradeRedoWitness.current=checked
+     setNativeGradeCatalogStatus(null)
+     setNativeGradeCatalogMessage('Native Rust catalog undone. Local grading point-rule drafts and their Undo/Redo history were preserved. Use the separate Rust catalog Redo control to restore it.')
+     return result
+   }
+   scopedNativeGradeRedoWitness.current=null
+   const status=await request({op:'grade-run-status',revision:checked.revision})
+   const verified=status?.persistedInProject?
+     verifyNativeGradeCatalog20261025(state.current,nativeGradeRulesRef.current,status,
+       {durablySaved:true,pomDefinitions:nativePOMDefinitions}):null
+   setNativeGradeCatalogStatus(verified?.ok?verified:null)
+   setNativeGradeCatalogMessage(verified?.ok?
+     'Native Rust six-size catalog restored by Redo. Local draft history was preserved and the source revision reverified.':
+     'Native Rust catalog Redo completed, but its local grading comparison needs review. Verify saved sizes before further edits.')
+   return result
+ }
+ const canScopedNativeGradeUndo=inspectScopedNativeGradeHistory20261112({direction:'undo',
+   snapshot:s,catalogStatus:nativeGradeCatalogStatus,
+   draftRuleSet:nativeGradeRules,playing,busy}).ok
+ const canScopedNativeGradeRedo=inspectScopedNativeGradeHistory20261112({direction:'redo',
+   snapshot:s,redoWitness:scopedNativeGradeRedoWitness.current,
+   playing,busy}).ok
  const canUndo2D=Boolean(s?.canUndo||nativeGradeDraftHistory.current.undo.length>0)
  const canRedo2D=Boolean(s?.canRedo||nativeGradeDraftHistory.current.redo.length>0)
  const contextItems=(()=>{
@@ -3169,7 +3237,14 @@ export default function ClothCraftWorkspace({embedded=false,exoSection='Pattern'
              activeSize={s?.activeGradedSize} previewSize={gradeNestSelectedSize}
              runtimeReady={s?.nativeGradeActivationSupported===true}
              onChoosePreviewSize={setGradeNestSelectedSize}
-             onActivate={activateSavedNativeGradeSize} onRestore={restoreOriginalNativeGradeSize}/>
+             onActivate={activateSavedNativeGradeSize} onRestore={restoreOriginalNativeGradeSize}
+             onNativeUndo={()=>requestScopedNativeGradeHistory('undo')}
+             onNativeRedo={()=>requestScopedNativeGradeHistory('redo')}
+             canNativeUndo={canScopedNativeGradeUndo} canNativeRedo={canScopedNativeGradeRedo}
+             onDraftUndo={()=>restoreNativeGradeDraft('undo')}
+             onDraftRedo={()=>restoreNativeGradeDraft('redo')}
+             canDraftUndo={nativeGradeDraftHistory.current.undo.length>0}
+             canDraftRedo={nativeGradeDraftHistory.current.redo.length>0}/>
            {!s?.activeGradedSize?<NativeGradingReleaseChecklist20261025 snapshot={s} ruleSet={nativeGradeRules}
              pomDefinitions={nativePOMDefinitions} nativeCatalog={nativeGradeCatalogStatus}
              inspectionDisabled={busy||playing}

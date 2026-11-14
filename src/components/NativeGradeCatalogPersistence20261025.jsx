@@ -3,6 +3,8 @@ import React from 'react'
 export default function NativeGradeCatalogPersistence20261025({
   ruleSet,catalogStatus,message,disabled=false,onCommit,onClear,onCheck,onRecover,
   activeSize=null,previewSize='M',runtimeReady=false,onChoosePreviewSize,onActivate,onRestore,
+  onNativeUndo,onNativeRedo,canNativeUndo=false,canNativeRedo=false,
+  onDraftUndo,onDraftRedo,canDraftUndo=false,canDraftRedo=false,
 }){
   const saved=Boolean(catalogStatus?.ok&&catalogStatus?.persisted)
   const sizes=ruleSet?.sizes||catalogStatus?.sizes||[]
@@ -27,6 +29,17 @@ export default function NativeGradeCatalogPersistence20261025({
         Detach catalog
       </button>}
     </div>
+    <details className="exo-native-graded-catalog-history" data-exo-native-grading-history="scoped">
+      <summary>Grading history: Draft / Rust</summary>
+      <small>Local point-rule drafts and saved Rust catalog edits have separate histories. Global Undo is deliberately blocked when both are pending; choose which history you want to change.</small>
+      <div className="exo-native-graded-catalog-actions" role="group" aria-label="Explicit grading history actions">
+        <button type="button" aria-label="Undo local grading draft" disabled={disabled||!canDraftUndo} onClick={onDraftUndo}>Undo draft</button>
+        <button type="button" aria-label="Redo local grading draft" disabled={disabled||!canDraftRedo} onClick={onDraftRedo}>Redo draft</button>
+        <button type="button" aria-label="Undo verified Rust grading catalog" disabled={disabled||!canNativeUndo} onClick={onNativeUndo}>Undo Rust catalog</button>
+        <button type="button" aria-label="Redo verified Rust grading catalog" disabled={disabled||!canNativeRedo} onClick={onNativeRedo}>Redo Rust catalog</button>
+      </div>
+      <small>Rust catalog history is available only for a verified unchanged native revision. A changed garment or ambiguous history fails closed.</small>
+    </details>
     {saved&&<div data-native-graded-size-activation="true" style={{display:'flex',gap:8,alignItems:'end',flexWrap:'wrap'}}>
       <label>Native fitting size<select aria-label="Saved native grading size" value={previewSize}
         disabled={disabled} onChange={event=>onChoosePreviewSize?.(event.target.value)}>

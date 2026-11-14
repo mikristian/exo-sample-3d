@@ -23,7 +23,9 @@ test('actual trained source embeddings return ordered, sourced neighbors only fo
     assert.equal(status,200)
     assert.equal(body.searchMode,'learned_geometry_embedding_nearest_source')
     assert.equal(body.embeddingDimensions,16)
-    assert.equal(body.embeddingCount,50036)
+    // Select the newest *verified* local checkpoint; coverage can grow beyond 71k.
+    assert.ok(Number.isInteger(body.embeddingCount) && body.embeddingCount >= 73069)
+    assert.match(body.checkpointDirectory,/^(?:remote-geometry-[a-zA-Z0-9_-]+|geometry-encoder-full-archive)$/)
     assert.equal(body.results.length,5)
     assert.ok(body.results.every(item=>item.sourceId!==body.sourceId && item.license && Number.isFinite(item.similarity)))
     assert.ok(body.results.every((item,i)=>i===0||item.similarity<=body.results[i-1].similarity))

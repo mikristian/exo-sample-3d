@@ -96,6 +96,37 @@ function centroid(points) {
   }
 }
 
+// The grain arrow is a physical instruction to the cutter. Its entire segment
+// must lie in fabric, including on concave pieces whose centroid is in a gap.
+function grainlineInsideCut(a, b, polygon) {
+  const epsilon = 1e-7
+  const cross = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+  const onSegment = (p, q, r) => Math.abs(cross(p, q, r)) <= epsilon &&
+    r.x >= Math.min(p.x, q.x) - epsilon && r.x <= Math.max(p.x, q.x) + epsilon &&
+    r.y >= Math.min(p.y, q.y) - epsilon && r.y <= Math.max(p.y, q.y) + epsilon
+  const inside = point => {
+    let contained = false
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const p = polygon[j], q = polygon[i]
+      if (onSegment(p, q, point)) return false // Require clearance from physical CUT.
+      if ((p.y > point.y) !== (q.y > point.y) &&
+        point.x < (q.x - p.x) * (point.y - p.y) / (q.y - p.y) + p.x) contained = !contained
+    }
+    return contained
+  }
+  if (!inside(a) || !inside(b)) return false
+  for (let i = 0; i < polygon.length; i++) {
+    const p = polygon[i], q = polygon[(i + 1) % polygon.length]
+    const c1 = cross(a, b, p), c2 = cross(a, b, q)
+    const c3 = cross(p, q, a), c4 = cross(p, q, b)
+    if (onSegment(a, b, p) || onSegment(a, b, q) ||
+      onSegment(p, q, a) || onSegment(p, q, b) ||
+      ((c1 > epsilon && c2 < -epsilon || c1 < -epsilon && c2 > epsilon) &&
+       (c3 > epsilon && c4 < -epsilon || c3 < -epsilon && c4 > epsilon))) return false
+  }
+  return true
+}
+
 function notchForEdge(piece, edgeIndex, depthCm = 0.45, fraction = 0.5) {
   const located = edgePointAt(piece, edgeIndex, fraction, 48)
   if (!located) return null
@@ -214,8 +245,9 @@ export function projectToDxf(project, size = project.previewSize || project.grad
   const spacingCm = 10
   for (const piece of project.pieces || []) {
     const sampled = samplePieceBoundary(piece, 12).points
+    let physicalOutline
     if(factoryCutline){
-      const physicalOutline=seamAllowanceBoundary(piece,12)
+      physicalOutline=seamAllowanceBoundary(piece,12)
       const audited=inspectCutlinePolygon(physicalOutline)
       if(!audited.ok)throw new Error(`Unsafe factory CUT for ${piece.id}: ${audited.faults.map(x=>x.code).slice(0,3).join(', ')}`)
     }
@@ -333,12 +365,37 @@ export function projectToDxf(project, size = project.previewSize || project.grad
     const minY = Math.min(...ys)
     const maxY = Math.max(...ys)
     const grainHalfLength = Math.max(3, (maxY - minY - 12) * 0.5)
-    const grainAngle = (Number(piece.grainAngleDeg || 0) * Math.PI) / 180
-    const grainDx = Math.sin(grainAngle) * grainHalfLength
-    const grainDy = Math.cos(grainAngle) * grainHalfLength
+    const authoredAngle = piece.grainAngleDeg ?? 0
+    if (factoryCutline && (typeof authoredAngle !== 'number' || !Number.isFinite(authoredAngle))) {
+      throw new Error(`Invalid manufacturing grain angle for ${piece.id}: finite numeric degrees required`)
+    }
+    const grainAngle = (Number(authoredAngle) * Math.PI) / 180
+    const physicalCut = factoryCutline && physicalOutline.map(point => ({ x: point.x - minX + xOffset, y: point.y }))
+    const minimumHalfLength = factoryCutline &&
+      Math.min(Math.max(...physicalCut.map(p => p.x)) - Math.min(...physicalCut.map(p => p.x)),
+        Math.max(...physicalCut.map(p => p.y)) - Math.min(...physicalCut.map(p => p.y))) >= 6 ? 1 : 3
+    let grainA, grainB
+    // Existing templates may place a long default arrow across the neckline.
+    // Reduce its length at the same authored center and angle, never moving it
+    // into a different disconnected fabric region or crossing a concavity.
+    for (let length = grainHalfLength; length >= minimumHalfLength - 1e-9; length = Math.max(minimumHalfLength, length * 0.8)) {
+      const dx = Math.sin(grainAngle) * length
+      const dy = Math.cos(grainAngle) * length
+      const a = { x: center.x - dx, y: center.y - dy }
+      const b = { x: center.x + dx, y: center.y + dy }
+      if (!factoryCutline || (Number.isFinite(dx) && Number.isFinite(dy) && grainlineInsideCut(a, b, physicalCut))) {
+        grainA = a
+        grainB = b
+        break
+      }
+      if (length === minimumHalfLength) break
+    }
+    if (factoryCutline && !grainA) {
+      throw new Error(`Unsafe manufacturing grainline outside physical CUT for ${piece.id}`)
+    }
     entities.push(...entityLine(`GRAIN_${pieceToken}`,
-      { x: center.x - grainDx, y: center.y - grainDy },
-      { x: center.x + grainDx, y: center.y + grainDy },
+      grainA,
+      grainB,
     ))
     entities.push(...entityText(`LABEL_${pieceToken}`, center, `${piece.name} / ${size}`, 5))
 

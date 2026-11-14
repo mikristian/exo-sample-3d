@@ -18,6 +18,8 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 geometry = SourceFileLoader('synthesis_geometry', str(HERE / 'pattern-source-geometry-20261102.py')).load_module()
+geometry_index = SourceFileLoader('synthesis_trained_geometry_index_20261103',
+    str(HERE / 'trained-geometry-index-20261103.py')).load_module()
 ROOT = Path(os.environ.get('EXO_GARMENTCODEDATA_V2_ROOT') or geometry.archive.ROOT).expanduser().resolve()
 
 
@@ -78,7 +80,12 @@ def propose(source_id, *, root=ROOT, embedding_path=None, seam_checkpoint=None,
     root = Path(root).expanduser().resolve()
     if donor_id is not None and (not isinstance(donor_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}/\d{1,3}/[A-Za-z0-9_-]{1,120}', donor_id)):
         raise ValueError('invalid_donor_source_id')
-    embedding_path = Path(embedding_path or root / 'training/geometry-encoder-full-archive/source-embeddings-v1.npz')
+    if embedding_path is None:
+        selected = geometry_index.best(root, source_id=source_id)
+        if selected is None:
+            raise ValueError('no_verified_geometry_embedding_for_source')
+        embedding_path = selected['path']
+    embedding_path = Path(embedding_path)
     seam_checkpoint = Path(seam_checkpoint or _seam_checkpoint(root))
     original = geometry.decode(source_id, root=root)
     base = original['spec']['pattern']

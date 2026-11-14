@@ -1781,6 +1781,38 @@ impl Session {
     return Err("Clear the saved fabric grade envelope before changing unrelated native source metadata".into());
   }
   match op {
+   "avatar-change"=>{
+    // An in-place collider swap preserves the entire linked Undo/Redo stack.
+    // Opening a modified project in a new process would fail the document/
+    // journal digest and is deliberately prohibited. Compile the NEW scene
+    // before committing either the collider or the saved project identity.
+    if !v.as_object().is_some_and(|o|o.len()==4 &&
+      ["op","revision","avatarPath","avatar"].iter().all(|k|o.contains_key(*k))) {
+      return Err("Unexpected native avatar-change request fields".into());
+    }
+    let source=PathBuf::from(field::<String>(v,"avatarPath")?);
+    if !source.is_absolute() || source.extension().and_then(|v|v.to_str())!=Some("obj") {
+      return Err("Native avatar-change requires an absolute OBJ fitting body".into());
+    }
+    let metadata=std::fs::symlink_metadata(&source).map_err(|e|e.to_string())?;
+    if !metadata.is_file() || metadata.file_type().is_symlink() || metadata.len()>64*1024*1024 {
+      return Err("Native avatar body must be a regular OBJ below 64 MB".into());
+    }
+    if self.project.avatar_path==source{return Ok(self.snapshot(true,false));}
+    let mut candidate=self.project.clone();
+    candidate.avatar_path=source;
+    candidate.state=None;
+    candidate.mesh_signature=None;
+    let compiled=candidate.compile()?;
+    self.project=candidate;
+    self.scene=compiled;
+    self.solver=None;
+    self.grab=None;
+    self.live_grab=false;
+    self.metrics=Value::Null;
+    self.revision+=1;
+    return Ok(self.snapshot(true,false));
+   },
    "property-metadata-store"=>{
     // A whole-value, Rust-validated metadata replacement. One subsequent
     // native save commits geometry, grade, metadata and the linked journal
