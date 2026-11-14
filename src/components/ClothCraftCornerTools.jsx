@@ -7,7 +7,7 @@ import './ClothCraftCornerTools.css'
 // Reuse Garment Studio's real CAD widget/icon system. Map only the commands
 // available in the Rust-linked ClothCraft canvas to working V2 interactions.
 const MODE_BY_TOOL = {
-  '2d': {select:'edit',point:'edit',split:'edit',curve:'edit',dart:'edit',polygon:'pen',measure:'edit',sew:'sew',internal:'line',notch:'edit',allowance:'edit'},
+  '2d': {select:'edit',point:'edit','direct-select':'edit','anchor-point':'edit',split:'edit','remove-anchor':'edit',curve:'edit',dart:'edit','shape-builder':'edit',polygon:'pen','vector-pen':'pen','vector-pencil':'pen',measure:'edit',sew:'sew',internal:'line',notch:'edit',allowance:'edit'},
   '3d': {orbit:'edit',transform:'move3d',move:'move3d',rotate:'rotate3d',hand:'stretch3d'},
 }
 const ACTIVE_TOOL = {
@@ -15,7 +15,7 @@ const ACTIVE_TOOL = {
   '3d': {edit:'orbit',move3d:'move',rotate3d:'rotate',stretch3d:'hand'},
 }
 
-export default function ClothCraftCornerTools({dimension,mode,activeTool:controlledTool,onChangeMode,onChangeTool,disabled=false,
+export default function ClothCraftCornerTools({dimension,mode,activeTool:controlledTool,onChangeMode,onChangeTool,disabled=false,onCollapse3D,
   displayLayers, onToggleDisplayLayer, allowanceWidthMm=10,onChangeAllowanceWidth,
   notchDepthMm=6,onChangeNotchDepth,notchPairSpacingMm=6,onChangeNotchPairSpacing,
   dartIntakeMm=30,onChangeDartIntake,dartDepthMm=70,onChangeDartDepth,
@@ -130,6 +130,7 @@ export default function ClothCraftCornerTools({dimension,mode,activeTool:control
   </div> : null
   return <div className="cc-corner-tool-host">
     <ViewportQuickTools dimension={dimension}
+      onCollapse3D={onCollapse3D}
       extraGroup={dimension==='3d'&&cameraHandControl
         ?<div className="canvas-tool-group clo-corner-tool-group cc-3d-camera-hand-host" data-tool-family="camera-hand">{cameraHandControl}</div>
         :displayGroup}

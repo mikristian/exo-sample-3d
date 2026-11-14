@@ -1,0 +1,30 @@
+/* Compact anchored navigation dropdowns: preserve the left-side ClothCraft logo. */
+@media(min-width:1041px){
+ .header{isolation:isolate}
+ .header .logo{position:relative;z-index:145!important}
+ .header .nav-dropdown{position:relative}
+ .header .nav-dropdown>.nav-menu,
+ html[data-site-themed] .header .nav-dropdown>.nav-menu{
+  position:absolute!important;top:calc(100% - 4px)!important;left:0!important;right:auto!important;
+  width:clamp(210px,18.5vw,260px)!important;min-width:0!important;max-width:260px!important;
+  padding:5px!important;border-radius:10px!important;max-height:calc(100dvh - 105px)!important;
+  overflow-y:auto!important;overscroll-behavior:contain;
+ }
+ .header .nav-dropdown:last-of-type>.nav-menu{left:auto!important;right:0!important}
+ .header .nav-dropdown>.nav-menu::before,
+ html[data-site-themed] .header .nav-dropdown>.nav-menu::before{padding:6px 9px 4px!important;font-size:8px!important}
+ .header .nav-dropdown>.nav-menu a,
+ html[data-site-themed] .header .nav-dropdown>.nav-menu a{
+  padding:8px 9px!important;margin:1px 0!important;line-height:1.2!important;
+  font-size:11px!important;font-weight:700!important;border-radius:6px!important;
+ }
+ .header .nav-dropdown>.nav-menu a small,
+ html[data-site-themed] .header .nav-dropdown>.nav-menu a small{
+  margin-top:2px!important;font-size:9px!important;line-height:1.25!important;opacity:.75!important;
+ }
+}
+@media(max-width:1040px){
+ .header .nav-dropdown>.nav-menu{position:static!important;max-width:100%!important;min-width:0!important;width:100%!important;padding:5px!important}
+ .header .nav-dropdown>.nav-menu a{padding:9px 12px!important;font-size:13px!important}
+ .header .nav-dropdown>.nav-menu a small{font-size:10px!important;margin-top:2px!important}
+}

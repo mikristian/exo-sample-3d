@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /** Browser bridge for exo-ui-kernel. No JS geometry fallback: null means unavailable. */
 export const RUST_POM_ABI_VERSION = 1
 const DEFAULT_URL = '/wasm/exo_ui_kernel.wasm'
@@ -8,15 +9,19 @@ let lastError = null
 export const rustPomKernelReady = () => exportsRef !== null
 export const rustPomKernelStatus = () => ({ready: rustPomKernelReady(), abiVersion: exportsRef?.exo_pom_abi_version() ?? null, error:lastError})
 
+/** Appearance uses the same compiled native Rust/WASM UI kernel as the POM tools. */
+export function rustUiThemeExports() {
+  if (!exportsRef || typeof exportsRef.exo_theme_abi_version !== 'function' || exportsRef.exo_theme_abi_version() !== 1) return null
+  const functions=['exo_theme_resolve_rgb','exo_theme_full_2d_nest_visible','exo_theme_glow_enabled']
+  return functions.every(name=>typeof exportsRef[name]==='function') ? exportsRef : null
+}
+
 export async function initializeRustPomKernel({bytes, url = DEFAULT_URL} = {}) {
   if (exportsRef) return true
   if (loading) return loading
   loading = (async () => {
     try {
-      const wasm = bytes ?? await fetch(url).then(response => {
-        if (!response.ok) throw new Error(`POM WASM HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const wasm = bytes ?? await fetchWasmBytes(url, "POM WASM HTTP ")
       const instance = await WebAssembly.instantiate(wasm, {})
       const api = instance.instance?.exports ?? instance.exports
       if (['exo_pom_abi_version','exo_pom_label_x','exo_pom_label_y'].some(name => typeof api?.[name] !== 'function') || api.exo_pom_abi_version() !== RUST_POM_ABI_VERSION) {

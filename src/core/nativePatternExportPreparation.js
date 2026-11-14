@@ -1,9 +1,9 @@
 // Produce a disposable ClothCraft export document. Never modify the editable project.
+import {exportEdgeKeep,exportAreaTerm} from './rustExportContourKernel.js'
 const copy = value => structuredClone(value)
-const distance = (a,b) => Math.hypot(a.x-b.x,a.y-b.y)
 const area = points => points.reduce((sum,p,i) => {
   const next=points[(i+1)%points.length]
-  return sum+p.x*next.y-next.x*p.y
+  return sum+exportAreaTerm(p,next)
 },0)/2
 
 export function prepareNativePatternExport(project, {minimumEdgeCm=0.01}={}) {
@@ -19,7 +19,7 @@ export function prepareNativePatternExport(project, {minimumEdgeCm=0.01}={}) {
     // Retain original starts of sufficiently long edges; a microscopic edge
     // contributes no meaningful cutline segment and is folded into its predecessor.
     const retained=[]
-    for(let i=0;i<n;i++)if(distance(original[i],original[(i+1)%n])>=minimumEdgeCm)retained.push(i)
+    for(let i=0;i<n;i++)if(exportEdgeKeep(original[i],original[(i+1)%n],minimumEdgeCm))retained.push(i)
     if(retained.length<3)throw Error(`Panel ${piece.id} has fewer than three usable edges`)
     const oldToNew=new Map()
     const retainedSet=new Set(retained)

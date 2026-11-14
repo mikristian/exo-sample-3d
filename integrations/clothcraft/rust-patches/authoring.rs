@@ -79,6 +79,13 @@ pub enum Command {
         anchor: usize,
         position: DVec2,
     },
+    /// Atomically remap multiple unique anchors on one panel. Unlike
+    /// repeated Anchor commands, normalize the panel exactly once *after*
+    /// all dependent material coordinates have been assigned.
+    AnchorGroup {
+        panel: String,
+        edits: Vec<(usize, DVec2)>,
+    },
     /// Translate a selection of contour points by a material delta, in metres.
     MovePoints {
         panel: String,
@@ -984,6 +991,26 @@ pub fn apply(source: &GarmentTemplate, command: Command) -> Result<Edit, String>
             remap_anchors(p, &[anchor], |_| position)?;
             // Re-basing the local origin keeps every untouched point at the same
             // board and world position, exactly like a dragged contour edit.
+            normalize(p);
+            selected = Some(panel);
+        }
+        Command::AnchorGroup { panel, edits } => {
+            if edits.is_empty() || edits.len() > 32 {
+                return Err("Anchor group needs 1 to 32 point edits".into());
+            }
+            let mut seen = std::collections::BTreeSet::new();
+            if edits.iter().any(|(index, position)|
+                !seen.insert(*index) || !position.is_finite()) {
+                return Err("Anchor group has duplicate point targets or nonfinite coordinates".into());
+            }
+            let p = template.panels.iter_mut()
+                .find(|p| p.id == panel).ok_or("Panel not found")?;
+            // The native material-space planner evaluates these moves in
+            // dependency order, without shifting the local origin between
+            // edits. Each step retains adjacent cubic controls and pins.
+            for (index, position) in edits {
+                remap_anchors(p, &[index], |_| position)?;
+            }
             normalize(p);
             selected = Some(panel);
         }

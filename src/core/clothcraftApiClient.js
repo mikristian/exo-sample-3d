@@ -1,14 +1,17 @@
+import {nativeBridgeOrigin,nativeWorkspaceHeaders} from './nativeWorkspaceTransport.js';
 const DEFAULT_BRIDGE = typeof window !== 'undefined' && window.location.port === '5486'
   ? 'http://127.0.0.1:5485' : typeof window !== 'undefined' && window.location.port === '5386'
   ? 'http://127.0.0.1:5385' : 'http://127.0.0.1:5191';
 
-export const CLOTHCRAFT_BRIDGE = DEFAULT_BRIDGE;
+export const CLOTHCRAFT_BRIDGE = nativeBridgeOrigin() || DEFAULT_BRIDGE;
 
 async function request(path, body, { signal } = {}) {
+  const target = new URL(`${CLOTHCRAFT_BRIDGE}${path}`);
+  const uiAuthorization = target.origin === nativeBridgeOrigin() ? nativeWorkspaceHeaders().Authorization : null;
   const response = await fetch(`${CLOTHCRAFT_BRIDGE}${path}`, {
     method: body ? 'POST' : 'GET',
-    headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
-    ...(body ? { body: JSON.stringify(body) } : {}), signal,
+    headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}), ...(uiAuthorization ? {Authorization:uiAuthorization} : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}), signal, redirect:'error',
   });
   let payload;
   try { payload = await response.json(); } catch { throw new Error(`HTTP ${response.status}: invalid JSON response`); }
@@ -17,11 +20,13 @@ async function request(path, body, { signal } = {}) {
 }
 
 async function keyRequest(method, path, body, { signal } = {}) {
+  const target = new URL(`${CLOTHCRAFT_BRIDGE}${path}`);
+  const uiAuthorization = target.origin === nativeBridgeOrigin() ? nativeWorkspaceHeaders().Authorization : null;
   const response = await fetch(`${CLOTHCRAFT_BRIDGE}${path}`, {
     method,
-    headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
+    headers: { Accept: 'application/json', ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(uiAuthorization ? {Authorization:uiAuthorization} : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    cache: 'no-store', signal,
+    cache: 'no-store', signal, redirect:'error',
   });
   let payload;
   try { payload = await response.json(); } catch { throw new Error(`HTTP ${response.status}: invalid JSON response`); }

@@ -24,8 +24,10 @@ export function sewingLengthDiagnostic(measurement, options = {}) {
     (options.ratioOn!==false&&differencePercent>ratioThreshold))
   return {
     seamId:measurement?.seamId??null,valid:true,firstCm,secondCm,
-    first3DCm:Number.isFinite(measurement?.first?.length3DCm)?measurement.first.length3DCm:null,
-    second3DCm:Number.isFinite(measurement?.second?.length3DCm)?measurement.second.length3DCm:null,
+    // Physical seam lengths cannot be negative; omit malformed optional 3D
+    // measurements instead of displaying them as valid factory dimensions.
+    first3DCm:Number.isFinite(measurement?.first?.length3DCm)&&measurement.first.length3DCm>=0?measurement.first.length3DCm:null,
+    second3DCm:Number.isFinite(measurement?.second?.length3DCm)&&measurement.second.length3DCm>=0?measurement.second.length3DCm:null,
     signedDifferenceCm,absoluteDifferenceCm,differencePercent,warning,
   }
 }

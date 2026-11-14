@@ -9,6 +9,9 @@ export const PATTERN_FOCUS_TOOLS = Object.freeze(['select-2d','points','split','
 export const patternFocusToolbarIds = ids => ids.filter(id => PATTERN_FOCUS_TOOLS.includes(id.replace(/^2d:/,'')))
 
 export const WORKSPACE_PROFILES = Object.freeze({
+  gradingStudio: Object.freeze({ name: '2D Grading + Production', section: 'Production', tab: 'Grading', tool: 'select', viewportTool: 'transform',
+    libraryWidth: 190, inspectorWidth: 510, objectBrowserHeight: 290, objectBrowserVisible: true,
+    topTabsVisible: true, libraryVisible: false, inspectorVisible: true, viewportLayout: '2d', viewportSplit: 50 }),
   patternFocus: Object.freeze({ name: 'Pattern Focus · 2D', section: 'Pattern', tab: 'Scene', tool: 'point', viewportTool: 'transform',
     libraryWidth: 190, inspectorWidth: 430, objectBrowserHeight: 306, objectBrowserVisible: true, topTabsVisible: true, libraryVisible: true, inspectorVisible: true,
     viewportLayout: '2d', viewportSplit: 50, patternFocus: true }),

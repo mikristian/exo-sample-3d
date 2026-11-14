@@ -109,8 +109,10 @@ try{
  await page.waitForFunction(()=>document.querySelector('.cc-board')?.dataset.freeSewing==='true')
  assert.equal(await free.getAttribute('aria-pressed'),'true')
  assert.equal(await page.locator('[data-native-sewing-panel]').count(),0)
- assert.match(await page.locator('.cc-board svg').first().evaluate(el=>getComputedStyle(el).cursor),/sewing-machine\.svg/)
- assert.equal(await page.getByRole('checkbox',{name:'Allow Free Sewing easing'}).isChecked(),true)
+ assert.match(await page.locator('.cc-board svg[aria-label^="Metric 2D pattern board"]').evaluate(el=>getComputedStyle(el).cursor),/sewing-machine\.svg/)
+ const allowEase=page.getByRole('checkbox',{name:'Allow Free Sewing easing'})
+ assert.equal(await allowEase.isChecked(),false,'Easing must begin disabled')
+ await allowEase.check()
  assert.equal((await page.request.get(ui+'/cursors/sewing-machine.svg')).status(),200)
  const steps=[[pair[0],.2],[pair[0],.8],[pair[1],.2],[pair[1],.8]]
  for(let i=0;i<steps.length;i++){
@@ -131,7 +133,7 @@ try{
    assert.equal(await selected.count(),1,'First fractional portion must highlight visibly')
    const range=[Number(await selected.getAttribute('data-range-start')),Number(await selected.getAttribute('data-range-end'))]
    assert(range[0]>.15&&range[0]<.27&&range[1]>.73&&range[1]<.87,'Visual range fractions '+range)
-   await page.screenshot({path:path.join(root,'screenshots','exo-v2-free-sewing-direct-range-20261017.png')})
+   await page.screenshot({path:path.join(dir,'exo-v2-free-sewing-direct-range-qa.png')})
   }
  }
  let after=before
@@ -142,6 +144,10 @@ try{
  }
  assert.equal(after.template.seams.length,before.template.seams.length+1,
   'Native free seam not created: '+JSON.stringify(responses.filter(r=>r.input?.command?.kind==='Sew').map(r=>r.error)))
+ const newlySewn=after.template.seams.find(s=>!before.template.seams.some(old=>old.id===s.id))
+ assert(newlySewn?.id,'A real named partial seam must be newly authored')
+ await page.waitForFunction(id=>document.querySelector('.cc-board')?.dataset.selectedNativeSeam===id,
+  newlySewn.id,{timeout:10000})
  const sew=requests.find(r=>r.command?.kind==='Sew').command
  for(const side of [sew.a,sew.b]){
   assert(side.range[0]>.15&&side.range[0]<.27,JSON.stringify(side.range))

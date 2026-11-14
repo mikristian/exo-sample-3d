@@ -2,6 +2,7 @@
 // but hosting alone DOES NOT add ACLs, realtime edits, or manufacturer accounts.
 // Never include this file in a public marketplace without explicit consent.
 import { buildTraditionalTechPackHTML, createTechPackDraft } from './digitalTechPack.js'
+import { referenceAnnotationPercentPosition } from './referenceAnnotationPosition.js'
 
 const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => (
   {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]
@@ -9,7 +10,6 @@ const escapeHTML = value => String(value ?? '').replace(/[&<>"']/g, char => (
 const safeImage = value => typeof value === 'string'
   && /^data:image\/(?:png|jpeg|webp);base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/i.test(value)
   ? value : null
-const numericPosition = value => Number.isFinite(Number(value)) ? Math.max(0,Math.min(100,Number(value)*100)) : 50
 const printableValue = value => value == null || value === '' ? 'Not supplied' : String(value)
 const tiny = value => escapeHTML(printableValue(value))
 const time = value => value ? escapeHTML(String(value)) : 'Not supplied'
@@ -25,9 +25,10 @@ export function buildPortableTechPackHTML(project, current, {versionId}={}) {
   const photos=(Array.isArray(draft.references)?draft.references:[]).slice(0,80).map((item,index)=>{
     const src=safeImage(item.dataUrl||item.src)
     if(!src)return ''
-    const markers=(Array.isArray(item.annotations)?item.annotations:Array.isArray(item.callouts)?item.callouts:[]).slice(0,60).map(mark=>(
-      `<div class="callout" style="left:${numericPosition(mark.x)}%;top:${numericPosition(mark.y)}%;" title="${tiny(mark.text)}"><b>↗</b><span>${tiny(mark.text)}</span></div>`
-    )).join('')
+    const markers=(Array.isArray(item.annotations)?item.annotations:Array.isArray(item.callouts)?item.callouts:[]).slice(0,60).map(mark=>{
+      const position=referenceAnnotationPercentPosition(mark)
+      return position?`<div class="callout" style="left:${position.left}%;top:${position.top}%;" title="${tiny(mark.text)}"><b>↗</b><span>${tiny(mark.text)}</span></div>`:''
+    }).join('')
     return `<figure><div class="photo"><img alt="${tiny(item.caption||item.name||'Reference image '+(index+1))}" src="${src}">${markers}</div>
       <figcaption><b>${tiny(item.caption||item.name||'Reference '+(index+1))}</b><span>${tiny(item.category||'Reference')}${item.patternId?` · Pattern ${tiny(item.patternId)}`:''}</span>
       ${item.notes?`<p>${tiny(item.notes)}</p>`:''}</figcaption></figure>`

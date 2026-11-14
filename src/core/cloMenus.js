@@ -19,7 +19,7 @@ const EDIT_SECTIONS = [
   ['Context & Properties', [['Open Object Browser', 'object.scene'], ['Show Property Editor', 'edit.properties'], ['Pattern context menu · right-click canvas', null]]],
   ['Writing & Drawing Tools', [['2D background / tracing image…', 'display.background2d'], ['Graphic / texture…', 'materials.graphic'], ['Text annotation tool · planned', null], ['Pen and freehand drawing · planned', null]]],
 ]
-const withSections=(title,sections)=>({title,sections,commands:sections.flatMap(([,items])=>items)})
+const withSections=(title,sections,quickActions=[])=>({title,sections,quickActions,commands:[...quickActions,...sections.flatMap(([,items])=>items)]})
 export const CLO_MENUS = [
   withSections('File',FILE_SECTIONS),
   withSections('Edit',EDIT_SECTIONS),
@@ -34,7 +34,7 @@ export const CLO_MENUS = [
     ['Measure & Reference', [['Tape measure / ruler','2d.measure'],['Add/Edit background image…','display.background2d'],['Pattern SVG import…','file.import.svg']]],
   ]),
   withSections('Sewing',[
-    ['Stitch Tools', [['Segment / free sewing','sewing.sew'],['Inspect sewing','sewing.inspect'],['Show sewing lines','3d.seams']]],
+    ['Stitch Tools', [['Segment Sew','sewing.segment'],['Free Sew','sewing.free'],['Edit Sewing','sewing.edit'],['Segment / free sewing','sewing.sew'],['Inspect sewing','sewing.inspect'],['Show sewing lines','3d.seams']]],
     ['Finishing', [['Create fastener','sewing.fastener'],['Button browser','object.buttons'],['Buttonhole browser','object.buttonholes'],['Topstitch browser','object.topstitch'],['Zipper / trim browser','object.trim']]],
   ]),
   withSections('Materials',[
@@ -73,7 +73,7 @@ export const CLO_MENUS = [
     ['Personalization', [['Customize workspace & toolbars…','settings.workspace'],['Themes & studio lighting…','settings.appearance'],['Designer profile & brand…','settings.profile']]],
     ['Editor & Files', [['User preferences…','settings.preferences'],['Files & API…','settings.files'],['Plugins…','settings.plugins'],['File Library…','file.library']]],
     ['Physical Simulation', [['Simulation quality','settings.simulation'],['Fabric defaults','materials.fabric']]],
-  ]),
+  ],[['Theme','settings.appearance']]),
   withSections('Help',[
     ['Documentation', [['CLO-style control reference','help.reference'],['Keyboard guide','help.shortcuts'],['Garment information','file.info']]],
     ['Project Support', [['Recent projects / file history','file.library'],['Garment edit history','workspace.panel.history']]],

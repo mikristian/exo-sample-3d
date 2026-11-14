@@ -1,0 +1,18 @@
+.exo-pattern-gen-neighbors>input[type=file],
+.exo-pattern-gen-neighbors>select,
+.exo-pattern-gen-neighbors>textarea,
+.exo-pattern-gen-neighbors>input[type=text]{
+  width:100%;min-width:0;max-width:100%;box-sizing:border-box;padding:10px;
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  border-radius:9px;background:color-mix(in srgb,currentColor 5%,transparent);
+  color:inherit;font:inherit;
+}
+.exo-pattern-gen-neighbors>textarea{resize:vertical;line-height:1.55}
+.exo-pattern-gen-neighbors>select option{background:#17202d;color:#fff}
+.exo-pattern-gen-neighbors>label{display:flex;align-items:center;gap:8px}
+.exo-pattern-gen-neighbors>.exo-pattern-gen-review{justify-content:flex-start}
+.exo-pattern-gen-source-preview{display:grid;gap:8px;border:1px solid color-mix(in srgb,currentColor 15%,transparent);border-radius:12px;padding:12px}
+.exo-pattern-gen-source-preview>small{opacity:.75;line-height:1.5}
+.exo-pattern-gen-source-preview label{display:flex;align-items:center;gap:8px}
+.exo-pattern-gen-sketch-shape{width:100%;height:125px;max-width:250px;border:1px solid color-mix(in srgb,currentColor 18%,transparent);border-radius:10px;padding:8px;background:color-mix(in srgb,currentColor 5%,transparent)}
+.exo-pattern-gen-photo-preview{display:block;width:100%;max-width:260px;height:150px;object-fit:contain;border:1px solid color-mix(in srgb,currentColor 20%,transparent);border-radius:9px;background:#f4f4f4}

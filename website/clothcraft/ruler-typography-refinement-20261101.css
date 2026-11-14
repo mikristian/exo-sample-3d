@@ -1,0 +1,70 @@
+/* ArtCraft reference typography analysis: bold display uses a condensed modern
+   grotesque silhouette. Archivo is the nearest available openly licensed
+   alternative; retain system sans fallbacks instead of copying ArtCraft assets. */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&display=swap');
+:root{--cc-ruler-display:'Archivo','Arial Narrow',Arial,sans-serif}
+.cc-measure-futures-stack .cc-measure-future,.cc-page-futures .cc-page-future{font-family:var(--cc-ruler-display)!important;font-weight:800!important;letter-spacing:-.025em!important;font-stretch:condensed;font-size:clamp(11px,.99vw,14px)!important;line-height:1.02!important}
+.cc-measure-rail .cc-chapter-name,.cc-page-chapter{font-family:var(--cc-ruler-display)!important;font-weight:850!important;letter-spacing:-.036em!important}
+/* Expanded ArtCraft hover: vertical list becomes a line of independent labels
+   located next to real percentage tick positions. */
+.cc-measure-futures-stack.is-inspecting,.cc-page-futures.is-inspecting{inset:0 83px 0 auto!important;bottom:auto!important;right:83px!important;top:0!important;width:260px!important;height:100vh!important;max-height:none!important;display:block!important;pointer-events:none!important;overflow:visible!important}
+.cc-measure-futures-stack.is-inspecting .cc-measure-future:not([hidden]),.cc-page-futures.is-inspecting .cc-page-future:not([hidden]){position:absolute!important;right:0!important;top:var(--future-expanded-y,55vh)!important;left:auto!important;margin:0!important;padding:0 3px!important;width:max-content!important;transform:translate3d(-4px,-50%,0) scale(1.06)!important;text-align:right!important;white-space:nowrap!important;color:#fff!important;opacity:1!important;text-shadow:0 2px 9px #111!important;pointer-events:auto!important;transition:top .23s cubic-bezier(.18,.7,.2,1),color .2s,transform .23s!important}
+.cc-measure-futures-stack.is-inspecting .cc-measure-future.is-inspection-target{transform:translate3d(-11px,-50%,0) scale(1.13)!important}
+.cc-measure-rail .cc-measure-chapter.is-transferring{transform:translate3d(var(--chapter-dock-x,0px),calc(-50% + var(--chapter-dock-y,0px)),0) rotate(var(--chapter-side-angle,0deg))!important;transform-origin:right center!important}
+/* A consistently aligned 0-100 ruler: short marks every 1, medium at 5,
+   major at 10; make intermediate numbers visible, without double strokes. */
+.cc-measure-rail:not(.is-expanded) .cc-measure-tick:not(.major):not(.medium){width:8px!important;opacity:.55!important;background:#a8a8a8!important}
+.cc-measure-rail:not(.is-expanded) .cc-measure-tick.medium{width:16px!important;opacity:.85!important;background:#cacaca!important}
+.cc-measure-rail:not(.is-expanded) .cc-measure-tick.major{width:25px!important;opacity:1!important;background:#ededed!important}
+.cc-measure-tick{height:1px!important;transform:translateY(-.5px)!important}
+.cc-measure-rail .cc-measure-tick.medium span,.cc-measure-rail .cc-measure-tick.major span{right:29px;color:#ccc!important;font:650 9px/1 ui-monospace,monospace!important}
+.cc-measure-rail:not(.is-expanded) .cc-measure-tick.medium span{opacity:.46!important;display:block!important}
+.cc-page-ruler:not(.is-expanded) .cc-page-tick:not(.major) i{height:1px!important;width:9px!important;opacity:.6!important}
+.cc-page-ruler:not(.is-expanded) .cc-page-tick.major i{height:1px!important;width:23px!important;opacity:1!important}
+.cc-page-ruler .cc-page-tick>span{font:650 9px/1 ui-monospace,monospace!important}
+@media(max-width:1150px){.cc-measure-futures-stack.is-inspecting{display:none!important}}
+@media(max-width:1023px){.cc-page-futures.is-inspecting{display:none!important}}
+@media(prefers-reduced-motion:reduce){.cc-measure-futures-stack.is-inspecting .cc-measure-future,.cc-page-futures.is-inspecting .cc-page-future{transition:none!important}}
+/* Past chapters compress into a small muted stack above the current title. */
+.cc-measure-rail .cc-measure-chapter.is-older-history{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+.cc-measure-rail .cc-measure-chapter.is-past:not(.is-older-history) .cc-chapter-name{font-size:clamp(10px,.85vw,12px)!important;letter-spacing:-.025em!important;color:#929292!important}
+/* The measuring strip is transparent. Only the photographic hero uses slight blur. */
+.cc-measure-rail .cc-measure-glass,.cc-page-ruler .cc-ruler-glass{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:transparent!important;mask-image:none!important;-webkit-mask-image:none!important}
+.cc-measure-rail.is-expanded .cc-measure-glass,.cc-page-ruler.is-expanded .cc-ruler-glass{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;background:transparent!important}
+.cc-measure-futures,.cc-page-futures{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.cc-hero-orbit{backdrop-filter:blur(2px) saturate(.95);-webkit-backdrop-filter:blur(2px) saturate(.95)}
+/* Resting scale is a moving measurement window, not 101 faint marks spread over
+   a document tens of thousands of pixels high. Keep the center anchored on the
+   scroll position and uniformly spaced, with clearly visible divisions. */
+.cc-measure-rail:not(.is-expanded) .cc-measure-tick{opacity:.77!important}
+.cc-measure-rail:not(.is-expanded) .cc-measure-tick.medium{opacity:.89!important}
+.cc-measure-rail:not(.is-expanded) .cc-measure-tick.major{opacity:1!important}
+.cc-page-ruler:not(.is-expanded) .cc-page-tick:not(.major){opacity:.7!important}
+.cc-page-ruler:not(.is-expanded) .cc-page-tick.major{opacity:1!important}
+/* Hover lineup remains fixed as the crosshair moves; only chapter changes
+   caused by actually scrolling may change the underlying chapter list. */
+.cc-measure-futures-stack.is-inspecting .cc-measure-future:not([hidden]),
+.cc-page-futures.is-inspecting .cc-page-future:not([hidden]){transition:color .2s,transform .22s,opacity .16s!important}
+/* Photo/hero: a very slight optical diffusion. No blur over the measuring UI. */
+.cc-hero-orbit{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.cc-hero-sticky:before{backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+/* ArtCraft end-page reference: small, gray past headings form a tight,
+   right-aligned stack at the very top, not a long history down the rail. */
+.cc-measure-rail .cc-measure-chapter.is-older-history{opacity:0!important;visibility:hidden!important;pointer-events:none!important}
+.cc-measure-rail .cc-measure-chapter.is-past:not(.is-older-history){height:18px!important;opacity:.49!important}
+.cc-measure-rail .cc-measure-chapter.is-past:not(.is-older-history) .cc-chapter-name{font:800 clamp(10px,.88vw,13px)/1.03 var(--cc-ruler-display)!important;letter-spacing:-.025em!important;color:#999!important}
+.cc-measure-rail .cc-measure-chapter.is-current .cc-chapter-name{font-size:clamp(23px,2.45vw,38px)!important;letter-spacing:-.035em!important;font-weight:900!important;color:#fff!important}
+.cc-page-chapter[aria-current="false"]{font-weight:800!important;letter-spacing:-.028em!important;color:#929292!important}
+.cc-page-chapter[aria-current="location"]{font-weight:900!important;letter-spacing:-.035em!important;color:#fff!important}
+/* Unified interior ruler must follow the current homepage's unblurred ruler. */
+.cc-measure-rail .cc-measure-glass,
+.cc-measure-rail.is-expanded .cc-measure-glass{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;mask-image:none!important;-webkit-mask-image:none!important}
+.cc-measure-futures-stack,
+.cc-measure-futures-stack.is-inspecting{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:none!important;border:0!important}
+/* A cleaner left-shifted editorial heading column; measurement ticks remain on edge. */
+@media(min-width:1151px){
+ .cc-measure-futures.cc-measure-futures-stack{right:132px!important}
+ .cc-measure-futures-stack.is-inspecting,.cc-page-futures.is-inspecting{right:132px!important}
+ .cc-measure-rail .cc-measure-chapter{margin-right:44px!important}
+ .cc-measure-rail .cc-measure-chapter.is-transferring{transform:translate3d(calc(var(--chapter-dock-x,0px) - 44px),calc(-50% + var(--chapter-dock-y,0px)),0) rotate(var(--chapter-side-angle,0deg))!important}
+}

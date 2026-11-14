@@ -1,0 +1,154 @@
+/* Rebalance the 2026 top navigation: destinations at left, tools at right. */
+@media(min-width:1101px){
+ html body .header#site-header{display:flex!important;align-items:stretch!important;justify-content:flex-start!important;gap:0!important}
+ html body .header#site-header>.logo{margin:0!important;flex:0 0 auto!important;justify-self:auto!important}
+ html body .header#site-header nav#nav{margin:0!important;flex:0 1 auto!important;justify-content:flex-start!important;justify-self:auto!important}
+ html body .header#site-header .nav-actions{margin:0 0 0 auto!important;flex:0 0 auto!important;justify-self:auto!important}
+ /* Keep an architectural divider between the destination group and tools. */
+ html body .header#site-header nav#nav>a,
+ html body .header#site-header nav#nav>.nav-dropdown{border-left:1px solid var(--cc-line,#666)!important;border-right:0!important}
+}
+/* A continuous semi-transparent top layer, softly refracting what scrolls below;
+   nav cells are defined by hairlines, never separate solid boxes. */
+html[data-cc-theme] body .header#site-header,
+html[data-cc-theme] body #website.website.surface .topbar,
+html[data-cc-theme] body .top.shell.cc-download-grid-header{
+ background-image:none!important;
+ backdrop-filter:blur(22px) saturate(1.16)!important;
+ -webkit-backdrop-filter:blur(22px) saturate(1.16)!important;
+ border-bottom:1px solid color-mix(in srgb,var(--cc-line) 83%,transparent)!important;
+ box-shadow:inset 0 1px 0 color-mix(in srgb,var(--cc-fg) 7%,transparent),0 6px 17px #00000012!important;
+}
+@media(prefers-reduced-transparency:reduce){
+ html[data-cc-theme] body .header#site-header,
+ html[data-cc-theme] body #website.website.surface .topbar,
+ html[data-cc-theme] body .top.shell.cc-download-grid-header{background:var(--cc-bg)!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+}
+/* Ruler contrast tokens track the actual visual surface, not the page's CTA.
+   Light themes require DARK ticks, dark themes require LIGHT ticks. */
+html[data-cc-theme]{
+ --cc-ruler-ink:#f4f4f5;
+ --cc-ruler-muted:#b6bdc2;
+ --cc-ruler-mark:#f0f0f1;
+ --cc-ruler-glass:rgba(29,29,29,.17);
+ --cc-ruler-shadow:rgba(0,0,0,.72);
+}
+html[data-cc-scheme="light"]{
+ --cc-ruler-ink:#27313b;
+ --cc-ruler-muted:#4f5963;
+ --cc-ruler-mark:#344250;
+ --cc-ruler-glass:rgba(255,255,255,.11);
+ --cc-ruler-shadow:rgba(255,255,255,.65);
+}
+/* The landing page hero is always a dark photograph, even in white theme. */
+html[data-cc-theme] body.cc-ruler-on-media{
+ --cc-ruler-ink:#f3f4f7;
+ --cc-ruler-muted:#c3c9d2;
+ --cc-ruler-mark:#e4eaf0;
+ --cc-ruler-glass:rgba(19,24,31,.22);
+ --cc-ruler-shadow:rgba(0,0,0,.84);
+}
+@media(min-width:901px){
+ html[data-cc-theme] body .cc-measure-rail{position:fixed!important;display:block!important;visibility:visible!important;z-index:210!important;color:var(--cc-ruler-ink)!important;opacity:1!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-glass{
+  background:var(--cc-ruler-glass)!important;
+  background-color:var(--cc-ruler-glass)!important;
+  background-image:none!important;
+  backdrop-filter:blur(17px) saturate(1.15)!important;
+  -webkit-backdrop-filter:blur(17px) saturate(1.15)!important;
+  mask-image:linear-gradient(to left,#000 20%,transparent 100%)!important;
+  -webkit-mask-image:linear-gradient(to left,#000 20%,transparent 100%)!important;
+  opacity:.74!important;
+  pointer-events:none!important;
+ }
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-tick,
+ html[data-cc-theme] body .cc-measure-rail:not(.is-expanded) .cc-measure-tick{background:var(--cc-ruler-mark)!important;opacity:.5!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-tick.medium,
+ html[data-cc-theme] body .cc-measure-rail:not(.is-expanded) .cc-measure-tick.medium{background:var(--cc-ruler-mark)!important;opacity:.75!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-tick.major,
+ html[data-cc-theme] body .cc-measure-rail:not(.is-expanded) .cc-measure-tick.major{background:var(--cc-ruler-mark)!important;opacity:.95!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-tick.is-active,
+ html[data-cc-theme] body .cc-measure-rail:not(.is-expanded) .cc-measure-tick.is-active{background:var(--cc-ruler-ink)!important;opacity:1!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-tick span,
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-cursor-label{color:var(--cc-ruler-ink)!important;text-shadow:0 1px 3px var(--cc-ruler-shadow)!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-cursor-line{background:var(--cc-ruler-mark)!important;box-shadow:0 0 8px color-mix(in srgb,var(--cc-ruler-mark) 45%,transparent)!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-viewport{border-color:color-mix(in srgb,var(--cc-ruler-mark) 40%,transparent)!important;background:color-mix(in srgb,var(--cc-ruler-mark) 7%,transparent)!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-chapter .cc-chapter-name,
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-chapter.is-current .cc-chapter-name,
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-chapter.is-morphing .cc-chapter-name{color:var(--cc-ruler-ink)!important;text-shadow:0 1px 5px var(--cc-ruler-shadow)!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-chapter.is-past .cc-chapter-name,
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-chapter.is-upcoming .cc-chapter-name{color:var(--cc-ruler-muted)!important;text-shadow:0 1px 4px var(--cc-ruler-shadow)!important}
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-chapter .cc-chapter-line{background:var(--cc-ruler-mark)!important}
+ html[data-cc-theme] body .cc-measure-rail.is-hovered:before{background:var(--cc-ruler-ink)!important;box-shadow:0 0 8px var(--cc-ruler-shadow)!important}
+ html[data-cc-theme] body .cc-measure-futures.cc-measure-futures-stack{background:transparent!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;opacity:1!important;z-index:220!important}
+ html[data-cc-theme] body .cc-measure-futures-stack .cc-measure-future,
+ html[data-cc-theme] body .cc-measure-futures-stack.is-inspecting .cc-measure-future:not([hidden]),
+ html[data-cc-theme] body .cc-measure-futures-stack.is-inspecting .cc-measure-future.is-inspection-target{color:var(--cc-ruler-ink)!important;text-shadow:0 1px 4px var(--cc-ruler-shadow)!important}
+ html[data-cc-theme] body .cc-measure-futures-stack .cc-measure-future:not(:hover):not(:focus-visible){opacity:.70!important}
+ html[data-cc-theme] body .cc-measure-futures-stack .cc-measure-future:hover,
+ html[data-cc-theme] body .cc-measure-futures-stack .cc-measure-future:focus-visible{color:var(--cc-ruler-ink)!important;opacity:1!important}
+}
+/* At medium desktop widths, restore useful ticks; avoid large chapter copy. */
+@media(min-width:901px) and (max-width:1150px){
+ html[data-cc-theme] body .cc-measure-rail .cc-measure-chapters,
+ html[data-cc-theme] body .cc-measure-futures.cc-measure-futures-stack{display:none!important}
+}
+@media(max-width:900px){html[data-cc-theme] body .cc-measure-rail{display:none!important}}
+@media(prefers-reduced-motion:reduce){html[data-cc-theme] body .cc-measure-rail .cc-measure-chapter,html[data-cc-theme] body .cc-measure-rail .cc-chapter-name{transition:none!important}}
+/* Codrops letter-stagger + FLIP-style dock: the ruler already provides
+   individual scroll phases and a dock path. Rotate the ACTUAL bold DOM text
+   rather than tilting each glyph or replacing the font with SVG outlines.
+   Keep it as a compact navigation landmark, not a second giant headline. */
+@media (min-width:1151px) and (prefers-reduced-motion:no-preference){
+ html body #cc-measure-rail .cc-measure-chapter.is-side-title .cc-chapter-name,
+ html body.cc-ruler-interior #cc-measure-rail .cc-measure-chapter.is-side-title .cc-chapter-name{
+  transform:rotate(var(--chapter-side-angle,0deg))!important;
+  transform-origin:right center!important;
+  font-family:Manrope,Inter,Arial,sans-serif!important;
+  font-weight:850!important;
+  font-size:clamp(10px,.86vw,13px)!important;
+  font-style:normal!important;
+  letter-spacing:.045em!important;
+  white-space:nowrap!important;
+  max-width:160px!important;
+  overflow:visible!important;
+  opacity:.96!important;
+  line-height:1.2!important;
+  text-shadow:0 1px 6px var(--cc-ruler-shadow)!important;
+ }
+ html body #cc-measure-rail .cc-measure-chapter.is-side-title .cc-ruler-letter{
+  /* The word rotates as a unit: no individual sideways/skewed letters. */
+  transform:translate3d(var(--glyph-x,0px),var(--glyph-y,0px),0) scale(1)!important;
+  opacity:1!important;
+  font-weight:inherit!important;
+ }
+ html body.cc-ruler-interior #cc-measure-rail .cc-measure-chapter.is-transferring{
+  transform:translate3d(var(--chapter-dock-x,0px),calc(-50% + var(--chapter-dock-y,0px)),0)!important;
+ }
+}
+/* Light palettes must not leave a bright 60px gutter beside the dark Earth
+   media: the hero backing reaches all the way under the translucent ruler. */
+html[data-cc-scheme="light"] body.cc-ruler-on-media #main>.hero,
+html[data-cc-scheme="light"] body.cc-ruler-on-media #main>.hero .hero-sticky{
+ background:#080c15!important;
+ background-color:#080c15!important;
+ background-image:none!important;
+}
+/* The old theme's broad .page-panel / chapters selector also painted the
+   full-height transparent chapter HIT AREA white, hiding the entire ruler. */
+html[data-cc-theme] body .cc-measure-rail .cc-measure-chapters,
+html[data-cc-theme] body .cc-measure-rail .cc-measure-ticks,
+html[data-cc-theme] body .cc-measure-rail .cc-measure-subsections{
+ background:transparent!important;
+ background-color:transparent!important;
+ background-image:none!important;
+}
+/* A legacy :is(...) selector includes #site-header, granting its entire
+   group ID-level specificity. Match that level to truly clear the layer. */
+html[data-cc-theme] body #cc-measure-rail .cc-measure-chapters,
+html[data-cc-theme] body #cc-measure-rail .cc-measure-ticks,
+html[data-cc-theme] body #cc-measure-rail .cc-measure-subsections{
+ background:transparent!important;
+ background-color:transparent!important;
+ background-image:none!important;
+}

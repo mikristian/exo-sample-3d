@@ -36,6 +36,7 @@ export default function CloTopMenuDropdown({menu,nativeMode,onAction,onDismiss})
         if(all.length){event.preventDefault();all[(pos+(event.key==='ArrowDown'?1:all.length-1)+all.length)%all.length]?.focus()}
       }
     }}>
+    {menu.quickActions?.map(renderAction)}
     {menu.sections?.length ? menu.sections.map(([name,actions])=><div key={name}
       className={`clo-menu-flyout ${expanded===name?'is-expanded':''}`}
       onMouseEnter={()=>setExpanded(name)}

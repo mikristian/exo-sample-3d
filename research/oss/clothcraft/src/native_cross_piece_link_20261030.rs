@@ -1,0 +1,298 @@
+//! Durable board-space source-anchor to another panel's target-anchor relationship.
+//! Independent EXO implementation; the v1 relation accepts a single qualified
+//! pair of detached panels with optional compatible six-size grading, not a general dependency graph.
+use crate::{
+    authoring::{self,Command,Edit},
+    garment::{polygon::PolygonPattern,template::{GarmentTemplate,Panel}},
+};
+use glam::DVec2;
+use serde::{Deserialize,Serialize};
+
+#[derive(Clone,Debug,Serialize,Deserialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+pub struct NativeCrossPieceLink20261030 {
+    pub version:u32,
+    pub source_template:GarmentTemplate,
+    pub source_panel_id:String,
+    pub source_point_index:usize,
+    pub target_panel_id:String,
+    pub target_point_index:usize,
+    /// Target board coordinate minus source board coordinate, in metres.
+    pub board_offset_m:DVec2,
+}
+fn panel<'a>(template:&'a GarmentTemplate,id:&str)->Result<&'a Panel,String>{
+    if id.is_empty() || template.panels.iter().filter(|p|p.id==id).count()!=1 {
+        return Err("Cross-piece reference needs a unique source and target panel".into());
+    }
+    template.panels.iter().find(|p|p.id==id).ok_or("Missing linked panel".into())
+}
+fn qualified<'a>(template:&'a GarmentTemplate,id:&str)->Result<(&'a Panel,&'a PolygonPattern),String>{
+    let p=panel(template,id)?;
+    if template.seams.iter().any(|s|s.a.panel==id||s.b.panel==id) {
+        return Err("Sewn panels are not qualified for persistent board links".into());
+    }
+    let poly=p.polygon.as_ref().ok_or("Persistent cross-piece link needs editable polygons")?;
+    if !p.pins.is_empty() || !p.pin_points.is_empty() ||
+        poly.points.len()<3 || poly.points.len()>32 ||
+        poly.edges.len()!=poly.points.len() || !poly.free_curve_points.is_empty() ||
+        !poly.vertex_ids.is_empty() || !poly.vertex_mirror_groups.is_empty() ||
+        !poly.holes.is_empty() || !poly.lines.is_empty() ||
+        !poly.notches.is_empty() || !poly.seam_allowances.is_empty() ||
+        !poly.target_lengths.is_empty() || !poly.annotations.is_empty() ||
+        !poly.measurements.is_empty() || poly.points.iter().any(|x| !x.is_finite()) ||
+        !p.layout_rotation_degrees.is_finite() ||
+        p.layout_2d.is_some_and(|x|!x.is_finite()) {
+        return Err("Attached, nonfinite or industrial panel cannot be linked".into());
+    }
+    if poly.curves.values().flatten().any(|x|!x.is_finite()) ||
+        poly.curves.keys().any(|name|!poly.edges.contains(name)) {
+        return Err("Invalid Bézier control inventory in linked panel".into());
+    }
+    for i in 0..poly.edges.len(){
+        let samples=poly.edge_points(i)?;
+        if samples.len()<2 || samples.windows(2).any(|w|w[0].distance(w[1])<1e-8){
+            return Err("Collapsed linked piece edge".into());
+        }
+    }
+    Ok((p,poly))
+}
+fn board(p:&Panel,point:DVec2)->DVec2{
+    p.layout_2d.unwrap_or_default()+authoring::rotate_2d(point,p.layout_rotation_degrees)
+}
+fn material(p:&Panel,point:DVec2)->DVec2{
+    authoring::rotate_2d(point-p.layout_2d.unwrap_or_default(),-p.layout_rotation_degrees)
+}
+impl NativeCrossPieceLink20261030 {
+    pub fn validate(&self,template:&GarmentTemplate)->Result<(),String>{
+        if self.version!=1 || self.source_panel_id==self.target_panel_id ||
+            !self.board_offset_m.is_finite() || self.board_offset_m.abs().max_element()>10. {
+            return Err("Invalid native cross-piece link version or board displacement".into());
+        }
+        let (source,source_poly)=qualified(template,&self.source_panel_id)?;
+        let (target,target_poly)=qualified(template,&self.target_panel_id)?;
+        let source_point=*source_poly.points.get(self.source_point_index)
+            .ok_or("Cross-piece source anchor index missing")?;
+        let target_point=*target_poly.points.get(self.target_point_index)
+            .ok_or("Cross-piece target anchor index missing")?;
+        if board(source,source_point).distance(board(target,target_point)-self.board_offset_m)>1e-8 {
+            return Err("Persisted cross-piece target disagrees with saved board-space link".into());
+        }
+        if serde_json::to_value(&self.source_template).map_err(|e|e.to_string())?
+            != serde_json::to_value(template).map_err(|e|e.to_string())?{
+            return Err("Persisted cross-piece link source template is stale".into());
+        }
+        Ok(())
+    }
+}
+
+pub fn install(template:&GarmentTemplate,source_panel_id:&str,source_point_index:usize,
+    target_panel_id:&str,target_point_index:usize)
+    ->Result<NativeCrossPieceLink20261030,String>{
+    let (a,source)=qualified(template,source_panel_id)?;
+    let (b,target)=qualified(template,target_panel_id)?;
+    if source_panel_id==target_panel_id {return Err("Source and target must be different pieces".into());}
+    let start=*source.points.get(source_point_index).ok_or("Unknown linked source point")?;
+    let end=*target.points.get(target_point_index).ok_or("Unknown linked target point")?;
+    let link=NativeCrossPieceLink20261030 {
+        version:1,source_template:template.clone(),
+        source_panel_id:source_panel_id.into(),source_point_index,
+        target_panel_id:target_panel_id.into(),target_point_index,
+        board_offset_m:board(b,end)-board(a,start),
+    };
+    link.validate(template)?;
+    Ok(link)
+}
+
+pub fn move_source(template:&GarmentTemplate,link:&NativeCrossPieceLink20261030,
+    expected:DVec2,destination:DVec2)
+    ->Result<(Edit,NativeCrossPieceLink20261030),String>{
+    link.validate(template)?;
+    if !expected.is_finite()||!destination.is_finite()||destination.abs().max_element()>10. ||
+        expected.distance(destination)<1e-8 {return Err("Invalid or unchanged native source edit".into());}
+    let (source,polygon)=qualified(template,&link.source_panel_id)?;
+    if polygon.points[link.source_point_index]!=expected {
+        return Err("Cross-piece source anchor differs from expected revision".into());
+    }
+    let target_panel=panel(template,&link.target_panel_id)?;
+    let desired_board=board(source,destination)+link.board_offset_m;
+    let target_position=material(target_panel,desired_board);
+    if !target_position.is_finite()||target_position.abs().max_element()>10. {
+        return Err("Linked board target exceeds finite material coordinates".into());
+    }
+    let mut candidate=template.clone();
+    for (id,index,position) in [
+        (&link.source_panel_id,link.source_point_index,destination),
+        (&link.target_panel_id,link.target_point_index,target_position),
+    ]{
+        candidate=authoring::apply(&candidate,Command::AnchorGroup{
+            panel:id.clone(),edits:vec![(index,position)],
+        })?.template;
+    }
+    let (a,source_after)=qualified(&candidate,&link.source_panel_id)?;
+    let (b,target_after)=qualified(&candidate,&link.target_panel_id)?;
+    if board(a,source_after.points[link.source_point_index])
+        .distance(board(b,target_after.points[link.target_point_index])-link.board_offset_m)>1e-8 {
+        return Err("Native material normalization broke cross-piece board reference".into());
+    }
+    let garment=candidate.compile()?;
+    let mut updated=link.clone();updated.source_template=candidate.clone();
+    updated.validate(&candidate)?;
+    Ok((Edit{template:candidate,garment,selected:None,reset_simulation:true,new_point:None},updated))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        fitting::FittingProject,
+        garment::{presets::GarmentKind,shapes::{self,Primitive}},
+    };
+    pub(super) fn fixture()->GarmentTemplate{
+        let mut project=FittingProject::basic(GarmentKind::Tshirt,0,
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets/makehuman/mannequin.obj"));
+        project.template.seams.clear();
+        project.template.panels.truncate(2);
+        for (index,p) in project.template.panels.iter_mut().enumerate(){
+            p.pins.clear();p.pin_points.clear();
+            p.polygon=Some(shapes::primitive(Primitive::Rectangle,
+                DVec2::new(0.4,0.25),180.,Default::default()).unwrap());
+            p.pattern.width=0.4;p.pattern.height=0.25;
+            p.layout_2d=Some(DVec2::new(index as f64*0.5,0.));
+        }
+        project.template
+    }
+    #[test]
+    fn persistent_link_recomputes_another_panel_from_board_space_and_rebases(){
+        let template=fixture();
+        let src=template.panels[0].id.as_str();
+        let dst=template.panels[1].id.as_str();
+        let link=install(&template,src,1,dst,1).unwrap();
+        let (edit,new_link)=move_source(&template,&link,DVec2::new(0.4,0.),
+            DVec2::new(0.44,0.)).unwrap();
+        assert_eq!(link.source_template.panels[0].polygon.as_ref().unwrap().points[1].x,0.4);
+        new_link.validate(&edit.template).unwrap();
+        let a=edit.template.panels.iter().find(|p|p.id==src).unwrap();
+        let b=edit.template.panels.iter().find(|p|p.id==dst).unwrap();
+        let av=board(a,a.polygon.as_ref().unwrap().points[1]);
+        let bv=board(b,b.polygon.as_ref().unwrap().points[1]);
+        assert!((bv-av-link.board_offset_m).length()<1e-8);
+        let p2=a.polygon.as_ref().unwrap().points[1];
+        let (_,second)=move_source(&edit.template,&new_link,p2,p2+DVec2::new(0.015,0.)).unwrap();
+        assert_eq!(second.version,1);
+    }
+    #[test]
+    fn stale_or_malformed_link_does_not_change_any_original_geometry(){
+        let original=fixture();
+        let a=&original.panels[0].id;let b=&original.panels[1].id;
+        let valid=install(&original,a,1,b,1).unwrap();
+        let serialized=serde_json::to_string(&original).unwrap();
+        assert!(move_source(&original,&valid,DVec2::new(0.39,0.),DVec2::new(0.45,0.)).is_err());
+        let mut forged=valid.clone();forged.board_offset_m.x+=0.1;
+        assert!(move_source(&original,&forged,DVec2::new(0.4,0.),DVec2::new(0.45,0.)).is_err());
+        let mut stale=valid.clone();stale.source_template.panels[0].name.push_str("stale");
+        assert!(move_source(&original,&stale,DVec2::new(0.4,0.),DVec2::new(0.45,0.)).is_err());
+        assert_eq!(serde_json::to_string(&original).unwrap(),serialized);
+    }
+    #[test]
+    fn linked_cubic_handle_remaps_with_edited_corner(){
+        let mut template=fixture();
+        for p in &mut template.panels{
+            p.polygon.as_mut().unwrap().curves.insert("edge_1".into(),
+                [DVec2::new(0.12,-0.03),DVec2::new(0.28,-0.03)]);
+        }
+        let a=&template.panels[0].id;let b=&template.panels[1].id;
+        let link=install(&template,a,1,b,1).unwrap();
+        let (edit,updated)=move_source(&template,&link,DVec2::new(0.4,0.),
+            DVec2::new(0.42,0.)).unwrap();
+        updated.validate(&edit.template).unwrap();
+        for (prior,p) in template.panels.iter().zip(&edit.template.panels){
+            let x=prior.polygon.as_ref().unwrap();let y=p.polygon.as_ref().unwrap();
+            assert!((
+                (y.curves["edge_1"][1]-y.points[1])-
+                (x.curves["edge_1"][1]-x.points[1])
+            ).length()<1e-8);
+        }
+    }
+}
+
+
+/// All sizes must obey the same authored board-space relationship. A grade
+/// that independently moves the child contrary to its source is rejected.
+pub fn validate_grade_link(link:&NativeCrossPieceLink20261030,
+    run:&crate::fitting::PersistedGradeRun)->Result<(),String>{
+    run.validate(&link.source_template)?;
+    if run.sizes.len()!=6 {return Err("Cross-piece grading requires six authored sizes".into());}
+    for (size,t) in run.sizes.iter().zip(&run.graded_templates){
+        let derived=install(t,&link.source_panel_id,link.source_point_index,
+            &link.target_panel_id,link.target_point_index)?;
+        if derived.board_offset_m.distance(link.board_offset_m)>1e-8 {
+            return Err(format!("Grade {size} conflicts with the cross-piece relationship"));
+        }
+    }
+    Ok(())
+}
+
+/// Rebase all authored grade offsets onto the Rust-derived new base. No child
+/// coordinates are accepted from the client. Pure: failure changes no project.
+pub fn move_source_with_grades(template:&GarmentTemplate,link:&NativeCrossPieceLink20261030,
+    run:&crate::fitting::PersistedGradeRun,expected:DVec2,destination:DVec2)
+    ->Result<(Edit,NativeCrossPieceLink20261030,crate::fitting::PersistedGradeRun),String>{
+    validate_grade_link(link,run)?;
+    let (edit,updated)=move_source(template,link,expected,destination)?;
+    let mut next=run.clone();next.base_template=edit.template.clone();
+    for (i,old_size) in run.graded_templates.iter().enumerate(){
+        let mut size=edit.template.clone();
+        for ((old_base,old),new) in template.panels.iter().zip(&old_size.panels).zip(&mut size.panels){
+            if let (Some(a),Some(b),Some(c))=(&old_base.polygon,&old.polygon,&mut new.polygon){
+                for ((base,graded),point) in a.points.iter().zip(&b.points).zip(&mut c.points){
+                    *point+=*graded-*base;
+                }
+                for (edge,handles) in &mut c.curves {
+                    let a=a.curves.get(edge).ok_or("Missing source cubic")?;
+                    let b=b.curves.get(edge).ok_or("Missing graded cubic")?;
+                    for k in 0..2 {handles[k]+=b[k]-a[k];}
+                }
+                // Unrelated panels retain their authored free-curve offsets.
+                if !a.free_curve_points.is_empty(){c.free_curve_points=b.free_curve_points.clone();}
+            }
+        }
+        next.graded_templates[i]=size;
+    }
+    validate_grade_link(&updated,&next)?;
+    Ok((edit,updated,next))
+}
+
+#[cfg(test)]
+mod grade_tests {
+ use super::*;
+ use crate::fitting::PersistedGradeRun;
+ fn catalog(t:&GarmentTemplate)->PersistedGradeRun {
+  let mut r=PersistedGradeRun{schema_version:1,sizes:["XS","S","M","L","XL","XXL"].map(String::from).to_vec(),base_size:"M".into(),base_template:t.clone(),graded_templates:vec![t.clone();6],size_correspondence:Default::default(),pom_specs:vec![]};
+  for (i,t) in r.graded_templates.iter_mut().enumerate(){
+   for p in &mut t.panels {p.polygon.as_mut().unwrap().points[1].x+=(i as f64-2.)*0.005;}
+  }
+  r
+ }
+ #[test]
+ fn six_sizes_follow_two_repeated_native_source_edits(){
+  let t=super::tests::fixture();let run=catalog(&t);
+  let link=install(&t,&t.panels[0].id,1,&t.panels[1].id,1).unwrap();
+  let (edit,link,run)=move_source_with_grades(&t,&link,&run,DVec2::new(0.4,0.),DVec2::new(0.42,0.)).unwrap();
+  let (edit,link,run)=move_source_with_grades(&edit.template,&link,&run,DVec2::new(0.42,0.),DVec2::new(0.43,0.)).unwrap();
+  for (i,size) in run.graded_templates.iter().enumerate(){
+   for p in &size.panels {assert!((p.polygon.as_ref().unwrap().points[1].x-(0.43+(i as f64-2.)*0.005)).abs()<1e-8);}
+  }
+  let encoded=serde_json::to_string(&(link,run)).unwrap();
+  let (link,run):(NativeCrossPieceLink20261030,PersistedGradeRun)=serde_json::from_str(&encoded).unwrap();
+  link.validate(&edit.template).unwrap();validate_grade_link(&link,&run).unwrap();
+ }
+ #[test]
+ fn conflicting_last_size_rejects_without_mutating_source(){
+  let t=super::tests::fixture();let mut run=catalog(&t);
+  let link=install(&t,&t.panels[0].id,1,&t.panels[1].id,1).unwrap();
+  run.graded_templates[5].panels[1].polygon.as_mut().unwrap().points[1].x+=0.01;
+  let before=serde_json::to_string(&run).unwrap();
+  assert!(move_source_with_grades(&t,&link,&run,DVec2::new(0.4,0.),DVec2::new(0.42,0.)).is_err());
+  assert_eq!(before,serde_json::to_string(&run).unwrap());
+ }
+}

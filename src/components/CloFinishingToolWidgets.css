@@ -102,9 +102,50 @@
   user-select:none;
 }
 .clo-floating-tool-header:active {cursor:grabbing;}
+.clo-floating-tool-header button.clo-floating-tool-dock-button{
+ right:34px;color:#a5d2f4;border-radius:3px;
+}
+.clo-floating-tool-header button.clo-floating-tool-dock-button:hover,
+.clo-floating-tool-header button.clo-floating-tool-dock-button:focus-visible{
+ background:#354c5e;color:#eff8ff;outline:1px solid #8cb9da;
+}
+.clo-floating-tool-header [data-exo-widget-grip="true"]{
+ display:grid;place-items:center;flex:none;min-width:24px;min-height:23px;
+ color:#b7d9f2;background:#344a5a;border:1px solid #6995b4;
+ border-radius:4px;cursor:grab;touch-action:none;
+ font-size:20px;font-weight:700;line-height:1;
+}
+.clo-floating-tool-header [data-exo-widget-grip="true"]:hover,
+.clo-floating-tool-header [data-exo-widget-grip="true"]:focus-visible{
+ color:#fff;background:#4184b6;outline:2px solid #63b8fa;outline-offset:-2px;
+}
+/* Generic EXO tools use the same bottom host as Grading Table and Compare
+   Length. Docked panels are actual flow children, not overlapping overlays. */
+.cc-rust-embedded [data-exo-grade-dock-host="true"]>.clo-floating-tool--docked{
+ position:relative!important;left:auto!important;top:auto!important;
+ z-index:1!important;box-shadow:none!important;
+ flex:1 1 310px!important;min-width:240px!important;
+ width:auto!important;max-width:none!important;
+ height:calc(100% - 33px)!important;max-height:calc(100% - 33px)!important;
+ border:1px solid #536578;border-radius:4px;
+ overflow:auto;overscroll-behavior:contain;
+}
+.cc-rust-embedded [data-exo-grade-dock-host="true"]>.clo-floating-tool--docked .clo-floating-tool-header{
+ position:sticky;top:0;z-index:5;height:29px;min-height:29px;
+ cursor:default;touch-action:auto;background:#2b3641;
+}
+.cc-rust-embedded [data-exo-grade-dock-host="true"]>.clo-floating-tool--docked .clo-floating-tool-header strong{
+ font-size:11px;max-width:calc(100% - 88px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.cc-rust-embedded [data-exo-grade-dock-host="true"]>.clo-floating-tool--docked .clo-native-grading{
+ max-height:none!important;overflow:auto;
+}
 .clo-floating-tool-header strong {font-size:13px;font-weight:600;color:#ededee;pointer-events:none;}
 .clo-floating-tool-grip {
   position:absolute;left:9px;top:7px;color:#6f7378;font-size:17px;letter-spacing:-1px;pointer-events:none;
+}
+.clo-floating-tool-header .clo-floating-tool-grip[data-exo-widget-grip="true"]{
+ display:grid!important;pointer-events:auto!important;left:6px;top:3px;z-index:9;
 }
 .clo-floating-tool-header button {
   width:23px;height:23px;position:absolute;right:5px;top:5px;padding:3px;

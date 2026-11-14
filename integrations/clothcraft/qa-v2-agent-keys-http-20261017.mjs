@@ -7,10 +7,12 @@ import path from 'node:path'
 import net from 'node:net'
 import {spawn} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
+import {randomBytes} from 'node:crypto'
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const output=fs.mkdtempSync(path.join(os.tmpdir(),'exo-agent-keys-http-'))
 const origin='http://127.0.0.1:5386'
+const shellToken=randomBytes(32).toString('hex')
 let child=null
 const freePort=()=>new Promise((resolve,reject)=>{
   const s=net.createServer();s.once('error',reject)
@@ -19,7 +21,7 @@ const freePort=()=>new Promise((resolve,reject)=>{
 const port=await freePort(),base=`http://127.0.0.1:${port}`
 async function launch(){
   child=spawn(process.execPath,['integrations/clothcraft/server.mjs'],{
-    cwd:root,env:{...process.env,EXO_CLOTHCRAFT_PORT:String(port),EXO_CLOTHCRAFT_OUTPUT_DIR:output},
+    cwd:root,env:{...process.env,EXO_CLOTHCRAFT_PORT:String(port),EXO_CLOTHCRAFT_OUTPUT_DIR:output,EXO_WORKSPACE_TOKEN:shellToken},
     stdio:['ignore','pipe','pipe'],
   })
   let trace=''
@@ -45,7 +47,7 @@ async function call(url,{method='GET',trusted=false,token,body}={}){
 }
 try{
   await launch()
-  const status=await call('/agent/v1/status',{trusted:true})
+  const status=await call('/agent/v1/status',{trusted:true,token:shellToken})
   assert.equal(status.status,200)
   assert.equal(status.body.apiVersion,'1.3.0')
   assert.equal(status.headers.get('access-control-allow-origin'),origin)
@@ -54,8 +56,10 @@ try{
   assert.equal(preflight.status,204)
   assert(preflight.headers.get('access-control-allow-headers').includes('Authorization'))
   assert.equal((await call('/agent/v1/keys')).status,401)
-  assert.equal((await call('/agent/v1/keys',{trusted:true})).status,200)
-  const created=await call('/agent/v1/keys',{trusted:true,method:'POST',body:{name:'Isolated QA read agent',scopes:['read'],expiresInDays:1}})
+  assert.equal((await call('/agent/v1/keys',{trusted:true})).status,401)
+  assert.equal((await call('/agent/v1/keys',{trusted:true,method:'POST',body:{name:'forged',scopes:['read']}})).status,401)
+  assert.equal((await call('/agent/v1/keys',{trusted:true,token:shellToken})).status,200)
+  const created=await call('/agent/v1/keys',{trusted:true,token:shellToken,method:'POST',body:{name:'Isolated QA read agent',scopes:['read'],expiresInDays:1}})
   assert.equal(created.status,201,JSON.stringify({status:created.status,code:created.body.code}))
   assert(created.body.key?.startsWith('cck_'))
   const secret=created.body.key,id=created.body.id
@@ -65,16 +69,16 @@ try{
   assert.equal((await call('/agent/v1/status',{token:secret})).status,200)
   assert.equal((await call('/agent/v1/actions',{method:'POST',token:secret,body:{action:'simulation.pause',expectedRevision:0}})).status,403)
   assert.equal((await call('/agent/v1/actions',{method:'POST',token:secret,body:{action:'workspace.save',expectedRevision:0}})).status,403)
-  const list=await call('/agent/v1/keys',{trusted:true})
+  const list=await call('/agent/v1/keys',{trusted:true,token:shellToken})
   assert.equal(list.body.keys.length,1)
   assert(!JSON.stringify(list.body).includes(secret))
   await halt()
   await launch()
   assert.equal((await call('/agent/v1/status',{token:secret})).status,200,'key should persist across native service restart')
-  const revoked=await call(`/agent/v1/keys/${id}`,{method:'DELETE',trusted:true})
+  const revoked=await call(`/agent/v1/keys/${id}`,{method:'DELETE',trusted:true,token:shellToken})
   assert.equal(revoked.status,200)
   assert.equal((await call('/agent/v1/status',{token:secret})).status,401)
-  assert.equal((await call('/agent/v1/keys',{trusted:true})).body.keys[0].revokedAt!==null,true)
+  assert.equal((await call('/agent/v1/keys',{trusted:true,token:shellToken})).body.keys[0].revokedAt!==null,true)
   console.log(JSON.stringify({pass:true,apiVersion:status.body.apiVersion,scopeDenied:true,secretPersistedAcrossRestart:true,
     unauthorized:401,revocationEffective:true,storeMode:'0600',preflight:204,keyListRedacted:true}))
 }finally{await halt();fs.rmSync(output,{recursive:true,force:true})}

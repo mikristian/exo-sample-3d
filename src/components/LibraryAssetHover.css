@@ -6,6 +6,12 @@
 .exo-library-asset-hover--pattern .exo-library-asset-hover-information dl{display:none}
 .exo-library-asset-hover--pattern .exo-library-asset-hover-information>p{font-size:10px}
 .exo-library-asset-hover--fabric{width:min(740px,calc(100vw - 24px));border-color:#525e68;background:#111416;box-shadow:0 30px 90px #000e}
+.exo-library-asset-hover--techpack{width:min(690px,calc(100vw - 24px));border-color:#85939d;background:#151c23;box-shadow:0 30px 90px #000e}
+.exo-library-asset-hover--techpack .exo-library-asset-hover-media{height:min(415px,63vh);flex:0 1 min(415px,63vh);min-height:210px;background:#555d63}
+.exo-library-asset-hover--techpack .exo-library-asset-hover-information{padding:11px 16px 13px;gap:5px}
+.exo-library-asset-hover--techpack .exo-library-asset-hover-information>strong{font-size:15px}
+.exo-library-asset-hover--techpack .exo-library-asset-hover-information>p{font-size:10px}
+.exo-library-asset-hover--techpack .exo-library-asset-hover-information dl{display:grid;grid-template-columns:1fr 1fr;gap:5px 14px}
 .exo-library-asset-hover--fabric .exo-library-asset-hover-media{height:min(420px,57vh);flex:0 0 min(420px,57vh);min-height:230px;background:#131619}
 .exo-library-asset-hover--fabric .exo-library-asset-hover-information{padding:13px 18px;gap:5px}
 .exo-library-asset-hover--fabric .exo-library-asset-hover-information dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 16px;margin:3px 0}

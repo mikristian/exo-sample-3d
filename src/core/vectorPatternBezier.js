@@ -2,6 +2,7 @@
 // A pattern edge stores [outgoingControl, incomingControl] in panel-local space.
 // Unlike a drawing-only vector handle, changes are persisted in native Rust Shape.
 import {vectorcraftAnchorKind,setVectorcraftHandle} from './vectorcraftAnchorPort.js'
+import {rustCubicComponent} from './rustCoreMathKernel.js'
 const validPoint=p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)
 const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])
 const add=(a,b)=>[a[0]+b[0],a[1]+b[1]]
@@ -15,6 +16,88 @@ export function snapControlAngle(anchor,point,step=Math.PI/4) {
   if(radius<1e-12)return point
   const angle=Math.round(Math.atan2(dy,dx)/step)*step
   return [anchor[0]+Math.cos(angle)*radius,anchor[1]+Math.sin(angle)*radius]
+}
+
+/** Illustrator Anchor Point gesture: drag outward from a fixed corner to
+ * create opposed, smooth incoming/outgoing handles in material space. */
+export function dragPatternAnchorHandles(polygon,index,delta,{snapAngle=false}={}) {
+  if(!polygon||!Array.isArray(polygon.points)||!Array.isArray(polygon.edges)||
+     !Number.isInteger(index)||index<0||index>=polygon.points.length||
+     polygon.edges.length!==polygon.points.length||!validPoint(delta)||
+     distance(delta,[0,0])<1e-9)return null
+  const next=structuredClone(polygon),n=next.points.length
+  const anchor=next.points[index]
+  if(!validPoint(anchor))return null
+  const outgoing=next.edges[index],incoming=next.edges[(index+n-1)%n]
+  if(typeof outgoing!=='string'||typeof incoming!=='string'||outgoing===incoming)return null
+  const end=snapAngle?snapControlAngle(anchor,add(anchor,delta)):add(anchor,delta)
+  const d=sub(end,anchor)
+  next.curves??={}
+  for(const edgeIndex of [index,(index+n-1)%n]){
+    const edge=next.edges[edgeIndex]
+    if(!next.curves[edge]){
+      const a=next.points[edgeIndex],b=next.points[(edgeIndex+1)%n]
+      if(!validPoint(a)||!validPoint(b))return null
+      next.curves[edge]=[lerp(a,b,1/3),lerp(a,b,2/3)]
+    }
+  }
+  next.curves[outgoing][0]=add(anchor,d)
+  next.curves[incoming][1]=sub(anchor,d)
+  return next
+}
+
+/** VectorCraft path.reshapeSegment, adapted from its MIT/Apache-2 Rust SubPath
+ * bend_segment and bend_segment_perpendicular operations.
+ * The two material anchors remain fixed. Dragging a point on the edge at t
+ * moves that cubic point by the pointer delta. Existing smoothly joined
+ * neighboring controls rotate with their anchor, but corner controls do not.
+ * All coordinates and the delta are physical material metres, not CSS px.
+ */
+export function reshapePatternBezierSegment(polygon,edge,t,delta,{perpendicular=false}={}) {
+  const n=polygon?.points?.length||0,k=polygon?.edges?.indexOf(edge)??-1
+  if(n<3||k<0||polygon.edges.length!==n||!validPoint(delta)||
+    !Number.isFinite(t)||t<0||t>1||distance(delta,[0,0])<1e-12)return null
+  // Native free stations have their own independent tangent/arc-length
+  // topology. Never overwrite them with a base-only curve reshape.
+  if(polygon.free_curve_points?.[edge]?.length)return null
+  const next=structuredClone(polygon),a=next.points[k],b=next.points[(k+1)%n]
+  if(!validPoint(a)||!validPoint(b)||distance(a,b)<1e-12)return null
+  const fraction=Math.max(.05,Math.min(.95,t))
+  const previous=next.edges[(k+n-1)%n],following=next.edges[(k+1)%n]
+  const baseline=next.curves?.[edge]||[lerp(a,b,1/3),lerp(a,b,2/3)]
+  if(!Array.isArray(baseline)||baseline.length!==2||!baseline.every(validPoint))return null
+  let c1,c2
+  const gain=3*fraction*(1-fraction)
+  if(perpendicular){
+    const chord=sub(b,a),length=distance(a,b)
+    const normal=[-chord[1]/length,chord[0]/length]
+    const curvePoint=cubicAt(a,baseline[0],baseline[1],b,fraction)
+    const desired=add(curvePoint,delta)
+    const distanceNormal=((desired[0]-a[0])*normal[0]+(desired[1]-a[1])*normal[1])/gain
+    const vector=normal.map(value=>value*distanceNormal)
+    c1=add(a,vector);c2=add(b,vector)
+  }else{
+    const vector=delta.map(value=>value/gain)
+    c1=add(baseline[0],vector);c2=add(baseline[1],vector)
+  }
+  if(!validPoint(c1)||!validPoint(c2))return null
+  const previousControl=next.curves?.[previous]?.[1]
+  const followingControl=next.curves?.[following]?.[0]
+  const smoothAtStart=validPoint(previousControl)&&
+    vectorcraftAnchorKind(a,previousControl,baseline[0])==='smooth'
+  const smoothAtEnd=validPoint(followingControl)&&
+    vectorcraftAnchorKind(b,baseline[1],followingControl)==='smooth'
+  next.curves??={}
+  next.curves[edge]=[c1,c2]
+  if(smoothAtStart){
+    const updated=setVectorcraftHandle({p:a,hIn:previousControl,hOut:baseline[0],kind:'smooth'},true,c1)
+    if(updated)next.curves[previous][1]=updated.hIn
+  }
+  if(smoothAtEnd){
+    const updated=setVectorcraftHandle({p:b,hIn:baseline[1],hOut:followingControl,kind:'smooth'},false,c2)
+    if(updated)next.curves[following][0]=updated.hOut
+  }
+  return next
 }
 
 /** Move one native control with optional Illustrator-style smooth continuity.
@@ -83,8 +166,7 @@ export function editPatternBezierHandle(polygon,edge,index,delta,{breakTangents=
 }
 
 export function cubicAt(a,c1,c2,b,t) {
-  const q=1-t
-  return [0,1].map(i=>q*q*q*a[i]+3*q*q*t*c1[i]+3*q*t*t*c2[i]+t*t*t*b[i])
+  return [0,1].map(i=>rustCubicComponent(a[i],c1[i],c2[i],b[i],t))
 }
 
 /** Split existing cubic at pointer fraction without changing the contour.

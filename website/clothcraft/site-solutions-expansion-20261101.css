@@ -1,0 +1,36 @@
+/* Detailed Solutions page — quiet graphite, precise borders, typography-led. */
+.cc-solutions-blueprint,.cc-solutions-scenarios,.cc-solutions-map,.cc-solutions-close{background:#242424!important}
+.cc-solutions-blueprint h2,.cc-solutions-scenarios h2,.cc-solutions-map h2,.cc-solutions-close h2{max-width:1100px}
+.cc-solution-sequence{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #565656;border-left:1px solid #565656}
+.cc-solution-sequence article{min-width:0;border-right:1px solid #565656;border-bottom:1px solid #565656;background:#303030;padding:clamp(26px,3vw,44px);display:flex;flex-direction:column;gap:17px}
+.cc-solution-sequence article>span{display:flex;align-items:center;justify-content:space-between;color:#dedede;font:850 11px/1.1 Manrope,Arial,sans-serif;letter-spacing:.09em}
+.cc-solution-sequence article>span i{font-style:normal;color:#a6a6a6;font-size:10px;letter-spacing:.14em}
+.cc-solution-sequence h3{font:780 clamp(21px,2.3vw,30px)/1.18 Manrope,Arial,sans-serif;letter-spacing:-.045em;margin:10px 0 0;color:#f0f0f0}
+.cc-solution-sequence p{color:#bfbfbf;font-size:14px;line-height:1.74;margin:0;flex:1}
+.cc-solution-sequence small{display:block;font:600 12px/1.65 Manrope,Arial,sans-serif;color:#b9b9b9;border-top:1px solid #575757;padding-top:17px}
+.cc-solutions-footnote{display:grid;grid-template-columns:minmax(120px,.45fr) 1fr;gap:28px;align-items:start;padding:28px 0 4px;border-bottom:1px solid #505050}
+.cc-solutions-footnote strong{font:760 19px/1.35 Manrope,Arial,sans-serif;color:#eaeaea}
+.cc-solutions-footnote p{font-size:14px;max-width:800px;color:#adadad;margin:0 0 23px}
+.cc-solution-personas{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cc-solution-personas>article{display:flex;flex-direction:column;min-width:0;padding:clamp(24px,3vw,42px);border:1px solid #575757;background:#2d2d2d}
+.cc-solutions-persona-index{font:800 10px/1.4 Manrope,Arial,sans-serif;letter-spacing:.17em;color:#b5b5b5}
+.cc-solution-personas h3{font:800 clamp(23px,2.4vw,34px)/1.13 Manrope,Arial,sans-serif;letter-spacing:-.045em;color:#e9e9e9;margin:38px 0 18px}
+.cc-solutions-persona-lead{font-size:15px!important;line-height:1.7!important;color:#dadada!important;min-height:87px}
+.cc-solution-personas dl{display:grid;gap:0;margin:12px 0 30px}
+.cc-solution-personas dl>div{border-top:1px solid #555;padding:16px 0}
+.cc-solution-personas dt{text-transform:uppercase;letter-spacing:.14em;font-weight:850;font-size:10px;color:#d0d0d0;margin-bottom:7px}
+.cc-solution-personas dd{margin:0;color:#b8b8b8;font-size:13px;line-height:1.7}
+.cc-solution-personas a{color:#ebebeb;align-self:flex-start;font-size:13px;font-weight:750;display:inline-flex;gap:24px;border-bottom:1px solid #aaa;padding:12px 0;margin-top:auto}
+.cc-solutions-table-wrap{max-width:1310px;overflow-x:auto;border:1px solid #565656;background:#2d2d2d}
+.cc-solutions-capability-table{width:100%;min-width:710px;border-collapse:collapse;font-size:13px;text-align:left}
+.cc-solutions-capability-table thead{background:#373737}
+.cc-solutions-capability-table th,.cc-solutions-capability-table td{padding:22px 20px;border-bottom:1px solid #555;vertical-align:top;line-height:1.67}
+.cc-solutions-capability-table tr:last-child th,.cc-solutions-capability-table tr:last-child td{border-bottom:0}
+.cc-solutions-capability-table th{color:#ededed;font-weight:780}
+.cc-solutions-capability-table td{color:#bdbdbd}
+.cc-solutions-capability-table td span{display:inline-flex;white-space:nowrap;font:800 10px Manrope,Arial,sans-serif;letter-spacing:.07em;border:1px solid #777;color:#dedede;padding:8px 10px}
+.cc-solutions-capability-table td:last-child{width:150px}
+.cc-solutions-capability-table tbody tr:hover{background:#363636}
+@media(max-width:1050px){.cc-solution-sequence{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-solution-personas{grid-template-columns:1fr}.cc-solutions-persona-lead{min-height:0}}
+@media(max-width:700px){.cc-solution-sequence{grid-template-columns:1fr}.cc-solution-sequence article{padding:26px}.cc-solutions-footnote{grid-template-columns:1fr;gap:7px}.cc-solutions-footnote p{margin-bottom:25px}.cc-solution-personas>article{padding:27px}.cc-solution-personas h3{margin-top:25px}}
+@media(prefers-reduced-motion:reduce){.cc-solution-personas article,.cc-solution-sequence article{transition:none!important}}

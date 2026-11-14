@@ -34,7 +34,7 @@ export function validateHardwareStyleEdit(project,id,field,value){
  if(!schema)return {ok:false,error:`Unknown editable hardware property: ${field}`}
  let parsed=value
  if(schema.type==='number'){
-  if(value===''||!Number.isFinite(Number(value)))return {ok:false,error:`${field} must be a finite number`}
+  if(value===null||value===undefined||typeof value==='boolean'||(typeof value==='string'&&!value.trim())||!Number.isFinite(Number(value)))return {ok:false,error:`${field} must be a finite number`}
   parsed=Number(value)
   if(parsed<schema.min||parsed>schema.max)return {ok:false,error:`${field} must be ${schema.min}–${schema.max}`}
  }else if(schema.type==='color'){

@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "description": "All 12 verified public GitHub migration references. Registered != downloaded or integrated. Forking, vendoring and dependency use require license and source review.",
+  "savedAt": "2026-10-21",
+  "storagePolicy": "Keep URLs and pinned HEADs locally; do not clone large repositories on a nearly full disk.",
+  "repositories": [
+    {"id":"oxc","repo":"oxc-project/oxc","url":"https://github.com/oxc-project/oxc","category":"js-analysis","priority":1,"adoption":"pilot-parser","licenseGate":"verify package license/version before redistribution","purpose":"Fast JavaScript/TypeScript AST parsing and source inventory; not a universal converter."},
+    {"id":"ast-grep","repo":"ast-grep/ast-grep","url":"https://github.com/ast-grep/ast-grep","category":"js-analysis","priority":1,"adoption":"pilot-search","licenseGate":"verify package license/version before redistribution","purpose":"Structural source search, migration candidate discovery and guarded rewrites."},
+    {"id":"typescript-to-rust","repo":"HoodieCollin/typescript-to-rust","url":"https://github.com/HoodieCollin/typescript-to-rust","category":"experimental-translator","priority":2,"adoption":"isolate-only","licenseGate":"verify translator repository license and output terms","purpose":"Experimental restricted TypeScript translation; never directly apply generated output."},
+    {"id":"cxx","repo":"dtolnay/cxx","url":"https://github.com/dtolnay/cxx","category":"interop","priority":1,"adoption":"candidate","licenseGate":"verify crate license and platform support","purpose":"Safe Rust/C++ interoperability during native solver migration."},
+    {"id":"wasm-bindgen","repo":"wasm-bindgen/wasm-bindgen","url":"https://github.com/wasm-bindgen/wasm-bindgen","category":"interop","priority":1,"adoption":"candidate","licenseGate":"verify crate license and bundler constraints","purpose":"Safer WASM↔JavaScript interfaces, reducing handwritten bridge code."},
+    {"id":"proptest","repo":"proptest-rs/proptest","url":"https://github.com/proptest-rs/proptest","category":"qa","priority":1,"adoption":"candidate","licenseGate":"verify crate license","purpose":"Property-based tests for Rust/legacy parity and numerical edge cases."},
+    {"id":"parry","repo":"dimforge/parry","url":"https://github.com/dimforge/parry","category":"geometry","priority":2,"adoption":"eval-only","licenseGate":"verify crate license and API","purpose":"Geometric distance/contact queries; no claim of cloth solver parity."},
+    {"id":"lyon","repo":"nical/lyon","url":"https://github.com/nical/lyon","category":"geometry","priority":2,"adoption":"eval-only","licenseGate":"verify crate license and API","purpose":"Path tessellation for 2D garment boundaries and curves."},
+    {"id":"dioxus","repo":"DioxusLabs/dioxus","url":"https://github.com/DioxusLabs/dioxus","category":"ui-rewrite","priority":3,"adoption":"design-eval","licenseGate":"verify crate/framework license","purpose":"Possible Rust UI rewrite; substantial interface work required."},
+    {"id":"wgpu","repo":"gfx-rs/wgpu","url":"https://github.com/gfx-rs/wgpu","category":"gpu","priority":2,"adoption":"design-eval","licenseGate":"verify crate license and Mac Metal backend","purpose":"Potential Rust GPU rendering and compute backend; no automatic Three.js replacement."},
+    {"id":"tauri","repo":"tauri-apps/tauri","url":"https://github.com/tauri-apps/tauri","category":"desktop","priority":2,"adoption":"design-eval","licenseGate":"verify framework license and existing Swift host capabilities","purpose":"Rust desktop host as an alternative to portions of the Swift app."},
+    {"id":"rapier","repo":"dimforge/rapier","url":"https://github.com/dimforge/rapier","category":"physics","priority":3,"adoption":"design-eval","licenseGate":"verify crate license and actual use-case fit","purpose":"Rigid-body engine/reference only; not a plug-in cloth simulator."}
+  ]
+}

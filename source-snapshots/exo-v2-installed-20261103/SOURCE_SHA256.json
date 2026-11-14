@@ -1,0 +1,11 @@
+{
+  "files": {
+    "integrations/clothcraft/agent-api.mjs": "b3c190220ee6ba497bc166f3673936c127f8347303cd6503a80d25989d47ee39",
+    "integrations/clothcraft/native-verified-order-handoff-run36-20261029.mjs": "e88db5952a52fac66dacc4ab9ea89d5875a108ec6992ba37d092c3d0b3c32c5f",
+    "integrations/clothcraft/native-verified-production-order-run37.mjs": "cec501fe8ca3a1a212a43d9ed155833e96393445d12224e3e55866e6aee49e1a",
+    "integrations/clothcraft/workspace.mjs": "a1402d3da369cf3a183351649055f3145cd8bcd5fb9df318ea7056a2e5225857",
+    "src/core/rustGeometryKernel.js": "953aad3e98004219a90f95eea442e52c6e6e2808ed5e904b2600f577177485a4"
+  },
+  "installed_runtime_builtAt": "2026-11-03T02:28:20.536Z",
+  "schema": "exo.installed-source-variants.v1"
+}

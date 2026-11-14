@@ -1,0 +1,122 @@
+{
+  "rea_version": "6.7.0",
+  "local_capabilities": [
+    {
+      "provider": "native-macos",
+      "groups": [
+        {
+          "operations": [
+            "capture_native_ui_scenario",
+            "observe_native_calls"
+          ],
+          "available": true
+        },
+        {
+          "operations": [
+            "demangle_swift",
+            "inspect_macho",
+            "inspect_plist",
+            "inspect_signature",
+            "list_architectures"
+          ],
+          "available": true
+        },
+        {
+          "operations": [
+            "inspect_native_dispatch_metadata"
+          ],
+          "available": true
+        },
+        {
+          "operations": [
+            "observe_native_ui"
+          ],
+          "available": true
+        }
+      ]
+    },
+    {
+      "provider": "rea-artifact-graph",
+      "groups": [
+        {
+          "operations": [
+            "decode_interface_builder",
+            "inspect_keyed_archive",
+            "trace_dylib_resolution"
+          ],
+          "available": true
+        },
+        {
+          "operations": [
+            "extract_artifact",
+            "inspect_artifact"
+          ],
+          "available": true
+        },
+        {
+          "operations": [
+            "inspect_asset_catalog"
+          ],
+          "available": true
+        }
+      ]
+    },
+    {
+      "provider": "rea-dotnet-static",
+      "groups": [
+        {
+          "operations": [
+            "inspect_managed_artifact"
+          ],
+          "available": true
+        },
+        {
+          "operations": [
+            "inspect_managed_members"
+          ],
+          "available": true
+        },
+        {
+          "operations": [
+            "inspect_managed_native_boundaries"
+          ],
+          "available": true
+        }
+      ]
+    },
+    {
+      "provider": "sqlite",
+      "groups": [
+        {
+          "operations": [
+            "inspect_sqlite_database"
+          ],
+          "available": false
+        }
+      ]
+    }
+  ],
+  "deep_analysis": [
+    {
+      "provider": "ghidra",
+      "status": "unavailable",
+      "reason": "Set GHIDRA_INSTALL_DIR to an extracted Ghidra 12.1.x release directory."
+    },
+    {
+      "provider": "hopper",
+      "status": "unavailable",
+      "reason": "Hopper launcher is missing or not executable: /Applications/Hopper Disassembler.app/Contents/MacOS/hopper"
+    },
+    {
+      "provider": "ida",
+      "status": "unavailable",
+      "reason": "Set REA_IDA_MCP_CONFIG to an upstream IDA MCP JSON registration; see docs/ida-provider.md."
+    },
+    {
+      "provider": "kuna",
+      "status": "unavailable",
+      "reason": "Set REA_KUNA_COMMAND to the absolute path of a caller-supplied kuna executable (verified with 1.833). REA does not download, install or update Kuna."
+    }
+  ],
+  "active_provider": null
+}

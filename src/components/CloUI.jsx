@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import CadToolIcon from './CadToolIcon.jsx'
+import PatternReferencePanel20261025 from './PatternReferencePanel20261025.jsx'
 import {getHardwarePreset} from '../data/hardwarePresets.js'
 import {resolveHardwareStyle} from '../core/hardwareStyleProperties.js'
 import {libraryFolders} from '../data/libraryFolderTree.js'
@@ -15,13 +16,13 @@ export { CLO_MENUS } from '../core/cloMenus.js'
 
 export const OBJECT_TABS = [
   { id: 'Fabric', icon: Shirt },
-  { id: 'Graphic', icon: Image }, { id: 'Button', icon: CircleDot },
+  { id: 'Graphic', icon: Image }, { id: 'Reference', icon: Image }, { id: 'Button', icon: CircleDot },
   { id: 'Buttonhole', icon: StretchHorizontal }, { id: 'Topstitch', icon: MoreHorizontal },
   { id: 'Puckering', icon: SlidersHorizontal },
   { id: 'Grading', icon: Grid2X2 }, { id: 'POM', icon: List },
 ]
 const OBJECT_TAB_ART = {
-  Scene:'scene', Fabric:'fabric', Graphic:'graphics', Button:'buttons',
+  Scene:'scene', Fabric:'fabric', Graphic:'graphics', Reference:'graphics', Button:'buttons',
   Buttonhole:'buttonholes', Topstitch:'topstitch', Puckering:'puckering',
   Trim:'trim', Zipper:'trim', Grading:'grading', POM:'pom',
 }
@@ -34,7 +35,7 @@ const OBJECT_CATEGORY_ART = {
 }
 
 export const OBJECT_HIERARCHY = [
-  {title:'2D Pattern', children:[['Pattern Pieces','Pattern','Scene'],['Internal Lines','Pattern','Scene'],['Grading & Measurements','Production','POM']]},
+  {title:'2D Pattern', children:[['Pattern Pieces','Pattern','Scene'],['Photo References','Pattern','Reference'],['Internal Lines','Pattern','Scene'],['Grading & Measurements','Production','POM']]},
   {title:'Sewing', children:[['Sewing Relationships','Sewing','Scene'],['Buttons','Sewing','Button'],['Buttonholes','Sewing','Buttonhole'],['Zippers','Sewing','Zipper'],['Topstitch','Sewing','Topstitch']]},
   {title:'3D Form', children:[['Arrangement','Pattern','Scene'],['Avatar','Avatar','Scene'],['Simulation & Fit','Fit','Scene']]},
   {title:'Material', children:[['Fabric Editor','Fabric','Fabric'],['Graphics & Texture','Fabric','Graphic'],['Trims','Sewing','Trim']]},
@@ -166,7 +167,8 @@ export function LibraryChrome({ category, setCategory, folder='all', setFolder, 
 }
 
 export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSelectedFabricId, onApplyFabric, setActiveSection, selectedPieceId, selectedFabricId, selectedObject, selectedHardwarePreset, onAddFabric, onAddPattern, onTogglePieceProperty, onSelectedObjectChange,
-  nativeMode=false,nativePanelRefs=[],nativeFabricRefs=[],nativeGraphicRefs=[],nativeSelectedObject,nativeGraphicsDisabled=false,showGraphicMeasurements=true,onToggleGraphicMeasurements,onNativePanelSelect,onNativeFabricSelect,onNativeGraphicSelect,onNativeGraphicVisibilityChange,onNativeGraphicAdd,onCreateObject,onCopyObject,onAssignObject,onFabricTextureRepeat,onFabricAddPrint,onRemoveObject,onObjectVisibilityChange,nativeImportedHardware=[],onEnvironmentSelect }) {
+  nativeMode=false,nativePanelRefs=[],nativeFabricRefs=[],nativeGraphicRefs=[],nativeSelectedObject,nativeGraphicsDisabled=false,showGraphicMeasurements=true,onToggleGraphicMeasurements,onNativePanelSelect,onNativeFabricSelect,onNativeGraphicSelect,onNativeGraphicVisibilityChange,onNativeGraphicAdd,onCreateObject,onCopyObject,onAssignObject,onFabricTextureRepeat,onFabricAddPrint,onRemoveObject,onObjectVisibilityChange,nativeImportedHardware=[],onEnvironmentSelect,
+  referenceProjectKey=null, referenceItems=[],onReferenceChange,onReferenceSelect,selectedReferenceId=null }) {
   const [objectSearch, setObjectSearch] = useState('')
   const [categoryMenuOpen,setCategoryMenuOpen]=useState(false)
   const [categoryExpanded,setCategoryExpanded]=useState('Environment')
@@ -281,7 +283,7 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
     onSelectedObjectChange?.({source:nativeMode?'native':'draft',type:'fabric',id,name})
   }
   return <section className="clo-object-browser" aria-label="Object Browser">
-    <div className="clo-panel-header"><strong>Object Browser</strong><span>{categoryMenuOpen ? `${OBJECT_HIERARCHY.length} GROUPS` : `${rows.length} ITEMS`}</span></div>
+    <div className="clo-panel-header"><strong>Object Browser</strong><span>{categoryMenuOpen ? `${OBJECT_HIERARCHY.length} GROUPS` : `${tab==='Reference'?referenceItems.length:rows.length} ITEMS`}</span></div>
     <div className="clo-object-tabs" role="tablist" aria-label="Object Browser types">
       <button className={`clo-object-bullet-menu-trigger clo-object-tab-menu ${categoryMenuOpen ? 'active' : ''}`}
         type="button" role="tab" aria-selected={categoryMenuOpen}
@@ -292,11 +294,14 @@ export function ObjectBrowser({ tab, setTab, project, setSelectedPieceId, setSel
         setTab(id);setCategoryMenuOpen(false);onEnvironmentSelect?.(null)
         if(id==='Fabric'&&fabrics.length)selectFabric(fabrics.find(([fabricId])=>fabricId===(nativeMode?nativeSelectedObject?.id:selectedFabricId))?.[0]||fabrics[0][0],fabrics.find(([fabricId])=>fabricId===(nativeMode?nativeSelectedObject?.id:selectedFabricId))?.[1]?.name||fabrics[0][1]?.name)
         else onSelectedObjectChange?.(null)
-        const workspace={Fabric:'Fabric',Graphic:'Fabric',Button:'Sewing',Buttonhole:'Sewing',Zipper:'Sewing',Trim:'Sewing',Topstitch:'Sewing',Puckering:'Sewing',Grading:'Production',POM:'Production'}[id]
+        const workspace={Fabric:'Fabric',Graphic:'Fabric',Reference:'Pattern',Button:'Sewing',Buttonhole:'Sewing',Zipper:'Sewing',Trim:'Sewing',Topstitch:'Sewing',Puckering:'Sewing',Grading:'Production',POM:'Production'}[id]
         if(workspace)setActiveSection(workspace)
-      }}><CadToolIcon id={OBJECT_TAB_ART[id]} size={21}/><span>{id}</span></button>)}
+      }}>{id==='Reference'?<ImagePlus size={20}/>:<CadToolIcon id={OBJECT_TAB_ART[id]} size={21}/>}<span>{id}</span></button>)}
     </div>
-    {categoryMenuOpen ? <>
+    {tab==='Reference'&&!categoryMenuOpen ? <PatternReferencePanel20261025
+      projectKey={referenceProjectKey} references={referenceItems} onChange={onReferenceChange}
+      selectedId={selectedReferenceId} onSelect={onReferenceSelect} disabled={!referenceProjectKey} variant="list"/>
+    : categoryMenuOpen ? <>
       <nav id="clo-object-hierarchy-menu" className="clo-object-hierarchy-menu" aria-label="Object Browser categories">
       {OBJECT_HIERARCHY.map(item=><div className="clo-object-hierarchy-group" key={item.title}>
         <button type="button" className={categoryExpanded===item.title?'expanded':''} aria-expanded={categoryExpanded===item.title} onClick={()=>setCategoryExpanded(categoryExpanded===item.title?'':item.title)}>{categoryExpanded===item.title?<ChevronDown size={12}/>:<ChevronRight size={12}/>}<CadToolIcon id={OBJECT_CATEGORY_ART[item.title]} size={15}/><strong>{item.title}</strong></button>

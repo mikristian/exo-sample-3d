@@ -1,4 +1,26 @@
+import { assertManufacturingSource, manufacturingButtonholeSegment, coincidentContours } from './manufacturingSourceValidation20261101.js'
 import { edgeLength, edgePointAt, getEdgeSeamAllowance, samplePieceBoundary, seamAllowanceBoundary } from './project.js'
+import { rustDxfNotchCut } from './rustGeometryKernel.js'
+import {inspectCutlinePolygon} from './cutlineTopology.js'
+import {buildSizeRun} from './grading.js'
+import {assertFreshModarisSizeLinkedGradeProject20261027} from './modarisSizeLinkedGradePersistence20261027.js'
+
+/** Source-pinned connected export. The caller never supplies a detached graded
+ * document; the final curve DAG is regenerated from validated authored data.
+ * This remains development geometry, not licensed receiver/factory approval.
+ */
+export function connectedSourceToManufacturingDxf(project,size){
+  if(project?.modarisSizeLinkedGrade===undefined)throw Error('Connected manufacturing DXF requires authored linked source')
+  assertFreshModarisSizeLinkedGradeProject20261027(project)
+  if(!project.grading?.sizes?.includes(size))throw Error('Connected manufacturing DXF refused: unknown linked size')
+  assertManufacturingSource(project)
+  const graded=buildSizeRun(project)[size]
+  // The generated size snapshot is a private ephemeral value. Never allow an
+  // external snapshot or boolean option to bypass projectToDxf's public guard.
+  const final={...graded}
+  delete final.modarisSizeLinkedGrade
+  return projectToDxf(final,size,{cutlineMode:'manufacturing',requireGradedGeometry:true})
+}
 
 function entityLine(layer, a, b) {
   return [
@@ -44,6 +66,28 @@ function safeLayer(value) {
   return String(value || 'PATTERN').replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 48)
 }
 
+// Legacy drafting labels are intentionally unchanged. Manufacturing cannot
+// safely emit two physical pieces under the same sanitized/truncated token:
+// CUT, STITCH, NOTCH and the receiver's piece matching all use that token.
+function assertUnambiguousManufacturingLayers(project) {
+  const ids = new Set()
+  const tokens = new Map()
+  for (const piece of project?.pieces || []) {
+    if (typeof piece?.id !== 'string' || !piece.id.trim()) {
+      throw new Error('Manufacturing DXF layer identity requires a nonempty source piece ID')
+    }
+    if (ids.has(piece.id)) {
+      throw new Error(`Manufacturing DXF duplicate source piece ID: ${piece.id}`)
+    }
+    ids.add(piece.id)
+    const token = safeLayer(piece.name).toUpperCase()
+    if (tokens.has(token)) {
+      throw new Error(`Manufacturing DXF layer identity collision: ${tokens.get(token)} and ${piece.id} both map to ${token}`)
+    }
+    tokens.set(token, piece.id)
+  }
+}
+
 function centroid(points) {
   if (!points.length) return { x: 0, y: 0 }
   return {
@@ -52,13 +96,79 @@ function centroid(points) {
   }
 }
 
+// The grain arrow is a physical instruction to the cutter. Its entire segment
+// must lie in fabric, including on concave pieces whose centroid is in a gap.
+function grainlineInsideCut(a, b, polygon) {
+  const epsilon = 1e-7
+  const cross = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+  const onSegment = (p, q, r) => Math.abs(cross(p, q, r)) <= epsilon &&
+    r.x >= Math.min(p.x, q.x) - epsilon && r.x <= Math.max(p.x, q.x) + epsilon &&
+    r.y >= Math.min(p.y, q.y) - epsilon && r.y <= Math.max(p.y, q.y) + epsilon
+  const inside = point => {
+    let contained = false
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+      const p = polygon[j], q = polygon[i]
+      if (onSegment(p, q, point)) return false // Require clearance from physical CUT.
+      if ((p.y > point.y) !== (q.y > point.y) &&
+        point.x < (q.x - p.x) * (point.y - p.y) / (q.y - p.y) + p.x) contained = !contained
+    }
+    return contained
+  }
+  if (!inside(a) || !inside(b)) return false
+  for (let i = 0; i < polygon.length; i++) {
+    const p = polygon[i], q = polygon[(i + 1) % polygon.length]
+    const c1 = cross(a, b, p), c2 = cross(a, b, q)
+    const c3 = cross(p, q, a), c4 = cross(p, q, b)
+    if (onSegment(a, b, p) || onSegment(a, b, q) ||
+      onSegment(p, q, a) || onSegment(p, q, b) ||
+      ((c1 > epsilon && c2 < -epsilon || c1 < -epsilon && c2 > epsilon) &&
+       (c3 > epsilon && c4 < -epsilon || c3 < -epsilon && c4 > epsilon))) return false
+  }
+  return true
+}
+
 function notchForEdge(piece, edgeIndex, depthCm = 0.45, fraction = 0.5) {
   const located = edgePointAt(piece, edgeIndex, fraction, 48)
   if (!located) return null
-  return {
-    a: { x: located.point.x - located.normal.x * depthCm * 0.15, y: located.point.y - located.normal.y * depthCm * 0.15 },
-    b: { x: located.point.x + located.normal.x * depthCm, y: located.point.y + located.normal.y * depthCm },
-  }
+  return rustDxfNotchCut(located.point, located.normal, depthCm)
+}
+
+/** Map the authored stitch-edge arclength fraction to its matching point on
+ * the offset physical CUT polygon. A notch must begin at the cutter edge and
+ * point into the seam allowance, never originate inside the sewn garment.
+ * Outlines are built from the exact same 12-segment edge sampling as DXF.
+ */
+function factoryNotchForEdge(piece,edgeIndex,depthCm=0.45,fraction=0.5){
+ const allowance=getEdgeSeamAllowance(piece,edgeIndex)
+ if(!Number.isFinite(depthCm)||!(depthCm>0)||!(allowance>depthCm+0.05)){
+  throw new Error(`Unsafe manufacturing notch depth/allowance at ${piece.id} edge ${edgeIndex}`)
+ }
+ const {edgePaths}=samplePieceBoundary(piece,12)
+ const sourcePath=edgePaths[edgeIndex]
+ const cut=seamAllowanceBoundary(piece,12)
+ if(!sourcePath||sourcePath.length<2||!cut.length)throw new Error(`Missing notch curve or physical cutting outline on ${piece.id}`)
+ const lengths=[0]
+ for(let k=1;k<sourcePath.length;k++)lengths[k]=lengths[k-1]+Math.hypot(sourcePath[k].x-sourcePath[k-1].x,sourcePath[k].y-sourcePath[k-1].y)
+ const total=lengths.at(-1)
+ if(!(total>0)||!Number.isFinite(fraction)||fraction<0||fraction>1)throw new Error(`Invalid physical notch arclength on ${piece.id}`)
+ const target=total*fraction
+ let segment=0
+ while(segment<lengths.length-2&&lengths[segment+1]<target)segment++
+ const span=lengths[segment+1]-lengths[segment]
+ if(!(span>0))throw new Error(`Invalid zero-length notch interval on ${piece.id}`)
+ const t=(target-lengths[segment])/span
+ const startIndex=edgePaths.slice(0,edgeIndex).reduce((sum,path)=>sum+path.length-1,0)
+ const a=cut[(startIndex+segment)%cut.length]
+ const b=cut[(startIndex+segment+1)%cut.length]
+ const atCut={x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t}
+ const atStitch=edgePointAt(piece,edgeIndex,fraction,64)?.point
+ if(!atStitch)throw new Error(`Missing sewn edge at notch ${piece.id}`)
+ const dx=atStitch.x-atCut.x,dy=atStitch.y-atCut.y
+ const distance=Math.hypot(dx,dy)
+ if(!(distance>1e-5))throw new Error(`Physical notch cannot locate seam allowance direction on ${piece.id}`)
+ const intoSeam={x:dx/distance,y:dy/distance}
+ const end={x:atCut.x+intoSeam.x*depthCm,y:atCut.y+intoSeam.y*depthCm}
+ return {a:atCut,b:end}
 }
 
 function dartLegs(line) {
@@ -75,7 +185,55 @@ function dartLegs(line) {
   }
 }
 
-export function projectToDxf(project, size = project.previewSize || project.grading?.baseSize || 'BASE') {
+export function projectToDxf(project, size = project.previewSize || project.grading?.baseSize || 'BASE', options = {}) {
+  if(project?.patternSource?.referenceOnly||project?.pieces?.some(piece=>piece?.patternImportProvenance?.referenceOnly)){
+    throw new Error('DXF export refused: a locked manufacturing CUT/STITCH reference is not an editable authored garment. Restore garment-source.json or create a verified original pattern before production export.')
+  }
+  // Legacy DXF labels the sewn/stitch contour CUT and the allowance contour SA.
+  // It remains the default for existing editor/import users. Factory releases
+  // explicitly request an honest CUT layer generated from per-edge allowances
+  // and a separate STITCH contour; no source geometry is mutated.
+  const factoryCutline = options.cutlineMode === 'manufacturing'
+  if (factoryCutline) {
+    assertUnambiguousManufacturingLayers(project)
+    assertManufacturingSource(project)
+  }
+  if (factoryCutline && project?.modarisSizeLinkedGrade !== undefined) {
+    // A previewSize label cannot prove the *original* authored source graph.
+    // Graded projects keep the graph but change their base points, so the
+    // provenance validator cannot safely regenerate from this detached copy.
+    // Reject manufacturing output until DXF receives a signed/source-pinned
+    // final snapshot instead of trusting a caller-produced graded document.
+    throw new Error('Manufacturing DXF refused: connected linked geometry requires authoritative source-pinned export')
+  }
+  // This generic exporter has no validated industrial hole/drill schema.
+  // Refuse manufacturing files containing such features rather than silently
+  // stripping them while a factory assumes the CUT is production-complete.
+  if(factoryCutline){
+    for(const piece of project?.pieces||[]){
+      for(const key of ['drills','drillMarks','punches','holes','cutHoles','internalCutouts','internalCuts']){
+        const marks=piece?.[key]
+        if(marks!==undefined&&(!Array.isArray(marks)||marks.length))
+          throw Error(`MANUFACTURING_FEATURE_EXPORT_UNVERIFIED:${piece.id||'unknown'}:${key}`)
+      }
+    }
+  }
+  if (options.cutlineMode != null && options.cutlineMode !== 'manufacturing' && options.cutlineMode !== 'drafting') {
+    throw new Error(`Unsupported DXF cutline mode: ${options.cutlineMode}`)
+  }
+  // A receiver-facing CUT/STITCH file must not simply label base-pattern
+  // coordinates as a non-base grade. gradeProject explicitly sets previewSize
+  // after transforming the actual physical geometry; require that evidence.
+  // This protects direct callers while leaving legacy drafting-only DXF
+  // exports/backwards-compatible reference workflows unchanged.
+  if(factoryCutline && options.requireGradedGeometry===true &&
+    project?.grading?.baseSize && size!==project.grading.baseSize &&
+    project.previewSize!==size){
+    throw new Error(`Factory DXF refused: requested ${size} but project has no matching graded preview geometry; gradeProject(source, '${size}') first`)
+  }
+  if(factoryCutline && options.requireGradedGeometry===true && project?.previewSize && project.previewSize!==size){
+    throw new Error(`Factory DXF size mismatch: pattern geometry is ${project.previewSize}, not requested ${size}`)
+  }
   const entities = []
   const notchTokens = new Set()
   for (const seam of project.seams || []) {
@@ -87,6 +245,12 @@ export function projectToDxf(project, size = project.previewSize || project.grad
   const spacingCm = 10
   for (const piece of project.pieces || []) {
     const sampled = samplePieceBoundary(piece, 12).points
+    let physicalOutline
+    if(factoryCutline){
+      physicalOutline=seamAllowanceBoundary(piece,12)
+      const audited=inspectCutlinePolygon(physicalOutline)
+      if(!audited.ok)throw new Error(`Unsafe factory CUT for ${piece.id}: ${audited.faults.map(x=>x.code).slice(0,3).join(', ')}`)
+    }
     const xs = sampled.map((point) => point.x)
     const minX = Math.min(...xs)
     const maxX = Math.max(...xs)
@@ -94,27 +258,69 @@ export function projectToDxf(project, size = project.previewSize || project.grad
     const pieceToken = safeLayer(piece.name).toUpperCase()
     const sizeToken = safeLayer(size).toUpperCase()
     const layerBase = `CUT_${pieceToken}_${sizeToken}`
-    entities.push(...entityPolyline(layerBase, translated))
-
-    if (piece.points.some((_, edgeIndex) => getEdgeSeamAllowance(piece, edgeIndex) > 0)) {
+    const hasAllowances = piece.points.some((_, edgeIndex) => getEdgeSeamAllowance(piece, edgeIndex) > 0)
+    if (factoryCutline) {
       const allowance = seamAllowanceBoundary(piece, 12)
         .map((point) => ({ x: point.x - minX + xOffset, y: point.y }))
-      entities.push(...entityPolyline(`SA_${pieceToken}`, allowance))
+      if (allowance.length < 3 || allowance.some(point => !Number.isFinite(point.x) || !Number.isFinite(point.y))) {
+        throw new Error(`Invalid factory cutting geometry for ${piece.id}`)
+      }
+      entities.push(...entityPolyline(layerBase, allowance))
+      entities.push(...entityPolyline(`STITCH_${pieceToken}`, translated))
+    } else {
+      entities.push(...entityPolyline(layerBase, translated))
+      if (hasAllowances) {
+        const allowance = seamAllowanceBoundary(piece, 12)
+          .map((point) => ({ x: point.x - minX + xOffset, y: point.y }))
+        entities.push(...entityPolyline(`SA_${pieceToken}`, allowance))
+      }
     }
 
     const explicitNotchEdges = new Set()
     for (const notch of piece.notches || []) {
-      const edgeIndex = Number(notch.edgeIndex)
-      if (!Number.isInteger(edgeIndex) || edgeIndex < 0 || edgeIndex >= piece.points.length) continue
+      // A manufacturing receiver must never reinterpret an unknown authored
+      // physical mark as a single notch. Legacy absent/null types continue to
+      // mean a single notch; explicit unsupported types fail closed.
+      if (factoryCutline && notch?.type != null && notch.type !== 'single' && notch.type !== 'double') {
+        throw new Error(`Unsupported manufacturing DXF notch type on ${piece.id}: ${String(notch.type)}`)
+      }
+      const edgeIndex = Number(notch?.edgeIndex)
+      if (!Number.isInteger(edgeIndex) || edgeIndex < 0 || edgeIndex >= piece.points.length || (factoryCutline && !Number.isInteger(notch?.edgeIndex))) {
+        if (factoryCutline) throw new Error(`Invalid manufacturing DXF notch edgeIndex on ${piece.id}: ${String(notch?.edgeIndex)}`)
+        continue
+      }
+      if (factoryCutline) {
+        const fraction = notch?.t ?? 0.5
+        if (typeof fraction !== 'number' || !Number.isFinite(fraction) || fraction < 0 || fraction > 1) {
+          throw new Error(`Invalid manufacturing DXF notch fraction on ${piece.id} edge ${edgeIndex}`)
+        }
+        const depth = notch?.depthCm ?? 0.45
+        if (typeof depth !== 'number' || !Number.isFinite(depth) || depth <= 0) {
+          throw new Error(`Invalid manufacturing DXF notch depth on ${piece.id} edge ${edgeIndex}`)
+        }
+      }
       explicitNotchEdges.add(edgeIndex)
       const length = edgeLength(piece, edgeIndex)
       const gap = length > 0 ? Math.min(0.045, 0.38 / length) : 0.02
+      const station = notch.t ?? 0.5
+      // Clamping a paired notch near a contour endpoint silently moves both
+      // physical cuts away from the authored station. Reject such factory
+      // geometry instead of exporting a misleading match mark. Drafting keeps
+      // its historical visual behavior for backwards compatibility.
+      if (factoryCutline && notch.type === 'double' && (station - gap < 0.01 || station + gap > 0.99)) {
+        throw new Error(`Unsafe manufacturing double-notch endpoint clearance on ${piece.id} edge ${edgeIndex}`)
+      }
       const fractions = notch.type === 'double'
-        ? [Math.max(0.01, (notch.t ?? 0.5) - gap), Math.min(0.99, (notch.t ?? 0.5) + gap)]
-        : [notch.t ?? 0.5]
+        ? [Math.max(0.01, station - gap), Math.min(0.99, station + gap)]
+        : [station]
       for (const fraction of fractions) {
-        const cut = notchForEdge(piece, edgeIndex, Number(notch.depthCm ?? 0.45), fraction)
-        if (!cut) continue
+        const cut = factoryCutline
+          ? factoryNotchForEdge(piece,edgeIndex,Number(notch.depthCm ?? 0.45),fraction)
+          : notchForEdge(piece, edgeIndex, Number(notch.depthCm ?? 0.45), fraction)
+        if (!cut) {
+          if (factoryCutline) throw new Error(`Missing manufacturing DXF notch cut on ${piece.id} edge ${edgeIndex}`)
+          continue
+        }
         entities.push(...entityLine(`NOTCH_${pieceToken}`,
           { x: cut.a.x - minX + xOffset, y: cut.a.y },
           { x: cut.b.x - minX + xOffset, y: cut.b.y },
@@ -122,7 +328,10 @@ export function projectToDxf(project, size = project.previewSize || project.grad
       }
     }
 
-    piece.points.forEach((_, edgeIndex) => {
+    // Sewing-edge references are not instructions to nick fabric. Legacy
+    // drafting exports retain their historical auto-notches, but factory
+    // cutting exports include only deliberately authored physical notches.
+    if(!factoryCutline)piece.points.forEach((_, edgeIndex) => {
       if (explicitNotchEdges.has(edgeIndex)) return
       if (!notchTokens.has(`${piece.id}:${edgeIndex}`)) return
       const notch = notchForEdge(piece, edgeIndex)
@@ -134,6 +343,13 @@ export function projectToDxf(project, size = project.previewSize || project.grad
     })
 
     for (const buttonhole of piece.buttonholes || []) {
+      if (factoryCutline) {
+        const { a, b } = manufacturingButtonholeSegment(buttonhole, seamAllowanceBoundary(piece, 12), piece.id)
+        entities.push(...entityLine(`BUTTONHOLE_${pieceToken}`,
+          { x: a.x - minX + xOffset, y: a.y },
+          { x: b.x - minX + xOffset, y: b.y }))
+        continue
+      }
       const angle = Number(buttonhole.orientationDeg || 0) * Math.PI / 180
       const halfLength = Math.max(0.4, Number(buttonhole.lengthCm ?? 2.4) * 0.5)
       const dx = Math.cos(angle) * halfLength
@@ -149,12 +365,37 @@ export function projectToDxf(project, size = project.previewSize || project.grad
     const minY = Math.min(...ys)
     const maxY = Math.max(...ys)
     const grainHalfLength = Math.max(3, (maxY - minY - 12) * 0.5)
-    const grainAngle = (Number(piece.grainAngleDeg || 0) * Math.PI) / 180
-    const grainDx = Math.sin(grainAngle) * grainHalfLength
-    const grainDy = Math.cos(grainAngle) * grainHalfLength
+    const authoredAngle = piece.grainAngleDeg ?? 0
+    if (factoryCutline && (typeof authoredAngle !== 'number' || !Number.isFinite(authoredAngle))) {
+      throw new Error(`Invalid manufacturing grain angle for ${piece.id}: finite numeric degrees required`)
+    }
+    const grainAngle = (Number(authoredAngle) * Math.PI) / 180
+    const physicalCut = factoryCutline && physicalOutline.map(point => ({ x: point.x - minX + xOffset, y: point.y }))
+    const minimumHalfLength = factoryCutline &&
+      Math.min(Math.max(...physicalCut.map(p => p.x)) - Math.min(...physicalCut.map(p => p.x)),
+        Math.max(...physicalCut.map(p => p.y)) - Math.min(...physicalCut.map(p => p.y))) >= 6 ? 1 : 3
+    let grainA, grainB
+    // Existing templates may place a long default arrow across the neckline.
+    // Reduce its length at the same authored center and angle, never moving it
+    // into a different disconnected fabric region or crossing a concavity.
+    for (let length = grainHalfLength; length >= minimumHalfLength - 1e-9; length = Math.max(minimumHalfLength, length * 0.8)) {
+      const dx = Math.sin(grainAngle) * length
+      const dy = Math.cos(grainAngle) * length
+      const a = { x: center.x - dx, y: center.y - dy }
+      const b = { x: center.x + dx, y: center.y + dy }
+      if (!factoryCutline || (Number.isFinite(dx) && Number.isFinite(dy) && grainlineInsideCut(a, b, physicalCut))) {
+        grainA = a
+        grainB = b
+        break
+      }
+      if (length === minimumHalfLength) break
+    }
+    if (factoryCutline && !grainA) {
+      throw new Error(`Unsafe manufacturing grainline outside physical CUT for ${piece.id}`)
+    }
     entities.push(...entityLine(`GRAIN_${pieceToken}`,
-      { x: center.x - grainDx, y: center.y - grainDy },
-      { x: center.x + grainDx, y: center.y + grainDy },
+      grainA,
+      grainB,
     ))
     entities.push(...entityText(`LABEL_${pieceToken}`, center, `${piece.name} / ${size}`, 5))
 
@@ -204,6 +445,7 @@ export function projectToDxf(project, size = project.previewSize || project.grad
     '999', `GARMENT_STUDIO_PROJECT ${project.id || 'untitled'}`,
     '999', `GARMENT_STUDIO_SIZE ${size}`,
     '999', 'COORDINATES_MM',
+    '999', factoryCutline ? 'CUT_LAYER_IS_PHYSICAL_ALLOWANCE_OUTLINE_STITCH_IS_SEWLINE_EXPLICIT_NOTCHES_ONLY' : 'DRAFTING_LEGACY_CUT_IS_SEWLINE_SA_IS_ALLOWANCE_OUTLINE',
     '0', 'SECTION',
     '2', 'ENTITIES',
     ...entities,
@@ -244,7 +486,12 @@ function unitScaleToCm(pairs) {
     5: 1, // centimeters
     6: 100, // meters
   }
-  if (map[insUnits]) return map[insUnits]
+  if (insUnits != null) {
+    if (map[insUnits]) return map[insUnits]
+    // Explicit unsupported or unitless DXFs cannot be safely guessed as mm.
+    // Manufacturing patterns must never silently import at the wrong scale.
+    throw new Error(`Unsupported or unitless DXF INSUNITS (${insUnits}); specify the import scale explicitly`)
+  }
   return metric === 0 ? 2.54 : 0.1
 }
 
@@ -398,13 +645,104 @@ function nearestStraightEdge(points, target) {
 export function parseDxfPatterns(text, options = {}) {
   const pairs = dxfPairs(text)
   const entities = collectEntities(pairs)
-  const scale = options.scaleToCm || unitScaleToCm(pairs)
-  const closed = entities.filter((entity) => (
+  const scale = options.scaleToCm == null ? unitScaleToCm(pairs) : Number(options.scaleToCm)
+  if (!Number.isFinite(scale) || scale <= 0 || scale > 100) throw new Error('DXF import scale must be a finite positive centimeters-per-unit value')
+  // Manufacturer CUT is the physical fabric edge, NOT the garment's stitch
+  // line. Importing it as an editable pattern with our default allowance of
+  // 1 cm would add a second seam allowance. Fail closed unless the user
+  // explicitly requests a non-production *reference*, with zero allowance.
+  const isFactory = pairs.some(row => row.code === 999 && row.value.includes('CUT_LAYER_IS_PHYSICAL_ALLOWANCE_OUTLINE_STITCH_IS_SEWLINE')) ||
+    entities.some(entity => /^STITCH_/i.test(entity.layer))
+  if (isFactory && !options.manufacturingImport) {
+    throw new Error('Manufacturing DXF contains physical CUT and separate STITCH lines. Importing CUT as a sewing pattern would double its seam allowance. Open garment-source.json from the factory ZIP for editable grading, or explicitly import this DXF as a non-production reference.')
+  }
+  if (isFactory && !['cut-reference','stitch-reference'].includes(options.manufacturingImport)) {
+    throw new Error('Manufacturing DXF import requires explicit cut-reference or stitch-reference mode; neither restores original graded rules or seam allowances.')
+  }
+  if (!isFactory && options.manufacturingImport) {
+    throw new Error('Reference-mode import requires a DXF with verified physical CUT and STITCH contours; cannot assume unnamed contours have factory semantics.')
+  }
+  const originalClosed = entities.filter((entity) => (
     ['POLYLINE', 'LWPOLYLINE'].includes(entity.type)
     && entity.closed
     && entity.points?.length >= 3
     && !ignoredOutlineLayer(entity.layer)
   ))
+  let closed = originalClosed
+  const factoryTokens=new Map()
+  let factorySize=null
+  if(isFactory){
+    // The Rust native CUT proof predates the graded DXF exchange schema. It
+    // intentionally writes its STITCH contour as individual LINE entities,
+    // not a second garment POLYLINE. Accept this *only* as an explicitly
+    // requested locked, zero-allowance engineering reference after proving
+    // there is exactly one closed physical CUT and one closed sewn loop.
+    // It is never interpreted as a graded AAMA/ASTM garment or factory file.
+    const rustProof=pairs.some(pair=>pair.code===999 &&
+      pair.value==='EXO QA CUTLINE PROOF - verify metric scale, not factory approved')
+    if(rustProof){
+      const cuts=entities.filter(entity=>entity.layer==='CUT_EXO')
+      const sew=entities.filter(entity=>entity.layer==='STITCH_EXO')
+      if(cuts.length!==1||cuts[0].type!=='LWPOLYLINE'||!cuts[0].closed||
+        sew.length<3||sew.length>8192||sew.some(line=>line.type!=='LINE')||
+        entities.some(entity=>/^CUT_|^STITCH_/i.test(entity.layer) &&
+          !['CUT_EXO','STITCH_EXO'].includes(entity.layer)))
+        throw new Error('Native EXO DXF proof requires one closed CUT and one bounded segmented STITCH contour')
+      const loops=lineLoops(sew,0.0001)
+      if(loops.length!==1||loops[0].length!==sew.length)
+        throw new Error('Native EXO DXF has a broken, duplicate or branching sewn line loop')
+      const cut=inspectCutlinePolygon(cuts[0].points)
+      const stitch=inspectCutlinePolygon(loops[0])
+      if(!cut.ok||!stitch.ok||cut.areaCm2-stitch.areaCm2<=1e-6)
+        throw new Error('Native EXO DXF CUT/STITCH contour geometry or physical allowance is invalid')
+      closed=options.manufacturingImport==='stitch-reference'?
+        [{...cuts[0],points:loops[0]}]:cuts
+      factoryTokens.set('CUT_EXO',{pieceName:'EXO',size:'BASE'})
+      factorySize='BASE'
+    }else{
+    const cutEntities=entities.filter(entity=>/^CUT_/i.test(entity.layer))
+    const stitchEntities=entities.filter(entity=>/^STITCH_/i.test(entity.layer))
+    const stitchByName=new Map()
+    const cuts=[]
+    for(const stitch of stitchEntities){
+      const name=String(stitch.layer).replace(/^STITCH_/i,'').toUpperCase()
+      if(stitchByName.has(name))throw new Error(`Manufacturing DXF has duplicate STITCH contour for ${name}`)
+      stitchByName.set(name,stitch)
+    }
+    if(!cutEntities.length||cutEntities.length!==stitchEntities.length)throw new Error('Manufacturing DXF needs exactly one physical CUT and one STITCH contour per piece; unsupported or missing contours detected')
+    const sizeSet=new Set()
+    for(const cut of cutEntities){
+      // Source piece names can themselves contain underscores, and actual
+      // industry size labels are not limited to XS–XXL (e.g. 4XL or W32_L32).
+      // Match each CUT to an independently named STITCH layer before removing
+      // its size suffix; longest matching piece token wins.
+      const basename=String(cut.layer||'').replace(/^CUT_/i,'').toUpperCase()
+      const names=[...stitchByName.keys()].filter(name=>basename.startsWith(`${name}_`))
+        .sort((a,b)=>b.length-a.length)
+      if(!names.length)throw new Error(`Manufacturing CUT has invalid or unverified size/piece name: ${cut.layer}`)
+      const pieceName=names[0]
+      const size=basename.slice(pieceName.length+1)
+      if(!/^[A-Z0-9][A-Z0-9_-]{0,23}$/.test(size))throw new Error(`Invalid manufacturing DXF graded size label: ${size}`)
+      sizeSet.add(size)
+      const stitch=stitchByName.get(pieceName)
+      if(!stitch)throw new Error(`Manufacturing DXF lacks a STITCH line paired with ${cut.layer}`)
+      if(!['POLYLINE','LWPOLYLINE'].includes(cut.type)||!cut.closed||
+        !['POLYLINE','LWPOLYLINE'].includes(stitch.type)||!stitch.closed){
+        throw new Error(`Manufacturing CUT/STITCH pair is not a pair of closed polylines for ${pieceName}`)
+      }
+      const physicalCut=inspectCutlinePolygon(cut.points)
+      const sewingOutline=inspectCutlinePolygon(stitch.points)
+      if(!physicalCut.ok||!sewingOutline.ok)throw new Error(`Manufacturing CUT/STITCH topology is invalid for ${pieceName}`)
+      if(!(physicalCut.areaCm2-sewingOutline.areaCm2>1e-6) && !coincidentContours(cut.points, stitch.points))throw new Error(`Manufacturing CUT does not exceed STITCH area for ${pieceName}; cannot recover fabric roles`)
+      cuts.push(options.manufacturingImport==='stitch-reference'?{...stitch,layer:cut.layer}:cut)
+      factoryTokens.set(cut.layer,{pieceName,size})
+      stitchByName.delete(pieceName)
+    }
+    if(sizeSet.size!==1||stitchByName.size)throw new Error('Manufacturing DXF mixes size runs or includes unpaired STITCH outlines; import single size and verify independently')
+    factorySize=[...sizeSet][0]
+    closed=cuts
+    }
+  }
 
   const linesByLayer = new Map()
   for (const entity of entities.filter((item) => item.type === 'LINE')) {
@@ -412,6 +750,7 @@ export function parseDxfPatterns(text, options = {}) {
     linesByLayer.get(entity.layer).push(entity)
   }
   for (const [layer, lines] of linesByLayer) {
+    if(isFactory)continue
     if (ignoredOutlineLayer(layer)) continue
     for (const points of lineLoops(lines)) closed.push({ type: 'LINE_LOOP', layer, closed: true, points })
   }
@@ -437,10 +776,13 @@ export function parseDxfPatterns(text, options = {}) {
       cursorY += rowHeight + 32
       rowHeight = 0
     }
-    const name = titleFromLayer(entity.layer, index)
+    const factoryPieceName=factoryTokens.get(entity.layer)?.pieceName
+    const name = factoryPieceName
+      ? factoryPieceName.replace(/[_-]+/g,' ').toLowerCase().replace(/\b\w/g,letter=>letter.toUpperCase())
+      : titleFromLayer(entity.layer, index)
     // Keep a stable source token for matching associated NOTCH/GRAIN/etc.
     // Layers contain the original pattern token, not the human-readable name.
-    const sourceToken = String(entity.layer || '').replace(/^CUT_/i, '').replace(/_[A-Za-z0-9]+$/, '')
+    const sourceToken = factoryPieceName || String(entity.layer || '').replace(/^CUT_/i, '').replace(/_[A-Za-z0-9]+$/, '')
     pieces.push({
       id: `imported-${index + 1}`,
       name,
@@ -454,9 +796,23 @@ export function parseDxfPatterns(text, options = {}) {
       layout2d: { x: cursorX + width * 0.5, y: cursorY },
       arrangement3d: { x: (index % 3 - 1) * 0.7, y: 0.75 + Math.floor(index / 3) * 0.12, z: -0.65, flip: false },
       grainAngleDeg: 0,
-      seamAllowance: 1,
+      seamAllowance: isFactory ? 0 : 1,
       fabricId: 'main',
-      locked: false,
+      locked: isFactory,
+      ...(isFactory?{active3d:false,frozen3d:true}:{}),
+      ...(isFactory?{
+        patternImportProvenance:{
+          source:'generic-manufacturing-dxf',
+          importRole:options.manufacturingImport,
+          referenceOnly:true,
+          physicalCutlineVerified:true,
+          gradedRuleRecovered:false,
+          originalCurveControlsRecovered:false,
+          originalSeamAllowancesRecovered:false,
+          notchPairingRecovered:false,
+          factoryCertified:false,
+        },
+      }:{}),
       _import: { minX, minY, scale, layer: entity.layer },
     })
     cursorX += width + 24
@@ -495,6 +851,10 @@ export function parseDxfPatterns(text, options = {}) {
         color: '#575757',
       })
     } else if (/^NOTCH_/i.test(entity.layer)) {
+      // Factory NOTCH lines originate on the physical CUT and point inward;
+      // attaching them directly to a STITCH reference would invent incorrect
+      // sewing notches and lose double-notch pairing. Keep cut-reference only.
+      if(isFactory&&options.manufacturingImport==='stitch-reference')continue
       const midpoint = toLocal({ x: (entity.a.x + entity.b.x) * 0.5, y: (entity.a.y + entity.b.y) * 0.5 })
       const nearest = nearestStraightEdge(piece.points, midpoint)
       if (nearest && nearest.distance < 1.5) {
@@ -527,5 +887,18 @@ export function parseDxfPatterns(text, options = {}) {
   }
 
   for (const piece of pieces) { delete piece._import; delete piece.sourceToken }
-  return { pieces, scaleToCm: scale, entityCount: entities.length }
+  return { pieces, scaleToCm: scale, entityCount: entities.length,
+    ...(isFactory?{
+      manufacturingReference:true,
+      referenceMode:options.manufacturingImport,
+      referenceSize:factorySize,
+      factoryCertified:false,
+      warnings:[
+        'Reference only: original curves, point-grade breaks, authored seam allowance widths, sewing relationships, and notch pairs were not reconstructed.',
+        options.manufacturingImport==='cut-reference'
+          ? 'Imported geometry is the physical cutter outline with seamAllowance=0, not an editable sewn garment pattern.'
+          : 'Imported geometry is only the sewing outline; physical cut and notches are not recovered as editable authored allowances.',
+      ],
+    }:{}),
+  }
 }

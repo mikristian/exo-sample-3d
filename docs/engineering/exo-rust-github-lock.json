@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "generatedAt": "2026-10-21T06:42:48.021Z",
+  "method": "git ls-remote HEAD, metadata only; not cloned or installed",
+  "pins": [
+    {
+      "id": "oxc",
+      "repo": "oxc-project/oxc",
+      "commit": "f32360093c2ee18096fa14e0f48c48d75ca5a4a4",
+      "verified": true
+    },
+    {
+      "id": "ast-grep",
+      "repo": "ast-grep/ast-grep",
+      "commit": "cab768cda596042575bc47683990eabed2bf4aa2",
+      "verified": true
+    },
+    {
+      "id": "typescript-to-rust",
+      "repo": "HoodieCollin/typescript-to-rust",
+      "commit": "9d75d4ee3c34c6bc3ea7436c9801a156962a603c",
+      "verified": true
+    },
+    {
+      "id": "cxx",
+      "repo": "dtolnay/cxx",
+      "commit": "598ccd932ffb9f758b359177ab3a2ba67aa7e021",
+      "verified": true
+    },
+    {
+      "id": "wasm-bindgen",
+      "repo": "wasm-bindgen/wasm-bindgen",
+      "commit": "6513d6b118f4aa934b3ef553bb2e3ce8280791f2",
+      "verified": true
+    },
+    {
+      "id": "proptest",
+      "repo": "proptest-rs/proptest",
+      "commit": "70cf37d46b7d83393b6ed94c611f8c52209f585d",
+      "verified": true
+    },
+    {
+      "id": "parry",
+      "repo": "dimforge/parry",
+      "commit": "b3c3584ce9be9bf6edb821fd7548b817087131ff",
+      "verified": true
+    },
+    {
+      "id": "lyon",
+      "repo": "nical/lyon",
+      "commit": "6f2e57ec8624a1e6cfa2b642231c8f477c85c0f2",
+      "verified": true
+    },
+    {
+      "id": "dioxus",
+      "repo": "DioxusLabs/dioxus",
+      "commit": "7a817390a69294f614b3055aae2dacdf25c050a2",
+      "verified": true
+    },
+    {
+      "id": "wgpu",
+      "repo": "gfx-rs/wgpu",
+      "commit": "3050396df223f189925c5a7d9d81c0ef219b6117",
+      "verified": true
+    },
+    {
+      "id": "tauri",
+      "repo": "tauri-apps/tauri",
+      "commit": "cf40b7337a9657ead88be3b4caed4539d8aabae8",
+      "verified": true
+    },
+    {
+      "id": "rapier",
+      "repo": "dimforge/rapier",
+      "commit": "475caa3ff4646fd9a796b67d14116256f4962bc7",
+      "verified": true
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 // Browser WASM keeps the synchronous sewing editor contract intact. The
 // Javascript calculation remains the compatibility path until WASM loads.
 export const RUST_SEAM_INTERVAL_ABI_VERSION=1
@@ -14,10 +15,7 @@ export async function initializeRustSeamIntervalKernel({bytes,url='/wasm/exo_sea
   if(loading)return loading
   loading=(async()=>{
     try{
-      const raw=bytes??await fetch(url).then(response=>{
-        if(!response.ok)throw new Error(`Seam interval WASM HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const raw=bytes??await fetchWasmBytes(url, "Seam interval WASM HTTP ")
       const module=await WebAssembly.instantiate(raw,{})
       const exports=module.instance?.exports??module.exports
       if(exports?.exo_seam_interval_abi_version?.()!==RUST_SEAM_INTERVAL_ABI_VERSION||
@@ -36,6 +34,9 @@ export function rustSeamIntervalValid(start,end){
     Number.isFinite(start)&&Number.isFinite(end)&&start>=0&&end<=1&&start<end
 }
 export function rustSeamIntervalsOverlap(aStart,aEnd,bStart,bEnd,epsilon=1e-5){
+  // Negative tolerance can make separated seam intervals appear overlapping.
+  // Reject it consistently before either the WASM or JavaScript path runs.
+  if(!Number.isFinite(epsilon)||epsilon<0)return false
   if(kernel)return kernel.exo_seam_intervals_overlap(aStart,aEnd,bStart,bEnd,epsilon)===1
   return rustSeamIntervalValid(aStart,aEnd)&&rustSeamIntervalValid(bStart,bEnd)&&
     Math.min(aEnd,bEnd)-Math.max(aStart,bStart)>epsilon

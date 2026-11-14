@@ -1,0 +1,89 @@
+/* ClothCraft / scroll-led editorial system
+   Graphite, steel and typography, not decorative gradients.
+   Hidden states only activate when JS has already wired its observers. */
+.cc-kinetic {--cc-scatter:0; overflow:visible; text-wrap:balance}
+.cc-kinetic-word {display:inline-block;white-space:nowrap;vertical-align:baseline}
+.cc-kinetic-char {
+  display:inline-block;
+  transform:translate3d(calc(var(--cc-char-x) * var(--cc-scatter)),calc(var(--cc-char-y) * var(--cc-scatter)),0);
+  transition:transform .13s linear;
+  will-change:transform;
+}
+.cc-motion-on .cc-motion-enter {
+  opacity:0;
+  transform:translate3d(0,32px,0);
+  transition:
+    opacity .82s cubic-bezier(.16,1,.3,1) var(--cc-enter-delay,0ms),
+    transform .82s cubic-bezier(.16,1,.3,1) var(--cc-enter-delay,0ms);
+}
+.cc-motion-on .cc-motion-enter.cc-motion-visible {
+  opacity:1;
+  transform:translate3d(0,0,0);
+}
+.cc-motion-on .cc-motion-enter.cc-motion-visible:hover {
+  transition-delay:0ms;
+}
+.cc-motion-media {
+  --cc-media-shift:0px;
+  transform:translate3d(0,var(--cc-media-shift),0) scale(1.055);
+  transition:transform .12s linear;
+  will-change:transform;
+}
+@media(min-width:1100px) {
+  .cc-motion-on .page-section .page-card:hover,
+  .cc-motion-on .cc-deep-card:hover,
+  .cc-motion-on .cc-hub-card:hover {
+    border-color:#999!important;
+    background-color:#363636!important;
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  .cc-kinetic-char,.cc-motion-media,
+  .cc-motion-enter,.cc-motion-on .cc-motion-enter {
+    transform:none!important;
+    opacity:1!important;
+    transition:none!important;
+    animation:none!important;
+    will-change:auto!important;
+  }
+  .cc-motion-progress-line i {transition:none!important}
+}
+
+/* Six reversible editorial treatments. No global curve/twist headings. */
+.cc-motion-heading{--cc-motion-progress:1;--cc-motion-exit:0;backface-visibility:hidden}
+.cc-motion-rise{opacity:calc(.45 + .55*var(--cc-motion-progress));transform:translate3d(0,calc((1 - var(--cc-motion-progress))*23px),0)}
+.cc-motion-wipe{clip-path:inset(0 calc((1 - var(--cc-motion-progress))*100%) 0 0);opacity:1}
+.cc-motion-tracking{letter-spacing:calc(-.035em + (1 - var(--cc-motion-progress))*.115em);opacity:calc(.35 + .65*var(--cc-motion-progress))}
+.cc-motion-slide{transform:translate3d(calc((1 - var(--cc-motion-progress))*-27px),0,0);opacity:calc(.35 + .65*var(--cc-motion-progress))}
+.cc-motion-fade{opacity:calc(.18 + .82*var(--cc-motion-progress));filter:blur(calc((1 - var(--cc-motion-progress))*2px))}
+.cc-motion-scatter{--cc-scatter:0;opacity:calc(.42 + .58*var(--cc-motion-progress))}
+.cc-motion-scatter .cc-kinetic-char{transform:translate3d(calc(var(--cc-char-x)*var(--cc-scatter)),calc(var(--cc-char-y)*var(--cc-scatter)),0);transition:none}
+/* Scroll-controlled, per-grapheme headline animation. The original font,
+   bold weight, italic children, line breaking and selectable text stay intact. */
+.cc-motion-on .cc-motion-heading.cc-motion-letters{
+  opacity:1!important;transform:none!important;filter:none!important;
+  /* NEVER reset letter-spacing: bespoke headings use negative tracking.
+     Replacing it with 'inherit' changes measured word widths and wraps lines. */
+  clip-path:none!important;
+}
+.cc-motion-heading.cc-motion-letters .cc-letter-word{
+  display:inline-block;vertical-align:baseline;white-space:nowrap;
+}
+.cc-motion-heading.cc-motion-letters .cc-letter-paint{
+  display:inline-block;white-space:nowrap;
+  transform:scaleX(var(--cc-word-correction,1));transform-origin:left center;
+}
+.cc-motion-heading.cc-motion-letters .cc-letter-glyph{
+  /* Original word width is preserved by the surrounding word wrapper. */
+  display:inline-block;position:relative;vertical-align:baseline;
+  --cc-letter-progress:1;
+  /* Never let editorial headings fall below readable contrast mid-scroll. */
+  opacity:calc(.70 + .30 * var(--cc-letter-progress));
+  top:calc((1 - var(--cc-letter-progress)) * .14em);
+  transform:none;
+  will-change:auto;
+}
+.cc-motion-heading.cc-motion-letters .cc-letter-word:has(i,em){font-style:inherit}
+/* Short headers must not animate letter-by-letter or twist. */
+.cc-interior-hero h1,.cc-interior-hero .cc-hero-overline{transform:none!important;filter:none!important;clip-path:none!important;letter-spacing:inherit;opacity:1!important}
+@media(prefers-reduced-motion:reduce){.cc-motion-heading,.cc-motion-scatter .cc-kinetic-char,.cc-motion-heading .cc-letter-glyph{transform:none!important;opacity:1!important;clip-path:none!important;filter:none!important;letter-spacing:inherit!important;transition:none!important}}

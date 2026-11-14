@@ -7,17 +7,19 @@ import path from 'node:path'
 import net from 'node:net'
 import {spawn} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
+import {randomBytes} from 'node:crypto'
 import {chromium} from 'playwright-core'
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const output=fs.mkdtempSync(path.join(os.tmpdir(),'clothcraft-keys-ui-'))
 const ui='http://127.0.0.1:5386'
+const shellToken=randomBytes(32).toString('hex')
 let child=null,browser=null
 const port=await new Promise((resolve,reject)=>{const s=net.createServer();s.once('error',reject);s.listen(0,'127.0.0.1',()=>{const port=s.address().port;s.close(()=>resolve(port))})})
 const api=`http://127.0.0.1:${port}`
 try{
   child=spawn(process.execPath,['integrations/clothcraft/server.mjs'],{cwd:root,
-    env:{...process.env,EXO_CLOTHCRAFT_PORT:String(port),EXO_CLOTHCRAFT_OUTPUT_DIR:output},stdio:'ignore'})
+    env:{...process.env,EXO_CLOTHCRAFT_PORT:String(port),EXO_CLOTHCRAFT_OUTPUT_DIR:output,EXO_WORKSPACE_TOKEN:shellToken},stdio:'ignore'})
   let ready=false
   for(let n=0;n<40;n++){
     try{const response=await fetch(api+'/health',{signal:AbortSignal.timeout(350)});if(response.ok){ready=true;break}}catch{}
@@ -29,7 +31,7 @@ try{
   const errors=[];page.on('pageerror',error=>errors.push(error.message))
   await page.route(/^http:\/\/127\.0\.0\.1:5385\/agent\/v1\/keys(?:\/[^?]*)?(?:\?.*)?$/,async route=>{
     const req=route.request(),url=new URL(req.url())
-    const options={method:req.method(),headers:{Origin:ui,Accept:'application/json',...(req.method()==='POST'?{'Content-Type':'application/json'}:{})},
+    const options={method:req.method(),headers:{Origin:ui,Accept:'application/json',Authorization:`Bearer ${shellToken}`,...(req.method()==='POST'?{'Content-Type':'application/json'}:{})},
       ...(req.method()==='POST'?{body:req.postData()||''}:{})}
     const remote=await fetch(api+url.pathname,options)
     await route.fulfill({status:remote.status,headers:{'Content-Type':'application/json','Access-Control-Allow-Origin':ui},body:await remote.text()})
@@ -49,7 +51,7 @@ try{
   const once=await page.getByRole('textbox',{name:'New API key secret'}).inputValue()
   assert(once.startsWith('cck_')&&once.length>=42)
   await page.getByText('Isolated pattern agent QA').waitFor()
-  const list=await(await fetch(api+'/agent/v1/keys',{headers:{Origin:ui}})).json()
+  const list=await(await fetch(api+'/agent/v1/keys',{headers:{Origin:ui,Authorization:`Bearer ${shellToken}`}})).json()
   assert.equal(list.keys.length,1)
   assert(!JSON.stringify(list.keys).includes(once))
   await page.getByRole('button',{name:'Conceal'}).click()

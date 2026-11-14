@@ -13,4 +13,6 @@
 .exo-custom-toolbar__customize{justify-content:center;border-top:1px solid #8885;font-size:17px}
 .exo-custom-toolbar--top .exo-custom-toolbar__customize,.exo-custom-toolbar--bottom .exo-custom-toolbar__customize{border-top:0;border-left:1px solid #8885}
 .exo-custom-toolbar--compact .exo-custom-toolbar__action{padding:5px;justify-content:center}
+.exo-custom-toolbar__action[data-implementation="reference"]{position:relative;opacity:.78}
+.exo-custom-toolbar__action[data-implementation="reference"]::after{content:"";position:absolute;right:3px;bottom:3px;width:5px;height:5px;border:1px solid currentColor;border-radius:50%}
 @media(max-width:700px){.exo-custom-toolbar{max-width:calc(100% - 16px)}.exo-custom-toolbar--top,.exo-custom-toolbar--bottom{left:8px;right:8px;transform:none}.exo-custom-toolbar__label{display:none}}

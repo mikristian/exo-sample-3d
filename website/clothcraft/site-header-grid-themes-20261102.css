@@ -1,0 +1,178 @@
+/* ClothCraft / 2026-11-02. A single-rule editorial navigation grid, not pills.
+   Shared across Studio pages and the Community navigation via companion CSS. */
+@media(min-width:1101px){
+ html body .header#site-header{height:60px!important;min-height:60px!important;max-height:60px!important;padding:0 clamp(18px,2.35vw,36px)!important;gap:0!important;display:flex!important;align-items:stretch!important;justify-content:flex-start!important;border-bottom:1px solid var(--cc-line,#555)!important;box-shadow:none!important;overflow:visible!important;position:sticky;z-index:500!important;background:var(--cc-bg,#242424)!important}
+ html body .header#site-header>.logo{flex:0 0 auto!important;align-self:center!important;max-width:250px!important;min-width:0!important;margin-right:0!important}
+ html body .header#site-header>.logo .cc-wordmark{max-width:clamp(135px,12.4vw,178px)!important;height:auto!important}
+ html body .header#site-header .logo-edition{font-size:8px!important;padding-left:9px!important;margin-left:2px!important}
+ html body .header#site-header nav#nav{display:flex!important;position:static!important;margin:0!important;padding:0!important;gap:0!important;flex:0 1 auto!important;align-items:stretch!important;justify-content:flex-start!important;background:transparent!important;border:0!important;overflow:visible!important}
+ html body .header#site-header nav#nav>a,
+ html body .header#site-header nav#nav>.nav-dropdown{min-width:0!important;height:59px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;border-left:1px solid var(--cc-line,#555)!important;padding:0 clamp(10px,1.05vw,18px)!important;margin:0!important;border-radius:0!important;font-size:11px!important;font-weight:630!important;white-space:nowrap!important;transition:background-color .15s,color .15s!important}
+ html body .header#site-header nav#nav>.nav-dropdown>summary{height:100%!important;display:flex!important;align-items:center!important;justify-content:center!important;gap:8px!important;white-space:nowrap!important;padding:0!important;font-size:11px!important;font-weight:630!important;cursor:pointer}
+ html body .header#site-header nav#nav>a:hover,
+ html body .header#site-header nav#nav>.nav-dropdown:hover,
+ html body .header#site-header nav#nav>.nav-dropdown[open]{background:var(--cc-raised,#323232)!important}
+ html body .header#site-header nav#nav>a[aria-current]:after{display:none!important}
+ html body .header#site-header .nav-actions{height:59px!important;min-width:0!important;align-self:stretch!important;display:flex!important;gap:0!important;margin:0 0 0 auto!important;padding:0!important;align-items:stretch!important}
+ html body .header#site-header .nav-actions>a{height:59px!important;min-height:59px!important;align-self:stretch!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:10px!important;border:0!important;border-left:1px solid var(--cc-line,#555)!important;border-radius:0!important;margin:0!important;padding:0 clamp(11px,1.1vw,21px)!important;font:760 11px/1.2 Manrope,Arial,sans-serif!important;letter-spacing:.012em!important;white-space:nowrap!important;background:transparent!important;color:var(--cc-fg,#ececec)!important;box-shadow:none!important;transform:none!important}
+ html body .header#site-header .nav-actions>a:last-child{border-right:1px solid var(--cc-line,#555)!important}
+ html body .header#site-header .nav-actions>a:hover{background:var(--cc-raised,#333)!important;transform:none!important}
+ html body .header#site-header .nav-actions>a span{font-size:12px;opacity:.8}
+ html body .header#site-header .menu{display:none!important}
+}
+@media(min-width:1101px) and (max-width:1260px){
+ html body .header#site-header{padding-inline:18px!important}
+ html body .header#site-header nav#nav>a,html body .header#site-header nav#nav>.nav-dropdown{padding-inline:10px!important}
+ html body .header#site-header nav#nav>a,html body .header#site-header nav#nav>.nav-dropdown>summary{font-size:10px!important}
+ html body .header#site-header .nav-actions>a{font-size:10px!important;padding-inline:11px!important}
+ html body .header#site-header>.logo .cc-wordmark{max-width:128px!important}
+}
+@media(max-width:1100px){
+ html body .header#site-header{height:62px!important;min-height:62px!important;padding:0 15px!important;gap:0!important;display:flex!important;align-items:center!important;background:var(--cc-bg,#242424)!important;border-bottom:1px solid var(--cc-line,#555)!important;box-shadow:none!important}
+ html body .header#site-header>.logo{flex-shrink:1;min-width:0;margin-right:auto}
+ html body .header#site-header .nav-actions{margin-left:auto!important;gap:0!important;align-items:stretch!important;height:61px!important;flex-shrink:0}
+ html body .header#site-header .nav-actions>a{border:0!important;border-left:1px solid var(--cc-line,#555)!important;border-radius:0!important;box-shadow:none!important;padding:0 11px!important;margin:0!important;background:transparent!important;color:var(--cc-fg,#eee)!important;height:61px!important;display:flex!important;align-items:center!important;justify-content:center!important;font-size:10px!important;transform:none!important}
+ html body .header#site-header .menu{display:flex!important;flex:0 0 38px;width:38px!important;height:61px!important;align-items:center;justify-content:center;border-left:1px solid var(--cc-line,#555)!important;margin:0!important;color:var(--cc-fg,#eee)!important}
+ html body .header#site-header nav#nav{display:none!important;position:absolute!important;left:0!important;right:0!important;top:61px!important;padding:10px 18px 22px!important;background:var(--cc-panel,#292929)!important;border-bottom:1px solid var(--cc-line,#555)!important;flex-direction:column!important;align-items:stretch!important;gap:0!important;max-height:calc(100dvh - 64px);overflow:auto!important;box-shadow:0 24px 35px #0003!important;z-index:900!important}
+ html body .header#site-header nav#nav.active{display:flex!important}
+ html body .header#site-header nav#nav>a,html body .header#site-header nav#nav>.nav-dropdown{display:block!important;width:100%!important;margin:0!important;padding:0!important;border:0!important;border-bottom:1px solid var(--cc-line,#555)!important;height:auto!important}
+ html body .header#site-header nav#nav>a,html body .header#site-header nav#nav>.nav-dropdown>summary{padding:15px 7px!important;min-height:45px!important;font-size:13px!important;font-weight:650!important;color:var(--cc-fg,#eee)!important;background:transparent!important}
+ html body .header#site-header nav#nav>.nav-dropdown>.nav-menu{max-height:min(70dvh,430px)!important;overflow:auto!important}
+}
+@media(max-width:570px){
+ html body .header#site-header .nav-actions>a{font-size:10px!important;padding-inline:8px!important}
+ html body .header#site-header .nav-actions .nav-start{display:none!important}
+ html body .header#site-header>.logo .cc-wordmark{max-width:min(36vw,160px)!important}
+ html body .header#site-header .menu{width:33px!important;flex-basis:33px!important}
+}
+/* Theme picker is built once by site-theme-grid-20261102.js. */
+.cc-theme-cell{position:relative;flex:0 0 auto;z-index:6200;display:flex;align-items:stretch;color:var(--cc-fg,#eee);height:100%;min-width:0;border-left:1px solid var(--cc-line,#555)}
+.cc-theme-trigger{appearance:none;border:0!important;border-radius:0!important;padding:0 16px;min-height:44px;display:flex;align-items:center;justify-content:center;gap:9px;white-space:nowrap;background:transparent!important;color:var(--cc-fg,#eee)!important;cursor:pointer;font:760 10px/1 Manrope,Arial,sans-serif;letter-spacing:.08em;transition:background .15s}
+.cc-theme-trigger:hover,.cc-theme-trigger[aria-expanded="true"]{background:var(--cc-raised,#363636)!important}
+.cc-theme-symbol{font:600 19px/1 Arial,sans-serif}
+.cc-theme-panel{position:fixed;right:0;top:60px;z-index:2147483000;width:min(340px,calc(100vw - 30px));padding:19px;max-height:min(70dvh,560px);overflow-y:auto;display:grid;gap:16px;background:var(--cc-panel,#303030)!important;color:var(--cc-fg,#eee)!important;border:1px solid var(--cc-line,#555)!important;box-shadow:0 22px 45px #0005}
+.cc-theme-panel[hidden]{display:none!important}
+.cc-theme-panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:13px;border-bottom:1px solid var(--cc-line,#555)}
+.cc-theme-panel-head strong{font:760 12px Manrope,Arial,sans-serif;letter-spacing:.04em}
+.cc-theme-panel-head small{font:600 9px Manrope,Arial,sans-serif;color:var(--cc-muted,#aaa);letter-spacing:.1em}
+.cc-theme-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.cc-theme-option{appearance:none;border:1px solid var(--cc-line,#555);background:var(--cc-raised,#383838);color:var(--cc-fg,#eee);padding:10px 8px;min-width:0;display:flex;align-items:center;justify-content:flex-start;gap:6px;flex-direction:column;text-align:center;cursor:pointer;font:650 9px/1.2 Manrope,Arial,sans-serif}
+.cc-theme-option:hover,.cc-theme-option[aria-pressed="true"]{border-color:var(--cc-fg,#fff);outline:1px solid var(--cc-fg,#fff);outline-offset:-2px}
+.cc-theme-dot{height:29px;width:100%;min-width:0;border:1px solid var(--cc-line,#8885);display:grid;grid-template-columns:2fr 1.4fr 1fr;overflow:hidden}
+.cc-theme-dot i{display:block;min-width:0;height:100%;border-right:1px solid #7773}
+.cc-theme-dot i:last-child{border-right:0}
+.cc-theme-help{font:450 11px/1.6 Manrope,Arial,sans-serif;color:var(--cc-muted,#aaa);margin:0}
+@media(max-width:1100px){.cc-theme-cell{height:61px}.cc-theme-trigger{padding:0 11px;height:61px}.cc-theme-text{display:none}}
+@media(max-width:570px){.cc-theme-trigger{padding-inline:10px}.cc-theme-symbol{font-size:17px}}
+/* Each theme sets these local semantic colors; broad, downstream hard-coded
+   charcoal CSS is overridden only on the marketing/community DOM. */
+html[data-cc-theme]{color-scheme:var(--cc-color-scheme,dark)!important;--bg:var(--cc-bg);--bg2:var(--cc-raised);--panel:var(--cc-panel);--panel2:var(--cc-raised);--ink:var(--cc-fg);--muted:var(--cc-muted);--line:var(--cc-line);--site-bg:var(--cc-bg);--site-panel:var(--cc-panel);--site-text:var(--cc-fg);--site-muted:var(--cc-muted);--site-border:var(--cc-line);--brand-bg:var(--cc-bg);--brand-panel:var(--cc-panel);--paper:var(--cc-bg);--exo-paper:var(--cc-bg);--exo-bg:var(--cc-bg);--exo-ink:var(--cc-fg);--exo-card:var(--cc-panel);--exo-line:var(--cc-line)}
+html[data-cc-theme] body{background:var(--cc-bg)!important;color:var(--cc-fg)!important}
+html[data-cc-theme] body .header#site-header,
+html[data-cc-theme] body .website .topbar,
+html[data-cc-theme] body .top.shell.cc-download-grid-header{background:var(--cc-bg)!important;background-color:var(--cc-bg)!important;color:var(--cc-fg)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body#body,
+html[data-cc-theme] body:where(:not(.unused-theme-override)){background:var(--cc-bg)!important;background-color:var(--cc-bg)!important;color:var(--cc-fg)!important}
+html[data-cc-theme] body :where(.header,.nav-menu,header.header,.site-header,.website .topbar){background:var(--cc-bg)!important;background-image:none!important;color:var(--cc-fg)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body :where(main,.page-main,.page-hero,.page-section,.page-section-inner,.cc-deep-section,.cc-interior-hero,.about-v2,.about-v2-hero,.about-v2-section,.page-cta,.page-intro,.page-layout,.feature-showcase,.solutions-layout,.mission-section,.investor-section,.support-section,.open-source-section,.section-pad,.website,.surface,.landing-hero,.hero-art,.catalog-section,.project-home,.market-home,.marketplace-home,.community-home,.creator-section,.explore-main,.discovery-section,.exo-social-page,.exo-forum-page,.exa-root,.dp-directory-landing){background-color:var(--cc-bg)!important;background-image:none!important;color:var(--cc-fg)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body :where(.page-card,.page-tile,.page-highlight,.page-feature,.page-stat,.page-step,.page-panel,.cc-deep-card,.cc-solution-sequence article,.cc-solution-personas article,.cc-solutions-table-wrap,.cc-solutions-capability-table thead,.about-v2-evidence-card,.about-v2-honesty-row,.cc-asset-request,.cc-asset-donation-form,.cc-app-flow-node,.cc-app-flow-chart,.cc-app-flow-visual,.cc-contest-card,.cc-contest-winner,.exo-reel-card,.exh-curator-tile,.market-card,.market-tile,.asset-card,.project-card,.design-card,.catalog-card,.creator-card,.product-card,.discovery-card,.facet-panel,.filter-panel,.profile-card,.exo-social-post,.exo-social-feed-card,.exo-forum-post,.exa-program,.dp-shell){background:var(--cc-panel)!important;background-image:none!important;border-color:var(--cc-line)!important;color:var(--cc-fg)!important}
+html[data-cc-theme] body :where(.page-card h3,.cc-deep-section h2,.cc-deep-card h3,.cc-app-flow-node strong,.page-section h2,.page-section h3,.page-hero h1,.cc-interior-hero h1,.about-v2 h1,.about-v2 h2,.cc-contest-root h1,.cc-contest-root h2,.cc-contest-root h3,.cc-solutions-capability-table th,.website h1,.website h2,.website h3,.header a,.header summary,.website .topbar .nav-link.selected,.website .topbar .brand,.exa-root h2,.exo-reel-copy strong,.cc-app-launch-copy h2,.cc-feature-section h2){color:var(--cc-fg)!important}
+html[data-cc-theme] body :where(.page-card p,.cc-deep-intro,.cc-deep-section p,.cc-deep-card p,.cc-app-flow-node small,.page-lead,.page-hero p,.page-section p,.about-v2 p,.cc-asset-donation-form .cc-asset-form-footnote,.cc-contest-root p,.exo-reel-copy span,.website .hero-lead,.market-card p,.exa-root p,.page-note,.cc-deep-note){color:var(--cc-muted)!important}
+html[data-cc-theme] body :where(.btn-blue,.nav-download,.page-primary,.page-btn-primary,.header .nav-download,.cc-contest-root .exa-primary,.cc-asset-prepare){background:var(--cc-primary)!important;border-color:var(--cc-primary)!important;color:var(--cc-on-primary)!important}
+html[data-cc-theme] body :where(.btn-glass,.nav-start,.page-secondary,.page-btn-secondary,.header .nav-start){background:transparent!important;color:var(--cc-fg)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body :where(input,select,textarea){background:var(--cc-raised)!important;border-color:var(--cc-line)!important;color:var(--cc-fg)!important}
+html[data-cc-theme] body :where(.nav-menu a,.nav-discover-menu,.cc-theme-panel,.cc-asset-request-content,.cc-solutions-capability-table td,.cc-app-flow-chart-heading,.cc-app-flow-chart-caption){color:var(--cc-fg)!important}
+/* Need to override hard-coded gray CSS in the marketplace (higher-specificity
+   full-gray declarations) while keeping image artwork untouched. */
+html[data-cc-theme] body #website.website.surface :where(.exo-social-page,.exo-profile-page,.exo-social-root,.exo-explore,.exo-forum,.exo-market-home,.exo-social-feed,.exo-forum-page,.exo-forum-content,.dp-shell,.dp-directory-landing,.dp-profile-page,.exa-program,.exa-root,.exa-section,.exo-community-home,.exo-market-tabs,.exo-social-layout,.exo-profile-layout,.exo-creator-detail,.exo-explore-main){background:var(--cc-bg)!important;background-image:none!important;color:var(--cc-fg)!important;border-color:var(--cc-line)!important;--s-bg:var(--cc-bg);--s-panel:var(--cc-panel);--s-line:var(--cc-line);--s-ink:var(--cc-fg);--s-subtle:var(--cc-muted)}
+html[data-cc-theme] body #website.website.surface :where(.exo-social-post-header,.exo-social-post-body,.exo-social-feed-card,.exo-social-post,.exo-forum-feed,.exo-forum-post,.exo-forum-list,.dp-directory-heading,.dp-directory-filter,.dp-directory-feed,.dp-profile-main,.dp-profile-collection,.exa-program-main,.exa-program-body,.exa-award-list,.exa-award-section){background-color:var(--cc-panel)!important;border-color:var(--cc-line)!important;color:var(--cc-fg)!important}
+html[data-cc-theme] body .website .topbar .nav-link,
+html[data-cc-theme] body .website .topbar .brand,
+html[data-cc-theme] body .website .topbar .nav-search-trigger,
+html[data-cc-theme] body .website .topbar .avatar-button{color:var(--cc-fg)!important;border-color:var(--cc-line)!important;background:transparent!important}
+html[data-cc-theme] body :where(.prototype-ribbon,.cc-contest-root .exa-disclosure,.exa-empty,.cc-asset-form-warning,.cc-app-flow-node,.cc-solutions-capability-table tbody tr:hover){background:var(--cc-raised)!important;color:var(--cc-muted)!important;border-color:var(--cc-line)!important}
+@media(prefers-reduced-motion:reduce){.cc-theme-trigger,.cc-theme-option{transition:none!important}}
+/* The dedicated download page gets the same full-width, border-cell header. */
+body .cc-download-grid-header.top.shell{position:sticky;top:0;z-index:500;min-height:60px!important;height:60px!important;width:100%!important;max-width:none!important;padding:0 clamp(18px,2.35vw,36px)!important;margin:0!important;display:flex!important;align-items:stretch!important;justify-content:space-between!important;background:var(--cc-bg,#242424)!important;border-bottom:1px solid var(--cc-line,#555)!important;gap:20px}
+.cc-download-grid-header>.wordmark{display:flex;align-items:center;justify-content:flex-start;flex:0 0 auto}
+.cc-download-grid-header>.wordmark>.cc-wordmark{width:clamp(135px,12.4vw,178px)!important;max-width:100%;height:auto}
+.cc-download-header-actions{display:flex;align-items:stretch;gap:0;margin-left:auto;justify-content:flex-end}
+.cc-download-header-actions>a{min-height:59px;display:flex;align-items:center;justify-content:center;padding:0 clamp(12px,1.7vw,27px);border-left:1px solid var(--cc-line,#555);background:transparent!important;color:var(--cc-fg,#eee)!important;font:690 11px/1.2 Manrope,Arial,sans-serif;text-decoration:none;white-space:nowrap}
+.cc-download-header-actions>a:last-of-type{border-right:1px solid var(--cc-line,#555)}
+.cc-download-header-actions>a:hover,.cc-download-header-actions>a[aria-current]{background:var(--cc-raised,#353535)!important}
+.cc-download-grid-header .cc-theme-cell{height:59px}
+html[data-cc-theme] body :where(.top.shell,.download-hero,.hero,.progress,.overall,.systems,.method,.system,.download-card,.release-card){background:var(--cc-bg)!important;background-image:none!important;color:var(--cc-fg)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body :where(.download-button){background:var(--cc-primary)!important;color:var(--cc-on-primary)!important;border-color:var(--cc-primary)!important}
+html[data-cc-theme] body :where(.progress .overall,.progress .system,.systems>*){background:var(--cc-panel)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body :where(.download-brand-heading,.section-top h2,.system-title h4,.overall strong,.systems-head h3,.subline){color:var(--cc-fg)!important}
+html[data-cc-theme] body :where(.hero-copy,.section-copy,.system-caption,.overall-sub,.method p,.update-label,.download-meta){color:var(--cc-muted)!important}
+@media(max-width:640px){
+ body .cc-download-grid-header.top.shell{height:59px!important;min-height:59px!important;padding-inline:12px!important;gap:5px!important}
+ .cc-download-grid-header>.wordmark>.cc-wordmark{width:clamp(102px,27vw,138px)!important}
+ .cc-download-header-actions>a{font-size:10px;padding:0 10px;min-height:58px}
+ .cc-download-header-actions>a:first-of-type{display:none}
+ .cc-download-grid-header .cc-theme-cell{height:58px}
+}
+@media(max-width:390px){.cc-download-header-actions>a{padding-inline:7px;font-size:9px}.cc-download-grid-header .cc-theme-trigger{padding-inline:8px}}
+/* The official vector is black; invert it only on a dark theme. */
+html[data-cc-scheme="light"] .cc-wordmark,
+html[data-cc-scheme="light"] .cc-brand-hero-fallback,
+html[data-cc-scheme="light"] .cc-brand-reveal-title .cc-brand-letter{filter:none!important}
+html[data-cc-scheme="light"] .header .logo-edition,
+html[data-cc-scheme="light"] .cc-download-header-actions a{color:var(--cc-fg)!important}
+/* Switching palette must be instantaneous; a legacy 350ms background transition
+   could momentarily leave black navigation text on a still-dark header. */
+html[data-cc-theme] body .header#site-header,
+html[data-cc-theme] body .website .topbar,
+html[data-cc-theme] body .cc-download-grid-header.top.shell{transition:none!important}
+/* The homepage Earth / stars masthead is photographic and intentionally dark.
+   Keep overlaid masthead text, logo and CTA legible on every light palette. */
+html[data-cc-scheme="light"] body .hero-sticky .hero-copy :is(h1,h1 span,h1 em,p,.eyebrow,.eyebrow span),
+html[data-cc-scheme="light"] body .hero-sticky .cc-brand-reveal-edition,
+html[data-cc-scheme="light"] body .hero-sticky .hero-meta{color:#f5f5f5!important}
+html[data-cc-scheme="light"] body .hero-sticky .cc-brand-hero-fallback,
+html[data-cc-scheme="light"] body .hero-sticky .cc-brand-reveal-title .cc-brand-letter{filter:invert(1)!important}
+html[data-cc-scheme="light"] body .hero-sticky .hero-actions .btn-blue{background:#ececec!important;color:#242424!important;border-color:#ececec!important}
+html[data-cc-scheme="light"] body .hero-sticky .hero-actions .btn-glass{background:rgba(18,18,18,.32)!important;color:#f5f5f5!important;border-color:#d5d5d5!important}
+/* The compact Solutions/Product/etc. masthead must use the selected paper
+   tone as well; its original hard-coded charcoal rule was winning. */
+html[data-cc-theme] body .page-main .page-hero.cc-interior-hero,
+html[data-cc-theme] body .page-main .about-v2-hero.cc-interior-hero,
+html[data-cc-theme] body .page-main .cc-hub-hero.cc-interior-hero{background:var(--cc-bg)!important;background-color:var(--cc-bg)!important;color:var(--cc-fg)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body .page-main .cc-interior-hero h1,
+html[data-cc-theme] body .page-main .cc-interior-hero .about-v2-intro h1{color:var(--cc-fg)!important}
+html[data-cc-theme] body .page-main .cc-interior-hero :is(.page-lead,.about-v2-intro>p,.cc-hero-overline,.page-breadcrumb){color:var(--cc-muted)!important}
+/* Community navbar has legacy #website selectors; beat those explicitly so
+   white and off-white menus have readable dark type and a visible wordmark. */
+html[data-cc-theme] body #website.website.surface .topbar,
+html[data-cc-theme] body #website.website.surface .topbar .main-links{background:var(--cc-bg)!important;color:var(--cc-fg)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body #website.website.surface .topbar .main-links :is(button.nav-link,a.nav-link),
+html[data-cc-theme] body #website.website.surface .topbar .main-links .nav-discover-group>.nav-link,
+html[data-cc-theme] body #website.website.surface .topbar .brand,
+html[data-cc-theme] body #website.website.surface .topbar .brand small,
+html[data-cc-theme] body #website.website.surface .topbar .top-actions :is(.nav-search-trigger,.avatar-button,.ghost-btn),
+html[data-cc-theme] body #website.website.surface .topbar .cc-theme-trigger{color:var(--cc-fg)!important;border-color:var(--cc-line)!important;background:transparent!important;opacity:1!important}
+html[data-cc-theme] body #website.website.surface .topbar .top-actions .header-submit{background:var(--cc-primary)!important;color:var(--cc-on-primary)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body #website.website.surface .topbar .main-links .nav-link.selected,
+html[data-cc-theme] body #website.website.surface .topbar .main-links .nav-link:is(:hover,:focus-visible){background:var(--cc-raised)!important;color:var(--cc-fg)!important}
+html[data-cc-scheme="light"] body #website.website.surface .topbar .brand>img.cc-wordmark{filter:none!important}
+html[data-cc-theme] body #website.website.surface .topbar .nav-discover-menu{background:var(--cc-panel)!important;border-color:var(--cc-line)!important}
+html[data-cc-theme] body #website.website.surface .topbar .nav-discover-menu :is(button,a){background:transparent!important;color:var(--cc-fg)!important}
+html[data-cc-theme] body #website.website.surface .topbar .nav-discover-menu :is(button,a):hover{background:var(--cc-raised)!important}
+/* Avoid leaving light-theme section titles and card descriptions pale against
+   the newly light panels, even where legacy editorial classes had overrides. */
+html[data-cc-theme] body .page-main :where(.cc-deep-section,.page-section) :is(h2,h3,strong){color:var(--cc-fg)!important}
+html[data-cc-theme] body .page-main :where(.cc-deep-section,.page-section) :is(p,small,.cc-deep-intro){color:var(--cc-muted)!important}
+/* Keep page links directly alongside the wordmark and action cells at right. */
+@media(min-width:1101px){
+ html body .header#site-header{display:grid!important;grid-template-columns:max-content max-content minmax(0,1fr)!important;column-gap:0!important}
+ html body .header#site-header>.logo{grid-column:1;justify-self:start;margin:0!important}
+ html body .header#site-header nav#nav{grid-column:2;justify-self:start;margin:0!important}
+ html body .header#site-header .nav-actions{grid-column:3;justify-self:end;margin:0!important}
+}
+@media(min-width:1181px){
+ html[data-cc-theme] body .website .topbar{display:grid!important;grid-template-columns:max-content max-content minmax(0,1fr)!important;column-gap:0!important;align-items:stretch!important}
+ html[data-cc-theme] body .website .topbar>.brand{grid-column:1;margin:0!important;justify-self:start}
+ html[data-cc-theme] body .website .topbar>.main-links{grid-column:2;margin:0!important;justify-self:start}
+ html[data-cc-theme] body .website .topbar>.top-actions{grid-column:3;margin:0!important;justify-self:end}
+}

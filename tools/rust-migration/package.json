@@ -1,0 +1,11 @@
+{
+  "name": "exo-rust-migration-tooling",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Isolated AST inspection tools; not a production EXO runtime dependency",
+  "dependencies": {
+    "@ast-grep/napi": "0.51.0",
+    "oxc-parser": "0.155.0"
+  }
+}

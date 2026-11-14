@@ -5,6 +5,10 @@ import {chromium} from 'playwright-core'
 
 const ui=process.env.EXO_LIVE_QA_URL||'http://127.0.0.1:5189'
 const bridge=process.env.EXO_LIVE_QA_BRIDGE||'http://127.0.0.1:5291'
+// This QA targets an explicitly provisioned isolated bridge. Do not read the
+// signed application's credential or mint keys with an Origin header alone.
+const uiShellToken=process.env.EXO_LIVE_QA_SHELL_TOKEN
+if(!uiShellToken)throw Error('EXO_LIVE_QA_SHELL_TOKEN required for isolated collaboration QA')
 const checks=[],errors=[]
 const provisioned=[]
 let browser
@@ -15,7 +19,7 @@ async function api(method,path,body,key){
   return data
 }
 async function key(name){
-  const result=await api('POST','/agent/v1/keys',{name,scopes:['read','edit'],expiresInDays:1})
+  const result=await api('POST','/agent/v1/keys',{name,scopes:['read','edit'],expiresInDays:1},uiShellToken)
   provisioned.push(result.id)
   return result.key
 }
@@ -74,5 +78,5 @@ try{
   console.log(JSON.stringify({pass:true,checks,errors:0}))
 }finally{
   await browser?.close()
-  for(const id of provisioned)await fetch(bridge+'/agent/v1/keys/'+id,{method:'DELETE',headers:{Origin:ui}}).catch(()=>{})
+  for(const id of provisioned)await fetch(bridge+'/agent/v1/keys/'+id,{method:'DELETE',headers:{Origin:ui,Authorization:`Bearer ${uiShellToken}`}}).catch(()=>{})
 }

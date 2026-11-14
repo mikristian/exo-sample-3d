@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "status": "experimental skinned garments; exported GLB animation verified; visual clipping and cloth dynamics not certified",
+  "entries": [
+    {
+      "id": "exo-masculine-jeans-tee-v1",
+      "asset": "/assets/fashion-avatars/garment-v1/EXO_masculine_clothed_experimental.glb",
+      "outfit": "indigo jeans and warm-white cotton T-shirt",
+      "rigBones": 163,
+      "garmentMeshNames": ["EXO Jeans / Skinned Denim", "EXO T-Shirt / Skinned Cotton"],
+      "walkClipName": "EXO_Runway_Walk_v6_FootLockTuned",
+      "status": "experimental-animated-skinned"
+    },
+    {
+      "id": "exo-feminine-dress-v1",
+      "asset": "/assets/fashion-avatars/garment-v1/EXO_feminine_clothed_experimental.glb",
+      "outfit": "oxblood fitted bodice and pleated skirt",
+      "rigBones": 163,
+      "garmentMeshNames": ["EXO Dress Fitted Bodice", "EXO Dress Skirt / Skinned Pleats"],
+      "walkClipName": "EXO_Runway_Walk_v6_FootLockTuned",
+      "status": "experimental-animated-skinned"
+    }
+  ]
+}

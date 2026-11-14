@@ -1,0 +1,115 @@
+/* Marketing content palette coverage. Load after legacy marketing styles. */
+html[data-cc-theme] {
+  color-scheme: var(--cc-color-scheme, dark);
+  --cc-content-bg: var(--cc-bg, #242424);
+  --cc-content-panel: var(--cc-panel, #303030);
+  --cc-content-raised: var(--cc-raised, #373737);
+  --cc-content-border: var(--cc-line, #555555);
+  --cc-content-text: var(--cc-fg, #e5e5e5);
+  --cc-content-muted: var(--cc-muted, #b5b5b5);
+}
+html[data-cc-theme] body :is(.page-main,.page-section,.page-section.alt,.page-hero,.page-footer,.download-section,.download-exact-build,.site-footer,.footer) {
+  background-color: var(--cc-content-bg) !important;
+  color: var(--cc-content-text) !important;
+}
+html[data-cc-theme] body :is(.page-card,.page-highlight,.page-screenshot,.feature-matrix,.support-list a,.info-inline,.plan-card,.plan-card.popular,.credit-pack,.pricing-faq details,.freedom-manifesto,.free-studio-spotlight,.ai-console,.ai-balance,.release-status,.platform-card,.download-source-strip,.download-steps article,.download-workflow-grid article,.platform-install-guide,.command-row,.price-message,.download-exact-image) {
+  background: var(--cc-content-panel) !important;
+  border-color: var(--cc-content-border) !important;
+  color: var(--cc-content-text) !important;
+}
+html[data-cc-theme] body :is(.pricing-switch,.billing-note-pill,.platform-preview-tag,.download-file-spec strong,.page-hero .hero-tags span,.page-card .num,.copy-command,.release-refresh,.ai-modes button[aria-selected="true"]) {
+  background: var(--cc-content-raised) !important;
+  border-color: var(--cc-content-border) !important;
+  color: var(--cc-content-text) !important;
+}
+html[data-cc-theme] body :is(.feature-matrix-row,.plan-card ul,.platform-state,.download-tech-notes,.download-showcase-bar,.download-showcase video,.download-showcase-footer,.package-integrity,.free-studio-price,.ai-modes,.ai-balance,.soft-divider) {
+  border-color: var(--cc-content-border) !important;
+}
+html[data-cc-theme] body :is(.page-card p,.page-lead,.page-note,.page-hero .page-lead,.plan-sub,.plan-card li,.plan-price span,.plan-card .billing-note,.credit-pack p,.pricing-faq p,.freedom-manifesto span,.free-studio-price small,.ai-mode-panel p,.ai-balance,.release-status p,.platform-card>p,.platform-card>small,.download-empty,.download-steps p,.download-workflow-grid p,.platform-install-guide p,.package-integrity p,.download-exact-copy p,.price-message) {
+  color: var(--cc-content-muted) !important;
+}
+html[data-cc-theme] body :is(.page-breadcrumb,.page-hero h1 em,.page-section h2 em,.eyetag,.page-card .num,.page-card a.link,.mini-stat,.feature-matrix-row span,.support-list span,.plan-card .popular-label,.plan-card li::before,.free-studio-price span,.ai-balance strong,.platform-symbol,.platform-platform,.platform-action,.platform-action span,.download-steps article>span,.download-steps a,.download-exact-copy h2 em,.source-secondary-link) {
+  color: var(--cc-content-text) !important;
+}
+html[data-cc-theme] body :is(.page-primary,.page-btn-primary,.platform-primary-cta,.release-file,.pricing-switch button[aria-pressed="true"]) {
+  background: var(--cc-primary, #dedede) !important;
+  color: var(--cc-on-primary, #242424) !important;
+  border-color: var(--cc-primary, #dedede) !important;
+}
+html[data-cc-theme] body :is(.page-secondary,.page-btn-secondary,.platform-action,.source-secondary-link,.release-refresh,.copy-command) {
+  border-color: var(--cc-content-border) !important;
+}
+html[data-cc-theme] body :is(.page-card a.link,.platform-action,.source-secondary-link,.download-steps a,.download-image-link) {
+  text-decoration-color: var(--cc-content-border) !important;
+}
+/* Preserve semantic availability and checkout state indicators. */
+/* The home and Community pages include old high-specificity charcoal rules.
+   Put these surfaces on the same palette so white and mixed themes reach them. */
+html[data-cc-theme] body :is(.cc-app-launch-layout>.cc-app-launch-copy,.cc-app-launch-layout>.cc-app-launch-visual,.cc-video-feature,.cc-feature-copy,.cc-feature-top,.cc-app-capabilities>div,.cc-measure-glass,.cc-app-icon-frame) {
+  background-color:var(--cc-panel)!important;
+  border-color:var(--cc-line)!important;
+  color:var(--cc-fg)!important;
+}
+html[data-cc-theme] body :is(.cc-app-capabilities,.cc-app-launch-layout,.cc-video-grid,.cc-feature-section,.cc-marketplace-spotlight,.hero,.workflow,.film,.story-section,.features,.open-section,.faq-section,.community,.final-cta,.ticker,.intro-strip,.savings-panel) {
+  background-color:var(--cc-bg)!important;
+  border-color:var(--cc-line)!important;
+}
+html[data-cc-theme] body :is(.cc-feature-top,.cc-app-capabilities>div,.cc-app-launch-layout>.cc-app-launch-copy) {
+  background-color:var(--cc-raised)!important;
+}
+html[data-cc-theme] body :is(.cc-measure-tick,.cc-chapter-line) { background-color:var(--cc-line)!important; }
+html[data-cc-theme] body :is(.cc-measure-tick.is-active,.cc-measure-cursor-line,.cc-measure-chapter.is-current .cc-chapter-line) { background-color:var(--cc-accent)!important; }
+html[data-cc-theme] body :is(.cc-measure-cursor-label,.cc-measure-chapter.is-current .cc-chapter-name,.cc-brand-reveal-title,.cc-feature-section h2,.cc-app-launch h2,.hero h1 em) { color:var(--cc-fg)!important; }
+html[data-cc-theme] body :is(.cc-app-launch-lead,.cc-app-launch-note,.cc-feature-copy p,.cc-feature-section p,.hero p,.cc-brand-reveal-edition,.cc-measure-tick span) { color:var(--cc-muted)!important; }
+html[data-cc-theme] body :is(.cc-app-launch-actions .btn-blue,.cc-app-launch .btn-blue) { background:var(--cc-primary)!important;border-color:var(--cc-primary)!important;color:var(--cc-on-primary)!important; }
+/* Marketplace's authored CSS targets #website with !important selectors. */
+html[data-cc-theme] body #website.website.surface :is(.landing-hero,.hero-copy,.hero-art,.exh-landing,.exh-infinite-landing,.exh-gallery-shell,.exh-hero-visual,.exh-infinite-visual,.exh-gallery-foot,.exh-curators,.exo-home-action-reel,.project-home,.catalog-section,.discovery-section,.intro-strip,.edition-feature,.community-section,.site-footer,.footer) {
+  background-color:var(--cc-bg)!important;
+  color:var(--cc-fg)!important;
+  border-color:var(--cc-line)!important;
+}
+html[data-cc-theme] body #website.website.surface :is(.exh-carousel-card,.exh-curator-image,.exo-reel-photo,.asset-art,.market-select-control,.market-topic-control,.project-card,.market-card,.asset-card,.design-card,.catalog-card,.creator-card,.facet-panel,.filter-panel,.detail-copy,.profile-panel,.explore-panel,.exo-social-post,.exo-forum-post,.exo-social-feed-card) {
+  background-color:var(--cc-panel)!important;
+  border-color:var(--cc-line)!important;
+  color:var(--cc-fg)!important;
+}
+html[data-cc-theme] body #website.website.surface :is(.filter-group summary,.exo-market-tabs button,.category-tabs button,.explore-tabs button,.nav-discover-menu,.ghost-btn,.line-btn,.outline-square,.market-pattern-flat,.market-pattern-file) {
+  background-color:var(--cc-raised)!important;
+  border-color:var(--cc-line)!important;
+  color:var(--cc-fg)!important;
+}
+html[data-cc-theme] body #website.website.surface :is(.exo-market-tabs button.active,.category-tabs button.active,.selected-tab) {background-color:var(--cc-secondary)!important;color:var(--cc-on-secondary)!important;}
+html[data-cc-theme] body #website.website.surface :is(h1,h2,h3,h4,h5,h6,.section-title,.heading-line h2,.card-title,.market-title,.project-title) {color:var(--cc-fg)!important;}
+html[data-cc-theme] body #website.website.surface :is(p,small,.hero-lead,.card-description,.project-description,.detail-creator,.description,.eyebrow,.overline,.card-meta,.project-meta,.stat-label) {color:var(--cc-muted)!important;}
+html[data-cc-theme] body #website.website.surface :is(.solid-btn,.market-primary-btn,.market-pdf-download,.primary-action,.header-submit) {background-color:var(--cc-primary)!important;border-color:var(--cc-primary)!important;color:var(--cc-on-primary)!important;}
+html[data-cc-theme] body #website.website.surface .topbar .nav-link {background:transparent!important;color:var(--cc-fg)!important;}
+html[data-cc-theme] body #website.website.surface .topbar .nav-link:hover,
+html[data-cc-theme] body #website.website.surface .topbar .nav-link.selected {background:var(--cc-raised)!important;color:var(--cc-fg)!important;}
+/* Navigation, ruler labels and editorial controls also need theme-aware ink. */
+html[data-cc-theme] body .header#site-header nav#nav>a,
+html[data-cc-theme] body .header#site-header nav#nav>.nav-dropdown>summary,
+html[data-cc-theme] body .header#site-header .logo,
+html[data-cc-theme] body .header#site-header .logo-edition {
+  color:var(--cc-fg)!important;
+}
+html[data-cc-theme] body .header#site-header .nav-dropdown>.nav-menu {
+  background:var(--cc-panel)!important;
+  border-color:var(--cc-line)!important;
+  color:var(--cc-fg)!important;
+}
+html[data-cc-theme] body .header#site-header .nav-dropdown>.nav-menu a {color:var(--cc-fg)!important;}
+html[data-cc-theme] body .header#site-header .nav-dropdown>.nav-menu a:hover {background:var(--cc-raised)!important;}
+html[data-cc-theme] body .header#site-header .nav-dropdown>.nav-menu small {color:var(--cc-muted)!important;}
+html[data-cc-theme] body :is(.cc-feature-copy h3,.cc-app-launch-copy h2,.cc-feature-section h2,.cc-feature-top strong,.method strong,.overall strong,.download-brand-heading,.download-brand-heading strong) {color:var(--cc-fg)!important;}
+html[data-cc-theme] body :is(.cc-measure-chapter.is-current,.cc-measure-chapter.is-preview,.cc-measure-future,.cc-measure-cursor-label,.cc-measure-chapter .cc-chapter-name) {color:var(--cc-fg)!important;}
+html[data-cc-theme] body :is(.cc-measure-chapter.is-upcoming,.cc-measure-chapter.is-past,.cc-measure-chapter .cc-chapter-number,.cc-measure-tick span) {color:var(--cc-muted)!important;}
+html[data-cc-theme] body :is(.cc-measure-chapter.is-current .cc-chapter-line,.cc-measure-tick.is-active,.cc-measure-cursor-line) {background:var(--cc-accent)!important;}
+html[data-cc-theme] body #website.website.surface :is(.exh-section-heading button,.exo-reel-heading button,.exh-gallery-foot button,.exo-home-action-reel button) {
+  color:var(--cc-fg)!important;
+  border-color:var(--cc-line)!important;
+}
+html[data-cc-theme] body #website.website.surface .topbar .top-actions .header-submit {
+  background:var(--cc-primary)!important;
+  color:var(--cc-on-primary)!important;
+  border-color:var(--cc-primary)!important;
+}

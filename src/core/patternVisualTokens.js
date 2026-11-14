@@ -18,7 +18,7 @@ export const PATTERN_METRICS=Object.freeze({
 })
 
 /** Screen-sized SVG geometry in material-unit viewBox coordinates. */
-export const pointRadiusInView=(pixels,screenUnit)=>pixels*screenUnit
+export const pointRadiusInView=(pixels,screenUnit)=>patternScreenPixelsToView(pixels,screenUnit)
 
 /** UI-only preview styling cannot affect saved pattern geometry. */
 export const patternCutlinePresentation=({selected=false,selectedEdge=false,hovered=false,expressive=false}={})=>({
@@ -103,7 +103,9 @@ export function patternPointGlyph(role,{state='normal'}={}) {
 export function patternScreenPixelsToView(pixels,screenUnit) {
   if(!Number.isFinite(pixels)||pixels<0||!Number.isFinite(screenUnit)||screenUnit<=0)
     throw new RangeError('pixels must be nonnegative and screenUnit must be positive and finite')
-  return pixels*screenUnit
+  const radius=pixels*screenUnit
+  if(!Number.isFinite(radius)) throw new RangeError('Screen-to-view radius overflow')
+  return radius
 }
 
 /** Annotation text is display-only; approximation must remain explicitly marked. */

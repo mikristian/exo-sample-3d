@@ -1,0 +1,14 @@
+.exo-gcdv2 { margin: 12px 5px; padding: 12px; border: 1px solid currentColor; border-radius: 8px; color: inherit; background: transparent; font-size: 12px; }
+.exo-gcdv2-head { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.exo-gcdv2-head span { opacity:.7; font-size:10px; }
+.exo-gcdv2 p { margin:8px 0; }
+.exo-gcdv2-filter { display:grid; gap:5px; margin:10px 0; }
+.exo-gcdv2 select,.exo-gcdv2 button { color:inherit; background:transparent; border:1px solid currentColor; border-radius:5px; padding:7px; font:inherit; }
+.exo-gcdv2-items { display:grid; gap:5px; max-height:340px; overflow:auto; }
+.exo-gcdv2-items details { border:1px solid currentColor; border-radius:5px; padding:8px; }
+.exo-gcdv2-items summary { cursor:pointer; display:grid; gap:3px; }
+.exo-gcdv2-items small { opacity:.7; }
+.exo-gcdv2-items code { display:block; overflow-wrap:anywhere; font-size:10px; }
+.exo-gcdv2-pages { display:flex; align-items:center; justify-content:space-between; gap:6px; margin:10px 0; }
+.exo-gcdv2 button:disabled { opacity:.4; cursor:not-allowed; }
+.exo-gcdv2 a { color:inherit; text-decoration:underline; }

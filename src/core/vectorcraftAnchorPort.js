@@ -14,9 +14,15 @@ export function vectorcraftAnchorKind(p,hIn,hOut) {
   const outX=hOut[0]-p[0],outY=hOut[1]-p[1]
   const inLength=Math.hypot(inX,inY),outLength=Math.hypot(outX,outY)
   if(inLength<=1e-9||outLength<=1e-9)return 'corner'
-  // Upstream's cross-product tolerance scales with the document coordinates.
-  const collinear=Math.abs(inX*outY-inY*outX)<=1e-6*Math.max(inLength,1)*Math.max(outLength,1)
-  return collinear && inX*outX+inY*outY<0?'smooth':'corner'
+  // EXO stores metres, including millimetre-scale handles. A minimum length
+  // of 1 in the cross-product tolerance incorrectly treats visibly angled
+  // short handles as smooth and rotates their opposite handle during edits.
+  // Normalize both tangents so the tolerance is angular, scale-independent,
+  // and does not overflow when multiplying large but finite coordinates.
+  if(!Number.isFinite(inLength)||!Number.isFinite(outLength))return 'corner'
+  const ix=inX/inLength,iy=inY/inLength,ox=outX/outLength,oy=outY/outLength
+  const collinear=Math.abs(ix*oy-iy*ox)<=1e-6
+  return collinear && ix*ox+iy*oy<0?'smooth':'corner'
 }
 
 /** Mirror VectorCraft's set_handle behavior with immutable data.

@@ -1,0 +1,11 @@
+/* Real textured 3D Earth and couture characters orbiting with the planet. */
+.hero-sticky .cc-runway-stage{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:radial-gradient(ellipse at 52% 46%,#131c38 0%,#080e20 43%,#02040d 93%)}
+#cc-runway-canvas{width:100%;height:100%;display:block;opacity:.93}
+.cc-runway-vignette{position:absolute;inset:0;background:linear-gradient(90deg,#07091242,transparent 20%,transparent 80%,#07091240),radial-gradient(ellipse at 50% 50%,transparent 23%,#03040b30 71%,#05050c65 100%)}
+.cc-runway-caption{position:absolute;bottom:33px;left:clamp(24px,4vw,70px);color:#b9c1cd99;letter-spacing:.16em;font:700 9px ui-monospace,monospace}
+@media(max-width:700px){#cc-runway-canvas{opacity:.73}.cc-runway-caption{font-size:8px;bottom:18px}}
+@media(prefers-reduced-motion:reduce){#cc-runway-canvas{opacity:.7}}
+
+/* No floating TVs in the hero; the globe and its deep starfield are the entire scene. */
+.hero-sticky .cc-hero-orbit{display:none!important}
+.cc-runway-vignette{background:radial-gradient(ellipse at 50% 50%,transparent 28%,#03050d1c 70%,#01030a71 100%)}

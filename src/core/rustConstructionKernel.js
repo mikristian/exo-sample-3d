@@ -32,6 +32,22 @@ export function rustConstructionProjection(point,a,b){
  return {x:wasm.exo_projection_x(...args),y:wasm.exo_projection_y(...args)}
 }
 export function rustConstructionAlong(a,b,distance,perpendicular=false){
+ // A finite, very long drafting reference can have an overflowing hypot.
+ // In that case both the JS fallback and compiled WASM would silently place
+ // a positive offset at the original point (infinite norm => zero unit).
+ // Normalize scaled endpoint differences before dispatching to either path.
+ const dx=b.x-a.x,dy=b.y-a.y
+ if(!Number.isFinite(Math.hypot(dx,dy)) &&
+    [a.x,a.y,b.x,b.y,distance].every(Number.isFinite)){
+  const scale=Math.max(Math.abs(a.x),Math.abs(a.y),Math.abs(b.x),Math.abs(b.y))
+  const sx=b.x/scale-a.x/scale,sy=b.y/scale-a.y/scale
+  const length=Math.hypot(sx,sy)
+  if(!(length>0) || !Number.isFinite(length))return {x:NaN,y:NaN}
+  const ux=sx/length,uy=sy/length
+  return perpendicular
+   ? {x:a.x-uy*distance,y:a.y+ux*distance}
+   : {x:a.x+ux*distance,y:a.y+uy*distance}
+ }
  if(!wasm){const delta={x:b.x-a.x,y:b.y-a.y},norm=Math.hypot(delta.x,delta.y),unit=perpendicular?{x:-delta.y/norm,y:delta.x/norm}:{x:delta.x/norm,y:delta.y/norm};return {x:a.x+unit.x*distance,y:a.y+unit.y*distance}}
  const args=[a.x,a.y,b.x,b.y,distance,perpendicular?1:0]
  return {x:wasm.exo_along_x(...args),y:wasm.exo_along_y(...args)}

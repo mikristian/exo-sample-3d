@@ -1,6 +1,7 @@
 // Visual 2D pattern reference guides, derived from true native cutlines.
 // All coordinates are material metres and are never written to garment data.
 import {horizontalPatternSpans,verticalPatternSpans} from './clothcraft2dGeometry.js'
+import {rustMaterialGuideSpans} from './rustMaterialGuideKernel.js'
 
 const EPSILON=1e-3
 
@@ -19,14 +20,16 @@ export function armpitChestReference(polygon,axisX=null) {
   // The armpits are whichever ends of the side seams are closer to the
   // shoulders (smallest material Y for a normal y-down garment polygon).
   const [a,b]=[endpoints(left),endpoints(right)].map(pair=>pair.find(p=>
-    Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)&&
+    Array.isArray(p)&&p.length===2&&Number.isFinite(p[0])&&Number.isFinite(p[1])&&
     p[1]===Math.min(...pair.map(q=>q?.[1]??Infinity))))
   if(!a||!b||Math.abs(a[1]-b[1])>.004)return null
   const [p,q]=a[0]<b[0]?[a,b]:[b,a]
-  if(q[0]-p[0]<.08)return null
+  if(!Number.isFinite(q[0]-p[0])||q[0]-p[0]<.08)return null
   const x=Number.isFinite(axisX)&&axisX>p[0]+.001&&axisX<q[0]-.001
     ?axisX:(p[0]+q[0])/2
-  return {left:p.slice(),center:[x,(p[1]+q[1])/2],right:q.slice(),y:(p[1]+q[1])/2}
+  const y=(p[1]+q[1])/2
+  if(!Number.isFinite(x)||!Number.isFinite(y))return null
+  return {left:p.slice(),center:[x,y],right:q.slice(),y}
 }
 
 /** Extract canonical material coordinates from already laid-out/previewed
@@ -39,10 +42,22 @@ export function patternGuideLocalFrame(points,origin,angle) {
     !origin.every(Number.isFinite)||!Number.isFinite(angle))
     throw new RangeError('Expected finite pattern frame origin and angle')
   const c=Math.cos(angle),s=Math.sin(angle)
-  const local=(points||[]).map(p=>Array.isArray(p)&&p.length>=2&&p.every(Number.isFinite)
-    ?[(p[0]-origin[0])*c+(p[1]-origin[1])*s,
-      -(p[0]-origin[0])*s+(p[1]-origin[1])*c] : null)
-  const toWorld=([x,y])=>[origin[0]+x*c-y*s,origin[1]+x*s+y*c]
+  const local=(points||[]).map(p=>{
+    if(!Array.isArray(p)||p.length<2||!p.every(Number.isFinite))return null
+    const dx=p[0]-origin[0],dy=p[1]-origin[1]
+    if(!Number.isFinite(dx)||!Number.isFinite(dy))return null
+    const x=dx*c+dy*s,y=-dx*s+dy*c
+    return Number.isFinite(x)&&Number.isFinite(y)?[x,y]:null
+  })
+  const toWorld=point=>{
+    if(!Array.isArray(point)||point.length<2||
+      !Number.isFinite(point[0])||!Number.isFinite(point[1]))
+      throw new RangeError('Expected finite local guide coordinates')
+    const [x,y]=point
+    const world=[origin[0]+x*c-y*s,origin[1]+x*s+y*c]
+    if(!world.every(Number.isFinite))throw new RangeError('Guide world coordinates must be finite')
+    return world
+  }
   return {local,toWorld}
 }
 
@@ -52,40 +67,9 @@ export function patternGuideLocalFrame(points,origin,angle) {
  * just because an exported boundary chain has duplicated/open endpoints.
  */
 export function materialGuideSpans(triangles,points,station,vertical=false) {
-  if(!Number.isFinite(station)||!Array.isArray(triangles)||!Array.isArray(points))return []
-  const occupied=[]
-  const along=p=>vertical?p[0]:p[1]
-  const across=p=>vertical?p[1]:p[0]
-  for(const triangle of triangles){
-    if(!Array.isArray(triangle)||triangle.length!==3)continue
-    const vertices=triangle.map(index=>points[index])
-    if(vertices.some(p=>!Array.isArray(p)||p.length<2||!Number.isFinite(p[0])||!Number.isFinite(p[1])))continue
-    const [a,b,c]=vertices
-    if(Math.abs((b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]))<1e-12)continue
-    const intersections=[]
-    for(let i=0;i<3;i++){
-      const p=vertices[i],q=vertices[(i+1)%3]
-      const dp=along(p)-station,dq=along(q)-station
-      if(Math.abs(dp)<1e-10&&Math.abs(dq)<1e-10) {
-        intersections.push(across(p),across(q))
-      } else if(dp*dq<=0&&Math.abs(along(q)-along(p))>1e-12){
-        const t=(station-along(p))/(along(q)-along(p))
-        if(t>=-1e-10&&t<=1+1e-10)intersections.push(across(p)+(across(q)-across(p))*t)
-      }
-    }
-    if(intersections.length<2)continue
-    const lo=Math.min(...intersections),hi=Math.max(...intersections)
-    if(hi-lo>1e-7)occupied.push([lo,hi])
-  }
-  occupied.sort((a,b)=>a[0]-b[0])
-  const merged=[]
-  for(const [a,b] of occupied){
-    const last=merged.at(-1)
-    if(last&&a<=last[1]+1e-7)last[1]=Math.max(last[1],b)
-    else merged.push([a,b])
-  }
-  return merged
+  return rustMaterialGuideSpans(triangles,points,station,vertical)
 }
+
 
 /** Choose one fixed torso axis inside the material at both chest and waist.
  * Separate sleeves and neckline openings cannot pull the guide off the body.

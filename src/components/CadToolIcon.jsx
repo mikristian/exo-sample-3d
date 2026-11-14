@@ -1,4 +1,16 @@
 import React from 'react'
+import {ChevronLeft,ChevronRight,Copy,ClipboardPaste,MousePointer2,ArrowLeftRight,ArrowUpDown,Move,RotateCw,Eye,Scaling,Trash2,Layers,MoveHorizontal,MoveVertical,SquareDashed,AlignVerticalJustifyCenter,AlignHorizontalJustifyCenter,Slash,Scissors,Table2,Ruler,Target,ArrowUpRight,Ratio,CornerDownRight,GitCompareArrows,Waypoints,Magnet,MoveDiagonal2} from 'lucide-react'
+const GRADE_INDEX_ICONS={
+ 'prev-point':ChevronLeft,'copy-grading':Copy,'paste-grading':ClipboardPaste,'set-grading-tool':MousePointer2,
+ 'paste-x-grading':MoveHorizontal,'paste-y-grading':MoveVertical,'paste-relatively':CornerDownRight,'paste-dd-grading':GitCompareArrows,
+ 'next-point':ChevronRight,'angle':RotateCw,'show-from-base-size':Eye,'grade-proportionally':Scaling,
+ 'clear-grading':Trash2,'stack-point':Layers,'move-point-size':Move,'move-size-along':ArrowUpRight,
+ 'move-size-proportional':Ratio,'move-size-parallel':MoveDiagonal2,'move-size-by-rectangle':SquareDashed,
+ 'align-points-size':Magnet,'align-vertical-size':AlignVerticalJustifyCenter,'align-horizontal-size':AlignHorizontalJustifyCenter,
+ 'align-size-by-line':Waypoints,'grade-notch':Scissors,
+}
+
+
 import toolbarIconManifest from '../assets/toolbar-icons/manifest.json'
 
 // Standalone SVGs are generated from Garment Studio's original vector artwork
@@ -275,6 +287,9 @@ function Artwork({ id }) {
 }
 
 export default function CadToolIcon({ id, size = 18, className = '', strokeWidth = 1.3 }) {
+  const GradeIcon = id?.startsWith('grade24:') ? GRADE_INDEX_ICONS[id.slice(8)] : null
+  if (GradeIcon) return <GradeIcon size={size} strokeWidth={strokeWidth} className={`cad-tool-icon ${className}`} aria-hidden="true" data-icon-id={id}/>
+
   if (toolbarIconIds.has(id) && svgUrlFor(id)) {
     // Keep the original full-color CAD artwork in the factory Graphite UI.
     // In a themed editor, CSS switches to the alpha-only mask below so a

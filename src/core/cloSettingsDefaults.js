@@ -10,7 +10,7 @@ defaultMode:'Simulation',toolbar3d:'Left',toolbar2d:'Right',toolbarRender:'Right
 groupTools:true,showTooltipLinks:true,showColorwayOnStartup:false,fontFamily:'Tahoma',fileDialogType:'System',
 meshType:'Triangle',arrangementShape:'Curved',arrangementPointSize:18,syncFoldAngle:true,gizmoMode:'Unified Gizmo',
 particleDistance:20,copiedPatternIndex:'Index Number (1, 2, 3 …)',autoOffsetCut:true,notchDisplay:'Length Fixed to Screen',
-maintainBlockSelections:true,maintainFabricProperties:false,dmixDownloadPath:'',textureApplication:'',
+maintainBlockSelections:true,maintainFabricProperties:false,dmixDownloadPath:'',textureApplication:'',communityWebsiteUrl:'',
 projectFile:'',saveMultiviewThumbnails:false,avatarAvtp:'',avatarApf:'',fabricPhysicalProperty:'',
 textureOpenFrom:'Project (ZPRJ) / Garment (ZPAC) File',refreshTextures:false,textureFolder:'',
 aiPdfOpenFrom:'Project (ZPRJ) / Garment (ZPAC) File',saveAiPdfSeparately:false,openTopVersionOnly:false,substanceCompatibility:false

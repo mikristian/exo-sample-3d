@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /** Rust/WASM calculations for native-compatible Split Line geometry. */
 export const RUST_SPLIT_ABI_VERSION = 1
 const WASM_URL = '/wasm/exo_split_kernel.wasm'
@@ -18,10 +19,7 @@ export async function initializeRustSplitKernel({bytes,url=WASM_URL}={}) {
   if(loading) return loading
   loading = (async()=>{
     try {
-      const input = bytes ?? await fetch(url).then(response=>{
-        if(!response.ok) throw new Error(`Split WASM HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const input = bytes ?? await fetchWasmBytes(url, "Split WASM HTTP ")
       const instance = await WebAssembly.instantiate(input,{})
       const exports = instance.instance?.exports ?? instance.exports
       if(required.some(name=>typeof exports?.[name]!=='function') ||
@@ -41,23 +39,31 @@ export async function initializeRustSplitKernel({bytes,url=WASM_URL}={}) {
 
 /** Null requests the original synchronous JS implementation. */
 export function rustSplitUniformFractions(count) {
+  // This adapter is public, not exclusively called through draftingSplit's
+  // validated UI. Never allocate from an untrusted division count.
+  if(!Number.isInteger(count) || count<2 || count>12) return null
   if(!rust) return null
   const fractions=Array.from({length:count-1},(_,index)=>rust.exo_split_uniform_fraction(index+1,count))
-  return fractions.every(Number.isFinite) ? fractions : null
+  return fractions.every((fraction,index)=>Number.isFinite(fraction) && fraction>0 && fraction<1 &&
+    (index===0 || fraction>fractions[index-1])) ? fractions : null
 }
 export function rustSplitSingleFraction(method,value,edgeLengthCm) {
+  if(!Number.isFinite(value) ||
+    (method==='length' && (!Number.isFinite(edgeLengthCm) || edgeLengthCm<=0 || value<0 || value>edgeLengthCm)) ||
+    (method==='ratio' && (value<0 || value>100)) ||
+    (method!=='length' && method!=='ratio')) return null
   if(!rust) return null
   const fraction=method==='length'
     ? rust.exo_split_length_fraction(value,edgeLengthCm)
     : method==='ratio' ? rust.exo_split_ratio_fraction(value) : NaN
-  return Number.isFinite(fraction) ? fraction : null
+  return Number.isFinite(fraction) && fraction>=0 && fraction<=1 ? fraction : null
 }
 export function rustSplitQuadraticParameter(a,control,b,fraction) {
   if(!rust) return null
   const values=[a?.x,a?.y,control?.x,control?.y,b?.x,b?.y,fraction]
-  if(!values.every(Number.isFinite)) return null
+  if(!values.every(Number.isFinite) || fraction<0 || fraction>1) return null
   const t=rust.exo_split_quadratic_parameter(...values)
-  return Number.isFinite(t) ? t : null
+  return Number.isFinite(t) && t>=0 && t<=1 ? t : null
 }
 
 if(typeof window!=='undefined' && typeof fetch==='function' && typeof WebAssembly!=='undefined') {

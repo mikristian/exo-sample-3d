@@ -1,0 +1,36 @@
+/* The main 2D studio has native icon columns, docked tools, and text-based
+   controls (FR/GR/CAD/PTS). All must inherit the user's Overall Toolbar Icons
+   swatch when 2D icons are set to Auto. This intentionally excludes a
+   deliberate 2D-specific color override, a hover color preview, and garment
+   geometry/fabric. SVG strokes, CSS masks and letter icons share one ink. */
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"][data-2d-toolbar-color-custom="false"]:not([data-icon-color-preview="true"])
+  .main-layout[data-pattern-workspace="true"] :is(.tool-rail,.clo-right-tool-palette,.exo-pattern-studio-embedded-column) button,
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"][data-2d-toolbar-color-custom="false"]:not([data-icon-color-preview="true"])
+  .main-layout[data-pattern-workspace="true"] :is(.tool-rail,.clo-right-tool-palette,.exo-pattern-studio-embedded-column) button :is(svg,.cad-tool-icon-mask) {
+  color:var(--exo-2d-toolbar-ink,var(--exo-ui-icon-ink))!important;
+  stroke:currentColor!important;
+}
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"][data-2d-toolbar-color-custom="false"]:not([data-icon-color-preview="true"])
+  .main-layout[data-pattern-workspace="true"] :is(.tool-rail,.clo-right-tool-palette) button .cad-tool-icon-mask {
+  background-color:currentColor!important;
+}
+/* Vertical viewport buttons follow the same palette except when explicitly
+   customized under the 2D vertical-color setting. */
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"][data-2d-toolbar-color-custom="false"][data-2d-vertical-custom="false"]:not([data-icon-color-preview="true"])
+  :is(.cc-board,.pattern-editor-shell) .clo-corner-toolkit button,
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"][data-2d-toolbar-color-custom="false"][data-2d-vertical-custom="false"]:not([data-icon-color-preview="true"])
+  :is(.cc-board,.pattern-editor-shell) .clo-corner-toolkit button :is(svg,.cad-tool-icon-mask) {
+  color:var(--exo-2d-vertical-ink,var(--exo-ui-icon-ink))!important;
+  stroke:currentColor!important;
+}
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"][data-2d-toolbar-color-custom="false"][data-2d-vertical-custom="false"]:not([data-icon-color-preview="true"])
+  :is(.cc-board,.pattern-editor-shell) .clo-corner-toolkit button .cad-tool-icon-mask {
+  background-color:currentColor!important;
+}
+/* Viewport horizontal bars contain letters, not SVGs. Preserve native
+   hover/active backgrounds but give the text the same selected theme color. */
+#exo-pattern-glass-shell[data-studio-customized="true"][data-global-toolbar-color-custom="true"][data-2d-toolbar-color-custom="false"][data-2d-horizontal-custom="false"]:not([data-icon-color-preview="true"])
+  :is(.cc-board,.pattern-editor-shell) .cc-v2-orientation.cc-v2-board-orientation :is(button,strong) {
+  color:var(--exo-2d-horizontal-ink,var(--exo-ui-icon-ink))!important;
+  -webkit-text-fill-color:var(--exo-2d-horizontal-ink,var(--exo-ui-icon-ink))!important;
+}

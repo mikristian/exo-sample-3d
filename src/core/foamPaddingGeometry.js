@@ -1,3 +1,4 @@
+import {rustFoamTriangulate} from './rustFoamTriangulationKernel.js'
 // Geometry-only trapunto/foam padding generator. All dimensions are centimetres.
 // The input contour and returned paths live in one panel-local XY coordinate space.
 const EPS = 1e-8
@@ -147,6 +148,8 @@ function inset(p, width) {
 
 // Ear clipping handles concave, simple polygons without placing triangles outside the cutline.
 function triangulate(p) {
+  const nativeIndices = rustFoamTriangulate(p)
+  if (nativeIndices !== null) return nativeIndices
   const remain = p.map((_, i) => i), indices = []
   let guard = 0
   while (remain.length > 3 && guard++ < p.length * p.length) {

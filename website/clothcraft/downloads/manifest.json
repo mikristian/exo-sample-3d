@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "repo": "erythrofr/ClothCraft",
+  "type": "unnotarized-development-preview",
+  "workflow_run": 39828874228,
+  "source_sha": "991b4754e3",
+  "files": [
+    {
+      "platform": "macos",
+      "filename": "ClothCraft-macOS-AppleSilicon-Preview.dmg",
+      "path": "/downloads/ClothCraft-macOS-AppleSilicon-Preview.dmg",
+      "display": "Apple silicon \u00b7 macOS development preview",
+      "bytes": 18609826,
+      "sha256": "95a166a69388ae8136e3e3695659d623241e284200d0035b63fb073511a48458",
+      "build_artifact_id": 12448985287,
+      "verified_zip_sha256": "5a2f64eba6224be728a86f28ee23c6455929f8813af47ba797f222b9bfc11301",
+      "developer_preview": true,
+      "signed_release": false,
+      "notarized": false
+    },
+    {
+      "platform": "windows",
+      "filename": "ClothCraft-Windows-x64-Portable-Preview.zip",
+      "path": "/downloads/ClothCraft-Windows-x64-Portable-Preview.zip",
+      "display": "Windows 64-bit \u00b7 portable development preview",
+      "bytes": 19123953,
+      "sha256": "34b9c55d4ccda962feb4b3837b2fd3b210bff9f0d8839b1051bd95d5c8c12a42",
+      "build_artifact_id": 12447154334,
+      "verified_zip_sha256": "b37740b7c028c4a928effb60750bf2aa0d63e4789f19ca4ce43838560bbf1dd3",
+      "developer_preview": true,
+      "signed_release": false,
+      "notarized": false
+    }
+  ]
+}

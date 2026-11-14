@@ -17,7 +17,14 @@ export default function NativePatternAuditPanel({audit,revision,onClose,onRefres
     {panel.editable?<><div>{mm(panel.widthMm)} × {mm(panel.heightMm)} · {panel.edgeCount} edges · {panel.notchCount} notches</div>
       <div>Allowance assigned: {panel.allowanceEdgeCount}/{panel.edgeCount} edges · {panel.curveCount} Bézier edges</div>
       <details><summary>Measured stitching edges</summary>
-       <ul>{panel.edges.map(edge=><li key={edge.edgeId}>{edge.edgeId}: {mm(edge.lengthMm)}{edge.curve?' (curve)':''}{edge.targetMm!=null?` · target ${mm(edge.targetMm)}`:''}</li>)}</ul>
+       <ul>{panel.edges.map(edge=><li key={edge.edgeId}>
+        {edge.edgeId}: {mm(edge.lengthMm)}{edge.curve?' (curve)':''}{edge.targetMm!=null?` · target ${mm(edge.targetMm)}`:''}
+        {edge.curve&&Number.isFinite(edge.precisionLengthMm)&&<div data-native-curve-precision="true">
+         Source Bézier: {edge.precisionLengthMm.toFixed(3)} mm · uncertainty ±{Number(edge.precisionUncertaintyMm).toFixed(3)} mm
+         {Number.isFinite(edge.sampledLengthBiasMm)&&<> · sampled difference {edge.sampledLengthBiasMm.toFixed(3)} mm</>}
+        </div>}
+       </li>)}</ul>
+       <small>Source Bézier precision is a read-only independent length check; native notches, sewing and CUT geometry still use the existing sampled curve.</small>
       </details></>:<div>Not an editable source polygon.</div>}
    </section>)}
    {audit.seams.length>0&&<section><strong>Seam length comparisons</strong><ul>{audit.seams.map(seam=><li key={seam.seamId}>{seam.seamId}: {mm(seam.firstLengthMm)} / {mm(seam.secondLengthMm)} · mismatch {mm(seam.mismatchMm)}</li>)}</ul></section>}
@@ -28,6 +35,7 @@ export default function NativePatternAuditPanel({audit,revision,onClose,onRefres
       <strong>{panel.name}</strong>: {panel.ok?
         <>{panel.pointCount} vertices · {mm(panel.perimeterMm)} perimeter · {Number(panel.areaMm2).toFixed(0)} mm² · {panel.notchMarkCount||0} projected notch marks · {panel.pomMarksMm?.length||0} physical POMs · {panel.stitchLayer?'separate stitch contour':'no stitch contour'}
          <button type="button" disabled={disabled||cutlines.revision!==revision||!panel.svg} onClick={()=>onDownloadCutline(panel,'svg')} aria-label={`Download ${panel.name} Rust engineering SVG`}>Download metric SVG proof</button>
+         {['A4','Letter'].map(format=><button key={format} type="button" disabled={disabled||cutlines.revision!==revision||!panel.svg} onClick={()=>onDownloadCutline(panel,format)} aria-label={`Print ${panel.name} cutline on ${format}`}>Tiled {format} cutline proof</button>)}
          <button type="button" disabled={disabled||cutlines.revision!==revision||!panel.dxf} onClick={()=>onDownloadCutline(panel,'dxf')} aria-label={`Download ${panel.name} Rust engineering DXF`}>Download metric DXF proof</button></>:
         <>Blocked: {panel.error}</>}
     </li>)}</ul>

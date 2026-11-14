@@ -2,6 +2,7 @@
 // geometry is evaluated from the same native cubic/free-knot representation
 // used by Rust Shape; no point is fabricated off the physical cutline.
 import {evaluateFreeCurve} from './nativeFreeCurvePoints.js'
+import {rustCurveDraftBrackets,rustCurveDraftMeasure} from './rustCurveDraftKernel.js'
 
 const valid=p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)
 const distance=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1])
@@ -14,12 +15,9 @@ export function sideCurveStation(polygon,edge,targetY){
     return {t,position:evaluateFreeCurve(polygon,edge,t)}
   })
   const crossings=[]
-  for(let i=1;i<samples.length;i++){
-    const a=samples[i-1],b=samples[i]
-    if(!valid(a.position)||!valid(b.position))continue
+  for(const i of rustCurveDraftBrackets(samples.map(s=>s.position),targetY)){
+    const a=samples[i],b=samples[i+1]
     const dy=b.position[1]-a.position[1]
-    if(Math.abs(dy)<1e-10||Math.min(a.position[1],b.position[1])-1e-7>targetY||
-      Math.max(a.position[1],b.position[1])+1e-7<targetY)continue
     let lo=a.t,hi=b.t
     // The native spline may curve backward in X or Y. The selected bracket
     // is guaranteed monotone only locally; bisect its measured crossing.
@@ -56,20 +54,19 @@ export function torsoSideCurveStations(polygon,chestY,bellyY){
 export function curveDraftDimensions(polygon,{samples=64}={}){
   const names=polygon?.edges||[],items=[]
   if(!names.length||polygon.points?.length!==names.length)return []
+  // A fractional count truncates Array.from's length while i/samples still
+  // samples only part of the authored edge, yielding false physical lengths.
+  // Bound allocation as this view-only annotation is evaluated on live edits.
+  if(!Number.isSafeInteger(samples)||samples<1||samples>4096)return []
   for(const edge of names){
     const points=Array.from({length:samples+1},(_,i)=>evaluateFreeCurve(polygon,edge,i/samples))
     if(points.some(p=>!valid(p)))continue
-    const arcs=points.slice(1).map((p,i)=>distance(p,points[i]))
-    const length=arcs.reduce((sum,n)=>sum+n,0)
-    let remaining=length/2,index=0
-    for(;index<arcs.length-1&&remaining>arcs[index];index++)remaining-=arcs[index]
-    const middle=arcs[index]>1e-10?
-      [0,1].map(axis=>points[index][axis]+
-        (points[index+1][axis]-points[index][axis])*remaining/arcs[index]):
-      midpoint(points[index],points[index+1])
-    if(length>.001)items.push({edge,length,midpoint:middle,
-      bounds:{minX:Math.min(...points.map(p=>p[0])),maxX:Math.max(...points.map(p=>p[0])),
-        minY:Math.min(...points.map(p=>p[1])),maxY:Math.max(...points.map(p=>p[1]))},
+    const metrics=rustCurveDraftMeasure(points)
+    // Finite sample points can still overflow midpoint/length arithmetic in
+    // the native or fallback measurement backend. Never emit an invalid label.
+    if(metrics?.length>.001&&Number.isFinite(metrics.length)&&valid(metrics.midpoint)&&
+      metrics.bounds&&['minX','maxX','minY','maxY'].every(key=>Number.isFinite(metrics.bounds[key])))
+      items.push({edge,...metrics,
       from:points[0],to:points.at(-1)})
   }
   return items

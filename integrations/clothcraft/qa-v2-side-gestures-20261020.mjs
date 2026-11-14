@@ -138,7 +138,8 @@ try{
   assert.notDeepEqual(next.free_curve_points?.[edge],old.free_curve_points?.[edge],`Compiled ${targetEdge} knot unchanged`)
   const movedKnot=next.free_curve_points[edge].find(k=>Math.abs(k.t-stationT)<1e-6)
   assert(movedKnot,'Applied knot station missing')
-  assert(Math.hypot(movedKnot.position[0]-originalStation[0]-.024,movedKnot.position[1]-originalStation[1]-.004)<1e-6,'Screen drag did not retain requested physical displacement: '+JSON.stringify({actual:movedKnot.position,origin:originalStation,t:stationT}))
+  // Rust normalizes panel bounds; compare to an unchanged material anchor.
+  assert(Math.hypot(movedKnot.position[0]-originalStation[0]-(next.points[0][0]-old.points[0][0])-.024,movedKnot.position[1]-originalStation[1]-(next.points[0][1]-old.points[0][1])-.004)<1e-6,'Screen drag did not retain requested physical displacement: '+JSON.stringify({actual:movedKnot.position,origin:originalStation,t:stationT}))
   assert.notDeepEqual(compiled.positions,initial.positions,'3D garment positions unchanged')
   assert(compiled.triangles.length>0,'Native mesh was not regenerated')
   const range=compiled.panels.find(p=>p.id===panel),chain=range.boundaries[edge].map(i=>compiled.uv[i])

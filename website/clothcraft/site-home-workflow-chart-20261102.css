@@ -1,0 +1,99 @@
+/* Home-page studio comparison. Two legible loops with perimeter and ring light trails. */
+#product .cc-app-launch-layout>.cc-app-flow-visual{
+ display:flex!important;flex-direction:column!important;align-items:stretch!important;justify-content:flex-start!important;
+ min-height:0!important;max-height:none!important;align-self:start!important;
+ padding:clamp(14px,1.75vw,24px)!important;gap:17px!important;background:#292929!important;color:#e6e6e6!important;
+}
+#product .cc-app-flow-visual::before{opacity:.035!important;filter:grayscale(1)!important}
+#product .cc-app-flow-visual>*{position:relative;z-index:1;min-width:0}
+#product .cc-app-flow-brand{display:flex;gap:14px;align-items:center;min-width:0;border-bottom:1px solid #575757;padding-bottom:15px}
+#product .cc-app-flow-brand .cc-app-icon-frame{flex:0 0 54px;width:54px!important;height:54px!important;border:1px solid #6b6b6b!important;border-radius:12px!important;box-shadow:0 4px 18px #0004!important;transform:none!important;overflow:hidden!important;background:#383838!important}
+#product .cc-app-flow-brand .cc-app-icon-frame img{height:100%!important;width:100%!important;object-fit:cover;display:block}
+#product .cc-app-flow-brand-text{display:flex;flex-direction:column;align-items:flex-start;min-width:0;gap:3px}
+#product .cc-app-flow-brand-text>span,#product .cc-app-flow-brand-text>small{font:800 8px/1.35 Manrope,Arial,sans-serif;letter-spacing:.12em;color:#aaa}
+#product .cc-app-flow-brand-text>strong{font:800 clamp(17px,1.6vw,22px)/1.2 Manrope,Arial,sans-serif;letter-spacing:-.05em;color:#eee;white-space:nowrap}
+#product .cc-app-flow-brand-text em{font-style:normal;font-weight:550;color:#aaa}
+#product .cc-app-flow-brand-edition{margin-left:auto;align-self:flex-start;white-space:nowrap;font:750 8px/1.4 Manrope,sans-serif;letter-spacing:.1em;color:#b7b7b7}
+#product .cc-app-flow-chart{min-width:0;display:flex;flex-direction:column;gap:14px;flex:none;border:1px solid #535353;background:#232323;padding:clamp(12px,1.4vw,19px)}
+#product .cc-app-flow-chart-heading,#product .cc-app-flow-chart-caption{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font:800 9px/1.5 Manrope,Arial,sans-serif;letter-spacing:.11em;color:#bcbcbc}
+#product .cc-app-flow-chart-heading{border-bottom:1px solid #494949;padding-bottom:13px}
+#product .cc-loop-compare{display:grid;grid-template-columns:minmax(0,1fr);gap:19px;position:relative;min-width:0}
+#product .cc-loop-case{
+ --loop-ink:#d66c76;--loop-glow:#ff5266;--loop-soft:rgba(238,70,88,.20);
+ position:relative;display:grid;grid-template-columns:minmax(0,.85fr) minmax(0,1.15fr);grid-template-rows:auto auto 1fr;align-items:center;column-gap:clamp(12px,2vw,24px);isolation:isolate;
+ min-width:0;padding:clamp(14px,1.7vw,24px);
+ background:radial-gradient(ellipse at 50% 52%,rgba(125,37,53,.16) 0%,transparent 67%),#262325;
+ border:1px solid #603d43;border-radius:14px;
+ box-shadow:inset 0 0 25px rgba(177,37,55,.035),0 3px 18px #0003;
+}
+#product .cc-loop-case--digital{
+ --loop-ink:#78baff;--loop-glow:#53aaff;--loop-soft:rgba(66,141,245,.25);
+ background:radial-gradient(ellipse at 50% 52%,rgba(30,88,160,.17) 0%,transparent 67%),#22262e;
+ border-color:#42638c;box-shadow:inset 0 0 30px rgba(24,113,237,.075),0 3px 18px #0004;
+}
+#product .cc-loop-border{position:absolute!important;inset:0;z-index:4;pointer-events:none;display:block;width:100%;height:100%;overflow:visible;border-radius:14px}
+#product .cc-loop-border rect{fill:none;stroke:var(--loop-glow);vector-effect:non-scaling-stroke;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:12 88;animation:cc-loop-border-travel 9s linear infinite}
+#product .cc-loop-border-aura{stroke-width:7;opacity:.37;filter:blur(5px)}
+#product .cc-loop-border-light{stroke-width:2.6;opacity:.95;filter:drop-shadow(0 0 5px var(--loop-glow)) drop-shadow(0 0 11px var(--loop-glow))}
+#product .cc-loop-case--digital .cc-loop-border rect{animation-duration:3.7s}
+#product .cc-loop-case-head{grid-column:1/-1;position:relative;display:flex;flex-direction:row;justify-content:space-between;align-items:center;gap:8px;text-align:left;z-index:1;padding-bottom:10px;border-bottom:1px solid #ffffff19}
+#product .cc-loop-case-head strong{font:850 clamp(18px,1.55vw,21px)/1.1 Manrope,sans-serif;letter-spacing:-.045em;color:#f5f5f5}
+#product .cc-loop-case-head span{font:800 8px/1.25 Manrope,sans-serif;letter-spacing:.11em;color:#e68a95}
+#product .cc-loop-case--digital .cc-loop-case-head span{color:#8ac8ff}
+#product .cc-loop-cost{grid-column:1;grid-row:2;position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;padding:14px 0 8px;text-align:left}
+#product .cc-loop-cost span{font:750 9px/1.2 Manrope,Arial,sans-serif;letter-spacing:.13em;color:#adadb4}
+#product .cc-loop-cost strong{font:850 clamp(18px,1.9vw,25px)/1.15 Manrope,Arial,sans-serif;letter-spacing:-.045em;color:#ff7683}
+#product .cc-loop-case--digital .cc-loop-cost strong{color:#88c9ff}
+#product .cc-loop-cost strong em{font-style:normal;font-weight:600;font-size:12px;letter-spacing:-.02em;color:#bddaff}
+#product .cc-loop-cost small{font:500 10px/1.3 Manrope,sans-serif;color:#b7b9bd}
+#product .cc-loop-diagram{grid-column:2;grid-row:2/4;display:block;width:100%;max-width:380px;height:auto;overflow:visible;flex:none;margin:0 auto}
+#product .cc-loop-diagram text{font-family:Manrope,Arial,sans-serif}
+#product .cc-loop-track{fill:none;stroke:var(--loop-ink);stroke-width:2.1;opacity:.22}
+#product .cc-loop-arc{fill:none;stroke:var(--loop-ink);stroke-width:2.3;stroke-linecap:round;opacity:.85}
+#product .cc-loop-light,#product .cc-loop-aura{fill:none;stroke:var(--loop-glow);stroke-linecap:round;stroke-dasharray:39 332;transform:rotate(-90deg);transform-origin:123px 93px;animation:cc-loop-travel 9s linear infinite}
+#product .cc-loop-aura{stroke-width:10;opacity:.53;filter:blur(6px)}
+#product .cc-loop-light{stroke-width:4.4;filter:drop-shadow(0 0 4px var(--loop-glow)) drop-shadow(0 0 10px var(--loop-glow))}
+#product .cc-loop-case--digital .cc-loop-light,#product .cc-loop-case--digital .cc-loop-aura{stroke-dasharray:43 328;animation-duration:3.7s}
+#product .cc-loop-node rect{fill:#32282b;stroke:#98505b;stroke-width:1.35}
+#product .cc-loop-case--digital .cc-loop-node rect{fill:#273343;stroke:#679bd1}
+#product .cc-loop-node text{font-size:12.1px;font-weight:850;fill:#f6f6f7;letter-spacing:.01em}
+#product .cc-loop-core{font-size:12px;font-weight:900;letter-spacing:.015em;fill:#ffd7db}
+#product .cc-loop-case--digital .cc-loop-core{fill:#d7edff}
+#product .cc-loop-core-sub{font-size:8px;font-weight:750;letter-spacing:.075em;fill:#e0a8af}
+#product .cc-loop-case--digital .cc-loop-core-sub{fill:#a9cdf3}
+#product .cc-loop-case p{grid-column:1;grid-row:3;position:relative;z-index:1;font:500 11px/1.55 Manrope,sans-serif;color:#d0c7c9;text-align:left;max-width:280px;margin:0;padding:0}
+#product .cc-loop-case--digital p{color:#c7d9ea}
+#product .cc-loop-vs{position:absolute;z-index:5;left:50%;top:50%;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;width:35px;height:35px;border:1px solid #737782;border-radius:50%;background:#181b20;color:#f4f4f4;font:850 11px Manrope,sans-serif;letter-spacing:.03em;box-shadow:0 0 14px #fff2,0 0 4px #0009;pointer-events:none}
+#product .cc-loop-idea-line{margin:0;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;column-gap:10px;row-gap:6px;text-align:center;padding:13px 10px;border:1px solid #4a5261;background:linear-gradient(90deg,#24262c,#26303c,#24262c);font:750 clamp(9px,.78vw,11px)/1.35 Manrope,sans-serif;color:#95a4b7;letter-spacing:.015em}
+#product .cc-loop-idea-line strong{color:#eef5ff;font-weight:850;white-space:nowrap}
+#product .cc-loop-idea-line b{color:#91ceff;font-weight:850;white-space:nowrap}
+#product .cc-app-flow-chart-caption{border-top:1px solid #494949;padding-top:13px;font-size:7.5px;gap:6px;color:#b4b4b4}
+#product .cc-app-flow-chart-caption>span:first-child{display:flex;align-items:center;gap:6px}
+#product .cc-app-flow-chart-caption i{display:block;width:5px;height:5px;flex:0 0 5px;border-radius:50%;background:#85c9ff;box-shadow:0 0 7px #69adff}
+#product .cc-app-flow-visual .cc-app-icon-foot{font-size:8px;letter-spacing:.1em;color:#b7b7b7;gap:10px;align-items:center;line-height:1.5}
+@keyframes cc-loop-travel{to{stroke-dashoffset:-371}}
+@keyframes cc-loop-border-travel{to{stroke-dashoffset:-100}}
+@media(max-width:1100px){#product .cc-app-flow-brand-edition{display:none}}
+@media(max-width:900px){#product .cc-app-launch-layout>.cc-app-flow-visual{max-width:620px;min-height:0!important;max-height:none!important;padding:20px!important}}
+@media(max-width:580px){
+ #product .cc-app-launch-layout>.cc-app-flow-visual{padding:14px!important;gap:12px!important}
+ #product .cc-app-flow-brand{gap:11px;padding-bottom:12px}
+ #product .cc-app-flow-brand .cc-app-icon-frame{width:46px!important;height:46px!important;flex-basis:46px;border-radius:11px!important}
+ #product .cc-app-flow-brand-text>strong{font-size:17px}
+ #product .cc-app-flow-chart{padding:11px;gap:11px}
+ #product .cc-app-flow-chart-heading,#product .cc-app-flow-chart-caption{font-size:7.6px}
+ #product .cc-loop-compare{grid-template-columns:1fr;gap:19px}
+ #product .cc-loop-case{display:flex;flex-direction:column;align-items:center;padding:12px 9px 14px}
+ #product .cc-loop-case-head{flex-direction:row;justify-content:space-between;align-self:stretch;gap:8px}
+ #product .cc-loop-case-head strong{font-size:19px}
+ #product .cc-loop-case-head span{font-size:7.8px;text-align:right;max-width:135px}
+ #product .cc-loop-cost{align-items:center;text-align:center;padding:9px 2px 0}
+ #product .cc-loop-cost strong{font-size:23px}
+ #product .cc-loop-diagram{width:100%;max-width:350px;margin:0 auto 1px}
+ #product .cc-loop-case p{max-width:310px;font-size:11px;text-align:center}
+ #product .cc-loop-vs{top:50%;width:30px;height:30px}
+ #product .cc-app-flow-chart-caption>span:last-child{display:none}
+ #product .cc-app-flow-visual .cc-app-icon-foot{font-size:7.5px}
+}
+@media(max-width:360px){#product .cc-app-launch-layout>.cc-app-flow-visual{padding:10px!important}#product .cc-app-flow-chart{padding:8px}#product .cc-loop-case-head span{font-size:7.2px}}
+@media(prefers-reduced-motion:reduce){#product .cc-loop-light,#product .cc-loop-aura,#product .cc-loop-border rect{animation:none!important;stroke-dashoffset:0;filter:none}#product .cc-loop-aura,#product .cc-loop-border-aura{opacity:0}}

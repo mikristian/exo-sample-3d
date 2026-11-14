@@ -18,7 +18,18 @@ export async function initializeRustSelectionMetricsKernel({bytes,url='/wasm/exo
 }
 /** One packed f64 WASM call for all boundary nodes; null signals JS fallback. */
 export function rustMeasuredSewingInterval(uv,live,range) {
-  if(!kernel || uv.length!==live.length || uv.length<2)return null
+  if(!kernel || !Array.isArray(uv) || !Array.isArray(live) ||
+    uv.length!==live.length || uv.length<2 || !Array.isArray(range) || range.length!==2 ||
+    !Number.isFinite(range[0]) || !Number.isFinite(range[1]) ||
+    range[0]<0 || range[1]>1 || range[0]>=range[1])return null
+  for(let i=0;i<uv.length;i++){
+    const flat=uv[i],draped=live[i]
+    if(!Array.isArray(flat) || !Array.isArray(draped) ||
+      flat.length<2 || draped.length<3 ||
+      !Number.isFinite(flat[0]) || !Number.isFinite(flat[1]) ||
+      !Number.isFinite(draped[0]) || !Number.isFinite(draped[1]) ||
+      !Number.isFinite(draped[2]))return null
+  }
   const count=uv.length,words=count*5+2
   const ptr=kernel.exo_selection_metrics_alloc(words)
   if(!ptr)return null

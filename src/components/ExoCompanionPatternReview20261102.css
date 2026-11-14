@@ -1,0 +1,33 @@
+#clo-arai-chat .exo-ai-pattern-review{display:grid;gap:8px;padding:10px;margin:8px 0;border:1px solid #76a7c6;border-radius:12px;background:rgba(16,38,55,.84);color:#f0f8ff;font:11px/1.45 system-ui,sans-serif}
+#clo-arai-chat .exo-ai-pattern-review-head{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}
+#clo-arai-chat .exo-ai-pattern-review-head strong{font-size:12px}
+#clo-arai-chat .exo-ai-pattern-review-head span{font-size:10px;opacity:.8}
+#clo-arai-chat .exo-ai-pattern-review p{margin:0;line-height:1.5}
+#clo-arai-chat .exo-ai-pattern-review small{opacity:.8;line-height:1.5}
+#clo-arai-chat .exo-ai-pattern-review-shapes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));max-height:200px;gap:5px;overflow-y:auto}
+#clo-arai-chat .exo-ai-pattern-review-piece{display:grid;gap:3px;min-width:0;border:1px solid #668c9c80;border-radius:7px;padding:4px;background:#2441518c}
+#clo-arai-chat .exo-ai-pattern-review-piece svg{display:block;width:100%;height:59px}
+#clo-arai-chat .exo-ai-pattern-review-piece span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;text-align:center}
+#clo-arai-chat .exo-ai-pattern-review label{display:flex;align-items:flex-start;gap:7px;font-size:10px;line-height:1.4}
+#clo-arai-chat .exo-ai-pattern-review input{accent-color:#c6eb71;flex:none;margin:2px 0 0}
+#clo-arai-chat .exo-ai-pattern-review-actions{display:flex;flex-wrap:wrap;gap:6px}
+#clo-arai-chat .exo-ai-pattern-review button{border:1px solid #91c3d4;border-radius:7px;background:#28516d;color:#fff;padding:7px 9px;font:750 10px system-ui,sans-serif;cursor:pointer}
+#clo-arai-chat .exo-ai-pattern-review button.primary{background:#326b71;border-color:#8ce9d3}
+#clo-arai-chat .exo-ai-pattern-review button:disabled{opacity:.5;cursor:not-allowed}
+#clo-arai-chat .exo-ai-pattern-review [role=alert]{color:#ffd0d0}
+@media(max-width:580px){#clo-arai-chat .exo-ai-pattern-review-shapes{grid-template-columns:repeat(3,minmax(0,1fr))}}
+#clo-arai-chat.exo-ai-panel--pattern-draft{max-height:min(740px,calc(100dvh - 85px))}
+#clo-arai-chat.exo-ai-panel--pattern-draft .exo-ai-dialogue{max-height:156px;min-height:65px;flex-shrink:0}
+#clo-arai-chat.exo-ai-panel--pattern-draft .exo-ai-pattern-review{max-height:310px;overflow-y:auto;flex-shrink:0}
+#clo-arai-chat .exo-ai-pattern-attachment{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:7px 9px;margin:0;border:1px solid #689ea7;border-radius:7px;background:#164e5b;color:#e8ffff;font:10px/1.4 system-ui,sans-serif}
+#clo-arai-chat .exo-ai-pattern-attachment span{display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#clo-arai-chat .exo-ai-pattern-attachment button{color:white;border:1px solid #9db8c2;border-radius:6px;background:#375d6a;padding:4px 6px;font-size:9px;cursor:pointer}
+#clo-arai-chat .exo-ai-composer input[type=file][hidden]{display:none;position:absolute;flex:none;width:0;height:0}
+#clo-arai-chat .exo-ai-composer button[aria-label="Attach garment photo reference"]{position:relative;background:#1d6771;border-color:#88dacf}
+#clo-arai-chat .exo-ai-attach-photo-label{position:absolute;right:1px;bottom:1px;padding:0 1px;font:800 6px/1.1 system-ui,sans-serif;letter-spacing:0;color:#fff;background:#175764;border-radius:2px;pointer-events:none}
+#clo-arai-chat .exo-ai-pattern-photo-thumbnail{width:45px;height:47px;flex:none;object-fit:contain;border-radius:5px;border:1px solid #99cacc;background:#f6f6f6}
+#clo-arai-chat .exo-ai-photo-vision-review{display:grid;gap:7px;padding:9px;border:1px solid #668ba1;border-radius:9px;background:rgba(25,49,63,.88);font:10px/1.45 system-ui,sans-serif;color:#e5f3ff}
+#clo-arai-chat .exo-ai-photo-vision-review small{opacity:.9;line-height:1.45}
+#clo-arai-chat .exo-ai-photo-vision-review strong{font-size:10.5px}
+#clo-arai-chat .exo-ai-photo-vision-review button{width:100%;padding:7px 8px;background:#2a6076;color:white;border:1px solid #95cbe5;border-radius:7px;cursor:pointer;font:750 10px system-ui,sans-serif}
+#clo-arai-chat .exo-ai-photo-vision-review button:disabled{opacity:.6;cursor:wait}

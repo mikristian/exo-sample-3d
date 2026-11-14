@@ -101,7 +101,20 @@ const check=async()=>{
   near(length(...notchSegments[i]),4)
  }
  near(length(notchSegments[0][0],notchSegments[1][0]),6)
- const parsed=parseDxfPatterns(cut.dxf)
+ assert.throws(()=>parseDxfPatterns(cut.dxf),/would double its seam allowance/)
+ const parsed=parseDxfPatterns(cut.dxf,{manufacturingImport:'cut-reference'})
+ assert.equal(parsed.factoryCertified,false)
+ assert.equal(parsed.referenceSize,'BASE')
+ assert.equal(parsed.referenceMode,'cut-reference')
+ assert(parsed.pieces.every(piece=>piece.locked&&piece.seamAllowance===0))
+ assert(parsed.pieces.every(piece=>piece.patternImportProvenance?.referenceOnly===true&&
+   piece.patternImportProvenance?.gradedRuleRecovered===false))
+ assert.throws(()=>parseDxfPatterns(cut.dxf,{manufacturingImport:'editable'}),/requires explicit cut-reference or stitch-reference/)
+ const invalidStitch=cut.dxf.replace('8\nSTITCH_EXO\n','8\nSTITCH_BROKEN\n')
+ assert.throws(()=>parseDxfPatterns(invalidStitch,{manufacturingImport:'cut-reference'}),
+   /one closed CUT and one bounded segmented STITCH|broken, duplicate or branching sewn line loop/)
+ const badUnits=cut.dxf.replace('9\n$INSUNITS\n70\n4','9\n$INSUNITS\n70\n0')
+ assert.throws(()=>parseDxfPatterns(badUnits,{manufacturingImport:'cut-reference'}),/Unsupported or unitless DXF INSUNITS/)
  assert.equal(parsed.pieces.length,1)
  const importedNotchCount=parsed.pieces[0].notches.length
  const points=parsed.pieces[0].points

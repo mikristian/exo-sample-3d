@@ -1,5 +1,6 @@
 import React,{useRef} from 'react'
 import {STUDIO_TOOL_CATALOG,normalizeStudioCustomization} from '../core/studioCustomization.js'
+import CadToolIcon from './CadToolIcon.jsx'
 import './StudioCustomToolbar.css'
 
 /** Optional workspace toolbar. The parent maps action IDs to real editor commands. */
@@ -44,8 +45,8 @@ export default function StudioCustomToolbar({value,onAction,onCustomize,onChange
     {toolbarIds.map(id=>{
       const tool=catalog.get(id)
       if(!tool)return null
-      return <button key={id} className="exo-custom-toolbar__action" type="button" title={tool.label} aria-label={tool.label} data-action={id} onClick={()=>onAction?.(id)}>
-        <span className="exo-custom-toolbar__glyph" aria-hidden="true">{({select:'↖',point:'◇',sew:'⌁',move3d:'✥',rotate3d:'⟳',simulate:'▶',reset:'↺',grid:'▦',seams:'⌇',library:'▤',properties:'☷',save:'▣',fit:'⛶',zipper:'⟷',trim:'✂','foam-padding':'▱'})[id]}</span>
+      return <button key={id} className="exo-custom-toolbar__action" type="button" title={`${tool.label}${tool.status==='reference'?' · Reference only: requires implementation':tool.status==='mapped'?' · EXO equivalent action':''}`} aria-label={tool.label} data-action={id} data-implementation={tool.status||'available'} onClick={()=>onAction?.(id)}>
+        <span className="exo-custom-toolbar__glyph" aria-hidden="true">{({select:'↖',point:'◇',sew:'⌁',move3d:'✥',rotate3d:'⟳',simulate:'▶',reset:'↺',grid:'▦',seams:'⌇',library:'▤',properties:'☷',save:'▣',fit:'⛶',zipper:'⟷',trim:'✂','foam-padding':'▱'})[id]??<CadToolIcon id={tool.icon||id} size={17}/>}</span>
         {!toolbarCompact&&<span className="exo-custom-toolbar__label">{tool.label}</span>}
       </button>
     })}

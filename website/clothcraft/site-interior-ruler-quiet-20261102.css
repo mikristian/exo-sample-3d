@@ -1,0 +1,114 @@
+/* Interior pages use the shared ruler behavior, but should NOT inherit the
+   huge homepage display headings. Keep navigation on the right margin only. */
+@media (min-width:1151px) {
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter {
+    margin-right:0!important;
+    height:23px!important;
+    padding:0 4px!important;
+  }
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter .cc-chapter-name,
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-current .cc-chapter-name,
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-morphing .cc-chapter-name,
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-upcoming .cc-chapter-name {
+    right:44px!important;
+    max-width:170px!important;
+    min-width:0!important;
+    font:650 clamp(10px,.82vw,12px)/1.25 Manrope,Arial,sans-serif!important;
+    letter-spacing:.02em!important;
+    text-align:right!important;
+    color:#c2c2c2!important;
+    text-shadow:0 1px 7px #242424!important;
+    opacity:.75!important;
+    transform:none!important;
+    transition:color .16s,opacity .16s!important;
+  }
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-current .cc-chapter-name {
+    font-weight:720!important;
+    font-size:clamp(11px,.91vw,13px)!important;
+    color:#e5e5e5!important;
+    opacity:.92!important;
+  }
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-past:not(.is-older-history) .cc-chapter-name {
+    font:540 10px/1.25 Manrope,Arial,sans-serif!important;
+    color:#929292!important;
+    opacity:.6!important;
+    letter-spacing:.02em!important;
+  }
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-transferring,
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-side-title {
+    transform:translateY(-50%)!important;
+  }
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-morphing:not(.is-current) .cc-chapter-name {
+    color:#999!important;
+    opacity:.48!important;
+  }
+  /* A small progress landmark, not a second full-size editorial headline. */
+  body.cc-ruler-interior .cc-measure-rail .cc-chapter-line {
+    width:11px!important;
+    height:1px!important;
+  }
+  body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-current .cc-chapter-line {
+    width:18px!important;
+  }
+  body.cc-ruler-interior .cc-measure-futures.cc-measure-futures-stack {
+    right:84px!important;
+    max-width:160px!important;
+    width:max-content!important;
+    gap:6px!important;
+  }
+  body.cc-ruler-interior .cc-measure-futures-stack .cc-measure-future {
+    font:580 10px/1.25 Manrope,Arial,sans-serif!important;
+    letter-spacing:.035em!important;
+    color:#969696!important;
+    text-shadow:0 1px 5px #171717!important;
+    max-width:160px!important;
+    opacity:.62!important;
+  }
+  body.cc-ruler-interior .cc-measure-futures-stack.is-inspecting .cc-measure-future:not([hidden]),
+  body.cc-ruler-interior .cc-measure-futures-stack.is-inspecting .cc-measure-future.is-inspection-target {
+    font-weight:650!important;
+    font-size:10px!important;
+    transform:translate3d(-2px,-50%,0)!important;
+    color:#ddd!important;
+    text-shadow:0 1px 7px #242424!important;
+  }
+  body.cc-ruler-interior .cc-measure-futures-stack.is-inspecting {
+    width:160px!important;
+    right:84px!important;
+  }
+}
+@media (prefers-reduced-motion:reduce) {
+  body.cc-ruler-interior .cc-measure-chapter .cc-chapter-name,
+  body.cc-ruler-interior .cc-measure-future {transition:none!important}
+}
+/* Ultra-quiet interior navigation; no oversized duplicated hero titles. */
+@media(min-width:1151px){
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter,
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-current{height:18px!important;right:20px!important;max-width:145px!important}
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter .cc-chapter-name,
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-current .cc-chapter-name,
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-morphing .cc-chapter-name,
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-upcoming .cc-chapter-name{
+  font:560 9px/1.2 Manrope,Arial,sans-serif!important;
+  letter-spacing:.065em!important;
+  max-width:120px!important;
+  right:36px!important;
+  text-shadow:none!important;
+  opacity:.62!important;
+  color:#b7b7b7!important;
+  transform:none!important;
+ }
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-current .cc-chapter-name{
+  font-size:10px!important;font-weight:650!important;color:#d1d1d1!important;opacity:.85!important
+ }
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-past .cc-chapter-name{font-size:9px!important;opacity:.42!important}
+ body.cc-ruler-interior .cc-measure-rail .cc-measure-chapter.is-transferring{transform:translateY(-50%)!important}
+ body.cc-ruler-interior .cc-measure-futures.cc-measure-futures-stack,
+ body.cc-ruler-interior .cc-measure-futures-stack.is-inspecting{right:92px!important;max-width:132px!important;width:132px!important}
+ body.cc-ruler-interior .cc-measure-futures-stack .cc-measure-future,
+ body.cc-ruler-interior .cc-measure-futures-stack.is-inspecting .cc-measure-future:not([hidden]){
+  font-size:9px!important;font-weight:500!important;letter-spacing:.06em!important;
+  color:#aaa!important;opacity:.58!important;text-shadow:none!important;max-width:132px!important;
+  transform:translate3d(0,-50%,0)!important
+ }
+}

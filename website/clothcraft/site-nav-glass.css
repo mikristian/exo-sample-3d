@@ -1,0 +1,104 @@
+/* Crystal-clear dyed glass, NOT blurred/frosted matte panels.
+   Loaded after the generated palette; no gradients or cloudy backplates. */
+html[data-site-themed] .header .nav-dropdown {
+  --dropdown-tone:var(--site-menu-product);
+  --dropdown-highlight:var(--site-menu-product-line);
+}
+html[data-site-themed] .header .nav-dropdown[data-dropdown-tone="source"] {
+  --dropdown-tone:var(--site-menu-source);
+  --dropdown-highlight:var(--site-menu-source-line);
+}
+html[data-site-themed] .header .nav-dropdown[data-dropdown-tone="about"] {
+  --dropdown-tone:var(--site-menu-about);
+  --dropdown-highlight:var(--site-menu-about-line);
+}
+html[data-site-themed] .header .nav-dropdown > .nav-menu {
+  background:color-mix(in srgb,var(--dropdown-tone) 28%,transparent)!important;
+  border:1px solid color-mix(in srgb,var(--dropdown-highlight) 62%,#ffffff80)!important;
+  border-top:1px solid color-mix(in srgb,var(--dropdown-highlight) 60%,white)!important;
+  border-radius:15px!important;
+  box-shadow:0 14px 36px #0005,inset 0 1px 0 #ffffff59,inset 1px 0 0 #ffffff1f,inset -1px 0 0 #ffffff15!important;
+  /* Optical brightness control improves text legibility without obscuring the scene. */
+  backdrop-filter:brightness(.58) blur(3px) saturate(1.06)!important;
+  -webkit-backdrop-filter:brightness(.58) blur(3px) saturate(1.06)!important;
+  padding:8px!important;
+  isolation:isolate;
+}
+html[data-site-glass="true"] .header .nav-dropdown > .nav-menu {
+  background:color-mix(in srgb,var(--dropdown-tone) 20%,transparent)!important;
+  backdrop-filter:brightness(.55) blur(2px) saturate(1.07)!important;
+  -webkit-backdrop-filter:brightness(.55) blur(2px) saturate(1.07)!important;
+}
+html[data-site-themed] .header .nav-dropdown > .nav-menu::before {
+  display:block;
+  padding:10px 12px 8px;
+  font:800 9px/1.2 'DM Sans',Arial,sans-serif;
+  letter-spacing:.14em;
+  color:color-mix(in srgb,var(--dropdown-highlight) 72%,white);
+  text-shadow:0 1px 5px #000c;
+  content:'THE STUDIO';
+}
+html[data-site-themed] .header .nav-dropdown[data-dropdown-tone="source"] > .nav-menu::before {content:'OPEN DEVELOPMENT'}
+html[data-site-themed] .header .nav-dropdown[data-dropdown-tone="about"] > .nav-menu::before {content:'ABOUT CLOTHCRAFT'}
+html[data-site-themed] .header .nav-dropdown > .nav-menu a {
+  display:block;
+  border:1px solid #ffffff13;
+  border-radius:9px;
+  background:color-mix(in srgb,#070b12 18%,transparent)!important;
+  color:#f7f9fc!important;
+  text-shadow:0 1px 6px #000e;
+  margin-top:3px;
+  transition:background-color .16s,border-color .16s,transform .16s;
+}
+html[data-site-themed] .header .nav-dropdown > .nav-menu a small {
+  color:#dce2e9!important;
+  opacity:.96;
+  text-shadow:0 1px 5px #000d;
+}
+html[data-site-themed] .header .nav-dropdown > .nav-menu a:is(:hover,:focus-visible) {
+  background:color-mix(in srgb,var(--dropdown-tone) 42%,#03070c33)!important;
+  border-color:color-mix(in srgb,var(--dropdown-highlight) 58%,transparent)!important;
+  transform:translateX(2px);
+}
+html[data-site-themed] .header .nav-dropdown > summary[aria-expanded="true"],
+html[data-site-themed] .header .nav-dropdown[open] > summary {color:var(--site-accent)!important}
+
+/* Quiet the busy page behind an open clear menu instead of frosting it. The
+   scene remains optically visible; the glass itself still has only 2px blur. */
+@media(min-width:1041px){
+  html[data-site-themed] body:has(.header .nav-dropdown[open])::before{
+    content:'';position:fixed;inset:var(--header,72px) 0 0;
+    z-index:99;background:#0005;pointer-events:none;
+  }
+}
+
+/* Assets' standalone Discover menu uses matching crystal glass. */
+html[data-site-themed] .nav-discover-group .nav-discover-menu {
+  background:color-mix(in srgb,var(--site-menu-assets) 28%,transparent)!important;
+  border:1px solid color-mix(in srgb,var(--site-accent) 44%,#ffffff85)!important;
+  border-top:1px solid color-mix(in srgb,var(--site-accent) 56%,white)!important;
+  border-radius:12px;
+  box-shadow:0 14px 35px #0005,inset 0 1px 0 #ffffff50!important;
+  backdrop-filter:brightness(.58) blur(3px) saturate(1.06)!important;
+  -webkit-backdrop-filter:brightness(.58) blur(3px) saturate(1.06)!important;
+  padding:7px;
+}
+html[data-site-glass="true"] .nav-discover-group .nav-discover-menu {
+  background:color-mix(in srgb,var(--site-menu-assets) 20%,transparent)!important;
+  backdrop-filter:brightness(.55) blur(2px) saturate(1.07)!important;
+  -webkit-backdrop-filter:brightness(.55) blur(2px) saturate(1.07)!important;
+}
+html[data-site-themed] .nav-discover-group .nav-discover-menu button {color:#f7f9fc!important;text-shadow:0 1px 5px #000e;background:color-mix(in srgb,#070b12 17%,transparent)!important;border:1px solid #ffffff16!important;border-radius:8px}
+html[data-site-themed] .nav-discover-group .nav-discover-menu button:is(:hover,:focus-visible) {background:color-mix(in srgb,var(--site-menu-assets) 47%,transparent)!important}
+
+/* Final homepage CTA: the remaining visual "gradient" came from the huge
+   100px-blurred glow element, not the background gradient already removed. */
+html[data-site-themed] .final-cta {background:var(--site-bg-alt)!important}
+html[data-site-themed] .final-cta .cta-glow {display:none!important;filter:none!important;background:none!important}
+html[data-site-themed] body > footer {background:var(--site-bg-alt)!important;border-top:1px solid var(--site-border)}
+@media(max-width:900px){
+  html[data-site-themed] .header .nav-dropdown > .nav-menu {box-shadow:none!important;border-radius:9px!important;max-width:100%}
+}
+@media(prefers-reduced-motion:reduce){
+  html[data-site-themed] .header .nav-dropdown > .nav-menu a {transition:none!important;transform:none!important}
+}

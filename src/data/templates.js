@@ -2,6 +2,7 @@ import { createDefaultProject, FABRIC_PRESETS } from './defaultProject.js'
 import { edgeLength } from '../core/project.js'
 import { create501JeansTemplate } from './jeans501.js'
 import cloMaleTshirtSource from './cloMaleTshirtPattern.json' with { type: 'json' }
+import { applyCloMaleTshirtNeckGradePolicy } from './cloMaleTshirtGrading.js'
 import { createNativeAvatarWornTeeProject } from './avatarWornTeeNativeProject.js'
 import { arrangePatternProject } from '../core/patternBodyArrangement.js'
 
@@ -156,6 +157,25 @@ export function createTeeTemplate() {
       const piece = project.pieces.find(item => item.id === pieceId)
       const notch = piece?.notches?.find(item => item.edgeIndex === edge)
       if (notch) { notch.matchGroupId = group; notch.matchedSeamId = seamId }
+    }
+    // Physical sleeve notches must walk to the same arclength position as
+    // their matching armscye seam, *not* be centered by default. This is
+    // independent of the visually symmetrical sleeve geometry: an oriented
+    // sewing pair can reverse the B edge. The body notches are the authored
+    // references; grade-preserved sleeve notches track their counterparts.
+    const seam = project.seams.find(item => item.id === seamId)
+    const body = project.pieces.find(item => item.id === bodyId)
+    const sleeve = project.pieces.find(item => item.id === sleeveId)
+    const bodyNotch = body?.notches?.find(item => item.edgeIndex === bodyEdge)
+    const sleeveNotch = sleeve?.notches?.find(item => item.edgeIndex === sleeveEdge)
+    if (seam && bodyNotch && sleeveNotch) {
+      const bodyLength = edgeLength(body,bodyEdge)
+      const sleeveLength = edgeLength(sleeve,sleeveEdge)
+      if (!(bodyLength > 0 && sleeveLength > 0)) throw new Error(`Cannot align tee notch: ${seamId}`)
+      const bodyDistanceFromStart = bodyNotch.t * bodyLength
+      const matchedSleeveFraction = bodyDistanceFromStart / sleeveLength
+      sleeveNotch.t = seam.reverseB ? 1 - matchedSleeveFraction : matchedSleeveFraction
+      if (!(sleeveNotch.t > 0 && sleeveNotch.t < 1)) throw new Error(`Cannot place matched sleeve notch: ${seamId}`)
     }
   }
   const necklineLengthCm = ['front', 'back'].reduce((sum, id) => {
@@ -859,7 +879,7 @@ export const GARMENT_TEMPLATES = [
     const project=clone(cloMaleTshirtSource)
     project.templateId='clo-male-tshirt'
     project.cloReference={...project.cloReference,previewAsset:'/garment-previews/clo-male-tshirt.v1.json',previewType:'official-clo-obj-staged-snapshot',sewnFitCertified:false}
-    return project
+    return applyCloMaleTshirtNeckGradePolicy(project)
   } },
   { id: 'hoodie', name: 'Foundation Hoodie', description: 'Heavy fleece shell with measured two-panel hood', create: createHoodieTemplate },
   { id: 'zip-hoodie', name: 'Zip Hoodie', description: 'Split front shell with a live openable center zipper', create: createZipHoodieTemplate },

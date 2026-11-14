@@ -1,0 +1,23 @@
+.tpws-media-properties{display:grid;gap:11px;padding:12px 0;font-size:12px;color:var(--tpws-text,#20242b)}
+.tpws-media-properties header{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #d9dee5;padding-bottom:9px;letter-spacing:.06em}
+.tpws-media-properties header small{font-weight:400;color:#687382}
+.tpws-media-properties label{display:grid;gap:5px;font-size:11px;font-weight:600}
+.tpws-media-properties input:not([type=color]),.tpws-media-properties select{width:100%;min-width:0;padding:7px 8px;border:1px solid #cbd3dd;border-radius:4px;background:white;color:#20242b;font-size:12px}
+.tpws-media-properties .tpws-media-fill{display:flex;align-items:center;justify-content:space-between}
+.tpws-media-fill input{width:45px;height:30px;border:1px solid #cbd3dd;background:white;padding:2px;cursor:pointer}
+.tpws-media-palette{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:5px}
+.tpws-media-palette button{aspect-ratio:1;min-width:0;border:1px solid #aeb8c4;border-radius:2px;cursor:pointer}
+.tpws-media-palette button.active{outline:2px solid #2778d4;outline-offset:2px}
+.tpws-media-fabric-details{border-top:1px solid #dde2e7;border-bottom:1px solid #dde2e7;padding:8px 0;display:grid;gap:6px}
+.tpws-media-fabric-details>div{display:flex;justify-content:space-between;gap:10px}
+.tpws-media-fabric-details>div>span{color:#667180;text-transform:capitalize}
+.tpws-media-fabric-details b{font-weight:600;text-align:right;overflow-wrap:anywhere}
+.tpws-media-verification{font-size:10px;color:#746b58}
+.tpws-media-chooser{display:grid;gap:7px}
+.tpws-media-vector-editor{display:flex;flex-direction:column;gap:9px;border-top:1px solid #ccd6df;padding-top:12px}
+.tpws-media-vector-editor>strong{font-size:11px;color:var(--tpws-text,#233b50);letter-spacing:.065em}
+.tpws-media-vector-editor>small{font-size:10px;color:var(--tpws-muted,#89929d);line-height:1.5}
+.tpws-media-vector-editor>button{padding:9px;border:1px solid #8ca9bc;background:#eaf2f7;color:#23425a;border-radius:5px;cursor:pointer;font-size:11px}
+.tpws-media-vector-editor>button:disabled{opacity:.4}
+.tpws-media-vector-editor .tpws-vector-background-toggle{display:flex;flex-direction:row;align-items:flex-start;gap:8px}
+.tpws-media-vector-editor .tpws-vector-background-toggle input{flex:0 0 auto}

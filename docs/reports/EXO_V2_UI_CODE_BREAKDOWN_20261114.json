@@ -1,0 +1,204 @@
+{
+  "date": "2026-11-14",
+  "method": "Non-test React UI component JS/JSX/TS and matching CSS from src/App.jsx, src/main.jsx, src/components/**, src/*.css; filename-based primary UI area; CSS listed as UI styles, not Rust; excludes third-party CSS, assets, external Rust/egui UI and code contained in backend paths. Product-feature completion is not measured.",
+  "jsLines": 61552,
+  "jsFiles": 220,
+  "cssLines": 19576,
+  "cssFiles": 130,
+  "groups": [
+    {
+      "name": "Shell & primary workspaces",
+      "js": 18906,
+      "css": 148,
+      "files": 7,
+      "sample": [
+        "src/App.jsx",
+        "src/main.jsx",
+        "src/components/ClothCraftBoardV2.jsx",
+        "src/components/ClothCraftWorkspace.jsx",
+        "src/components/StudioWorkspaceWidgets.jsx"
+      ],
+      "lines": 19054,
+      "sharePercent": 23.49,
+      "rustPercent": 0
+    },
+    {
+      "name": "3D viewport & simulation",
+      "js": 9354,
+      "css": 641,
+      "files": 30,
+      "sample": [
+        "src/components/ClothCraftSceneV2.jsx",
+        "src/components/HardwareButton3D.js",
+        "src/components/ViewportQuickTools.jsx",
+        "src/components/Library3DAssetPreview.jsx",
+        "src/components/ZipperHardware3D.js"
+      ],
+      "lines": 9995,
+      "sharePercent": 12.32,
+      "rustPercent": 0
+    },
+    {
+      "name": "Other UI components",
+      "js": 2764,
+      "css": 6147,
+      "files": 28,
+      "sample": [
+        "src/components/ClothCraftGraphicEditor.jsx",
+        "src/components/ValentinaSourceRelink20261031.jsx",
+        "src/components/NativePersistedCrossPieceStudio20261030.jsx",
+        "src/components/IndustrialGradeWorkbench.jsx",
+        "src/components/ClothCraftStudioSilhouette.jsx"
+      ],
+      "lines": 8911,
+      "sharePercent": 10.98,
+      "rustPercent": 0
+    },
+    {
+      "name": "Tech packs & specifications",
+      "js": 6836,
+      "css": 1951,
+      "files": 39,
+      "sample": [
+        "src/components/PatternFlatSheetPreview.jsx",
+        "src/components/ExoFashionProductDevelopment20261102.jsx",
+        "src/components/TechPackBottomTablePicker20261031.jsx",
+        "src/components/TechPackMiddleTemplatePreview20261031.jsx",
+        "src/components/TechPackWorkspace.jsx"
+      ],
+      "lines": 8787,
+      "sharePercent": 10.83,
+      "rustPercent": 0
+    },
+    {
+      "name": "Tools, inspectors & settings",
+      "js": 4637,
+      "css": 3646,
+      "files": 45,
+      "sample": [
+        "src/components/StudioSettingsDialog.jsx",
+        "src/components/CloSettingsPages.jsx",
+        "src/components/StudioCustomToolbar.jsx",
+        "src/components/WorkspaceCommandPalette.jsx",
+        "src/components/StudioToolbarBuilder.jsx"
+      ],
+      "lines": 8283,
+      "sharePercent": 10.21,
+      "rustPercent": 0
+    },
+    {
+      "name": "CAD drawing & pattern editing",
+      "js": 4793,
+      "css": 1350,
+      "files": 42,
+      "sample": [
+        "src/components/nativeInternalCurve.js",
+        "src/components/NativePatternBindingsInspector20261023.jsx",
+        "src/components/ModarisProfessionalPanels20261027.jsx",
+        "src/components/assembledTeePreviewGeometry.js",
+        "src/components/PatternEditor.jsx"
+      ],
+      "lines": 6143,
+      "sharePercent": 7.57,
+      "rustPercent": 0
+    },
+    {
+      "name": "Factory & interchange",
+      "js": 3909,
+      "css": 1916,
+      "files": 43,
+      "sample": [
+        "src/components/AccuMarkSewlineMismatchInspector20261023.jsx",
+        "src/components/AccuMarkFoundationStudio20261024.jsx",
+        "src/components/AccuMarkDraftGradeOverlay20261023.jsx",
+        "src/components/AccuMarkProductionControls.jsx",
+        "src/components/AccuMarkNativeGradePointInspector20261023.jsx"
+      ],
+      "lines": 5825,
+      "sharePercent": 7.18,
+      "rustPercent": 0
+    },
+    {
+      "name": "Sewing & construction",
+      "js": 2176,
+      "css": 1484,
+      "files": 31,
+      "sample": [
+        "src/components/ModarisLinkedFacingStudy20261027.jsx",
+        "src/components/NativeSeamEndpointEditor20261025.jsx",
+        "src/components/NativeDartPrecisionTool20261023.jsx",
+        "src/components/NativeSewingGestureDock20261025.jsx",
+        "src/components/SeamWalkPreview.jsx"
+      ],
+      "lines": 3660,
+      "sharePercent": 4.51,
+      "rustPercent": 0
+    },
+    {
+      "name": "Grading & measurements",
+      "js": 2277,
+      "css": 923,
+      "files": 21,
+      "sample": [
+        "src/components/ModarisGradedCurvedNotchStudy20261027.jsx",
+        "src/components/ModarisF7SizeEvolution20261028.jsx",
+        "src/components/NativeGradingPOMEditor20261025.jsx",
+        "src/components/AccuMarkGradingPrecisionControls20261023.jsx",
+        "src/components/NativeGradingPOMOverlay20261025.jsx"
+      ],
+      "lines": 3200,
+      "sharePercent": 3.94,
+      "rustPercent": 0
+    },
+    {
+      "name": "Libraries & references",
+      "js": 2097,
+      "css": 532,
+      "files": 23,
+      "sample": [
+        "src/components/ExoArchiveSearch20261102.jsx",
+        "src/components/ModarisNativeReferenceRecompute20261027.jsx",
+        "src/components/PatternLibraryThumbnail.jsx",
+        "src/components/StageCatalog.jsx",
+        "src/components/GarmentCodeV2Library.jsx"
+      ],
+      "lines": 2629,
+      "sharePercent": 3.24,
+      "rustPercent": 0
+    },
+    {
+      "name": "Fabrics, trims & materials",
+      "js": 2130,
+      "css": 335,
+      "files": 31,
+      "sample": [
+        "src/components/HardwareLibrary.jsx",
+        "src/components/CloButtonShapeEditor.jsx",
+        "src/components/FabricScanMacroPreview.jsx",
+        "src/components/PantoneColorLibrary.jsx",
+        "src/components/ClothCraftImportedHardwareOverlay.jsx"
+      ],
+      "lines": 2465,
+      "sharePercent": 3.04,
+      "rustPercent": 0
+    },
+    {
+      "name": "AI & assistant",
+      "js": 1673,
+      "css": 503,
+      "files": 10,
+      "sample": [
+        "src/components/ExoCompanionPatternReview20261102.jsx",
+        "src/components/ExoAppCharacterAssistant20261102.jsx",
+        "src/components/ExoCompanionCharacterSettingsPage20261102.jsx",
+        "src/components/ExoPatternIntelligence20261102.jsx",
+        "src/components/PatternIntelligenceLibrary.jsx"
+      ],
+      "lines": 2176,
+      "sharePercent": 2.68,
+      "rustPercent": 0
+    }
+  ],
+  "nativeRustUIReferenceLines": 5960,
+  "totalLines": 81128
+}

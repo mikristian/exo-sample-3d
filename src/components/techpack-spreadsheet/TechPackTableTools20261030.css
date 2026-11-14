@@ -1,0 +1,33 @@
+.tpt-panel{--tpt-border:#dbe1e9;--tpt-ink:#273244;--tpt-muted:#737f90;color:var(--tpt-ink);font:12px/1.35 Inter,system-ui,sans-serif;background:#fff;border:1px solid var(--tpt-border);border-radius:9px;min-width:232px;max-width:360px;overflow:hidden}
+.tpt-heading{display:flex;align-items:center;justify-content:space-between;padding:11px 12px;border-bottom:1px solid var(--tpt-border)}
+.tpt-heading>div{display:flex;align-items:center;gap:8px}.tpt-heading strong{font-size:11px;letter-spacing:.07em}.tpt-heading small{color:var(--tpt-muted);font-size:11px}
+.tpt-icon{display:grid;place-items:center;border:0;background:none;color:inherit;padding:4px;cursor:pointer}
+.tpt-tabs{display:flex;gap:0;border-bottom:1px solid var(--tpt-border)}
+.tpt-tabs button{flex:1;border:0;border-bottom:2px solid transparent;background:transparent;color:#647184;font:inherit;padding:10px 5px;cursor:pointer}
+.tpt-tabs button.selected{color:#225eaa;border-bottom-color:#225eaa;font-weight:650}
+.tpt-body{padding:10px 12px 13px;display:grid;gap:8px}
+.tpt-caption{font-size:10px;letter-spacing:.08em;color:var(--tpt-muted);font-weight:700;margin:7px 0 0}
+.tpt-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.tpt-action{min-height:34px;display:flex;align-items:center;gap:7px;text-align:left;padding:7px 8px;border:1px solid var(--tpt-border);border-radius:5px;background:#fff;color:inherit;font:inherit;cursor:pointer}
+.tpt-action:hover:not(:disabled),.tpt-action.is-active{background:#eef4fc;border-color:#abc9ee}
+.tpt-action:disabled{opacity:.42;cursor:not-allowed}.tpt-action svg{flex-shrink:0}.tpt-action span{min-width:0}
+.tpt-colors{display:grid;gap:6px}.tpt-colors label{display:flex;align-items:center;gap:8px;min-height:30px}.tpt-colors input{width:38px;height:25px;border:1px solid var(--tpt-border);padding:2px;margin-left:auto;border-radius:4px;background:#fff;cursor:pointer}
+.tpt-themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.tpt-themes button{display:grid;gap:5px;padding:7px;border:1px solid var(--tpt-border);background:#fff;border-radius:5px;cursor:pointer;text-transform:capitalize}
+.tpt-themes button.is-selected{outline:2px solid #3979c4;outline-offset:-2px}
+.tpt-themes .tpt-theme-preview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(2,8px);border:1px solid #aaa;overflow:hidden;border-radius:2px}
+.tpt-themes .tpt-theme-preview i{display:block;min-width:0}
+.tpt-themes strong{font-size:11px;font-weight:650;text-align:left}
+.tpt-heading-format{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.tpt-heading-format label{display:flex;flex-direction:column;gap:4px;min-width:0;font-size:10px;color:var(--tpt-muted)}
+.tpt-heading-format select{min-width:0;width:100%;padding:6px;border:1px solid var(--tpt-border);border-radius:3px;background:#fff;color:var(--tpt-ink);font-size:11px}
+.tpt-save-style{display:flex;gap:5px}
+.tpt-save-style input{min-width:0;flex:1;border:1px solid var(--tpt-border);padding:7px;border-radius:4px;font-size:11px}
+.tpt-save-style button{flex:none;display:flex;align-items:center;gap:4px;padding:7px;border:1px solid #6f96bf;border-radius:4px;background:#edf4fc;font-size:10px}
+.tpt-saved-styles{display:grid;gap:4px}
+.tpt-saved-styles button{display:flex;align-items:center;gap:6px;padding:6px;border:1px solid var(--tpt-border);background:#fff;font-size:11px;text-align:left}
+.tpt-saved-styles button span{width:16px;height:16px;flex:none;border:1px solid;border-radius:2px}
+.tpt-foot{padding:9px 12px;border-top:1px solid var(--tpt-border);color:var(--tpt-muted);font-size:11px}.tpt-foot span{margin:0 5px}
+.tpt-header-edit{display:flex;align-items:center;gap:8px;padding:5px 8px;border:1px solid var(--tpt-border);border-radius:5px}.tpt-header-edit input{font:inherit;min-width:0;flex:1;border:0;background:transparent;outline-offset:3px;color:inherit}
+.tpt-compact{min-width:0;width:100%;border-radius:5px}.tpt-compact .tpt-heading{padding:8px 10px}.tpt-compact .tpt-body{padding:7px 9px 10px}.tpt-compact .tpt-action{padding:6px;min-height:30px}.tpt-compact .tpt-tabs button{font-size:11px;padding:8px 3px}
+.tpt-error{color:#a12828;background:#fff1f1;border-top:1px solid #efc5c5;padding:8px 12px;margin:0;font-size:11px}

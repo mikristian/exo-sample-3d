@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /** A small Rust/WASM numeric kernel used by the live 2D sewing inspector.
  * Preserve synchronous JS calculations until the Rust asset is initialized.
  */
@@ -21,10 +22,7 @@ export async function initializeRustSewingKernel({bytes,url=DEFAULT_URL}={}){
   if(loading)return loading
   loading=(async()=>{
     try{
-      const data=bytes??await fetch(url).then(response=>{
-        if(!response.ok)throw new Error(`Sewing WASM HTTP ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const data=bytes??await fetchWasmBytes(url, "Sewing WASM HTTP ")
       const instantiated=await WebAssembly.instantiate(data,{})
       const api=instantiated.instance?.exports??instantiated.exports
       if(exportsRequired.some(key=>typeof api?.[key]!=='function')||
@@ -42,12 +40,15 @@ export async function initializeRustSewingKernel({bytes,url=DEFAULT_URL}={}){
   return loading
 }
 
-/** Input is already validated and normalized by sewingLengthDiagnostic.
- * This returns null only before WASM loads or when a source bundle is older.
+/** sewingLengthDiagnostic normally validates inputs; also guard this exported
+ * adapter so direct callers cannot receive physically impossible annotations.
+ * Null means the caller must use its validated JS fallback or omit the metric.
  */
 export function rustSeamLengthMetrics(firstCm,secondCm,
   lengthThreshold,ratioThreshold,lengthOn,ratioOn){
   if(!native)return null
+  if(![firstCm,secondCm,lengthThreshold,ratioThreshold].every(Number.isFinite)||
+    firstCm<=0||secondCm<=0||lengthThreshold<0||ratioThreshold<0)return null
   const signedDifferenceCm=native.exo_sewing_signed_difference_cm(firstCm,secondCm)
   const absoluteDifferenceCm=Math.abs(signedDifferenceCm)
   const differencePercent=native.exo_sewing_difference_percent(firstCm,secondCm)

@@ -1,0 +1,6 @@
+/* Three-dimensional shaded Earth and celestial field behind the homepage logo. */
+.hero-sticky .cc-hero-space{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden;isolation:isolate}
+.cc-earth-space-canvas{width:100%;height:100%;display:block;opacity:.96}
+.cc-earth-fallback{display:none;position:absolute;inset:19% 25%;border-radius:50%;background:radial-gradient(circle at 29% 25%,#79adbb 0%,#345c7e 22%,#172943 44%,#0e1625 65%,transparent 72%);filter:blur(12px);opacity:.56}
+@media(max-width:700px){.cc-earth-space-canvas{opacity:.67}}
+@media(prefers-reduced-motion:reduce){.cc-earth-space-canvas{opacity:.7}}

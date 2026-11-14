@@ -1,5 +1,5 @@
 import { edgeLength, samplePieceBoundary } from './project.js'
-import { gradeProject } from './grading.js'
+import { gradeProject, buildSizeRun } from './grading.js'
 import { buildFabricMarkers } from './marker.js'
 import { measureHorizontalSpans } from './rustMeasurementKernel.js'
 
@@ -66,12 +66,23 @@ export function measureProject(project) {
   }
   for (const measurement of project.customMeasurements || []) {
     if (!measurement?.a || !measurement?.b) continue
+    const id = String(measurement.id ?? 'unnamed')
+    if (![measurement.a.x, measurement.a.y, measurement.b.x, measurement.b.y].every(Number.isFinite)) {
+      throw new RangeError(`Custom measurement ${id} has invalid coordinates`)
+    }
     const cm = Math.hypot(measurement.b.x - measurement.a.x, measurement.b.y - measurement.a.y)
+    if (!Number.isFinite(cm)) {
+      throw new RangeError(`Custom measurement ${id} has an invalid distance`)
+    }
+    const toleranceCm = Number(measurement.toleranceCm ?? 0.5)
+    if (!Number.isFinite(toleranceCm) || toleranceCm < 0) {
+      throw new RangeError(`Custom measurement ${id} has an invalid tolerance`)
+    }
     measurements.push(value(
       measurement.id,
       measurement.label || 'Custom measurement',
       cm,
-      Number(measurement.toleranceCm ?? 0.5),
+      toleranceCm,
     ))
   }
   return measurements
@@ -79,13 +90,21 @@ export function measureProject(project) {
 
 export function buildMeasurementSizeRun(project) {
   const sizes = project.grading?.sizes || [project.grading?.baseSize || 'M']
-  return Object.fromEntries(sizes.map((size) => [size, measureProject(gradeProject(project, size))]))
+  const linkedRun=project.modarisSizeLinkedGrade===undefined?null:buildSizeRun(project)
+  return Object.fromEntries(sizes.map((size) => [size, measureProject(linkedRun?linkedRun[size]:gradeProject(project, size))]))
 }
 
 export function measurementRunToCSV(project) {
+  const configuredSizes = project.grading?.sizes
+  if (configuredSizes != null && (!Array.isArray(configuredSizes) || !configuredSizes.length || configuredSizes.some((size) => typeof size !== 'string' || !size.trim()) || new Set(configuredSizes).size !== configuredSizes.length)) {
+    throw new RangeError('Measurement CSV requires a nonempty run of unique grading sizes')
+  }
   const run = buildMeasurementSizeRun(project)
   const sizes = Object.keys(run)
   const ids = run[sizes[0]]?.map((measurement) => measurement.id) || []
+  if (!sizes.length) throw new RangeError('Measurement CSV requires at least one grading size')
+  if (new Set(sizes).size !== sizes.length) throw new RangeError('Measurement CSV requires unique grading sizes')
+  if (new Set(ids).size !== ids.length) throw new RangeError('Measurement CSV requires unique point-of-measure identifiers')
   const lines = [['POM', 'Tolerance cm', ...sizes]]
   for (const id of ids) {
     const first = run[sizes[0]].find((measurement) => measurement.id === id)
@@ -99,12 +118,30 @@ export function measurementRunToCSV(project) {
 }
 
 export function buildTechPack(project) {
+  const avatar = project.avatar || {}
+  for (const field of ['heightCm', 'chestCm', 'waistCm', 'hipCm', 'shoulderWidthCm', 'neckCm', 'bicepCm', 'armLengthCm']) {
+    if (avatar[field] != null && (typeof avatar[field] !== 'number' || !Number.isFinite(avatar[field]) || avatar[field] <= 0)) {
+      throw new RangeError(`Avatar ${field} must be a finite positive measurement for tech pack export`)
+    }
+  }
+  const derivedArmLength = 72 * (avatar.heightCm ?? 180) / 180
+  if (!Number.isFinite(derivedArmLength) || derivedArmLength <= 0) {
+    throw new RangeError('Avatar derived arm length is invalid for tech pack export')
+  }
   const sizes = project.grading?.sizes || [project.grading?.baseSize || 'M']
+  if (!Array.isArray(sizes) || !sizes.length || sizes.some((size) => typeof size !== 'string' || !size.trim()) || new Set(sizes).size !== sizes.length) {
+    throw new RangeError('Tech pack requires a nonempty run of unique grading sizes')
+  }
   const sizeMeasurements = buildMeasurementSizeRun(project)
+  for (const [size, measurements] of Object.entries(sizeMeasurements)) {
+    const ids = measurements.map((measurement) => measurement.id)
+    if (new Set(ids).size !== ids.length) throw new RangeError(`Tech pack size ${size} contains duplicate point-of-measure identifiers`)
+  }
   const markerWidth = project.markerSettings?.fabricWidthCm ?? 150
   const markerGap = project.markerSettings?.gapCm ?? 1.5
+  const linkedRun=project.modarisSizeLinkedGrade===undefined?null:buildSizeRun(project)
   const markers = Object.fromEntries(sizes.map((size) => {
-    const graded = gradeProject(project, size)
+    const graded = linkedRun?linkedRun[size]:gradeProject(project, size)
     const fabricMarkers = buildFabricMarkers(graded, markerWidth, markerGap)
     const marker = fabricMarkers.main || Object.values(fabricMarkers)[0] || {
       width: markerWidth,
@@ -141,8 +178,8 @@ export function buildTechPack(project) {
     productionSpec: project.productionSpec ? structuredClone(project.productionSpec) : null,
     grading: project.grading,
     avatar: {
-      ...(project.avatar || {}),
-      armLengthCm: Number(project.avatar?.armLengthCm ?? (72 * Number(project.avatar?.heightCm ?? 180) / 180)),
+      ...avatar,
+      armLengthCm: avatar.armLengthCm ?? derivedArmLength,
     },
     sizeMeasurements,
     materials: Object.values(project.fabrics || {}).map((fabric) => ({

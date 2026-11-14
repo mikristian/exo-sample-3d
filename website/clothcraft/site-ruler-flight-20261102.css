@@ -1,0 +1,60 @@
+/* One scroll-controlled label moving from future-list origin to edge to top.
+   Text stays selectable/readable in the real chapter links beneath this purely
+   visual (aria-hidden, pointer-events:none) flight layer. */
+@media(min-width:1151px) and (prefers-reduced-motion:no-preference){
+ #cc-ruler-flight{
+  position:fixed!important;inset:0!important;z-index:225!important;
+  overflow:visible!important;background:transparent!important;
+  pointer-events:none!important;contain:layout style;
+  color:var(--cc-ruler-ink,#eee)!important;
+  --cc-flight-angle:0deg;
+ }
+ #cc-ruler-flight[hidden]{display:none!important}
+ #cc-ruler-flight .cc-flight-carrier{
+  position:absolute;left:0;top:0;
+  transform:translate(-50%,-50%) rotate(var(--cc-flight-angle));
+  transform-origin:center center;
+  backface-visibility:visible;will-change:transform;
+  white-space:nowrap!important;
+ }
+ #cc-ruler-flight .cc-flight-word{
+  display:inline-block;white-space:nowrap!important;
+  font-style:normal!important;font-kerning:normal;
+  line-height:1.03!important;text-transform:uppercase!important;
+  color:var(--cc-ruler-ink,#f4f4f5)!important;
+  text-shadow:0 1px 5px var(--cc-ruler-shadow,#0009);
+ }
+ #cc-ruler-flight .cc-flight-glyph{
+  display:inline-block;white-space:pre!important;
+  transform:translate3d(0,var(--cc-flight-letter-y,0px),0) rotate(var(--cc-flight-letter-rotation,0deg));
+  transform-origin:50% 55%;will-change:transform;
+ }
+ html body #cc-measure-rail .cc-measure-chapter.cc-flight-owned .cc-chapter-name,
+ html[data-cc-theme] body #cc-measure-rail .cc-measure-chapter.cc-flight-owned .cc-chapter-name{
+  visibility:hidden!important;
+ }
+ html body .cc-measure-futures-stack .cc-measure-future.cc-flight-source[data-future],
+ html[data-cc-theme] body .cc-measure-futures-stack .cc-measure-future.cc-flight-source[data-future]{
+  opacity:var(--cc-flight-source-opacity,1)!important;
+ }
+ html body .cc-measure-futures-stack .cc-measure-future.cc-flight-source[data-future].cc-flight-in-progress,
+ html[data-cc-theme] body .cc-measure-futures-stack .cc-measure-future.cc-flight-source[data-future].cc-flight-in-progress{
+  opacity:0!important;
+  transition:none!important;
+ }
+ /* Outgoing active word moves UP into the compact history slot while the next
+    word rises from the bottom, travels vertically and reassembles at the
+    original (23.5%) active heading position. The two titles never occupy the
+    active baseline at the same moment. */
+ html body #cc-measure-rail .cc-measure-chapter.is-current.cc-flight-outgoing,
+ html[data-cc-theme] body #cc-measure-rail .cc-measure-chapter.is-current.cc-flight-outgoing{
+  top:var(--cc-outgoing-y,23.5%)!important;
+  opacity:var(--cc-outgoing-opacity,1)!important;
+ }
+ html body #cc-measure-rail .cc-measure-chapter.is-current.cc-flight-outgoing .cc-chapter-name,
+ html[data-cc-theme] body #cc-measure-rail .cc-measure-chapter.is-current.cc-flight-outgoing .cc-chapter-name{
+  font-size:var(--cc-outgoing-font,12px)!important;
+  font-weight:850!important;
+ }
+}
+@media(max-width:1150px),(prefers-reduced-motion:reduce){#cc-ruler-flight{display:none!important}}

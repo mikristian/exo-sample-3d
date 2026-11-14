@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {addNativeFreeCurvePoint,editNativeFreeCurveTangent,moveNativeFreeCurvePoint,evaluateFreeCurve,cubicDerivativeAt,freeCurveBase} from './nativeFreeCurvePoints.js'
+import {addNativeFreeCurvePoint,editNativeFreeCurveTangent,moveNativeFreeCurvePoint,evaluateFreeCurve,closestFreeCurveParameter,cubicDerivativeAt,freeCurveBase} from './nativeFreeCurvePoints.js'
 const square=()=>({points:[[0,0],[.2,0],[.2,.16],[0,.16]],edges:['top','right','bottom','left'],curves:{},free_curve_points:{},seam_allowances:{top:.01},notches:{top:[{t:.25,depth_m:.003}]}})
 test('click creates persistent knot without changing contour or sewing identities',()=>{
  const p=square(),created=addNativeFreeCurvePoint(p,'top',.5)
@@ -73,4 +73,33 @@ test('Independent mirrored handles switch incoming/outgoing under reversed param
  assert.deepEqual(left.derivative_out,[right.derivative_in[0],-right.derivative_in[1]])
  assert.notDeepEqual(right.derivative_in,right.derivative_out)
  assert.notDeepEqual(left.derivative_in,left.derivative_out)
+})
+
+test('malformed free-curve knots fail closed instead of leaking invalid snap coordinates',()=>{
+ const valid=addNativeFreeCurvePoint(square(),'top',.5).polygon
+ const station=evaluateFreeCurve(valid,'top',.5)
+ assert(station&&Math.abs(station[0]-.1)<1e-12&&Math.abs(station[1])<1e-12)
+ const snap=closestFreeCurveParameter(valid,'top',[.1,.001])
+ assert(snap&&Number.isFinite(snap.distance)&&Math.abs(snap.t-.5)<.01)
+ const corruptions=[
+   [{t:.5,position:[NaN,0]}],
+   [{t:.5,position:[.1,0],derivative:[Infinity,0]}],
+   [{t:.5,position:[.1,0],derivative_in:[0,NaN]}],
+   [{t:.5,position:[.1,0],derivative_out:[0,Infinity]}],
+   [{t:.7,position:[.14,0]},{t:.3,position:[.06,0]}],
+   [{t:.5,position:[.1,0]},{t:.5,position:[.1,0]}],
+   [{t:1,position:[.2,0]}],
+   [null],
+ ]
+ for(const knots of corruptions){
+   const p=square();p.free_curve_points.top=knots
+   assert.equal(evaluateFreeCurve(p,'top',.5),null)
+   assert.equal(closestFreeCurveParameter(p,'top',[.1,0]),null)
+ }
+ const malformed=square();malformed.curves.top=[[.1,0],[NaN,0]]
+ assert.equal(freeCurveBase(malformed,'top'),null)
+ assert.equal(evaluateFreeCurve(malformed,'top',.5),null)
+ assert.equal(closestFreeCurveParameter(malformed,'top',[.1,0]),null)
+ assert.equal(valid.free_curve_points.top[0].id,'free_1')
+ assert(Math.abs(valid.free_curve_points.top[0].position[0]-.1)<1e-12)
 })

@@ -1,5 +1,6 @@
 import React, {useEffect, useRef, useState} from 'react'
 import {createGarmentGraphic, importGarmentArtwork, normalizeGarmentGraphic, serializeGarmentGraphics, deserializeGarmentGraphics} from '../core/nativeGarmentGraphics.js'
+import {graphicDisplayUnit,graphicMmToDisplay,graphicDisplayToMm,graphicDisplayPrecision} from '../core/graphicDisplayUnits.js'
 import './ClothCraftGraphicEditor.css'
 
 // Demo asset: Nike swoosh trademark, sourced from Wikimedia Commons.
@@ -7,7 +8,7 @@ import './ClothCraftGraphicEditor.css'
 const BRAND_SAMPLE_URL = '/graphic-presets/nike-swoosh.svg'
 
 /** Controlled panel artwork editor. Parent stores `graphics` and passes onChange(nextGraphics). */
-export default function ClothCraftGraphicEditor({graphics = [], onChange = () => {}, panelId, panels = [], disabled = false, selectedGraphicId, onSelectGraphic, showLayerList = true}) {
+export default function ClothCraftGraphicEditor({graphics = [], onChange = () => {}, panelId, panels = [], disabled = false, selectedGraphicId, onSelectGraphic, showLayerList = true, unit = 'mm'}) {
   const inputRef = useRef(null)
   const layoutRef = useRef(null)
   const previewRef = useRef(null)
@@ -26,7 +27,8 @@ export default function ClothCraftGraphicEditor({graphics = [], onChange = () =>
     window.addEventListener('exo-clothcraft-add-graphic',add)
     return()=>{window.removeEventListener('exo-clothcraft-select-graphic',select);window.removeEventListener('exo-clothcraft-add-graphic',add)}
   },[graphics,busy,disabled,onSelectGraphic])
-  const selected = graphics.find(graphic => graphic.id === (selectedGraphicId === undefined ? selectedId : selectedGraphicId)) || graphics.find(graphic => graphic.panel === panelId) || graphics[0]
+  const controlledSelection=selectedGraphicId !== undefined
+  const selected = graphics.find(graphic => graphic.id === (controlledSelection ? selectedGraphicId : selectedId)) || (!controlledSelection ? graphics.find(graphic => graphic.panel === panelId) || graphics[0] : null)
   const panel = panels.find(p => p.id === selected?.panel)
   const bounds = panel?.polygon?.points
   const physicalBounds = panel?.printBoundsMm
@@ -36,6 +38,10 @@ export default function ClothCraftGraphicEditor({graphics = [], onChange = () =>
   const normalizedPosition = selected?.center || [.5,.5]
   const printWidth = selected?.widthMm ?? 100
   const printHeight = selected?.heightMm ?? (printWidth * (selected?.height || 1) / (selected?.width || 1))
+  const displayUnit=graphicDisplayUnit(unit)
+  const displayPrecision=graphicDisplayPrecision(displayUnit)
+  const displaySize=mm=>Number(graphicMmToDisplay(mm,displayUnit).toFixed(displayPrecision))
+  const displayStep=displayUnit==='mm'?.1:displayUnit==='cm'?.01:.001
   const positionMm = selected?.positionMm || (panelSpan ? [normalizedPosition[0]*panelSpan[0]-printWidth/2,normalizedPosition[1]*panelSpan[1]-printHeight/2] : [0,0])
   const dpi = selected?.widthMm > 0 && selected?.width > 0 ? selected.width * 25.4 / selected.widthMm : null
   const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback
@@ -44,14 +50,15 @@ export default function ClothCraftGraphicEditor({graphics = [], onChange = () =>
     catch (e) {setError(e.message)}
   }
   function sizeChange(axis, value) {
-    if (!selected || !Number.isFinite(+value) || +value <= 0) return
+    const changedMm=graphicDisplayToMm(value,displayUnit)
+    if (!selected || String(value).trim()==='' || !Number.isFinite(changedMm) || changedMm < 1 || changedMm > 10000) return
     const width = number(selected.widthMm, 100)
     const height = number(selected.heightMm, width * (selected.height || 1) / (selected.width || 1))
     const lock = selected.lockAspectRatio !== false
     const ratio = width > 0 && height > 0 ? width / height : (selected.width || 1) / (selected.height || 1)
     update(selected.id, axis === 'widthMm'
-      ? {widthMm:+value, ...(lock ? {heightMm:+value / ratio} : {})}
-      : {heightMm:+value, ...(lock ? {widthMm:+value * ratio} : {})})
+      ? {widthMm:changedMm, ...(lock ? {heightMm:changedMm / ratio} : {})}
+      : {heightMm:changedMm, ...(lock ? {widthMm:changedMm * ratio} : {})})
   }
   function moveGraphic(axis, mm) {
     if (!selected || !Number.isFinite(+mm)) return
@@ -197,12 +204,18 @@ export default function ClothCraftGraphicEditor({graphics = [], onChange = () =>
       <label>Panel<select value={selected.panel} disabled={disabled} onChange={e => update(selected.id, {panel:e.target.value})}>{[...new Set([selected.panel, ...panels.map(p => p.id)])].map(id => <option key={id} value={id}>{panels.find(p => p.id === id)?.name || id}</option>)}</select></label>
       <label>Surface<select value={selected.side || 'front'} disabled={disabled} onChange={e => update(selected.id, {side:e.target.value})}><option value="front">Front face</option><option value="back">Back face</option><option value="both">Both faces</option></select></label>
       </details>
-      <details className="cc-graphic-accordion" open><summary>Transform <small>Millimeters and degrees</small></summary>
-      <div className="cc-graphic-section-title"><strong>Position & dimensions</strong><span>mm</span></div>
+      <details className="cc-graphic-accordion" open><summary>Transform <small>{displayUnit} and degrees</small></summary>
+      <div className="cc-graphic-section-title"><strong>Position & dimensions</strong><span>{displayUnit}</span></div>
       <div className="cc-graphic-number-grid">
         {[["X position",0],["Y position",1]].map(([title,axis]) => <label key={axis}>{title} (mm)<input type="number" step="0.1" disabled={disabled || !panelSpan} value={Number(positionMm[axis].toFixed(2))} onChange={e => moveGraphic(axis,e.target.value)}/></label>)}
-        <label>Width (mm)<input type="number" min="0.1" max="10000" step="0.1" disabled={disabled} value={Number(printWidth.toFixed(2))} onChange={e => sizeChange('widthMm',e.target.value)}/></label>
-        <label>Height (mm)<input type="number" min="0.1" max="10000" step="0.1" disabled={disabled} value={Number(printHeight.toFixed(2))} onChange={e => sizeChange('heightMm',e.target.value)}/></label>
+        <label>Width ({displayUnit})<input type="number" min={graphicMmToDisplay(1,displayUnit)} max={graphicMmToDisplay(10000,displayUnit)} step={displayStep} disabled={disabled} value={displaySize(printWidth)} onChange={e => sizeChange('widthMm',e.target.value)}/></label>
+        <label>Height ({displayUnit})<input type="number" min={graphicMmToDisplay(1,displayUnit)} max={graphicMmToDisplay(10000,displayUnit)} step={displayStep} disabled={disabled} value={displaySize(printHeight)} onChange={e => sizeChange('heightMm',e.target.value)}/></label>
+      </div>
+      <div className="cc-graphic-dimension-sliders" aria-label={`Graphic dimensions in ${displayUnit}`}>
+        {[["Width",'widthMm',printWidth],["Height",'heightMm',printHeight]].map(([title,axis,value])=><label className="cc-graphic-slider-row" key={axis}>
+          <span>{title}</span><input type="range" aria-label={`${title} slider (${displayUnit})`} min={graphicMmToDisplay(1,displayUnit)} max={graphicMmToDisplay(Math.min(10000,Math.max(1000,Math.ceil(value/100)*100)),displayUnit)} step={displayStep} value={graphicMmToDisplay(Math.max(1,value),displayUnit)} disabled={disabled} onChange={e=>sizeChange(axis,e.target.value)}/>
+          <output>{displaySize(value)} {displayUnit}</output>
+        </label>)}
       </div>
       <label className="cc-graphic-lock"><input type="checkbox" checked={selected.lockAspectRatio !== false} disabled={disabled} onChange={e => update(selected.id,{lockAspectRatio:e.target.checked})}/> Lock aspect ratio</label>
       <div className="cc-graphic-dpi"><strong>{dpi == null ? 'DPI pending physical size' : `${dpi.toFixed(0)} effective DPI`}</strong><span>{selected.width} × {selected.height} px source · Output at 100% scale (actual millimeters). Verify panel calibration before production.</span>{dpi != null && dpi < 300 && <span className="cc-graphic-print-warning" role="status">Below 300 DPI at this size. Print detail may appear soft; use a higher-resolution source or reduce physical dimensions.</span>}</div>

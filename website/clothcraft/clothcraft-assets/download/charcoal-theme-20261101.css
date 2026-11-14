@@ -1,0 +1,8 @@
+/* Legacy Assets download companion: neutral gray without changing download links. */
+:root{color-scheme:dark;background:#242424!important;color:#e5e5e5!important;--bg:#242424;--ink:#e5e5e5;--panel:#303030;--line:#555}
+html,body{background:#242424!important;color:#e5e5e5!important}
+body :where(header,main,section,footer,.hero,.download,.download-grid,.download-card,.about,.feature-grid,.platform-card,.card,.panel){background-color:#242424!important;background-image:none!important;border-color:#555!important;color:#e5e5e5!important}
+body :where(.download-card,.platform-card,.card,.panel){background:#303030!important;box-shadow:none!important}
+body :where(h1,h2,h3,strong,.brand){color:#e5e5e5!important}
+body :where(p,small,.eyebrow,.subhead,.caption){color:#b3b3b3!important}
+body :where(a,button){box-shadow:none!important}

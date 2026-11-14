@@ -1,0 +1,89 @@
+/* Official ClothCraft vector identity. Original black SVG is inverted only for dark surfaces. */
+.header .logo,
+footer .logo {
+  display:inline-flex;
+  align-items:center;
+  gap:12px;
+  letter-spacing:normal;
+  flex-shrink:0;
+  line-height:1;
+}
+.cc-wordmark {
+  display:block;
+  width:clamp(145px,13.6vw,184px);
+  height:auto;
+  aspect-ratio:1116.8573907 / 106.0839311;
+  filter:invert(1);
+}
+.header .logo-edition {margin-left:2px}
+footer .cc-wordmark {width:190px;max-width:100%}
+@media(max-width:1100px){
+  .header .cc-wordmark {width:150px}
+  .header .logo-edition {display:none}
+}
+@media(max-width:650px){
+  .header .cc-wordmark {width:clamp(116px,31vw,146px)}
+  .header .logo {gap:4px}
+  footer .cc-wordmark {width:170px}
+}
+
+/* Build the homepage's original per-letter scroll animation from slices of the
+   actual supplied vector, rather than substituting a similar-looking font. */
+.cc-brand-reveal {flex-direction:column;align-items:center!important;gap:10px!important}
+.cc-brand-reveal-title {
+  display:flex!important;
+  align-items:stretch;
+  width:min(88vw,980px);
+  aspect-ratio:1116.8573907 / 106.0839311;
+  height:auto;
+  font-size:0!important;
+  letter-spacing:0!important;
+  line-height:1!important;
+  overflow:visible;
+}
+.cc-brand-hero-fallback {width:100%;height:100%;display:block;filter:invert(1)}
+.cc-brand-reveal-title .cc-brand-letter {
+  display:block;
+  flex:none;
+  height:100%;
+  background-image:url('/assets/clothcraft-logo.svg');
+  background-repeat:no-repeat;
+  filter:invert(1);
+  transform:translate3d(var(--brand-tx,0px),var(--brand-ty,0px),0) scale(var(--brand-scale,1));
+  transform-origin:50% 50%;
+  will-change:transform,opacity;
+}
+.cc-brand-reveal-edition {margin-top:0}
+@media(max-width:1100px){
+ .cc-brand-reveal-title {width:min(88vw,900px)}
+}
+@media(max-width:700px){
+ .cc-brand-reveal-title {width:90vw}
+ .cc-brand-reveal {margin-bottom:16px}
+}
+@media(prefers-reduced-motion:reduce){
+ .cc-brand-reveal-title .cc-brand-letter {transform:none!important;opacity:1!important}
+}
+
+/* The download page has its own independent navigation. */
+.top .wordmark .cc-wordmark {width:178px}
+.download-brand-heading {display:block;width:min(88vw,870px);margin:22px auto 4px}
+.download-brand-heading .cc-wordmark {width:100%}
+.website .topbar .brand>img.cc-wordmark {
+  display:block;
+  align-self:flex-start;
+  width:clamp(135px,13.4vw,182px);
+  height:auto;
+  filter:invert(1);
+}
+.navigation .brand .cc-wordmark,
+.shell footer .brand .cc-wordmark {width:175px}
+@media(max-width:650px){
+ .top .wordmark .cc-wordmark {width:143px}
+ .download-brand-heading {width:90vw}
+ .website .topbar .brand>img.cc-wordmark {width:145px}
+}
+
+/* Individually fold the original SVG slices toward the vertical ruler. */
+.cc-brand-reveal-title .cc-brand-letter{transform:translate3d(var(--brand-tx,0px),var(--brand-ty,0px),0) rotate(var(--brand-rotate,0deg)) scale(var(--brand-scale,1))!important;transform-origin:50% 50%!important}
+@media(prefers-reduced-motion:reduce){.cc-brand-reveal-title .cc-brand-letter{transform:none!important}}

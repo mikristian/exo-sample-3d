@@ -50,9 +50,78 @@ pub extern "C" fn exo_pom_horizontal_crossing(ax:f64,ay:f64,bx:f64,by:f64,y:f64)
     horizontal_crossing(Point{x:ax,y:ay},Point{x:bx,y:by},y).unwrap_or(f64::NAN)
 }
 
+// Presentation-only theme tokens shared by the native desktop host and WASM.
+// Explicit hex validation in Rust keeps CSS injection and invalid stored colors
+// out of the rendered theme. This never alters geometry or material properties.
+pub const EXO_THEME_ABI_VERSION: u32 = 1;
+
+fn hex_digit(byte: u32) -> Option<u32> {
+    match byte {
+        48..=57 => Some(byte - 48),
+        65..=70 => Some(byte - 65 + 10),
+        97..=102 => Some(byte - 97 + 10),
+        _ => None,
+    }
+}
+
+/// A 7-byte #RRGGBB input. The all-zero input denotes Automatic.
+/// Returns a 24-bit RGB integer; `fallback` is always used for invalid input.
+pub fn resolve_theme_color(bytes: [u32; 7], fallback: u32) -> u32 {
+    let safe_fallback = fallback & 0x00ff_ffff;
+    if bytes.iter().all(|byte| *byte == 0) { return safe_fallback; }
+    if bytes[0] != b'#' as u32 { return safe_fallback; }
+    let mut value = 0u32;
+    for byte in bytes.iter().skip(1) {
+        let Some(nibble) = hex_digit(*byte) else { return safe_fallback; };
+        value = (value << 4) | nibble;
+    }
+    value
+}
+
+pub fn full_2d_nest_visible(is_two_d: bool, full_workspace: bool, native_two_d: bool) -> bool {
+    is_two_d && (full_workspace || native_two_d)
+}
+
+#[no_mangle]
+pub extern "C" fn exo_theme_abi_version() -> u32 { EXO_THEME_ABI_VERSION }
+
+#[no_mangle]
+pub extern "C" fn exo_theme_resolve_rgb(
+    hash: u32, r1: u32, r2: u32, g1: u32, g2: u32, b1: u32, b2: u32, fallback: u32,
+) -> u32 {
+    resolve_theme_color([hash, r1, r2, g1, g2, b1, b2], fallback)
+}
+
+#[no_mangle]
+pub extern "C" fn exo_theme_full_2d_nest_visible(is_two_d: u32, full_workspace: u32, native_two_d: u32) -> u32 {
+    u32::from(full_2d_nest_visible(is_two_d != 0, full_workspace != 0, native_two_d != 0))
+}
+
+#[no_mangle]
+pub extern "C" fn exo_theme_glow_enabled(enabled: u32) -> u32 { u32::from(enabled == 1) }
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn theme_hex_validation_and_auto() {
+        let input = [35, 49, 50, 97, 66, 67, 100]; // #12aBCd
+        assert_eq!(resolve_theme_color(input, 0xeeeeee), 0x12abcd);
+        assert_eq!(exo_theme_resolve_rgb(35, 49, 50, 97, 66, 67, 100, 0), 0x12abcd);
+        assert_eq!(resolve_theme_color([0;7], 0xffffff), 0xffffff);
+        assert_eq!(resolve_theme_color([0;7], u32::MAX), 0xffffff);
+        assert_eq!(resolve_theme_color([35, 49, 50, 51, 52, 53, 90], 0x123456), 0x123456);
+        assert_eq!(resolve_theme_color([0, 49, 50, 51, 52, 53, 54], 0x123456), 0x123456);
+        assert_eq!(exo_theme_abi_version(), EXO_THEME_ABI_VERSION);
+    }
+    #[test] fn nest_visibility_only_full_two_dimensional_workspace() {
+        assert_eq!(exo_theme_full_2d_nest_visible(1, 1, 0), 1);
+        assert_eq!(exo_theme_full_2d_nest_visible(1, 0, 1), 1);
+        assert_eq!(exo_theme_full_2d_nest_visible(1, 0, 0), 0);
+        assert_eq!(exo_theme_full_2d_nest_visible(0, 1, 1), 0);
+        assert_eq!(exo_theme_glow_enabled(1), 1);
+        assert_eq!(exo_theme_glow_enabled(0), 0);
+        assert_eq!(exo_theme_glow_enabled(5), 0);
+    }
     #[test] fn horizontal_crossing_geometry(){
         assert_eq!(horizontal_crossing(p(0.,0.),p(10.,10.),5.),Some(5.));
         assert_eq!(horizontal_crossing(p(0.,10.),p(10.,0.),5.),Some(5.));

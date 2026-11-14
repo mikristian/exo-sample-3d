@@ -1,0 +1,6 @@
+/* Standalone asset portal navigation. Keep marketplace layout intact. */
+.clothcraft-return{position:fixed;bottom:20px;left:20px;z-index:9999;background:#f4f7ff;color:#145ee9;border:1px solid #a8c9ff;border-radius:999px;padding:12px 18px;font:600 13px/1.2 system-ui,sans-serif;text-decoration:none;box-shadow:0 6px 20px #0002}
+.clothcraft-return:hover,.clothcraft-return:focus-visible{background:#145ee9;color:#fff}
+@media(max-width:560px){.clothcraft-return{bottom:12px;left:12px;padding:10px 14px;max-width:calc(100vw - 24px);box-sizing:border-box}}
+@media(max-width:680px){.topbar{gap:8px}.topbar>.brand{flex:none;max-width:42vw}.topbar>.brand>span{font-size:clamp(14px,4vw,20px);letter-spacing:-.7px}.main-links{min-width:0}.top-actions{flex:none}.clothcraft-return{font-size:12px}}
+@media(max-width:375px){.top-actions .avatar-button{display:none}.topbar>.brand{max-width:45vw}}

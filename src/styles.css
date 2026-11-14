@@ -2875,7 +2875,7 @@ input[type="range"]::-webkit-slider-thumb {
 .grade-point-header,
 .grade-point-row {
   display: grid;
-  grid-template-columns: 34px 1fr 1fr 50px;
+  grid-template-columns: 34px minmax(0,1fr) minmax(0,1fr) 50px 72px;
   align-items: center;
   gap: 5px;
   min-height: 31px;
@@ -2889,7 +2889,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-top: 0;
   background: #0f0f0f;
   color: #555;
-  font-size: 6px;
+  font-size: 9px;
   font-weight: 700;
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -2897,13 +2897,13 @@ input[type="range"]::-webkit-slider-thumb {
 
 .grade-point-row > span {
   color: #666;
-  font-size: 6.5px;
+  font-size: 10px;
   font-weight: 700;
 }
 
 .grade-point-row em {
   color: #707070;
-  font-size: 7px;
+  font-size: 10px;
   font-style: normal;
   text-align: center;
 }
@@ -2919,7 +2919,7 @@ input[type="range"]::-webkit-slider-thumb {
 .grade-point-row .number-field input {
   min-width: 0;
   width: 42px;
-  font-size: 7px;
+  font-size: 11px;
 }
 
 .grade-point-row > button {
@@ -2929,7 +2929,7 @@ input[type="range"]::-webkit-slider-thumb {
   border-radius: 3px;
   background: #101010;
   color: #5f5f5f;
-  font-size: 5.7px;
+  font-size: 9px;
   font-weight: 750;
   letter-spacing: .04em;
   cursor: pointer;
@@ -2940,6 +2940,14 @@ input[type="range"]::-webkit-slider-thumb {
   background: #171a2a;
   color: #a9b4ff;
 }
+
+.grade-rule-transfer { display:flex; gap:3px; align-items:center; }
+.grade-rule-transfer button { background:#1b1d22; border:1px solid #343944; border-radius:3px; color:#cbd4e0; font-size:9px; min-height:24px; padding:2px 4px; cursor:pointer; }
+.grade-rule-transfer button:disabled { opacity:.35; cursor:not-allowed; }
+
+.grade-bulk-actions { display:flex; gap:6px; margin:8px 0; }
+.grade-bulk-actions button { flex:1; background:#20252c; border:1px solid #394451; border-radius:4px; color:#d7e1ea; font-size:10px; min-height:30px; padding:5px; cursor:pointer; }
+.grade-bulk-actions button:disabled { opacity:.4; cursor:not-allowed; }
 
 .pom-row em {
   color: #555;
@@ -3439,4 +3447,69 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .clo-right-tool-palette.exo-reorderable-toolbar:not([data-toolbar-dock="right"]) > .clo-palette-workflows {
   margin-top:21px;
+}
+
+/* On the 2D side, the toolbar belongs to its own rail, not the Object Browser.
+   Its dotted drag grip is deliberately on the RIGHT edge of the toolbar. */
+.clo-right-tool-palette.exo-reorderable-toolbar[data-toolbar-edit="true"]{position:relative;overflow:visible!important;isolation:isolate}
+.clo-right-tool-palette.exo-reorderable-toolbar .exo-toolbar-move-grip{left:auto!important;right:-18px!important;top:9px!important;transform:none!important;width:19px!important;height:35px!important;border-radius:0 5px 5px 0!important;background:var(--studio-sidebar,#303d49)!important;color:var(--studio-text,#e9f3fd)!important;border:1px solid var(--studio-border,#61788c)!important;box-shadow:2px 3px 8px #07172732!important}
+.clo-inspector{min-width:0!important}
+.clo-inspector-content{flex:1 1 0!important;min-width:0!important;overflow:hidden}
+.clo-inspector-content .clo-object-browser{min-width:0!important}
+
+/* Responsive horizontal docking for built-in CLO 2D and 3D tool palettes.
+   Preserve original vertical measured layouts in side docks. Only reflow when
+   a toolbar is explicitly docked to the horizontal top/bottom lanes. */
+.clo-left-3d-double-bars.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"]){
+ display:flex!important;flex-direction:row!important;align-items:flex-start!important;
+ width:min(90vw,900px)!important;max-width:calc(100vw - 30px)!important;
+ min-height:0!important;height:auto!important;max-height:145px!important;
+ overflow:auto!important;gap:6px!important;padding:24px 5px 5px!important;
+ background:var(--studio-sidebar,#24282c)!important;
+}
+.clo-left-3d-double-bars.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"])>.clo-left-3d-column{
+ display:flex!important;flex:1 1 0!important;flex-direction:row!important;flex-wrap:wrap!important;
+ gap:3px!important;margin:0!important;min-width:0!important;
+ height:auto!important;min-height:0!important;
+ border:0!important;
+}
+.clo-left-3d-double-bars.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"])>.clo-left-3d-column button[data-clo-slot]{
+ position:relative!important;left:auto!important;top:auto!important;transform:none!important;
+ flex:1 0 34px!important;min-width:34px!important;max-width:46px!important;
+ margin:0!important;
+}
+.clo-right-tool-palette.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"]){
+ display:flex!important;flex-direction:row!important;align-items:flex-start!important;
+ width:min(90vw,1050px)!important;max-width:calc(100vw - 30px)!important;
+ min-width:0!important;min-height:0!important;height:auto!important;
+ max-height:150px!important;overflow:auto!important;padding:24px 4px 4px!important;
+ background:var(--studio-sidebar,#25292e)!important;
+}
+.clo-right-tool-palette.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"])>.clo-palette-workflows{
+ display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;
+ margin:0!important;flex:0 0 auto!important;
+}
+.clo-right-tool-palette.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"])>.clo-palette-scroll{
+ overflow:auto!important;flex:1 1 auto!important;min-width:0!important;min-height:0!important;
+}
+.clo-right-tool-palette.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"]) .clo-reference-dual-bars.clo-observed-bars{
+ display:flex!important;flex-direction:row!important;gap:4px!important;
+}
+.clo-right-tool-palette.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"]) .clo-reference-dual-bars.clo-observed-bars>.clo-observed-column.clo-right-tool-grid{
+ display:flex!important;flex-direction:row!important;flex-wrap:wrap!important;
+ height:auto!important;min-height:0!important;flex:1 1 0!important;gap:3px!important;
+}
+.clo-right-tool-palette.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"]) .clo-reference-dual-bars.clo-observed-bars>.clo-observed-column.clo-right-tool-grid button{
+ position:relative!important;left:auto!important;top:auto!important;transform:none!important;
+ flex:0 0 34px!important;margin:0!important;
+}
+/* Docked built-in toolbars keep the move handle visible on the upper/right
+   corner, allowing another reposition without stealing editor controls. */
+.clo-right-tool-palette.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"]) .exo-toolbar-move-grip{
+ right:2px!important;top:2px!important;left:auto!important;
+ width:32px!important;height:20px!important;border-radius:4px!important;
+}
+.clo-left-3d-double-bars.exo-reorderable-toolbar:is([data-toolbar-dock="top"],[data-toolbar-dock="bottom"]) .exo-toolbar-move-grip{
+ right:2px!important;top:2px!important;left:auto!important;transform:none!important;
+ width:32px!important;height:20px!important;border-radius:4px!important;
 }

@@ -1,3 +1,4 @@
+import { fetchWasmBytes } from './wasmTransport.js'
 /**
  * EXO Rust-first fabric math bridge.
  *
@@ -6,7 +7,7 @@
  * renders. Synchronous public functions therefore use a parity-tested JS
  * fallback only until the Rust module becomes available.
  */
-export const RUST_FABRIC_ABI_VERSION=1
+export const RUST_FABRIC_ABI_VERSION=2
 const WASM_PATH='/wasm/exo_fabric_kernel.wasm'
 let rust=null
 let attempted=null
@@ -32,10 +33,7 @@ export async function initializeRustFabricKernel({bytes,url=WASM_PATH}={}){
   if(attempted)return attempted
   attempted=(async()=>{
     try{
-      const wasmBytes=bytes??await fetch(url).then(response=>{
-        if(!response.ok)throw new Error(`Fabric WASM download returned ${response.status}`)
-        return response.arrayBuffer()
-      })
+      const wasmBytes=bytes??await fetchWasmBytes(url, "Fabric WASM download returned ")
       const result=await WebAssembly.instantiate(wasmBytes,{})
       const exports=result.instance?.exports??result.exports
       const required=[
@@ -44,8 +42,10 @@ export async function initializeRustFabricKernel({bytes,url=WASM_PATH}={}){
         'exo_swatch_repeats',
         'exo_procedural_repeats',
         'exo_balance_roughness_byte',
+        'exo_calibration_mass','exo_calibration_shear','exo_calibration_bending',
+        'exo_calibration_friction','exo_calibration_alloc','exo_calibration_free','exo_calibration_tensile',
       ]
-      if(required.some(name=>typeof exports?.[name]!=='function')||
+      if(!(exports?.memory instanceof WebAssembly.Memory)||required.some(name=>typeof exports?.[name]!=='function')||
          exports.exo_fabric_kernel_abi_version()!==RUST_FABRIC_ABI_VERSION)
         throw new Error('Unexpected EXO fabric Rust ABI')
       rust=exports
@@ -82,4 +82,21 @@ export function rustBalanceRoughnessByte(green,mean,contrast){
 // Loads once in a real browser; tests and non-browser tooling remain explicit.
 if(typeof window!=='undefined'&&typeof WebAssembly!=='undefined'&&typeof fetch==='function'){
   void initializeRustFabricKernel()
+}
+
+// Public calibration retains JS coercion/RangeErrors before reaching this ABI.
+export function rustCalibrationScalar(operation,args,fallback){
+  return rust?rust[`exo_calibration_${operation}`](...args):fallback()
+}
+export function rustCalibrationTensile(width,gauge,observations,fallback){
+  if(!rust)return fallback()
+  const count=observations.length*2+3
+  const ptr=rust.exo_calibration_alloc(count)
+  try{
+    new Float64Array(rust.memory.buffer,ptr,count).set(observations.flat())
+    if(!rust.exo_calibration_tensile(ptr,observations.length,width,gauge))
+      throw new RangeError('Invalid tensile measurements')
+    const output=new Float64Array(rust.memory.buffer,ptr+observations.length*16,3)
+    return {stiffnessNPerM:output[0],rmsErrorNPerM:output[1],maxMeasuredStrain:output[2]}
+  }finally{rust.exo_calibration_free(ptr,count)}
 }

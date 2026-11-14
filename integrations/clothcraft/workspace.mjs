@@ -3,22 +3,52 @@ import fs from 'node:fs'
 import path from 'node:path'
 import {spawn,spawnSync} from 'node:child_process'
 import {createInterface} from 'node:readline'
-import {createHash} from 'node:crypto'
+import {bindPropertyMetadata} from './propertyMetadataIdentity20261030.mjs'
 import {paths,nativeExport} from './bridge.mjs'
 import {createMetadataValidator} from './rust-service/validator-client.mjs'
+import {assertNativeAvatarPersistence} from './avatarPersistenceContract.mjs'
+import {nativeWorkspaceSummary20261030} from './nativeWorkspaceSummary20261030.mjs'
+import {beginNativeMirrorSave20261030,commitNativeMirrorSave20261030,recoverNativeMirror20261030,abortUnchangedNativeMirrorSave20261030} from './nativeMirrorTransaction20261030.mjs'
+import {fileURLToPath} from 'node:url'
+import {exoCc0Avatar20261102,EXO_CC0_AVATAR_MODELS_20261102} from '../../src/data/exoAvatarLibrary20261102.js'
 export const chooseNativeGpuPhysics=(env,capabilities)=>
  env.EXO_CLOTHCRAFT_GPU==='1' &&
  capabilities?.ok===true && capabilities?.gpuSimulation===true &&
  env.EXO_CLOTHCRAFT_ALLOW_EXPERIMENTAL_GPU==='1'
 export function createWorkspace(outputRoot) {
+ const trustedRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..')
  const metadataValidator=createMetadataValidator()
  let child=null,pending=null,busy=false,loaded=false,lastError='',stepsSinceSave=0,running=false,pump=null,current=null,runError=null,lastPoll=Date.now()
  let nativeGpuSupported=null,nativeGpuRequested=process.env.EXO_CLOTHCRAFT_GPU==='1',nativeGpuActive=false
  let liveGrab=null
  const saveFile=path.join(outputRoot,'workspace','fitting-project.json')
  const metadataFile=saveFile+'.properties.json'
+ // The native process commits .native and its linked history before the JS
+ // compatibility mirror. Finish an interrupted mirror transaction on startup
+ // before using that mirror to open a project or select its collision avatar.
+ recoverNativeMirror20261030(saveFile)
+ // The native Rust Undo/Redo sidecar is digest-linked to fitting-project.json.native.
+ // Every rollback archive containing the native project must retain its
+ // matching journal, otherwise restoring a garment silently loses the saved
+ // cross-restart linked pattern/grade/hardware history.
+ const backupEntries=()=>[
+  [saveFile,'fitting-project.json'],
+  [saveFile+'.native','fitting-project.json.native'],
+  [saveFile+'.native.undo-v1.json','fitting-project.json.native.undo-v1.json'],
+  [metadataFile,'fitting-project.json.properties.json'],
+ ]
  let avatarModel='makehuman-base'
  const avatarPathFor=model=>{
+  const curated=exoCc0Avatar20261102(model)
+  if(curated){
+   // Only explicitly registered source-hashed CC0 models may enter
+   // the native solver. No request path, symlink or custom upload accepted.
+   const absolute=path.resolve(trustedRoot,curated.collider)
+   if(!absolute.startsWith(path.join(trustedRoot,'public/avatars/exo')+path.sep) ||
+      !fs.existsSync(absolute) || fs.lstatSync(absolute).isSymbolicLink())
+     throw Error('EXO curated fitting avatar collider is not installed')
+   return absolute
+  }
   if(model==='makehuman-base'){
    const upstream=path.join(paths().upstream,'assets/makehuman/mannequin.obj')
    const source=fs.existsSync(upstream)?upstream:process.env.EXO_CLOTHCRAFT_AVATAR_MAKEHUMAN_OBJ
@@ -36,31 +66,36 @@ export function createWorkspace(outputRoot) {
   const saved=JSON.parse(fs.readFileSync(saveFile,'utf8'))
   const thomas=process.env.EXO_CLOTHCRAFT_AVATAR_THOMAS_OBJ
   if(thomas&&path.resolve(saved.avatar_path||'')===path.resolve(thomas))avatarModel='clo-thomas'
+  for(const curated of EXO_CC0_AVATAR_MODELS_20261102){
+   if(path.resolve(saved.avatar_path||'')===path.resolve(trustedRoot,curated.collider))avatarModel=curated.id
+  }
  }catch{}
  let propertyMetadata=null
- const fingerprint=template=>createHash('sha256').update(JSON.stringify({
-  template:template?.name||'',panels:(template?.panels||[]).map(p=>p.id).sort(),
-  fabrics:(template?.fabrics||[]).map(f=>f.id).sort()
- })).digest('hex')
- const bindMetadata=(template,fresh=false)=>{
-  const identity=fingerprint(template)
+ const bindMetadata=async(opened,fresh=false,reopen=false)=>{
+  // Once a project has native metadata, its source is the validated Rust
+  // FittingProject. Never reattach stale .properties.json from a different
+  // library garment, even if that sidecar reused the same panel IDs.
+  if(opened?.data?.propertyMetadata){
+   propertyMetadata=opened.data.propertyMetadata
+   return opened
+  }
   let previous=null
   try{previous=JSON.parse(fs.readFileSync(metadataFile,'utf8'))}catch{}
-  propertyMetadata=!fresh&&previous?.identity===identity?previous:{version:1,identity,panels:{},fabrics:{}}
-  if(fresh)persistMetadata()
+  const candidate=bindPropertyMetadata(previous,opened.data.template,{fresh,reopen})
+  // One-time adoption of an exact source-matched legacy sidecar; the next
+  // Rust save embeds it with the garment + linked history. Leave the legacy
+  // file untouched for explicit backups/old-version recovery.
+  const stored=await rpc({op:'property-metadata-store',revision:opened.data.revision,
+   metadata:candidate})
+  if(!stored.ok)throw Error('Native property metadata migration refused: '+stored.error)
+  propertyMetadata=candidate
+  return stored
  }
  const publish=result=>{
   if(result?.ok&&result.data?.template&&propertyMetadata){
    return {...result,data:{...result.data,avatarModel,propertyMetadata:{panels:propertyMetadata.panels,fabrics:propertyMetadata.fabrics}}}
   }
   return result
- }
- const persistMetadata=()=>{
-  if(!propertyMetadata)throw new Error('No project metadata binding')
-  fs.mkdirSync(path.dirname(metadataFile),{recursive:true})
-  const temp=metadataFile+'.tmp'
-  fs.writeFileSync(temp,JSON.stringify(propertyMetadata))
-  fs.renameSync(temp,metadataFile)
  }
  const start=()=>{
   if(child)return
@@ -72,6 +107,13 @@ export function createWorkspace(outputRoot) {
     encoding:'utf8',timeout:3000,maxBuffer:4096})
   let capabilities=null
   try{capabilities=probe.status===0?JSON.parse(probe.stdout.trim()):null}catch{}
+  // New FittingProject fields are strict Rust serde data. Refuse mixing this
+  // native-metadata bridge with an old binary that cannot deserialize the
+  // project's saved propertyMetadata or UUID/generation. No user garment is
+  // opened or changed before this executable ABI check.
+  if(capabilities?.nativePropertyMetadataV1!==true ||
+     capabilities?.nativeProjectGenerationV1!==true)
+    throw Error('EXO_NATIVE_DOCUMENT_ABI_MISMATCH: rebuild the matching Rust V2 session before opening saved garments')
   nativeGpuSupported=capabilities?.ok===true&&capabilities?.gpuSimulation===true
   // A GPU-capable executable is NOT proof of equivalent garment physics.
   // The 2026-10-18 same-binary 40-step T-shirt test measured CPU 4.04 mm vs
@@ -88,7 +130,13 @@ export function createWorkspace(outputRoot) {
    lastError='GPU garment physics has not passed long-run CPU parity; the editor is using the safer CPU solver. Experimental GPU testing requires EXO_CLOTHCRAFT_ALLOW_EXPERIMENTAL_GPU=1.'
    console.warn('[EXO workspace] '+lastError)
   }
-  child=spawn(bin,[avatarPathFor(avatarModel),saveFile+'.native',...(useGpu?['--gpu']:[])],{cwd:config.upstream,stdio:['pipe','pipe','pipe']})
+  // The research-only hairpin initial pose failed 50-step strain screening.
+  // It may be opted into for isolated direct exo-session experiments, but
+  // must NEVER be inherited by the installed Studio bridge.
+  child=spawn(bin,[avatarPathFor(avatarModel),saveFile+'.native',...(useGpu?['--gpu']:[])],{
+    cwd:config.upstream,stdio:['pipe','pipe','pipe'],
+    env:{...process.env,EXO_UNVALIDATED_TUCK_HAIRPIN_PREFOLD:'0'}
+  })
   const proc=child
   const fail=e=>{if(child!==proc)return;child=null;loaded=false;if(pending){clearTimeout(pending.timer);pending.reject(e);pending=null}}
   child.on('error',fail);child.on('exit',()=>fail(new Error('ClothCraft worker stopped. Reopen the saved workspace.')))
@@ -105,9 +153,24 @@ export function createWorkspace(outputRoot) {
   try{child.stdin.write(JSON.stringify(data)+'\n',error=>{if(error&&pending){const p=pending;pending=null;clearTimeout(p.timer);p.reject(error)}})}
   catch(error){const p=pending;pending=null;clearTimeout(p.timer);p.reject(error)}
  })
- const save=async()=>{
+ const save=async({directCommitContinuation=false}={})=>{
+  // The direct Rust grading/notch RPC has already published a durable intent.
+  // Continue that SAME transaction: beginning a second one would attempt cold
+  // recovery before Rust has had the chance to write its linked journal.
+  if(!directCommitContinuation)beginNativeMirrorSave20261030(saveFile)
   const result=await rpc({op:'save'})
-  if(result.ok){fs.mkdirSync(path.dirname(saveFile),{recursive:true});fs.writeFileSync(saveFile+'.tmp',JSON.stringify(result.data.project));fs.renameSync(saveFile+'.tmp',saveFile);stepsSinceSave=0}
+  if(result.ok){
+   assertNativeAvatarPersistence(result.data?.project,avatarPathFor(avatarModel))
+   // A signed new-generation Rust writer returns the same authoritative
+   // project UUID/generation in the native project and RPC receipt.
+   if(result.data?.project?.native_commit!==undefined &&
+      JSON.stringify(result.data?.nativeCommit)!==
+        JSON.stringify(result.data.project.native_commit))
+    throw Error('Native project and saved commit receipt differ; mirror not promoted')
+   commitNativeMirrorSave20261030(saveFile,result.data.project)
+   if(current)current={...current,nativeCommit:result.data?.nativeCommit??null}
+   stepsSinceSave=0
+  }
   return result
  }
  // Opening another library garment must never silently destroy the active
@@ -121,7 +184,7 @@ export function createWorkspace(outputRoot) {
   const stamp=new Date().toISOString().replace(/[:.]/g,'-')
   const archive=fs.mkdtempSync(path.join(archiveRoot,`before-library-switch-${stamp}-`))
   try{
-   for(const [source,target] of [[saveFile,'fitting-project.json'],[saveFile+'.native','fitting-project.json.native'],[metadataFile,'fitting-project.json.properties.json']]){
+   for(const [source,target] of backupEntries()){
     if(fs.existsSync(source))fs.copyFileSync(source,path.join(archive,target))
    }
   }catch(error){
@@ -170,6 +233,10 @@ export function createWorkspace(outputRoot) {
   // The most recent successful native command already supplies a complete
   // snapshot. Read-only viewport/status polling must never seize the solver
   // mutex and reject a simultaneous, intentional Property Editor save.
+  if(data.op==='snapshot-metadata'&&current){
+   lastPoll=Date.now()
+   return {ok:true,data:nativeWorkspaceSummary20261030(current,{busy,running})}
+  }
   if(data.op==='snapshot'&&current){lastPoll=Date.now();return{ok:true,data:{...current,propertyMetadata:{panels:propertyMetadata?.panels||{},fabrics:propertyMetadata?.fabrics||{}},avatar:data.avatar?current.avatar:null,running,busy}}}
   if(data.op==='pause'){
    if(busy)throw new Error('Workspace busy; wait for the current operation')
@@ -202,6 +269,9 @@ export function createWorkspace(outputRoot) {
     fs.copyFileSync(saveFile,backup)
     const originalNative=saveFile+'.native'
     if(fs.existsSync(originalNative))fs.copyFileSync(originalNative,backup+'.native')
+    const originalJournal=originalNative+'.undo-v1.json'
+    if(fs.existsSync(originalJournal))
+     fs.copyFileSync(originalJournal,backup+'.native.undo-v1.json')
     start()
     const restoredRaw=await rpc({op:'open',project:{...project,state:null,mesh_signature:null},avatar:true})
     if(restoredRaw.ok)bindMetadata(restoredRaw.data.template)
@@ -230,30 +300,28 @@ export function createWorkspace(outputRoot) {
    if(data.op==='select-avatar'){
     const nextModel=data.model
     // Validate before touching the active Rust process or saved project.
-    avatarPathFor(nextModel)
+    const nextPath=avatarPathFor(nextModel)
     if(nextModel===avatarModel)return {ok:true,data:{...current,avatarModel}}
-    const savedResult=await save()
-    if(!savedResult.ok)throw new Error(savedResult.error||'Could not preserve the current garment before avatar change')
-    const previousProject=JSON.parse(fs.readFileSync(saveFile,'utf8'))
+    // The old restart/open strategy invalidated the Rust linked Undo/Redo
+    // journal because it changed avatar_path before matching that journal's
+    // project digest. Ask the SAME authoritative Rust session to compile the
+    // candidate collider first; it preserves exact pattern history and commits
+    // geometry + history atomically in the following native save.
     const previousModel=avatarModel
-    const restart=async(model,project)=>{
-     const previous=child;child=null;previous?.kill()
-     avatarModel=model;loaded=false;start()
-     return rpc({op:'open',project,avatar:true})
-    }
+    const switched=await rpc({op:'avatar-change',revision:current?.revision,
+     avatarPath:nextPath,avatar:true})
+    if(!switched.ok)return{ok:false,error:switched.error||'Native collider change rejected',data:current}
+    avatarModel=nextModel
+    const result=remember(switched);runError=null;stepsSinceSave=0
     try{
-     // Keep authored patterns, seams and materials. A different collision
-     // body requires a fresh solver state; the saved pose can be recovered.
-     const opened=await restart(nextModel,{...previousProject,state:null,mesh_signature:null})
-     if(!opened.ok)throw new Error(opened.error||'Avatar mesh could not be loaded')
-     const result=remember(opened);loaded=true;runError=null;stepsSinceSave=0
-     await save()
+     const persisted=await save()
+     if(!persisted.ok)throw Error(persisted.error||'Native avatar change was not saved')
      return {...result,data:{...result.data,avatarModel}}
     }catch(error){
-     const restored=await restart(previousModel,previousProject)
-     if(!restored.ok)throw new Error(`Avatar change failed (${error.message}); previous garment also could not reopen: ${restored.error}`)
-     remember(restored);loaded=true
-     return {ok:false,error:`Could not render ${nextModel}: ${error.message}. Previous garment restored.`,data:current}
+     // A failed linked commit is never success: force a cold recovery from
+     // the authoritative native files before permitting any other edit.
+     loaded=false;child?.kill();child=null;avatarModel=previousModel
+     throw Error('Native avatar change could not be durably committed. Reopen the saved workspace: '+error.message)
     }
    }
    if(!loaded||data.op==='open'){
@@ -269,14 +337,115 @@ export function createWorkspace(outputRoot) {
     if(data.document)initial.template=nativeExport(data.document,paths().cli).template
     else if(data.project)initial.project=data.project
     else if(data.op!=='open'&&fs.existsSync(saveFile))initial.project=JSON.parse(fs.readFileSync(saveFile,'utf8'))
-    const opened=await rpc(initial)
-    if(opened.ok)bindMetadata(opened.data.template,data.op==='open'&&!data.project&&!data.document)
+    let opened=await rpc(initial)
+    if(opened.ok)opened=await bindMetadata(opened,
+     // An explicitly imported document is a *new* garment even if it has the
+     // same name/panel IDs/labels as the previous project. Only a raw saved
+     // native project may legitimately reuse its persisted property sidecar.
+     data.op==='open'&&!data.project,
+     data.op!=='open'&&!data.project&&!data.document&&fs.existsSync(saveFile))
     const result=remember(opened)
     if(result.ok){loaded=true;await save()}
     return previousProjectBackup&&result.ok
      ? {...result,data:{...result.data,previousProjectBackup}} : result
    }
    if(data.op==='save')return await save()
+   // Production-vs-3D article membership is a real Rust fitting-project
+   // field. Back up the pre-migration garment before its first durable write,
+   // because older native binaries reject unknown FittingProject fields.
+   if(['piece-variant-store','piece-variant-clear'].includes(data.op)){
+    if(!Number.isSafeInteger(data.revision)||data.revision!==current?.revision)
+     return {ok:false,error:'Stale document revision; reload current snapshot',data:current}
+    if(data.op==='piece-variant-store'&&!current?.pieceVariant?.persisted){
+     const prior=await save()
+     if(!prior.ok)return prior
+     const backups=path.join(outputRoot,'workspace','backups')
+     fs.mkdirSync(backups,{recursive:true})
+     const stamp=new Date().toISOString().replace(/[:.]/g,'-')
+     const archive=fs.mkdtempSync(path.join(backups,`before-native-piece-variant-${stamp}-`))
+     try{
+      for(const [source,name] of backupEntries()){
+       if(fs.existsSync(source))fs.copyFileSync(source,path.join(archive,name))
+      }
+     }catch(error){
+      fs.rmSync(archive,{recursive:true,force:true})
+      throw Error('Native piece variant backup failed: '+error.message)
+     }
+    }
+    const changed=remember(await rpc(data))
+    if(!changed.ok)return changed
+    const persisted=await save()
+    if(!persisted.ok)throw Error(persisted.error||'Could not save native production and 3D variant')
+    return changed
+   }
+   // A six-size grade catalog must pass Rust's revision CAS and then be
+   // written into the SAME FittingProject JSON as the source garment.
+   // In-memory validation without durable native save is not persistence.
+   if(['grade-run-commit','grade-run-clear'].includes(data.op)){
+    if(!Number.isSafeInteger(data.revision)||data.revision!==current?.revision)
+     return {ok:false,error:'Stale document revision; reload current snapshot',data:current}
+    if(data.op==='grade-run-commit'){
+     // The new grade_run schema is not readable by older native binaries
+     // (FittingProject deny_unknown_fields). Archive the pre-commit garment
+     // and native pose before this first revision-controlled migration.
+     const prior=await save()
+     if(!prior.ok)throw Error(prior.error||'Could not save original garment before grade catalog')
+     const backups=path.join(outputRoot,'workspace','backups')
+     fs.mkdirSync(backups,{recursive:true})
+     const stamp=new Date().toISOString().replace(/[:.]/g,'-')
+     const archive=fs.mkdtempSync(path.join(backups,`before-native-grade-catalog-${stamp}-`))
+     try{
+      for(const [source,name] of backupEntries()){
+       if(fs.existsSync(source))fs.copyFileSync(source,path.join(archive,name))
+      }
+     }catch(error){
+      fs.rmSync(archive,{recursive:true,force:true})
+      throw Error('Native grading catalog backup failed: '+error.message)
+     }
+    }
+    // Rust grade-run-commit writes .native itself before replying. Publish the
+    // durable mirror-recovery intent BEFORE that rename, not only in save().
+    // Otherwise a crash here cold-opens the older JS mirror over new grading.
+    if(data.op==='grade-run-commit')beginNativeMirrorSave20261030(saveFile,{requireLinkedHistory:true})
+    const changed=await rpc(data)
+    if(!changed.ok)return changed
+    const next=remember(await rpc({op:'snapshot',avatar:true,graphics:true}))
+    if(!next.ok)throw Error(next.error||'Could not refresh graded catalog revision')
+    const persisted=await save({directCommitContinuation:data.op==='grade-run-commit'})
+    if(!persisted.ok)throw Error(persisted.error||'Native graded size catalog was not saved')
+    return {ok:true,data:{...next.data,gradeCatalogResult:{
+      ...changed.data,persisted:true,sourceRevision:next.data.revision,
+      manufactured:false}}}
+   }
+   // These requests return inspection packets rather than a garment snapshot.
+   // Never pass them through remember(), which owns the current native scene
+   // state and must not be replaced with CUT or grade catalog metadata.
+   if(['piece-variant-inspect','piece-variant-instance-preview','grade-run-status','grade-run-cutlines','grade-run-pom-audit','grade-run-industrial-audit','grade-run-sewing-balance-audit','bindings-grade-regenerate-preview','fabric-grade-envelope-inspect'].includes(data.op))return rpc(data)
+   if(['grade-run-activate','grade-run-restore'].includes(data.op)){
+    if(!Number.isSafeInteger(data.revision)||data.revision!==current?.revision)
+     return {ok:false,error:'Stale document revision; reload current snapshot',data:current}
+    if(data.op==='grade-run-activate'){
+     const report=await rpc({op:'grade-run-status',revision:data.revision})
+     if(!report.ok)return report
+     const catalog=report.data?.catalog
+     if(typeof data.size!=='string'||!catalog||
+       !(catalog.sizes?.includes(data.size)||Object.hasOwn(catalog.sizeCorrespondence||{},data.size)))
+      return {ok:false,error:'Choose a verified saved native grading size or correspondence',data:current}
+    }
+    // Protect the authored base garment on disk before changing the active
+    // Rust viewport. The native command only swaps in a compiled sized scene;
+    // future saves always serialize the preserved base template and pose.
+    if(data.op==='grade-run-activate'&&!current?.activeGradedSize){
+     const prior=await save()
+     if(!prior.ok)return {ok:false,error:prior.error||'Could not preserve original graded garment',data:current}
+    }
+    const next=remember(await rpc(data))
+    if(!next.ok)return next
+    // The backend has already compiled its new native sized garment; both
+    // linked 2D/3D views receive the same mesh and physical source template.
+    runError=null;stepsSinceSave=0;liveGrab=null
+    return {...next,data:{...next.data,manufacturingApproved:false,gradedSizePreview:Boolean(next.data.activeGradedSize)}}
+   }
    const appearanceKeys=['color','opacity','roughness','metalness','reflectionIntensity']
    const appearanceField=data.op==='set-property'&&data.target==='fabric'&&typeof data.field==='string'&&
     (appearanceKeys.some(key=>data.field===`appearance.${key}`||data.field===`appearance.back.${key}`||data.field===`appearance.side.${key}`))
@@ -307,33 +476,64 @@ export function createWorkspace(outputRoot) {
     const resetAppearance={...old?.appearance}
     if(resetFace)delete resetAppearance[resetKey]
     const nestedFace=data.field.startsWith('appearance.back.')?'back':data.field.startsWith('appearance.side.')?'side':null
-    propertyMetadata[group][data.id]=resetFace?
+    const nextRow=resetFace?
      {...old,appearance:resetAppearance}:
      appearanceField?
      {...old,appearance:nestedFace?
       {...old?.appearance,[nestedFace]:{...old?.appearance?.[nestedFace],[data.field.slice(`appearance.${nestedFace}.`.length)]:data.value}}:
       {...old?.appearance,[data.field.slice('appearance.'.length)]:data.value}}:
      {...old,[data.field]:optionalText&&data.value===null?'':data.value}
-    try{persistMetadata()}catch(error){
-     if(old===undefined)delete propertyMetadata[group][data.id]
-     else propertyMetadata[group][data.id]=old
-     return{ok:false,error:'Failed to persist property: '+error.message,data:current}
+    const proposed={...propertyMetadata,[group]:{...propertyMetadata[group],[data.id]:nextRow}}
+    // Native Rust validates and saves the full property graph within the
+    // garment+history generation. Do not write a second independent JSON
+    // property file after this edit.
+    const stored=await rpc({op:'property-metadata-store',revision:data.revision,metadata:proposed})
+    if(!stored.ok)return{ok:false,error:stored.error,data:current}
+    let persisted
+    try {
+     persisted=await save()
+     if(!persisted.ok)throw Error(persisted.error||'Native metadata save failed')
+    }catch(error){
+     // Rust may have changed volatile memory but not committed its document.
+     // Force an exact cold reopen rather than accepting a later accidental
+     // save of metadata the UI already reported as rejected.
+     child?.kill();child=null;loaded=false
+     throw Error('Native metadata transaction failed; reopen the durable garment: '+error.message)
     }
-    // Sidecar edits are presentation metadata: retain the native revision.
-    current={...current,propertyMetadata:{panels:propertyMetadata.panels,fabrics:propertyMetadata.fabrics}}
-    return{ok:true,data:{...current,metadataOnly:true,metadataValidation:rustValidation?'rust':'javascript'}}
+    propertyMetadata=proposed
+    const result=remember({...stored,data:{...stored.data,
+     nativeCommit:persisted.data?.nativeCommit??stored.data.nativeCommit}})
+    return {...result,data:{...result.data,metadataOnly:true,
+     metadataValidation:rustValidation?'rust':'javascript'}}
    }
+   // Rust grade-notch-commit also atomically renames .native inside its RPC.
+   // A crash before the following JS save must not restore the stale mirror.
+   if(data.op==='grade-notch-commit')beginNativeMirrorSave20261030(saveFile,{requireLinkedHistory:true})
    const result=remember(await rpc(data))
    if(result.ok){
     // A successful reset or edit establishes a new valid solver state.
     // Do not keep reporting an older OGC intersection after recovery.
-    if(['reset','edit','edit-batch','undo','redo','pull-panel','pose-panel','step','line-spec','set-property','graphics-set','grade-pattern','pleat-guides','hardware-set','hardware-undo','hardware-redo'].includes(data.op))runError=null
+    if(['reset','edit','edit-batch','tuck-fold-sew-batch','undo','redo','pull-panel','pose-panel','step','line-spec','set-property','graphics-set','grade-pattern','pleat-guides','hardware-set','hardware-undo','hardware-redo','grade-notch-commit','grade-run-activate','grade-run-restore','piece-variant-instance-activate','piece-variant-instance-restore','bindings-grade-regenerate','fabric-grade-envelope-store','fabric-grade-envelope-clear'].includes(data.op))runError=null
     stepsSinceSave+=data.op==='step'?Number(data.steps||1):0
-    if(['edit','edit-batch','undo','redo','reset','pull-panel','pose-panel','line-spec','set-property','graphics-set','grade-pattern','pleat-guides','hardware-set','hardware-undo','hardware-redo'].includes(data.op)||stepsSinceSave>=30)await save()
+    if(['edit','edit-batch','tuck-fold-sew-batch','undo','redo','reset','pull-panel','pose-panel','line-spec','set-property','graphics-set','grade-pattern','pleat-guides','hardware-set','hardware-undo','hardware-redo','grade-notch-commit','bindings-grade-regenerate','fabric-grade-envelope-store','fabric-grade-envelope-clear'].includes(data.op)||stepsSinceSave>=30){
+     const persisted=await save({directCommitContinuation:data.op==='grade-notch-commit'})
+     // Every native authoring/history operation is authoritative, not only
+     // fabric envelopes. Rust may accept a mutation in memory while its
+     // subsequent disk save fails; never tell the UI that edit/Undo/Redo or
+     // artwork is durable in that case. The existing disk project remains the
+     // recovery baseline until a verified save succeeds.
+     if(!persisted.ok)throw Error(`Native ${data.op} changed in memory but could not be saved: ${persisted.error||'native save rejected'}. Recover the last durable garment before continuing`)
+    }
    }
    if(runError&&data.op==='snapshot')return{ok:false,error:runError,data:{...current,avatar:data.avatar?current.avatar:null,running:false}}
    return result
-  }finally{busy=false}},close(){running=false;loaded=false;metadataValidator.close();if(pending){const p=pending;pending=null;clearTimeout(p.timer);p.reject(new Error('Workspace closed'))}child?.kill();child=null},status(){
+  }finally{
+   // A rejected native command can leave a write-ahead intent in this live
+   // process. Only release it when BOTH native bytes and linked journal are
+   // exactly the same as at begin; otherwise preserve it for cold recovery.
+   try {abortUnchangedNativeMirrorSave20261030(saveFile)} catch {}
+   busy=false
+  }},close(){running=false;loaded=false;metadataValidator.close();if(pending){const p=pending;pending=null;clearTimeout(p.timer);p.reject(new Error('Workspace closed'))}child?.kill();child=null},status(){
    return {loaded,busy,lastError,nativeProcessRunning:Boolean(child),
     gpuRequested:nativeGpuRequested,gpuSupported:nativeGpuSupported,gpuActive:nativeGpuActive,metadataValidatorRust:metadataValidator.active}
   }}

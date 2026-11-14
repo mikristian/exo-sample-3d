@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { samplePieceBoundary } from './project.js'
+import {rustPreviewInwardPoint} from './rustPreviewOffsetKernel.js'
 
 // Source drafting is the authority for panel contours, curves, edge numbers and topstitches.
 // The pose is a deterministic illustration of sewing orientation; it is not a physics solve.
@@ -193,8 +194,7 @@ export function inwardOffsetEdge(piece, edgeIndex, offsetCm = .75) {
   return edge.map((point, i) => {
     const a = edge[Math.max(0, i - 1)]
     const b = edge[Math.min(edge.length - 1, i + 1)]
-    const length = Math.hypot(b.x - a.x, b.y - a.y) || 1
-    return { x: point.x - sign * (b.y - a.y) / length * offsetCm, y: point.y + sign * (b.x - a.x) / length * offsetCm }
+    return rustPreviewInwardPoint(point,a,b,sign,offsetCm)
   })
 }
 

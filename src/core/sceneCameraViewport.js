@@ -1,7 +1,8 @@
 import * as THREE from 'three'
+import {rustFiniteClamp} from './rustCoreMathKernel.js'
 
 const clamp=(n,lo,hi,fallback)=>Number.isFinite(Number(n))
-  ?Math.max(lo,Math.min(hi,Number(n))):fallback
+  ?rustFiniteClamp(Number(n),lo,hi):fallback
 
 /**
  * Apply persisted CLO-style Camera properties to the real Three.js camera.

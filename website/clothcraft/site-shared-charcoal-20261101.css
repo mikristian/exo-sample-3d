@@ -1,0 +1,14 @@
+/* ClothCraft shared editorial palette: flat charcoal, neutral type, no gradients. */
+:root{color-scheme:dark;--bg:#242424;--bg2:#292929;--panel:#303030;--panel2:#353535;--ink:#e5e5e5;--muted:#a9a9a9;--line:#535353;--blue:#dadada;--blue2:#bbbbbb;--site-bg:#242424;--site-panel:#303030;--site-text:#e5e5e5;--site-muted:#a9a9a9;--site-border:#535353;--brand-bg:#242424;--brand-panel:#303030;--brand-blue:#dedede}
+html,body{background:#242424!important;color:#e5e5e5!important}
+body :where(main,.page-main,.page-hero,.page-section,.page-section-inner,.page-cta,.page-footer,.page-intro,.page-layout,.page-background,.feature-showcase,.feature-intro,.solutions-layout,.mission-section,.investor-section,.support-section,.open-source-section,.about-page,.about-hero,.about-section,.ae-section,.ae-hero,.ae-content,.section-pad){background-color:#242424!important;background-image:none!important;color:#e5e5e5!important}
+body :where(.header,.nav-menu,header.header,.site-header){background:#242424!important;background-image:none!important;border-color:#555!important;color:#e5e5e5!important;backdrop-filter:none!important;box-shadow:none!important}
+body :where(.header a,.header summary,.logo,.nav-menu a,.page-hero h1,.page-section h2,.page-section h3,.page-cta h2,.page-card h3,.page-card h4,.about-hero h1,.about-section h2,.ae-section h2){color:#ececec!important}
+body :where(.page-hero p,.page-section p,.page-card p,.page-cta p,.page-lead,.page-subtitle,.about-section p,.ae-section p){color:#b6b6b6!important}
+body :where(.page-kicker,.section-code,.page-eyebrow,.eyebrow,.page-number,.page-meta,.page-label){color:#a5a5a5!important}
+body :where(.page-card,.page-tile,.page-feature,.page-stat,.page-step,.page-quote,.page-media,.page-panel,.page-highlight,.page-grid-card,.about-card,.ae-card,.ae-panel,.info-card,.feature-card,.feature-tile,.solution-card,.support-card){background:#303030!important;background-image:none!important;border-color:#565656!important;box-shadow:none!important}
+body :where(.page-card:before,.page-card:after,.page-hero:before,.page-hero:after,.page-section:before,.page-section:after,.about-hero:before,.about-hero:after){background-image:none!important}
+body :where(.btn-blue,.nav-download,.page-primary,.page-btn-primary){background:#dedede!important;color:#242424!important;border-color:#dedede!important;box-shadow:none!important}
+body :where(.btn-glass,.nav-start,.page-secondary,.page-btn-secondary){background:transparent!important;color:#e5e5e5!important;border-color:#777!important;box-shadow:none!important;backdrop-filter:none!important}
+body :where(input,select,textarea){background-color:#303030;color:#e5e5e5;border-color:#666}
+body :where(.page-divider,.page-border,.page-rule){border-color:#535353!important}
