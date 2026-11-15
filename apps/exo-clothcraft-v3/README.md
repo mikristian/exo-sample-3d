@@ -4,6 +4,12 @@ V3 is a **separate, early-stage Rust desktop application**. It doesn't replace
 the installed V2 app, edit the V2 source or modify the vendored ClothCraft
 working tree. Its current source is under `apps/exo-clothcraft-v3/`.
 
+## React-first V3 hybrid preview (2026-11-15)
+
+**Working local development preview:** EXO V3 can now launch the original EXO React UI beside a separate authenticated Rust/ClothCraft workspace, without changing the original V2 application or this native egui V3 prototype. See the [hybrid instructions](hybrid/README.md), the [preview builder](hybrid/build-preview.py) and the [live health test](hybrid/verify-preview.py).
+
+This first shell uses **exactly the locally installed V2 React bundle and existing V2 Rust/ClothCraft service**. A verified native Rust exo-session is running, but it does **not yet** move every V2 JavaScript/C++ button handler to Rust or link to this native V3 editor's garment document. The final V3 backend migration and all-button parity remain open work. The preview references the owner's installed V2 resources read-only, uses separate ports 5485/5486 and an isolated workspace on an external drive, and is not a portable production app. The original native Rust V3 application described below continues to coexist unchanged.
+
 ## Run on macOS
 
 From the EXO repository root:
