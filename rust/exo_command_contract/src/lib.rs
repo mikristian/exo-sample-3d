@@ -106,3 +106,6 @@ mod tests {
         }.validate().is_err());
     }
 }
+
+// Stage A shared React -> native Rust command envelope.
+pub mod workspace;

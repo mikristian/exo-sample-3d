@@ -1,0 +1,42 @@
+system_id,priority,name,phase,historical_rust_lines_percent,status,evidence_or_blocker,verified_all_buttons
+EXO-RUST-037,P0,Native Rust engine shared core,A_BACKEND,94.9,PARTIAL_EXISTING_RUST,Rust ClothCraft engine exists; canonical V3 EXO model not unified,NO
+EXO-RUST-001,P0,Project model / source-of-truth,A_BACKEND,1.6,BLOCKED_CANONICAL_MODEL,EXO React JS draft and ClothCraft session may diverge,NO
+EXO-RUST-033,P0,API / processes / transport,A_BACKEND,23.0,IN_PROGRESS_TYPED_BRIDGE,React hook now invokes typed command dispatcher; 4 JS and 10 Rust tests pass,NO
+EXO-RUST-029,P0,Persistence / undo / history / restore,A_BACKEND,4.0,PARTIAL_EXISTING_RUST,"Native document/history linked in tee QA, not full V2 import parity",NO
+EXO-RUST-003,P1,"Curves, freehand and geometry",A_BACKEND,30.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-005,P1,Parametric references / formulas,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-007,P1,Measurements / POM / body charts,A_BACKEND,5.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-002,P1,Drafting primitives and snapping,A_BACKEND,4.8,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-004,P1,Topology / split / unfold / mirror,A_BACKEND,14.6,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-006,P1,Pattern grading / size runs,A_BACKEND,3.5,PARTIAL_EXISTING_RUST,Native six-size grading in real tee QA; all button parity not verified,NO
+EXO-RUST-010,P1,Allowance / notch / cutline,A_BACKEND,4.5,PARTIAL_EXISTING_RUST,"Notches, allowances, cutlines in scoped native tee QA",NO
+EXO-RUST-008,P1,Sewing / seam matching,A_BACKEND,9.0,PARTIAL_EXISTING_RUST,Native seam references present; full UI sewing parity not verified,NO
+EXO-RUST-011,P1,Cloth mesh / tessellation,A_BACKEND,16.9,PARTIAL_EXISTING_RUST,Rust six-size mesh generation exists; full topology parity open,NO
+EXO-RUST-016,P1,Fabric mechanics / materials,A_BACKEND,8.6,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-023,P1,DXF / CAD interop,A_BACKEND,0.3,PARTIAL_EXISTING_RUST,Native DXF exported; receiving CAD approval open,NO
+EXO-RUST-015,P1,Avatar / pose / animation,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-012,P2,Cloth physics and solver,A_BACKEND,3.2,RUST_PHYSICAL_FIT_FAIL,Native CPU solver runs; tee strain and 3D seam closure fail,NO
+EXO-RUST-013,P2,Collision / contact / penetration,A_BACKEND,9.4,PARTIAL_EXPERIMENTAL,Rust contact path exists; fit not certified,NO
+EXO-RUST-014,P2,Garment fit / stage / drape,A_BACKEND,2.9,PHYSICAL_FIT_BLOCKED,Six-size tee physical fit rejected,NO
+EXO-RUST-022,P2,Marker layout / nesting / yield,A_BACKEND,5.2,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-024,P2,SVG / PDF / physical plot,A_BACKEND,2.6,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-025,P2,Factory preflight / measurement QA,A_BACKEND,3.6,PARTIAL_EXISTING_RUST,Native grading QA exists; factory approval open,NO
+EXO-RUST-018,P2,Hardware / fastener / trims,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-027,P2,Techpacks / BOM / specification,A_BACKEND,2.8,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-009,P2,Darts / pleats / facings,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-021,P2,3D export and scene assets,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-030,P2,Libraries / templates / presets,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-039,P2,Workspace commands / tools / preferences,A_THEN_B,4.9,PARTIAL_REACT_RUST_BRIDGE,Native workspace hook connected to typed Rust command route,NO
+EXO-RUST-031,P2,Image digitizing / vision / references,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-034,P2,Collaboration / security / sync,A_BACKEND,17.3,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-036,P2,Native Rust editor / backend UI glue,B_DEFER_UI,0,DEFER_UNTIL_RUST_BACKEND_PASSES,Existing React/macos host remains until Stage A complete,NO
+EXO-RUST-020,P3,Foam / padding / trapunto,A_BACKEND,24.7,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-017,P3,Fabric visuals / textures / PBR,A_BACKEND,14.4,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-019,P3,Garment print graphics / embroidery,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-026,P3,Production packages / factory orders,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-028,P3,Cost / pricing / estimates,A_BACKEND,21.6,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-032,P3,AI assistant / generation / automation,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-035,P3,Diagnostics / performance / misc,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-038,P3,Unclassified JS business logic,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-040,P3,macOS native host / lifecycle,B_DEFER_UI,0.0,DEFER_UNTIL_RUST_BACKEND_PASSES,Existing React/macos host remains until Stage A complete,NO
+EXO-RUST-041,P3,Other backend source,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO

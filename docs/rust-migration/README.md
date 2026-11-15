@@ -14,6 +14,8 @@ The entire hub is based on the public EXO Git source revision `985bc9a8e5031a9fa
 
 Stage A keeps the React UI while handing authoritative controls to EXO Rust and source-pinned ClothCraft; Stage B replaces UI parts progressively with egui/wgpu. The plan has an aggressive 30-day first working milestone, realistic 3–6 month backend and 6–12+ month native UI scenarios, human/AI staffing and safety gates. All 41 phase-tracker statuses start `NOT_AUDITED` until real runtime evidence is collected, not because every module is absent. This planning update neither changes the historical source audit percentages nor claims full migration or accurate physical garment fit.
 
+**Stage A source implementation started (2026-11-15):** [V3 41-system status](EXO_V3_STAGE_A_STATUS_20261115.md), [status CSV](EXO_V3_41_SYSTEM_RUST_STATUS_20261115.csv), [deterministic inventory generator](../../scripts/qa_exo_v3_backend_inventory_20261115.py). Source on physical Jarvis Expansion has a real React request hook linked to a typed dispatcher and a tested Rust schema. This is not full system/button migration and is not installed in the prior hybrid preview yet.
+
 ## Start here
 
 | Resource | Purpose |

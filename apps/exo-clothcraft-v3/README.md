@@ -4,6 +4,17 @@ V3 is a **separate, early-stage Rust desktop application**. It doesn't replace
 the installed V2 app, edit the V2 source or modify the vendored ClothCraft
 working tree. Its current source is under `apps/exo-clothcraft-v3/`.
 
+## Active Phase A conversion — source on Jarvis Expansion
+
+The React-first backend conversion is **underway**, not complete. In the Expansion source checkout, the real React workspace request hook now calls a checked Rust-workspace command dispatcher (strict revision checks, authenticated native transport, malformed command rejection and no JavaScript retry). A parallel Rust command schema is in the EXO-owned exo-command-contract crate, with tests.
+
+- [Current 41-system status and proof limits](../../docs/rust-migration/EXO_V3_STAGE_A_STATUS_20261115.md)
+- [Machine-readable 41-system tracker](../../docs/rust-migration/EXO_V3_41_SYSTEM_RUST_STATUS_20261115.csv)
+- [JavaScript transport unit tests](../../src/core/exoRustCommandDispatch20261115.test.mjs)
+- [Rust native command-contract tests](../../rust/exo_command_contract/src/workspace.rs)
+
+The source changes are not yet deployed into the locally running Mac hybrid. The other EXO React business/C++ functions still need per-button Rust conversion, common garment-document ownership, and real browser/native end-to-end verification. The 2026-11-15 six-size tee physical fit rejection remains open.
+
 ## React-first V3 hybrid preview (2026-11-15)
 
 **Working local development preview:** EXO V3 can now launch the original EXO React UI beside a separate authenticated Rust/ClothCraft workspace, without changing the original V2 application or this native egui V3 prototype. See the [hybrid instructions](hybrid/README.md), the [preview builder](hybrid/build-preview.py) and the [live health test](hybrid/verify-preview.py).
