@@ -24,7 +24,7 @@ import {interpretExoSketchFile20261102} from '../core/exoSketchPatternInterprete
 import {interpretExoGarmentPhotoFile20261102} from '../core/exoGarmentPhotoReference20261102.js'
 import {analyzeLocalGarmentPhotoWithVision20261102,reviewLocalPhotoVision20261102} from '../core/exoLocalPhotoVisionClient20261102.js'
 import ExoCompanionPatternReview20261102 from './ExoCompanionPatternReview20261102.jsx'
-import {EXO_COMPANION_CHARACTER_DEFAULTS_20261102,EXO_COMPANION_CHARACTER_MOVEMENT_OPTIONS_20261102,EXO_COMPANION_CHARACTER_EYE_SHAPE_OPTIONS_20261102,EXO_COMPANION_CHARACTER_IRIS_OPTIONS_20261102,normalizeExoCompanionCharacterPreferences20261102,readExoCompanionCharacterPreferences20261102,saveExoCompanionCharacterPreferences20261102,toExoCompanionCircleEyesSettings20261102} from '../core/exoCompanionCharacterPreferences20261102.js'
+import {EXO_COMPANION_CHARACTER_DEFAULTS_20261102,EXO_COMPANION_CHARACTER_MOVEMENT_OPTIONS_20261102,EXO_COMPANION_CHARACTER_EYE_SHAPE_OPTIONS_20261102,EXO_COMPANION_CHARACTER_IRIS_OPTIONS_20261102,normalizeExoCompanionCharacterPreferences20261102,readExoCompanionCharacterPreferences20261102,saveExoCompanionCharacterPreferences20261102,startExoCompanionCharacterHidden20261114,toExoCompanionCircleEyesSettings20261102} from '../core/exoCompanionCharacterPreferences20261102.js'
 import './ExoAppCharacterAssistant20261102.css'
 
 // Familiar original EXO eyes, with a fluid body and no pointing hand or staged slide tutorial.
@@ -190,7 +190,14 @@ export default function ExoAppCharacterAssistant20261102({
  const [customSteps,setCustomSteps]=useState(['create','inspect','grading','autoGrade','nest'])
  const [stepToAdd,setStepToAdd]=useState('inspect')
  const [celebrating,setCelebrating]=useState(false)
- const [characterSettings,setCharacterSettings]=useState(()=>readExoCompanionCharacterPreferences20261102(typeof window==='undefined'?null:window.localStorage))
+ const [characterSettings,setCharacterSettings]=useState(()=>{
+  const storage=typeof window==='undefined'?null:window.localStorage
+  // The native V2 app opens with its optional assistant character OFF even if
+  // the previous session left it visible. This does not hide the garment avatar.
+  return typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('desktop')==='1'
+   ?startExoCompanionCharacterHidden20261114(storage)
+   :readExoCompanionCharacterPreferences20261102(storage)
+ })
  const [characterPreview,setCharacterPreview]=useState(null)
  const liveCharacterSettings=characterPreview||characterSettings
  const characterSettingsRef=useRef(characterSettings)

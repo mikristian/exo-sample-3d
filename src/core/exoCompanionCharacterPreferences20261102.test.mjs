@@ -8,6 +8,7 @@ import {
   parseExoCompanionCharacterPreferences20261102 as parse,
   readExoCompanionCharacterPreferences20261102 as read,
   saveExoCompanionCharacterPreferences20261102 as save,
+  startExoCompanionCharacterHidden20261114 as startHidden,
   toExoCompanionCircleEyesSettings20261102 as toRenderer,
   addExoCompanionSvgArtwork20261102 as addSvg,
   removeExoCompanionSvgArtwork20261102 as removeSvg,
@@ -15,9 +16,27 @@ import {
 
 test('defaults and supported choices map to CircleEyes',()=>{
   assert.deepEqual(normalize(),defaults)
+  assert.equal(defaults.enabled,false,'new installations must start with the companion hidden')
   assert(shapes.some(({value})=>value==='display-tall'))
   assert.equal(toRenderer(defaults).shape,'display-tall')
   assert.equal(toRenderer(defaults).eyeMode,'independent')
+})
+
+test('every new desktop app launch hides a previously enabled character without clearing its appearance',()=>{
+  const entries=new Map()
+  const storage={getItem:k=>entries.get(k)??null,setItem:(k,v)=>entries.set(k,v)}
+  save({enabled:true,eyeColor:'#123456',movement:'pointer-follow',showTitle:false},storage)
+  const boot=startHidden(storage)
+  assert.equal(boot.enabled,false)
+  assert.equal(boot.eyeColor,'#123456')
+  assert.equal(boot.movement,'pointer-follow')
+  assert.equal(boot.showTitle,false)
+  assert.deepEqual(read(storage),boot)
+  save({...boot,enabled:true},storage)
+  assert.equal(read(storage).enabled,true,'a user can turn the character back on')
+  assert.equal(startHidden(storage).enabled,false,'next desktop launch hides it again')
+  assert.equal(read(storage).eyeColor,'#123456')
+  assert.equal(startHidden({getItem(){throw Error('blocked')},setItem(){throw Error('blocked')}}).enabled,false)
 })
 
 test('accepts genuine user edits and known renderer shape aliases',()=>{

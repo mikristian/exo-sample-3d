@@ -127,7 +127,7 @@ const eyeModifiers=['classic','wide','tall','tilted','petite']
 const knownShapes=new Set([...EXO_COMPANION_CHARACTER_EYE_SHAPE_OPTIONS_20261102.map(({value})=>value),...eyeFamilies.flatMap(family=>eyeModifiers.map(modifier=>`${family}-${modifier}`))])
 const knownIrises=new Set(EXO_COMPANION_CHARACTER_IRIS_OPTIONS_20261102.map(({value})=>value))
 export const EXO_COMPANION_CHARACTER_DEFAULTS_20261102=Object.freeze({
-  enabled:true,
+  enabled:false,
   movement:'roam',
   accessory:'none',
   gem:'none',
@@ -195,6 +195,15 @@ export function saveExoCompanionCharacterPreferences20261102(value,storage=globa
   const settings=normalizeExoCompanionCharacterPreferences20261102(value)
   try{storage?.setItem(EXO_COMPANION_CHARACTER_PREFERENCES_STORAGE_KEY_20261102,JSON.stringify(settings))}catch{}
   return settings
+}
+
+/** Every desktop-app launch starts with the floating EXO character hidden.
+ * Preserve the user's appearance and movement choices; they can turn it back
+ * on through Settings > Character for the current session.
+ */
+export function startExoCompanionCharacterHidden20261114(storage=globalThis?.localStorage){
+  const preferences=readExoCompanionCharacterPreferences20261102(storage)
+  return saveExoCompanionCharacterPreferences20261102({...preferences,enabled:false},storage)
 }
 
 /** Matches CircleEyes renderer's `settings` names; avoids leaking app-only settings. */
