@@ -14,6 +14,12 @@ The public source repository is still named `exo-sample-3d` for historical reaso
 
 **EXO companion default off on desktop launch:** The floating AI character now starts hidden every time the native desktop workspace opens, even when it was left on previously. Settings → Character can show it for the current session, and customized appearance is preserved. The 3D garment avatar is unaffected. See [companion startup QA](docs/reports/EXO_COMPANION_CHARACTER_OFF_AT_LAUNCH_QA_20261114.md). This is a source update and **does not automatically patch the installed personal `.app`**.
 
+## Rust migration research and AI contributor board
+
+**[View the 41-system Rust percentage dashboard](docs/rust-migration/CODE_DASHBOARD.md)** · **[Open the prioritized migration task board](docs/rust-migration/TASK_BOARD.md)** · **[Read the deep 41-system implementation plan](docs/rust-migration/SYSTEM_PLANS.md)** · **[Download the complete research ZIP](docs/rust-migration/EXO_RUST_RESEARCH_PACK_20261114.zip)**
+
+The [research hub](docs/rust-migration/README.md) includes a searchable [HTML dashboard](docs/rust-migration/dashboard.html), source/LOC audit by language, P0–P3 delivery roadmap, Rust↔ClothCraft integration rules, reproducible generator, JSON/CSV source inventories, accepted upstream coordination links, and source/QA limitations. Source-language percentages are **not percentages of feature migration completed**. These are proposed EXO tasks, not claimed upstream ClothCraft issues; upstream work still requires its coordinator to accept a task claim before any contribution. No private CLO3D assets, credentials, application installer or personal project data are included in the research ZIP.
+
 [**Watch the complete 7:24 studio walkthrough**](https://exo-clothcraft-video.vercel.app/) · [**macOS downloads**](#macos-downloads-latest-public-builds) · [**Explore the feature gallery**](#explore-the-application) · [**Run from source**](#quick-start) · [**Development status**](#what-works-and-whats-still-in-development)
 
 ## Watch the full Studio V2 UI walkthrough

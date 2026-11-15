@@ -1,0 +1,42 @@
+rank,issueId,priority,name,phase,sourceLines,rustSourceLines,rustSourcePercent,otherSourcePercent,files,trackedExamples,totalExamples,dependencies,status
+1,EXO-RUST-037,P0,Native Rust engine shared core,F0 Core contracts,471,447,94.9,5.1,7,7,7,,Proposed: no agent claim or verified migration completion
+2,EXO-RUST-001,P0,Project model / source-of-truth,F0 Core contracts,3277,54,1.6,98.4,32,7,7,EXO-RUST-037,Proposed: no agent claim or verified migration completion
+3,EXO-RUST-033,P0,API / processes / transport,F0 Core contracts,7093,1630,23.0,77.0,64,7,7,"EXO-RUST-001,EXO-RUST-037",Proposed: no agent claim or verified migration completion
+4,EXO-RUST-029,P0,Persistence / undo / history / restore,F0 Core contracts,2469,98,4.0,96.0,18,7,7,"EXO-RUST-001,EXO-RUST-033",Proposed: no agent claim or verified migration completion
+5,EXO-RUST-003,P1,"Curves, freehand and geometry",F1 2D CAD,2567,770,30.0,70.0,29,7,7,"EXO-RUST-001,EXO-RUST-033,EXO-RUST-037",Proposed: no agent claim or verified migration completion
+6,EXO-RUST-005,P1,Parametric references / formulas,F1 2D CAD,1493,0,0.0,100.0,10,7,7,"EXO-RUST-001,EXO-RUST-003,EXO-RUST-029",Proposed: no agent claim or verified migration completion
+7,EXO-RUST-007,P1,Measurements / POM / body charts,F1 2D CAD,1865,93,5.0,95.0,19,7,7,"EXO-RUST-001,EXO-RUST-005",Proposed: no agent claim or verified migration completion
+8,EXO-RUST-002,P1,Drafting primitives and snapping,F1 2D CAD,2815,134,4.8,95.2,33,7,7,"EXO-RUST-001,EXO-RUST-003,EXO-RUST-033",Proposed: no agent claim or verified migration completion
+9,EXO-RUST-004,P1,Topology / split / unfold / mirror,F1 2D CAD,1058,154,14.6,85.4,12,7,7,"EXO-RUST-001,EXO-RUST-003,EXO-RUST-029",Proposed: no agent claim or verified migration completion
+10,EXO-RUST-006,P1,Pattern grading / size runs,F1 2D CAD,7408,260,3.5,96.5,62,7,7,"EXO-RUST-001,EXO-RUST-003,EXO-RUST-005,EXO-RUST-007,EXO-RUST-029",Proposed: no agent claim or verified migration completion
+11,EXO-RUST-010,P1,Allowance / notch / cutline,F1 2D CAD,3170,142,4.5,95.5,29,7,7,"EXO-RUST-001,EXO-RUST-003,EXO-RUST-004,EXO-RUST-006",Proposed: no agent claim or verified migration completion
+12,EXO-RUST-008,P1,Sewing / seam matching,F2 Sewing and meshing,3508,316,9.0,91.0,33,7,7,"EXO-RUST-001,EXO-RUST-004,EXO-RUST-006,EXO-RUST-010",Proposed: no agent claim or verified migration completion
+13,EXO-RUST-011,P1,Cloth mesh / tessellation,F2 Sewing and meshing,1161,196,16.9,83.1,19,7,7,"EXO-RUST-001,EXO-RUST-008,EXO-RUST-010",Proposed: no agent claim or verified migration completion
+14,EXO-RUST-016,P1,Fabric mechanics / materials,F3 Simulation and 3D,3052,262,8.6,91.4,30,7,7,"EXO-RUST-001,EXO-RUST-011",Proposed: no agent claim or verified migration completion
+15,EXO-RUST-023,P1,DXF / CAD interop,F5 Factory and exports,11648,33,0.3,99.7,90,7,7,"EXO-RUST-001,EXO-RUST-003,EXO-RUST-006,EXO-RUST-010",Proposed: no agent claim or verified migration completion
+16,EXO-RUST-015,P1,Avatar / pose / animation,F3 Simulation and 3D,794,0,0.0,100.0,11,7,7,EXO-RUST-001,Proposed: no agent claim or verified migration completion
+17,EXO-RUST-012,P2,Cloth physics and solver,F3 Simulation and 3D,15839,505,3.2,96.8,89,7,7,"EXO-RUST-011,EXO-RUST-016,EXO-RUST-033",Proposed: no agent claim or verified migration completion
+18,EXO-RUST-013,P2,Collision / contact / penetration,F3 Simulation and 3D,5157,487,9.4,90.6,54,7,7,"EXO-RUST-011,EXO-RUST-012,EXO-RUST-015",Proposed: no agent claim or verified migration completion
+19,EXO-RUST-014,P2,Garment fit / stage / drape,F3 Simulation and 3D,6460,185,2.9,97.1,53,7,7,"EXO-RUST-001,EXO-RUST-011,EXO-RUST-012,EXO-RUST-013,EXO-RUST-015",Proposed: no agent claim or verified migration completion
+20,EXO-RUST-022,P2,Marker layout / nesting / yield,F5 Factory and exports,4352,226,5.2,94.8,34,7,7,"EXO-RUST-006,EXO-RUST-010,EXO-RUST-023",Proposed: no agent claim or verified migration completion
+21,EXO-RUST-024,P2,SVG / PDF / physical plot,F5 Factory and exports,1473,39,2.6,97.4,18,7,7,"EXO-RUST-010,EXO-RUST-022,EXO-RUST-023",Proposed: no agent claim or verified migration completion
+22,EXO-RUST-025,P2,Factory preflight / measurement QA,F5 Factory and exports,3635,130,3.6,96.4,37,7,7,"EXO-RUST-001,EXO-RUST-006,EXO-RUST-008,EXO-RUST-010,EXO-RUST-023,EXO-RUST-024",Proposed: no agent claim or verified migration completion
+23,EXO-RUST-018,P2,Hardware / fastener / trims,F4 Materials and assets,877,0,0.0,100.0,11,7,7,"EXO-RUST-001,EXO-RUST-008,EXO-RUST-014",Proposed: no agent claim or verified migration completion
+24,EXO-RUST-027,P2,Techpacks / BOM / specification,F5 Factory and exports,7894,218,2.8,97.2,94,7,7,"EXO-RUST-007,EXO-RUST-018,EXO-RUST-022",Proposed: no agent claim or verified migration completion
+25,EXO-RUST-009,P2,Darts / pleats / facings,F2 Sewing and meshing,824,0,0.0,100.0,8,7,7,"EXO-RUST-003,EXO-RUST-004,EXO-RUST-005,EXO-RUST-008",Proposed: no agent claim or verified migration completion
+26,EXO-RUST-021,P2,3D export and scene assets,F4 Materials and assets,351,0,0.0,100.0,5,5,5,"EXO-RUST-001,EXO-RUST-011",Proposed: no agent claim or verified migration completion
+27,EXO-RUST-030,P2,Libraries / templates / presets,F4 Materials and assets,4251,0,0.0,100.0,33,7,7,"EXO-RUST-001,EXO-RUST-007,EXO-RUST-033",Proposed: no agent claim or verified migration completion
+28,EXO-RUST-039,P2,Workspace commands / tools / preferences,"F6 Agents, tools and platform",2208,108,4.9,95.1,35,7,7,"EXO-RUST-029,EXO-RUST-033,EXO-RUST-037",Proposed: no agent claim or verified migration completion
+29,EXO-RUST-031,P2,Image digitizing / vision / references,"F6 Agents, tools and platform",742,0,0.0,100.0,8,7,7,"EXO-RUST-002,EXO-RUST-003,EXO-RUST-033",Proposed: no agent claim or verified migration completion
+30,EXO-RUST-034,P2,Collaboration / security / sync,"F6 Agents, tools and platform",871,151,17.3,82.7,7,7,7,"EXO-RUST-001,EXO-RUST-029,EXO-RUST-033",Proposed: no agent claim or verified migration completion
+31,EXO-RUST-036,P2,Native Rust editor / backend UI glue,F7 Rust-native UI,0,0,0,100,0,0,0,"EXO-RUST-001,EXO-RUST-002,EXO-RUST-029,EXO-RUST-033,EXO-RUST-037",Proposed: no agent claim or verified migration completion
+32,EXO-RUST-020,P3,Foam / padding / trapunto,F4 Materials and assets,570,141,24.7,75.3,5,5,5,"EXO-RUST-008,EXO-RUST-011,EXO-RUST-012,EXO-RUST-016",Proposed: no agent claim or verified migration completion
+33,EXO-RUST-017,P3,Fabric visuals / textures / PBR,F4 Materials and assets,1682,242,14.4,85.6,22,7,7,"EXO-RUST-016,EXO-RUST-021,EXO-RUST-036",Proposed: no agent claim or verified migration completion
+34,EXO-RUST-019,P3,Garment print graphics / embroidery,F4 Materials and assets,405,0,0.0,100.0,1,1,1,"EXO-RUST-001,EXO-RUST-011,EXO-RUST-017,EXO-RUST-027",Proposed: no agent claim or verified migration completion
+35,EXO-RUST-026,P3,Production packages / factory orders,F5 Factory and exports,8746,0,0.0,100.0,69,7,7,"EXO-RUST-022,EXO-RUST-023,EXO-RUST-024,EXO-RUST-025,EXO-RUST-027",Proposed: no agent claim or verified migration completion
+36,EXO-RUST-028,P3,Cost / pricing / estimates,F5 Factory and exports,495,107,21.6,78.4,6,6,6,"EXO-RUST-016,EXO-RUST-022,EXO-RUST-027",Proposed: no agent claim or verified migration completion
+37,EXO-RUST-032,P3,AI assistant / generation / automation,"F6 Agents, tools and platform",3828,0,0.0,100.0,29,7,7,"EXO-RUST-001,EXO-RUST-029,EXO-RUST-033,EXO-RUST-025",Proposed: no agent claim or verified migration completion
+38,EXO-RUST-035,P3,Diagnostics / performance / misc,"F6 Agents, tools and platform",221,0,0.0,100.0,5,5,5,"EXO-RUST-012,EXO-RUST-025,EXO-RUST-033",Proposed: no agent claim or verified migration completion
+39,EXO-RUST-038,P3,Unclassified JS business logic,"F6 Agents, tools and platform",9221,0,0.0,100.0,108,7,7,"EXO-RUST-001,EXO-RUST-033,EXO-RUST-039",Proposed: no agent claim or verified migration completion
+40,EXO-RUST-040,P3,macOS native host / lifecycle,F7 Rust-native UI,3680,0,0.0,100.0,5,5,5,"EXO-RUST-033,EXO-RUST-036,EXO-RUST-037",Proposed: no agent claim or verified migration completion
+41,EXO-RUST-041,P3,Other backend source,"F6 Agents, tools and platform",539,0,0.0,100.0,5,5,5,"EXO-RUST-027,EXO-RUST-033,EXO-RUST-038",Proposed: no agent claim or verified migration completion
