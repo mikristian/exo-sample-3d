@@ -4,6 +4,12 @@ V3 is a **separate, early-stage Rust desktop application**. It doesn't replace
 the installed V2 app, edit the V2 source or modify the vendored ClothCraft
 working tree. Its current source is under `apps/exo-clothcraft-v3/`.
 
+## VectorCraft Rust pen kernel — source milestone (2026-11-15)
+
+The existing React pen now uses a source-built **Rust/WebAssembly preview geometry kernel** when loaded, adapted from the actual original VectorCraft Rust anchor semantics (commit 73f40e3; MIT OR Apache-2.0). The source is under rust/exo_vectorcraft_pen_kernel, binary under public/wasm/exo_vectorcraft_pen_kernel.wasm, and React adapter under src/core/rustVectorcraftPenKernel20261115.js. The live pen toolbar continues to use the existing React canvas. Its final Polygon edit already has a native Rust ClothCraft command; other pen draft operations and browser end-to-end parity remain pending. The JS preview is retained until the Rust module has loaded.
+
+Checks: 7 Rust kernel unit tests, 29 focused VectorCraft JS/WASM regression tests, and actual Rust Polygon commit/Undo/Redo QA, full React production Vite build. For traceability see the existing upstream VectorCraft license notices in public/licenses/vectorcraft and the QA script scripts/qa_exo_v3_native_pen_polygon_20261115.mjs.
+
 ## Active Phase A conversion — source on Jarvis Expansion
 
 The React-first backend conversion is **underway**, not complete. In the Expansion source checkout, the real React workspace request hook now calls a checked Rust-workspace command dispatcher (strict revision checks, authenticated native transport, malformed command rejection and no JavaScript retry). A parallel Rust command schema is in the EXO-owned exo-command-contract crate, with tests.

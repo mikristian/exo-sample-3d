@@ -6,10 +6,13 @@
 // This is a small JavaScript port of the upstream Anchor::with_handles and
 // Anchor::set_handle algorithms, rather than embedding the Rust vector editor.
 // VectorCraft uses absolute document coordinates; EXO uses physical metres.
+import {rustVectorcraftAnchorKind,rustVectorcraftOppositeHandle} from './rustVectorcraftPenKernel20261115.js'
 const finitePoint = p => Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)
 
 export function vectorcraftAnchorKind(p,hIn,hOut) {
   if(![p,hIn,hOut].every(finitePoint))return 'corner'
+  const rust=rustVectorcraftAnchorKind(p,hIn,hOut)
+  if(rust)return rust
   const inX=hIn[0]-p[0],inY=hIn[1]-p[1]
   const outX=hOut[0]-p[0],outY=hOut[1]-p[1]
   const inLength=Math.hypot(inX,inY),outLength=Math.hypot(outX,outY)
@@ -38,6 +41,8 @@ export function setVectorcraftHandle(anchor,out,pos,{independent=false}={}) {
   const moved=out?'hOut':'hIn',other=out?'hIn':'hOut'
   result[moved]=pos.slice()
   if(result.kind==='smooth'){
+    const rust=rustVectorcraftOppositeHandle(result.p,result[other],pos)
+    if(rust){result[other]=rust;return result}
     const length=Math.hypot(result[other][0]-result.p[0],result[other][1]-result.p[1])
     const dx=result.p[0]-pos[0],dy=result.p[1]-pos[1]
     const magnitude=Math.hypot(dx,dy)

@@ -1,0 +1,14 @@
+[package]
+name = "exo_vectorcraft_pen_kernel"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT OR Apache-2.0"
+description = "VectorCraft-derived Rust Pen geometry kernel for EXO"
+[lib]
+crate-type = ["rlib", "cdylib"]
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"

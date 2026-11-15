@@ -8,6 +8,8 @@ DIR=ROOT/'docs/rust-migration'
 CSV=DIR/'EXO_V3_41_SYSTEM_RUST_STATUS_20261115.csv'
 DOC=DIR/'EXO_V3_STAGE_A_STATUS_20261115.md'
 EVIDENCE={
+ '003':('IN_PROGRESS_RUST_PEN_WASM','Rust VectorCraft pen tangent/Bézier/nearest-curve kernel loads in React; other geometry buttons pending'),
+ '002':('PARTIAL_RUST_PEN_PREVIEW','Pen smooth/corner and handle math use source-built Rust/WASM; snapping and other 2D tools need parity'),
  '037':('PARTIAL_EXISTING_RUST','Rust ClothCraft engine exists; canonical V3 EXO model not unified'),
  '001':('BLOCKED_CANONICAL_MODEL','EXO React JS draft and ClothCraft session may diverge'),
  '033':('IN_PROGRESS_TYPED_BRIDGE','React hook now invokes typed command dispatcher; 4 JS and 10 Rust tests pass'),
@@ -56,6 +58,7 @@ def produce():
      'The V3 React Hybrid today launches the exact V2 React interface and V2-derived Rust/ClothCraft exo-session. The separate native egui V3 is not yet the same canonical garment backend.',
      '',
      'New Expansion source change: native React request hook now dispatches through validated command serializer; 4 JavaScript and 10 Rust command-contract tests passed. This source change has not been installed into the already-running V3 hybrid preview.',
+     'New VectorCraft-derived Rust pen kernel: tangent snapping, cubic Bézier evaluation, anchor smooth/corner classification and opposite handle math execute in WASM when the source-built module loads; 7 native Rust tests, 29 focused JavaScript pen regressions, and real Rust Polygon commit/Undo/Redo QA pass. This preserves the original JS preview before WASM startup. The final Polygon edit goes to the native Rust session, but browser pointer-event and full pen system parity are not yet certified.',
      '',
      'Observed static native request calls in ClothCraftWorkspace.jsx: '+str(len(ops))+' occurrences with '+str(len(names))+' distinct literal op names. Dynamic commands and UI events are NOT included, so no total-button count is claimed.',
      '',

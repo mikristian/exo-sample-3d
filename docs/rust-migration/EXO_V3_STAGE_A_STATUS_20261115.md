@@ -9,6 +9,7 @@ No system is currently marked full per-button Rust parity. Existing Rust code, 2
 The V3 React Hybrid today launches the exact V2 React interface and V2-derived Rust/ClothCraft exo-session. The separate native egui V3 is not yet the same canonical garment backend.
 
 New Expansion source change: native React request hook now dispatches through validated command serializer; 4 JavaScript and 10 Rust command-contract tests passed. This source change has not been installed into the already-running V3 hybrid preview.
+New VectorCraft-derived Rust pen kernel: tangent snapping, cubic Bézier evaluation, anchor smooth/corner classification and opposite handle math execute in WASM when the source-built module loads; 7 native Rust tests, 29 focused JavaScript pen regressions, and real Rust Polygon commit/Undo/Redo QA pass. This preserves the original JS preview before WASM startup. The final Polygon edit goes to the native Rust session, but browser pointer-event and full pen system parity are not yet certified.
 
 Observed static native request calls in ClothCraftWorkspace.jsx: 99 occurrences with 46 distinct literal op names. Dynamic commands and UI events are NOT included, so no total-button count is claimed.
 
@@ -22,10 +23,10 @@ Six-size tee Rust physics remains physically rejected (large seam gap/excess str
 | EXO-RUST-001 | P0 | Project model / source-of-truth | BLOCKED_CANONICAL_MODEL |
 | EXO-RUST-033 | P0 | API / processes / transport | IN_PROGRESS_TYPED_BRIDGE |
 | EXO-RUST-029 | P0 | Persistence / undo / history / restore | PARTIAL_EXISTING_RUST |
-| EXO-RUST-003 | P1 | Curves, freehand and geometry | NOT_VERIFIED |
+| EXO-RUST-003 | P1 | Curves, freehand and geometry | IN_PROGRESS_RUST_PEN_WASM |
 | EXO-RUST-005 | P1 | Parametric references / formulas | NOT_VERIFIED |
 | EXO-RUST-007 | P1 | Measurements / POM / body charts | NOT_VERIFIED |
-| EXO-RUST-002 | P1 | Drafting primitives and snapping | NOT_VERIFIED |
+| EXO-RUST-002 | P1 | Drafting primitives and snapping | PARTIAL_RUST_PEN_PREVIEW |
 | EXO-RUST-004 | P1 | Topology / split / unfold / mirror | NOT_VERIFIED |
 | EXO-RUST-006 | P1 | Pattern grading / size runs | PARTIAL_EXISTING_RUST |
 | EXO-RUST-010 | P1 | Allowance / notch / cutline | PARTIAL_EXISTING_RUST |

@@ -1,4 +1,7 @@
+import {rustPenTangent,rustPenCubicAt,rustPenClosestParameter} from './rustVectorcraftPenKernel20261115.js'
 export function penTangent(start, cursor, {shift = false, alt = false, threshold = .002} = {}) {
+  const rust=rustPenTangent(start,cursor,{shift,alt,threshold})
+  if(rust)return rust
   if (alt) return [0, 0]
   const dx = cursor[0] - start[0], dy = cursor[1] - start[1]
   const length = Math.hypot(dx, dy)
@@ -22,6 +25,8 @@ export function penCubicPath(points, tangents, cursor = null) {
 /** VectorCraft-style draft point editing; never modifies committed Rust data. */
 const mix=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]
 export function penCubicAt(a,b,ta=[0,0],tb=[0,0],t=.5){
+  const rust=rustPenCubicAt(a,b,ta,tb,t)
+  if(rust)return rust
   const p1=[a[0]+ta[0],a[1]+ta[1]],p2=[b[0]-tb[0],b[1]-tb[1]]
   const x=mix(a,p1,t),y=mix(p1,p2,t),z=mix(p2,b,t)
   return {p:mix(mix(x,y,t),mix(y,z,t),t),left:mix(x,y,t),right:mix(y,z,t)}
@@ -66,19 +71,24 @@ export function penSegmentAt(points,tangents,pos,tolerance){
   for(let i=0;i<points.length-1;i++){
     const a=points[i],b=points[i+1],ta=tangents[i]||[0,0],tb=tangents[i+1]||[0,0]
     if(![a,b,ta,tb].every(p=>Array.isArray(p)&&p.length===2&&p.every(Number.isFinite)))continue
-    let bestT=.5,best=Infinity
-    for(let k=1;k<64;k++){
-      const t=k/64,p=penCubicAt(a,b,ta,tb,t).p,d=Math.hypot(p[0]-pos[0],p[1]-pos[1])
-      if(d<best){best=d;bestT=t}
+    // All nearest-cubic search math runs in Rust WASM when available;
+    // preserve the established JS preview during asynchronous WASM startup.
+    const nativeT=rustPenClosestParameter(a,b,ta,tb,pos)
+    let bestT=.5,best=Infinity,low,high
+    if(nativeT===null){
+      for(let k=1;k<64;k++){
+        const t=k/64,p=penCubicAt(a,b,ta,tb,t).p,d=Math.hypot(p[0]-pos[0],p[1]-pos[1])
+        if(d<best){best=d;bestT=t}
+      }
+      low=Math.max(.001,bestT-1/64);high=Math.min(.999,bestT+1/64)
+      for(let n=0;n<15;n++){
+        const u=(2*low+high)/3,v=(low+2*high)/3
+        const q=penCubicAt(a,b,ta,tb,u).p,r=penCubicAt(a,b,ta,tb,v).p
+        if(Math.hypot(q[0]-pos[0],q[1]-pos[1])<Math.hypot(r[0]-pos[0],r[1]-pos[1]))high=v
+        else low=u
+      }
     }
-    let low=Math.max(.001,bestT-1/64),high=Math.min(.999,bestT+1/64)
-    for(let n=0;n<15;n++){
-      const u=(2*low+high)/3,v=(low+2*high)/3
-      const q=penCubicAt(a,b,ta,tb,u).p,r=penCubicAt(a,b,ta,tb,v).p
-      if(Math.hypot(q[0]-pos[0],q[1]-pos[1])<Math.hypot(r[0]-pos[0],r[1]-pos[1]))high=v
-      else low=u
-    }
-    const t=(low+high)/2,p=penCubicAt(a,b,ta,tb,t).p,distance=Math.hypot(p[0]-pos[0],p[1]-pos[1])
+    const t=nativeT??(low+high)/2,p=penCubicAt(a,b,ta,tb,t).p,distance=Math.hypot(p[0]-pos[0],p[1]-pos[1])
     if(distance<=tolerance&&(!found||distance<found.distance))found={index:i,t,point:p,distance}
   }
   return found

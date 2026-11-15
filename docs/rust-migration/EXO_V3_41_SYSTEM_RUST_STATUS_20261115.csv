@@ -3,10 +3,10 @@ EXO-RUST-037,P0,Native Rust engine shared core,A_BACKEND,94.9,PARTIAL_EXISTING_R
 EXO-RUST-001,P0,Project model / source-of-truth,A_BACKEND,1.6,BLOCKED_CANONICAL_MODEL,EXO React JS draft and ClothCraft session may diverge,NO
 EXO-RUST-033,P0,API / processes / transport,A_BACKEND,23.0,IN_PROGRESS_TYPED_BRIDGE,React hook now invokes typed command dispatcher; 4 JS and 10 Rust tests pass,NO
 EXO-RUST-029,P0,Persistence / undo / history / restore,A_BACKEND,4.0,PARTIAL_EXISTING_RUST,"Native document/history linked in tee QA, not full V2 import parity",NO
-EXO-RUST-003,P1,"Curves, freehand and geometry",A_BACKEND,30.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-003,P1,"Curves, freehand and geometry",A_BACKEND,30.0,IN_PROGRESS_RUST_PEN_WASM,Rust VectorCraft pen tangent/Bézier/nearest-curve kernel loads in React; other geometry buttons pending,NO
 EXO-RUST-005,P1,Parametric references / formulas,A_BACKEND,0.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
 EXO-RUST-007,P1,Measurements / POM / body charts,A_BACKEND,5.0,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
-EXO-RUST-002,P1,Drafting primitives and snapping,A_BACKEND,4.8,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
+EXO-RUST-002,P1,Drafting primitives and snapping,A_BACKEND,4.8,PARTIAL_RUST_PEN_PREVIEW,Pen smooth/corner and handle math use source-built Rust/WASM; snapping and other 2D tools need parity,NO
 EXO-RUST-004,P1,Topology / split / unfold / mirror,A_BACKEND,14.6,NOT_VERIFIED,"Needs actual UI handler, Rust parity and negative tests",NO
 EXO-RUST-006,P1,Pattern grading / size runs,A_BACKEND,3.5,PARTIAL_EXISTING_RUST,Native six-size grading in real tee QA; all button parity not verified,NO
 EXO-RUST-010,P1,Allowance / notch / cutline,A_BACKEND,4.5,PARTIAL_EXISTING_RUST,"Notches, allowances, cutlines in scoped native tee QA",NO
