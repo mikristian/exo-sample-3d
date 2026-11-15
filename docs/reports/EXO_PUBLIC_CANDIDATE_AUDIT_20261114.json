@@ -1,0 +1,20 @@
+{
+  "adHocCodesignVerified": true,
+  "bundleIdentifier": "com.mikristian.exo.clothcraft.workspace.v2.public-candidate",
+  "genericExpansionBuildPathFileCount": 5,
+  "knownGates": [
+    "exact running-app parity not certified",
+    "clean-machine installation and Apple notarization pending",
+    "WASM and third-party binary provenance/notice review incomplete",
+    "industrial cutter, sample fit and long-run solver parity not certified"
+  ],
+  "localPersonalHomePathFileCount": 0,
+  "nativeExecutableCount": 9,
+  "privateCloMediaFound": 0,
+  "publicInstallerQualified": false,
+  "runtimeFileHashesVerified": 278,
+  "schema": "exo.public-staging-candidate-audit.v1",
+  "selfContainedResourceManifestVerified": true,
+  "sourceRuntimeIdentitySha256": "67be49c461b9a01f7fabb1640aa0d8deff58117abf916a80d149718541d26e69",
+  "wasmFileCount": 59
+}
