@@ -283,8 +283,10 @@ def make_system_plan(dest: Path,tasks:list[dict],stats:dict) -> None:
 
 def make_markdown_dashboard(dest:Path,stats:dict) -> None:
     baseline=stats['baseline'];systems=stats['systems'];code=stats['currentGitProductionSourceAudit']
+    current=code['first_party_scoped_source']
     lines=['# EXO — Rust percentage dashboard (GitHub-readable)','',
-       '**Pinned public source:** `'+stats['exoGitCommit']+'`. **41 mapped systems**; 7,128 of 138,170 mapped backend source lines are Rust (**5.16%**). This is **code-language mix, not 5.16% of the product migrated**. Actual migrated/verified functionality remains **unknown**, not zero or 100.','',
+       '**EXO first-party production-source Rust share: '+format(current['rustSharePercent'],'.2f')+'%** ('+format(current['rustLines'],',')+' of '+format(current['totalProductionSourceLines'],',')+' tracked production-source lines across '+format(current['totalProductionSourceFiles'],',')+' files). **Separate mapped backend Rust share: '+format(baseline['backendMappedRustSharePercent'],'.2f')+'%** (7,128 of 138,170 lines across 41 systems). The denominators differ. Both measure *source language*, not completed functionality.','',
+       '**Pinned public source:** `'+stats['exoGitCommit']+'`. Verified Rust ownership and feature migration completion remain **unknown**, not zero or 100. See [methodology](METHODOLOGY.md) before comparing percentages.','',
        '## System-by-system Rust source share','',
        '| Priority order | Task | System | Rust source mix (visual) | Rust / total mapped LOC |',
        '|---:|---|---|---|---:|']
@@ -322,6 +324,7 @@ def make_markdown_dashboard(dest:Path,stats:dict) -> None:
 
 def make_dashboard(dest:Path,stats:dict) -> None:
     b=stats['baseline'];sys=stats['systems'];by=stats['currentGitProductionSourceAudit']
+    current=by['first_party_scoped_source']
     rows=[]
     for s in sys:
         rows.append('<tr data-priority="'+s['priority']+'" data-search="'+html.escape((s['name']+' '+s['phase']+' '+s['issueId']).lower(),quote=True)+'"><td>'+str(s['rank'])+'</td><td><strong>'+s['priority']+'</strong></td><td><a href="SYSTEM_PLANS.md#sys-'+str(s['id']).zfill(2)+'">'+html.escape(s['issueId'])+'</a></td><td>'+html.escape(s['name'])+'</td><td class="num">'+format(s['sourceLines'],',')+'</td><td class="num">'+format(s['rustSourceLines'],',')+'</td><td class="mix"><span style="--pct:'+str(s['rustSourcePercent'])+'%" class="bar"></span><span>'+format(s['rustSourcePercent'],'.1f')+'%</span></td><td>'+str(len(s['dependencies']))+'</td></tr>')
@@ -344,8 +347,8 @@ header{padding:55px 0 34px;border-bottom:1px solid #293748}small,.muted{color:#a
 footer{margin-top:40px;border-top:1px solid #273448;padding-top:20px;color:#99aabe;font-size:12px}
 </style></head><body><div class="wrap"><header><span class="pill">EXO SOURCE AUDIT • PUBLIC GIT PINNED</span><h1>Rust migration dashboard</h1>
 <p class="muted">41 engineering systems. Dependency-ordered implementation priority. Source-composition evidence, not simulated product readiness.</p></header>
-<div class="grid"><div class="card"><span class="big">41</span><p>audited engineering systems</p></div><div class="card"><span class="big">'''+format(b['backendMappedRustSharePercent'],'.2f')+'''%</span><p>Rust LOC share of legacy mapped backend scope</p></div><div class="card"><span class="big">'''+format(b['backendMappedLines'],',')+'''</span><p>backend source lines in previous system mapping</p></div><div class="card"><span class="big">unverified</span><p>actual functional migration completion</p></div></div>
-<div class="warning"><strong>How to read this:</strong> A system marked 20% Rust means the prior file-mapping counted 20% Rust source lines, NOT 20% functionality migrated. A module may be experimental, unused or unqualified. The upstream Rust engine is tracked separately. Do not treat these numbers as fit certification, tests passed or verified runtime coverage.</div>
+<div class="grid"><div class="card"><span class="big">'''+format(current['rustSharePercent'],'.2f')+'''%</span><p>EXO Rust share of selected first-party production source ('''+format(current['rustLines'],',')+''' / '''+format(current['totalProductionSourceLines'],',')+''' lines)</p></div><div class="card"><span class="big">'''+format(b['backendMappedRustSharePercent'],'.2f')+'''%</span><p>Separate Rust share of legacy mapped backend (7,128 / 138,170 lines)</p></div><div class="card"><span class="big">41</span><p>audited engineering systems</p></div><div class="card"><span class="big">unverified</span><p>actual functional migration completion</p></div></div>
+<div class="warning"><strong>Two independent code measurements:</strong> The headline '''+format(current['rustSharePercent'],'.2f')+'''% is based on '''+format(current['rustLines'],',')+''' / '''+format(current['totalProductionSourceLines'],',')+''' lines across selected tracked first-party production source. The '''+format(b['backendMappedRustSharePercent'],'.2f')+'''% backend figure and the per-system bars use the older 41-system mapping. Their denominators differ, and <strong>neither is an estimate of feature migration completion</strong>. Upstream ClothCraft Rust source is counted separately; screenshots and source files do not prove runtime or industrial readiness.</div>
 <h2>Priority-ranked systems</h2><p class="crit">P0 = safe shared core and transactions; P1 = real 2D→3D workflow; P2 = simulation and industrial integration; P3 = secondary systems and optional Rust-native UI. Tasks are topologically sorted: dependencies always precede dependants.</p>
 <div class="controls"><input id="search" aria-label="Search systems" placeholder="Find system, ID, or phase…"/><select id="prio" aria-label="Priority filter"><option value="all">All priorities</option><option>P0</option><option>P1</option><option>P2</option><option>P3</option></select><span class="muted" id="count"></span></div>
 <div class="tablewrap"><table><thead><tr><th>Order</th><th>Priority</th><th>Task</th><th>System</th><th>Mapped LOC</th><th>Rust LOC</th><th>Rust code share</th><th>Deps</th></tr></thead><tbody>'''+''.join(rows)+'''</tbody></table></div>

@@ -4,6 +4,8 @@
 
 The entire hub is based on the public EXO Git source revision `985bc9a8e5031a9fa02666a44390802aff8e04ce`. It does not publish private CLO3D garments/assets, user projects, local machine home paths, application installers or secrets. This is a **planning and measurement resource**, not proof that every subsystem is migrated or externally certified.
 
+**Current measured first-party Rust source share: 9.30%** (24,046 Rust lines out of 258,496 tracked production-source lines). **The older mapped-backend scope remains 5.16%.** Those are different code populations; neither is a percentage of features completed or proven to run in Rust.
+
 ## Start here
 
 | Resource | Purpose |
@@ -24,9 +26,9 @@ The entire hub is based on the public EXO Git source revision `985bc9a8e5031a9fa
 | Metric | Evidence-based value |
 |---|---:|
 | Engineering systems mapped in previous audit | **41** |
+| Git-tracked first-party production source in a broader, separate scope | **258,496 lines**, of which **24,046 (9.30%)** are Rust |
 | Prior backend *mapped code lines* | **138,170** |
 | Prior mapped backend Rust lines | **7,128 (5.16%)** |
-| Git-tracked first-party production source in a broader, separate scope | **258,496 lines**, of which **24,046 (9.30%)** are Rust |
 | Upstream-derived ClothCraft Rust source, **not** included in first-party count | **33,918 lines** |
 | React/CSS Rust-native share in the prior separate UI counting scope | **0%** |
 | Functional migration completion or exact installed-app parity | **Not independently measurable as a percentage** |

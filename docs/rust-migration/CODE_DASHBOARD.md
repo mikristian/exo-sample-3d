@@ -1,6 +1,8 @@
 # EXO — Rust percentage dashboard (GitHub-readable)
 
-**Pinned public source:** `985bc9a8e5031a9fa02666a44390802aff8e04ce`. **41 mapped systems**; 7,128 of 138,170 mapped backend source lines are Rust (**5.16%**). This is **code-language mix, not 5.16% of the product migrated**. Actual migrated/verified functionality remains **unknown**, not zero or 100.
+**EXO first-party production-source Rust share: 9.30%** (24,046 of 258,496 tracked production-source lines across 1,753 files). **Separate mapped backend Rust share: 5.16%** (7,128 of 138,170 lines across 41 systems). The denominators differ. Both measure *source language*, not completed functionality.
+
+**Pinned public source:** `985bc9a8e5031a9fa02666a44390802aff8e04ce`. Verified Rust ownership and feature migration completion remain **unknown**, not zero or 100. See [methodology](METHODOLOGY.md) before comparing percentages.
 
 ## System-by-system Rust source share
 
