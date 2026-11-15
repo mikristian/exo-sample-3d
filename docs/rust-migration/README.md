@@ -6,6 +6,8 @@ The entire hub is based on the public EXO Git source revision `985bc9a8e5031a9fa
 
 **Current measured first-party Rust source share: 9.30%** (24,046 Rust lines out of 258,496 tracked production-source lines). **The older mapped-backend scope remains 5.16%.** Those are different code populations; neither is a percentage of features completed or proven to run in Rust.
 
+**New four-piece six-size native acceptance checkpoint:** [read the 2026-11-15 real tee QA report](../reports/EXO_FOUNDATION_TEE_SIX_SIZE_E2E_QA_20261115.md). Rust grade, sewing/size meshes, 3-step CPU smokes and cold persisted Undo/Redo work, but physical seam closure/strain and external factory approval **fail**. Historical 9.30% source-mix charts remain pinned to their earlier documented Git snapshot, not this new source revision.
+
 ## Start here
 
 | Resource | Purpose |

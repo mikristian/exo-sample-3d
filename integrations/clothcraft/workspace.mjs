@@ -10,6 +10,35 @@ import {assertNativeAvatarPersistence} from './avatarPersistenceContract.mjs'
 import {nativeWorkspaceSummary20261030} from './nativeWorkspaceSummary20261030.mjs'
 import {beginNativeMirrorSave20261030,commitNativeMirrorSave20261030,recoverNativeMirror20261030,abortUnchangedNativeMirrorSave20261030} from './nativeMirrorTransaction20261030.mjs'
 import {fileURLToPath} from 'node:url'
+import {attachSourceTeeCutMetadata20261115} from './sourceTeeCutMetadata20261115.mjs'
+import {stageFoundationTeeOffbody20261115} from './foundationTeeOffbodyStaging20261115.mjs'
+import {isDeepStrictEqual} from 'node:util'
+
+// An explicitly reopened copy of the current saved document can become stale
+// while backupBeforeProjectSwitch() commits a new native generation. Rebase
+// ONLY when the caller supplied the exact file-backed project. Any different,
+// stale or forged project still reaches the Rust linked-history verifier, which
+// refuses to open it without its exact matching Undo/Redo journal.
+export function rebaseExactSameNativeProject20261115(requested,beforeBackup,afterBackup){
+ if (!requested || !beforeBackup || !isDeepStrictEqual(requested,beforeBackup)) return requested
+ const old=beforeBackup.native_commit, next=afterBackup?.native_commit
+ if (!old || !next || old.schema_version!==1 || next.schema_version!==1 ||
+     typeof old.project_id!=='string' || old.project_id!==next.project_id ||
+     !Number.isSafeInteger(old.generation) || !Number.isSafeInteger(next.generation) ||
+     next.generation<=old.generation)
+  throw Error('Native same-project reopen lost durable identity while preserving current garment')
+ // Backup/save is allowed to advance the commit generation and simulation
+ // cache, but MUST NOT replace any authored document field. If current edits
+ // or a different garment appeared, do not silently promote the stale input.
+ const authored=project=>{
+  const source=structuredClone(project)
+  delete source.native_commit;delete source.state;delete source.mesh_signature
+  return source
+ }
+ if (!isDeepStrictEqual(authored(beforeBackup),authored(afterBackup)))
+  throw Error('Native same-project reopen detected authored fields changed during backup')
+ return afterBackup
+}
 import {exoCc0Avatar20261102,EXO_CC0_AVATAR_MODELS_20261102} from '../../src/data/exoAvatarLibrary20261102.js'
 export const chooseNativeGpuPhysics=(env,capabilities)=>
  env.EXO_CLOTHCRAFT_GPU==='1' &&
@@ -328,14 +357,33 @@ export function createWorkspace(outputRoot) {
     liveGrab=null
     // Saving plus archiving happens while the native worker is paused and the
     // request mutex is held. A failed backup cancels the switch altogether.
+    // Capture the last authoritative native project before the switch backup.
+    // The backup saves a fresh generation; an otherwise exact same-project
+    // reopen must use that newly committed generation and matching journal.
+    let nativeBeforeSwitch=null
+    if (loaded && data.op==='open' && data.project && fs.existsSync(saveFile+'.native')) {
+     nativeBeforeSwitch=JSON.parse(fs.readFileSync(saveFile+'.native','utf8'))
+    }
     const previousProjectBackup=loaded&&data.op==='open'
      ? await backupBeforeProjectSwitch() : null
     // Load the *actual current collider* on every new garment/session. The
     // same mesh drives both the Three.js avatar and its 2D SVG silhouette.
     // Never keep a previous model's outline after an Open/avatar change.
     let initial={op:'open',preset:data.preset||'tshirt',avatar:true}
-    if(data.document)initial.template=nativeExport(data.document,paths().cli).template
-    else if(data.project)initial.project=data.project
+    if(data.document){
+     // Explicitly opt-in to a neutral-avatar initial garment position. Never
+     // modify the original document, and never silently replace a saved pose.
+     if(data.initialPlacementPreset!==undefined && data.initialPlacementPreset!=='offbody-foundation-tee')
+      throw Error('Unsupported initial placement preset')
+     const source=data.initialPlacementPreset==='offbody-foundation-tee'
+      ?stageFoundationTeeOffbody20261115(data.document).document:data.document
+     const draft=nativeExport(source,paths().cli)
+     initial.template=attachSourceTeeCutMetadata20261115(source,draft.template).template
+    }else if(data.initialPlacementPreset!==undefined)throw Error('Initial pose preset requires a new editable EXO document')
+    else if(data.project)initial.project=nativeBeforeSwitch
+     ? rebaseExactSameNativeProject20261115(data.project,nativeBeforeSwitch,
+       JSON.parse(fs.readFileSync(saveFile+'.native','utf8')))
+     : data.project
     else if(data.op!=='open'&&fs.existsSync(saveFile))initial.project=JSON.parse(fs.readFileSync(saveFile,'utf8'))
     let opened=await rpc(initial)
     if(opened.ok)opened=await bindMetadata(opened,

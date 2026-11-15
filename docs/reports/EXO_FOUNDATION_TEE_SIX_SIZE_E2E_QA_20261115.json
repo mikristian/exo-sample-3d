@@ -1,0 +1,434 @@
+{
+  "actualSourceFourPieceTee": true,
+  "allSixThreeStepCpuSmokesPassed": true,
+  "artifact": "Foundation Tee production-development block",
+  "blockers": [
+    "physical fit sample",
+    "fabric wash/shrink measurement",
+    "independent AAMA/ASTM CAD receiver",
+    "neckband cut pattern",
+    "external cutter approval",
+    "Despite CPU steps succeeding, measured seam gap/stretch exceed provisional engineering quality limits: see per-size three-frame metrics",
+    "Generic C++ exporter omits physical notch and allowance metadata (workspace adapts numeric stations/allowances only); double-notch type and external receiving remain blocked"
+  ],
+  "boundedEngineeringWorkflowPass": true,
+  "cutterReleaseApproved": false,
+  "engineeringWorkflowPass": true,
+  "fixturesAreIndependentDrafts": false,
+  "fullWorkflowFactoryApproved": false,
+  "industrialCadReceiverApproved": false,
+  "nativeCadSha256": "bedbb88b8ac16ea79adbe347c8aa7a676ee2d0c33657a33017f0a3914a965067",
+  "nativeConversionLossIsBlocking": true,
+  "nativeSessionSha256": "17d4024ac1d3ca5d97ee83babf5b5f2727853150ccc6691c1f44b7b1db1fff81",
+  "physicalSampleCertified": false,
+  "productionAccuracyVerified": false,
+  "productionReleaseBlocked": true,
+  "provisionalPhysicsQualityGatesPassed": false,
+  "qualityClaim": "ENGINEERING QA ONLY; physical fit, independent receiver DXF and factory certification not proven",
+  "schema": "exo.foundation-tee-six-size-acceptance.v1",
+  "sizes": [
+    "XS",
+    "S",
+    "M",
+    "L",
+    "XL",
+    "XXL"
+  ],
+  "steps": [
+    {
+      "pairedNotchGroups": 4,
+      "patternPieces": 4,
+      "seams": 14,
+      "stage": "source-tee",
+      "status": "PASS"
+    },
+    {
+      "gradedSizes": 6,
+      "pomCsvSha256": "d72f76c95cc2e80f2ca3f830e7498bea15ca8d268355bf037b0578943560a779",
+      "readings": [
+        {
+          "bodyLengthCm": 68.6,
+          "chestHalfCm": 47.98,
+          "constructionDxfSha256": "08a249240d6cad91942a1ba7c2f607cf51b8216d75254f77822a2fb9a79583e8",
+          "dxfBytes": 37594,
+          "dxfSha256": "a4a469fd78e34dc4fa04bc5c9b16d55abe62c03cc4eae613a788a142fe9ed8f5",
+          "seamMismatchPercent": 0,
+          "size": "XS"
+        },
+        {
+          "bodyLengthCm": 69.8,
+          "chestHalfCm": 50.98,
+          "constructionDxfSha256": "eda8e74c1f8e1764bad7626f405a2c203c8e508a378c55b99af812457fecadc6",
+          "dxfBytes": 37237,
+          "dxfSha256": "0163d0250465b5f810457823f843a47dfb9cd7ae3f90823428c67d32adf7a6fd",
+          "seamMismatchPercent": 0,
+          "size": "S"
+        },
+        {
+          "bodyLengthCm": 71,
+          "chestHalfCm": 53.98,
+          "constructionDxfSha256": "e0b967711b3693701b2bd76a34a8a491bf47d364df17022aa9eaff5588169d3e",
+          "dxfBytes": 35135,
+          "dxfSha256": "2ff11e2cd49b896f6e3995cb436869f75124da8088073a299168d368d6eaa3c9",
+          "seamMismatchPercent": 0.1124,
+          "size": "M"
+        },
+        {
+          "bodyLengthCm": 72.2,
+          "chestHalfCm": 56.97,
+          "constructionDxfSha256": "5559dc744c7f8ab6b95113775de5ca4d1a8f07c58dd04dd6292b9ad73ca9acf4",
+          "dxfBytes": 37226,
+          "dxfSha256": "895bdd49649cd6cf28dd9b68cda5b9f2c5842195f2411f5ad0d1f8923adef5c3",
+          "seamMismatchPercent": 0,
+          "size": "L"
+        },
+        {
+          "bodyLengthCm": 73.4,
+          "chestHalfCm": 59.97,
+          "constructionDxfSha256": "3991c1edba32be3bfbc4376beac439bfe7858e0d6153817664cd1ae421865aa5",
+          "dxfBytes": 37511,
+          "dxfSha256": "dbae07d31bdbd3c4b043b3a2e7a4337edfd75175b41e7562ec9dfeb41183ef9e",
+          "seamMismatchPercent": 0,
+          "size": "XL"
+        },
+        {
+          "bodyLengthCm": 74.6,
+          "chestHalfCm": 62.97,
+          "constructionDxfSha256": "e25a01cd18e596a8addf244c4e25356126669a31c0c815563b13bd8aa7851b0a",
+          "dxfBytes": 37728,
+          "dxfSha256": "aca4979b617d612a28846fc4d437798f322277d2c102897cb916648d26000cbd",
+          "seamMismatchPercent": 0,
+          "size": "XXL"
+        }
+      ],
+      "receiverCertified": false,
+      "stage": "EXO-pattern-grade-and-export",
+      "status": "PASS",
+      "techPackConstructions": 14,
+      "techPackPatternPieces": 4
+    },
+    {
+      "initialPlacement": "opt-in-offbody-foundation-tee",
+      "nativePanels": 4,
+      "nativeSeams": 14,
+      "stage": "Rust-4-panel-mesh",
+      "status": "PASS",
+      "triangles": 3619
+    },
+    {
+      "doubleNotchTypesPreserved": false,
+      "nativeAllowances": 38,
+      "nativeNotches": 8,
+      "physicalCutReceiverApproved": false,
+      "stage": "Rust-source-CUT-metadata",
+      "status": "PASS"
+    },
+    {
+      "cutlineSizes": 6,
+      "manufacturingApproved": false,
+      "sizes": [
+        {
+          "maxSeamMismatchMm": 1.884,
+          "seams": 14,
+          "size": "XS"
+        },
+        {
+          "maxSeamMismatchMm": 1.88,
+          "seams": 14,
+          "size": "S"
+        },
+        {
+          "maxSeamMismatchMm": 0.119,
+          "seams": 14,
+          "size": "M"
+        },
+        {
+          "maxSeamMismatchMm": 2.013,
+          "seams": 14,
+          "size": "L"
+        },
+        {
+          "maxSeamMismatchMm": 2.61,
+          "seams": 14,
+          "size": "XL"
+        },
+        {
+          "maxSeamMismatchMm": 3.203,
+          "seams": 14,
+          "size": "XXL"
+        }
+      ],
+      "sourceWarnings": [
+        "Not represented in ClothCraft template: avatar geometry/measurements",
+        "Not represented in ClothCraft v2: bindings",
+        "Not represented in ClothCraft v2: edgeSeamAllowances",
+        "Not represented in ClothCraft v2: graded sizes",
+        "Not represented in ClothCraft v2: notches",
+        "Not represented in ClothCraft v2: seam allowances",
+        "Not represented in ClothCraft v2: topstitches",
+        "PREVIEW ONLY: anatomical panel placement is an initial pose, not a certified avatar fit or simulation-ready assembly",
+        "Source project remains authoritative; ClothCraft cannot round-trip all production metadata",
+        "Uncalibrated material stiffness: ClothCraft reference coefficients used; density/thickness transferred",
+        "Unequal sewn-edge lengths: allow_ease set, but ClothCraft has no physical gathering model"
+      ],
+      "stage": "Rust-six-size-sewing-and-cutlines",
+      "status": "PASS"
+    },
+    {
+      "gradeCatalogRemovedByUndo": true,
+      "gradeCatalogRestoredByRedo": true,
+      "stage": "Rust-Undo-Redo",
+      "staleRevisionRejected": true,
+      "status": "PASS"
+    },
+    {
+      "allSixMeshesCompiled": true,
+      "allSixProvisionalPhysicsQualityGatesPassed": false,
+      "allSixThreeStepCpuSmokesPassed": true,
+      "fullMultiframePhysicalFitCertified": false,
+      "previews": [
+        {
+          "physics": {
+            "frames": [
+              {
+                "frame": 1,
+                "maxSeamGapMm": 1123.135,
+                "minimumDistanceMm": 0.086,
+                "p95ExtensionPercent": 21.209,
+                "peakExtensionPercent": 255.785,
+                "timeMs": 16.667
+              },
+              {
+                "frame": 2,
+                "maxSeamGapMm": 1108.991,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 70.586,
+                "peakExtensionPercent": 327.97,
+                "timeMs": 33.333
+              },
+              {
+                "frame": 3,
+                "maxSeamGapMm": 1106.677,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 101.671,
+                "peakExtensionPercent": 439.643,
+                "timeMs": 50
+              }
+            ],
+            "provisionalQualityGates": {
+              "maxSeamGapMm": 10,
+              "pass": false,
+              "peakExtensionPercent": 30
+            },
+            "threeStepSmokeSucceeded": true
+          },
+          "size": "XS",
+          "triangles": 3173
+        },
+        {
+          "physics": {
+            "frames": [
+              {
+                "frame": 1,
+                "maxSeamGapMm": 1121.969,
+                "minimumDistanceMm": 0.186,
+                "p95ExtensionPercent": 19.855,
+                "peakExtensionPercent": 245.117,
+                "timeMs": 16.667
+              },
+              {
+                "frame": 2,
+                "maxSeamGapMm": 1107.453,
+                "minimumDistanceMm": 0.013,
+                "p95ExtensionPercent": 69.941,
+                "peakExtensionPercent": 292.216,
+                "timeMs": 33.333
+              },
+              {
+                "frame": 3,
+                "maxSeamGapMm": 1106.286,
+                "minimumDistanceMm": 0.001,
+                "p95ExtensionPercent": 102.794,
+                "peakExtensionPercent": 330.048,
+                "timeMs": 50
+              }
+            ],
+            "provisionalQualityGates": {
+              "maxSeamGapMm": 10,
+              "pass": false,
+              "peakExtensionPercent": 30
+            },
+            "threeStepSmokeSucceeded": true
+          },
+          "size": "S",
+          "triangles": 3390
+        },
+        {
+          "physics": {
+            "frames": [
+              {
+                "frame": 1,
+                "maxSeamGapMm": 1136.8,
+                "minimumDistanceMm": 0.207,
+                "p95ExtensionPercent": 20.257,
+                "peakExtensionPercent": 211.296,
+                "timeMs": 16.667
+              },
+              {
+                "frame": 2,
+                "maxSeamGapMm": 1112.53,
+                "minimumDistanceMm": 0.001,
+                "p95ExtensionPercent": 65.878,
+                "peakExtensionPercent": 310.897,
+                "timeMs": 33.333
+              },
+              {
+                "frame": 3,
+                "maxSeamGapMm": 1082.126,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 99.082,
+                "peakExtensionPercent": 338.827,
+                "timeMs": 50
+              }
+            ],
+            "provisionalQualityGates": {
+              "maxSeamGapMm": 10,
+              "pass": false,
+              "peakExtensionPercent": 30
+            },
+            "threeStepSmokeSucceeded": true
+          },
+          "size": "M",
+          "triangles": 3619
+        },
+        {
+          "physics": {
+            "frames": [
+              {
+                "frame": 1,
+                "maxSeamGapMm": 1132.305,
+                "minimumDistanceMm": 0.057,
+                "p95ExtensionPercent": 19.184,
+                "peakExtensionPercent": 220.007,
+                "timeMs": 16.667
+              },
+              {
+                "frame": 2,
+                "maxSeamGapMm": 1109.918,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 61.254,
+                "peakExtensionPercent": 377.287,
+                "timeMs": 33.333
+              },
+              {
+                "frame": 3,
+                "maxSeamGapMm": 1099.019,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 94.141,
+                "peakExtensionPercent": 438.284,
+                "timeMs": 50
+              }
+            ],
+            "provisionalQualityGates": {
+              "maxSeamGapMm": 10,
+              "pass": false,
+              "peakExtensionPercent": 30
+            },
+            "threeStepSmokeSucceeded": true
+          },
+          "size": "L",
+          "triangles": 3893
+        },
+        {
+          "physics": {
+            "frames": [
+              {
+                "frame": 1,
+                "maxSeamGapMm": 1142.249,
+                "minimumDistanceMm": 0.013,
+                "p95ExtensionPercent": 18.12,
+                "peakExtensionPercent": 251.064,
+                "timeMs": 16.667
+              },
+              {
+                "frame": 2,
+                "maxSeamGapMm": 1130.071,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 61.478,
+                "peakExtensionPercent": 336.374,
+                "timeMs": 33.333
+              },
+              {
+                "frame": 3,
+                "maxSeamGapMm": 1128.089,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 97.52,
+                "peakExtensionPercent": 432.256,
+                "timeMs": 50
+              }
+            ],
+            "provisionalQualityGates": {
+              "maxSeamGapMm": 10,
+              "pass": false,
+              "peakExtensionPercent": 30
+            },
+            "threeStepSmokeSucceeded": true
+          },
+          "size": "XL",
+          "triangles": 4045
+        },
+        {
+          "physics": {
+            "frames": [
+              {
+                "frame": 1,
+                "maxSeamGapMm": 1146.447,
+                "minimumDistanceMm": 0.075,
+                "p95ExtensionPercent": 16.921,
+                "peakExtensionPercent": 241.845,
+                "timeMs": 16.667
+              },
+              {
+                "frame": 2,
+                "maxSeamGapMm": 1131.592,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 56.997,
+                "peakExtensionPercent": 372.84,
+                "timeMs": 33.333
+              },
+              {
+                "frame": 3,
+                "maxSeamGapMm": 1124.005,
+                "minimumDistanceMm": 0,
+                "p95ExtensionPercent": 92.524,
+                "peakExtensionPercent": 402.35,
+                "timeMs": 50
+              }
+            ],
+            "provisionalQualityGates": {
+              "maxSeamGapMm": 10,
+              "pass": false,
+              "peakExtensionPercent": 30
+            },
+            "threeStepSmokeSucceeded": true
+          },
+          "size": "XXL",
+          "triangles": 4308
+        }
+      ],
+      "stage": "Rust-3D-six-size-preview",
+      "status": "PASS"
+    },
+    {
+      "exactSourceAndSeamAuditPreserved": true,
+      "nativeGradeRunSurvived": true,
+      "nativeProjectGeneration": 20,
+      "persistedRedoAfterColdReopen": true,
+      "persistedUndoAfterColdReopen": true,
+      "separateRustChildColdReopenPassed": true,
+      "stage": "Rust-linked-save-and-reopen",
+      "status": "PASS"
+    }
+  ],
+  "stepsPassed": 8
+}

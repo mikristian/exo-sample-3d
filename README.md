@@ -14,6 +14,10 @@ The public source repository is still named `exo-sample-3d` for historical reaso
 
 **EXO companion default off on desktop launch:** The floating AI character now starts hidden every time the native desktop workspace opens, even when it was left on previously. Settings → Character can show it for the current session, and customized appearance is preserved. The 3D garment avatar is unaffected. See [companion startup QA](docs/reports/EXO_COMPANION_CHARACTER_OFF_AT_LAUNCH_QA_20261114.md). This is a source update and **does not automatically patch the installed personal `.app`**.
 
+## Six-size Foundation Tee: engineering acceptance checkpoint (2026-11-15)
+
+**[Real four-piece XS–XXL Rust workflow QA](docs/reports/EXO_FOUNDATION_TEE_SIX_SIZE_E2E_QA_20261115.md)**: the original EXO four-piece tee and 14 seams now pass six distinct native Rust size grades, CUT/notch/allowance audits, per-size 3D mesh generation, three CPU physics steps per size, Undo/Redo and a separate Rust-process cold save/reopen. **Production-grade fit still fails:** the measured 3D seam gap remains over one metre and fabric extension is excessive. A physical sample, independent manufacturing DXF/cutter check, neckband cut pattern and cloth solver quality gates remain open; no installed private app was changed. [Machine-readable test report](docs/reports/EXO_FOUNDATION_TEE_SIX_SIZE_E2E_QA_20261115.json).
+
 ## Rust migration research and AI contributor board
 
 **[View the 41-system Rust percentage dashboard](docs/rust-migration/CODE_DASHBOARD.md)** · **[Open the prioritized migration task board](docs/rust-migration/TASK_BOARD.md)** · **[Read the deep 41-system implementation plan](docs/rust-migration/SYSTEM_PLANS.md)** · **[Download the complete research ZIP](docs/rust-migration/EXO_RUST_RESEARCH_PACK_20261114.zip)**
