@@ -20,8 +20,9 @@ default. To upgrade V3 while keeping a timestamped backup of the old app,
 use `bash apps/exo-clothcraft-v3/install-macos.sh --backup-existing`.
 An already-running V3 process is not force-quit, to avoid losing unsaved work;
 use `open -n -a "$HOME/Applications/EXO ClothCraft Studio V3.app"` to launch
-the new installed build alongside it if necessary. The installer copies
-upstream MIT and EXO GPL license notices. The build is local, ad-hoc-signed
+the new installed build alongside it if necessary. The historical installed build copied
+upstream MIT and EXO GPL notices; new source-built releases must include the
+current EXO first-party MIT license and preserve third-party notices. The build is local, ad-hoc-signed
 and **not notarized for public distribution**.
 
 The binary is a genuine `eframe`/`egui` native desktop app (not Electron,
@@ -60,10 +61,11 @@ Do not use this prototype to replace your existing EXO project files.
 ## Why this is a new app instead of a wholesale Git merge
 
 The local ClothCraft fork contains substantial uncommitted custom Rust work
-and follows an older upstream baseline. Updating it in place or copying all
-of EXO's GPL-covered files into MIT upstream would be unsafe. V3 links to
-that code without mutating it. ClothCraft retains its MIT attribution and
-original license; new EXO V3 code is GPL-3.0-only.
+and follows an older upstream baseline. Updating it in place or copying unreviewed
+third-party/legacy GPL-only sources into MIT upstream would be unsafe. V3 links
+to that code without mutating it. ClothCraft retains its original license and
+attribution; EXO-owned new V3 source is now MIT, with third-party and historical
+licenses preserved.
 
 ## Migration acceptance order
 

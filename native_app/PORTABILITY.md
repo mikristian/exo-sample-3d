@@ -37,7 +37,7 @@ The **project file** is the source of truth, never a GLB, Blender scene or propr
 
 ## Open-source release requirements
 
-- **License selected: GPL-3.0-only.** The repository now contains a root `LICENSE`; public distribution still requires ownership, third-party, proprietary-asset, history and notice clearance. A contributor license cannot be inferred.
+- **Current first-party license: MIT.** Earlier GPL-3.0-only releases retain their old grants. The root `LICENSE` does not replace third-party licenses, and public builds still require dependency, proprietary-asset, history, copyright and notice checks.
 - Create `THIRD_PARTY_NOTICES.md`, SPDX identifiers, SBOM, source archives, reproducible release tags, security policy, CI and a public issue tracker. Review Qt LGPL/commercial requirements, CGAL module licenses, third-party physics libraries and the Blender bridge separately.
 - Exclude all CLO exports, third-party clothing meshes, proprietary avatar textures, personal files, generated private artifacts, keys, local paths and credentials from the public repository. User-owned CLO data can be imported locally under the user's rights; it must not be shipped as a public example.
 - Avoid hard dependencies on CLO, Adobe, a particular Mac, a proprietary GPU, or a hosted service. Integration connectors should be optional modules with graceful offline fallback.

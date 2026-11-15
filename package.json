@@ -1,5 +1,6 @@
 {
   "name": "exo-sample-3d",
+  "license": "MIT",
   "private": true,
   "version": "0.1.0",
   "type": "module",

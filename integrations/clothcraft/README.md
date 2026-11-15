@@ -1,6 +1,6 @@
 # EXO × ClothCraft — personal integration branch
 
-This integration lives on the separate `integration/clothcraft-private` branch. The canonical EXO worktree and the upstream ClothCraft contribution branch are independent. ClothCraft remains upstream MIT-licensed software; EXO's original files remain GPL-3.0-only. The bridge preserves source EXO projects and runs ClothCraft's actual CPU Rust utilities as separate processes, after generating compatible template JSON using EXO's existing native C++ exporter.
+This integration lives on the separate `integration/clothcraft-private` branch. The canonical EXO worktree and the upstream ClothCraft contribution branch are independent. ClothCraft remains independently MIT-licensed upstream software; EXO-owned original code is now offered under MIT as well, while earlier GPL-3.0-only distributions retain their prior terms. Third-party software remains independently licensed. The bridge preserves source EXO projects and runs ClothCraft's actual CPU Rust utilities as separate processes, after generating compatible template JSON using EXO's existing native C++ exporter.
 
 ## Separate native ClothCraft.app (macOS)
 

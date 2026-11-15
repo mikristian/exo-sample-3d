@@ -2,7 +2,7 @@
 
 ## What this publication is
 
-The **EXO Sample 3D** GitHub source is a GPL-3.0-only research/development release: first-party browser garment-CAD code, reproducible tests, optional native/PPF adapters, documentation, current UI captures and the full V16 promotional film. It is **not** a stable industrial pattern-CAD certification, commercial manufacturing approval or guarantee of correct garment fitting.
+The **EXO Sample 3D** GitHub first-party original source is an MIT-licensed research/development release (historical copies were GPL-3.0-only; third-party files retain their own terms): first-party browser garment-CAD code, reproducible tests, optional native/PPF adapters, documentation, current UI captures and the full V16 promotional film. It is **not** a stable industrial pattern-CAD certification, commercial manufacturing approval or guarantee of correct garment fitting.
 
 ### Acceptance categories
 
@@ -16,7 +16,7 @@ The **EXO Sample 3D** GitHub source is a GPL-3.0-only research/development relea
 | Native XPBD/C++ | Research modules and several parity tests | Stable general solver and certified continuous collision response |
 | Fabric materials | PBR optical controls and procedural photo maps | Physically calibrated coefficients and live-render output parity |
 | Production | DXF, BOM, POM, markers and factory ZIP generators | Independent cutter import and factory sample sign-off |
-| Licensing | GPL main license, CC0 avatar notice, external dependency policy | Per-release historical rights audit and complete binary SBOM |
+| Licensing | MIT for EXO-owned source; third-party and CC0 notices preserved | Per-release dependency, asset, GPL combined-work and binary SBOM review |
 
 ## Public source checklist
 

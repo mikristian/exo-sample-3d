@@ -313,7 +313,7 @@ Research clones, generated binaries, proprietary reference avatars, local user p
 
 ## Public-source safety and licensing
 
-EXO Sample 3D original source is published under **GNU GPL-3.0-only** where rights are held; see [LICENSE](LICENSE). The project includes third-party components and CC0-origin MakeHuman reference assets that retain their own terms and notices. This repository does not provide the full upstream Rust solver, restricted CLO3D models, proprietary avatar files or other third-party datasets whose redistributable rights have not been established.
+EXO-owned original source is licensed under the **MIT License**; see [LICENSE](LICENSE). Earlier GPL-3.0-only copies retain their previously granted rights. Third-party components, upstream ClothCraft code and CC0-origin MakeHuman reference assets retain their separate terms; see [MIT license scope](docs/MIT_THIRD_PARTY_SCOPE_20261115.md). This repository does not provide the full upstream Rust solver, restricted CLO3D models, proprietary avatar files or other third-party datasets whose redistributable rights have not been established.
 
 The project should be treated as **experimental engineering software**. No guarantee is made that a simulated garment will fit a human body, that cloth penetration is resolved, or that any automated manufacturing files are approved for industrial use.
 

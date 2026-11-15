@@ -1,6 +1,6 @@
 # Licensing and Third-Party Policy
 
-**Project license choice: GNU GPL version 3.0 only (GPL-3.0-only), selected by the project owner on 2026-10-13.** The official GPL-3.0 license text is in the repository root `LICENSE`. This selection covers original project code only to the extent the project has the rights to license it. A public release still requires author/contributor rights verification, third-party notice completion, asset removal and history/secret scanning.
+**Current first-party project license: MIT, authorized by the EXO original-source copyright owner November 15, 2026.** The MIT text is in root `LICENSE`. The earlier October 13, 2026 GPL-3.0-only decision remains a historical fact and previous GPL grants are not revoked. This MIT offer covers EXO-owned original code only; third-party code, assets, native binaries and models retain their own license requirements. See [MIT scope and third-party exceptions](MIT_THIRD_PARTY_SCOPE_20261115.md). A public app release still requires component-license, media, dependency/SBOM and history review.
 
 ## Important rule
 

@@ -68,4 +68,4 @@ Research repos belong under ignored `research/oss/` during evaluation. Promote c
 
 ## Contribution licensing
 
-The project has selected **GPL-3.0-only** for original source. By contributing, you must have the right to submit your changes under GPL-3.0-only, with any required third-party attribution. A formal contribution attestation (DCO or CLA) and maintainer approval process remain to be finalized before accepting public contributions. See `LICENSE` and `docs/LICENSING.md`.
+EXO-owned original source is licensed under **MIT**. By contributing original code you confirm you have rights to submit it under MIT while preserving copyright and third-party notices. Do not contribute GPL-only third-party material as MIT. Earlier GPL grants remain valid. The formal contribution attestation (DCO or CLA) and maintainer review remain to be finalized. See `LICENSE`, `docs/LICENSING.md` and `docs/MIT_THIRD_PARTY_SCOPE_20261115.md`.
