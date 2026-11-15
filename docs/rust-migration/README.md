@@ -8,6 +8,12 @@ The entire hub is based on the public EXO Git source revision `985bc9a8e5031a9fa
 
 **New four-piece six-size native acceptance checkpoint:** [read the 2026-11-15 real tee QA report](../reports/EXO_FOUNDATION_TEE_SIX_SIZE_E2E_QA_20261115.md). Rust grade, sewing/size meshes, 3-step CPU smokes and cold persisted Undo/Redo work, but physical seam closure/strain and external factory approval **fail**. Historical 9.30% source-mix charts remain pinned to their earlier documented Git snapshot, not this new source revision.
 
+## Complete React → Rust + ClothCraft → Rust-native UI plan (2026-11-15)
+
+[**Read the phased plan**](EXO_REACT_RUST_CLOTHCRAFT_TWO_PHASE_PLAN_20261115.md) · [**Download the 13-file planning ZIP**](EXO_REACT_RUST_CLOTHCRAFT_TWO_PHASE_PLAN_PACK_20261115.zip) · [**41-system AI-inclusive staffing**](EXO_FULL_RUST_41_SYSTEM_STAFFING_20261115.md) · [**41-system phase CSV**](EXO_REACT_RUST_CLOTHCRAFT_PHASE_MATRIX_20261115.csv) · [**Button audit template**](BUTTON_PARITY_LEDGER_TEMPLATE.csv)
+
+Stage A keeps the React UI while handing authoritative controls to EXO Rust and source-pinned ClothCraft; Stage B replaces UI parts progressively with egui/wgpu. The plan has an aggressive 30-day first working milestone, realistic 3–6 month backend and 6–12+ month native UI scenarios, human/AI staffing and safety gates. All 41 phase-tracker statuses start `NOT_AUDITED` until real runtime evidence is collected, not because every module is absent. This planning update neither changes the historical source audit percentages nor claims full migration or accurate physical garment fit.
+
 ## Start here
 
 | Resource | Purpose |
